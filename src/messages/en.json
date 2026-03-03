@@ -12,7 +12,9 @@
       "delete": "Delete",
       "confirm": "Confirm",
       "close": "Close",
-      "create": "Create"
+      "create": "Create",
+      "retry": "Retry",
+      "add-first-transaction": "Add first transaction"
     },
     "labels": {
       "optional": "optional"
@@ -24,6 +26,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "footer": "BudgetGuard - Family expense tracker",
     "balance-cards": {
       "income": "Income",
       "expenses": "Expenses",
@@ -53,6 +56,7 @@
         "expense": "Expense",
         "income": "Income"
       },
+      "type-group": "Transaction type",
       "fields": {
         "category": "Category",
         "category-placeholder": "Select a category",

@@ -5,43 +5,12 @@
  * Shows expenses grouped by category with progress bars
  */
 
-import {
-  AlertCircle,
-  Beer,
-  Briefcase,
-  Calendar,
-  Car,
-  Cloud,
-  Dog,
-  Dumbbell,
-  Home,
-  type LucideIcon,
-  Plane,
-  ShoppingBag,
-  ShoppingCart,
-  Utensils,
-} from 'lucide-react';
+import { AlertCircle, RefreshCw, ShoppingCart } from 'lucide-react';
+import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useExpenseSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useSelectedMonth } from '@/stores/useFinanceStore';
-
-// Map icon names to Lucide components
-const iconMap: Record<string, LucideIcon> = {
-  home: Home,
-  dog: Dog,
-  briefcase: Briefcase,
-  dumbbell: Dumbbell,
-  cloud: Cloud,
-  'shopping-cart': ShoppingCart,
-  car: Car,
-  utensils: Utensils,
-  'shopping-bag': ShoppingBag,
-  beer: Beer,
-  'alert-circle': AlertCircle,
-  plane: Plane,
-  calendar: Calendar,
-};
 
 interface CategoryRowProps {
   name: string;
@@ -49,17 +18,20 @@ interface CategoryRowProps {
   percentage: number;
   icon: string | null;
   color: string | null;
+  index: number;
 }
 
-function CategoryRow({ name, total, percentage, icon, color }: CategoryRowProps) {
-  const IconComponent = icon ? iconMap[icon] : AlertCircle;
+function CategoryRow({ name, total, percentage, icon, color, index }: CategoryRowProps) {
   const barColor = color ?? '#6366F1';
 
   return (
-    <div className="flex items-center gap-4 py-3 animate-slide-up">
+    <div
+      className="flex items-center gap-4 py-3 animate-slide-up"
+      style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}
+    >
       {/* Icon */}
       <div className="flex-shrink-0 p-2 rounded-lg" style={{ backgroundColor: `${barColor}15` }}>
-        {IconComponent && <IconComponent className="h-4 w-4" style={{ color: barColor }} />}
+        <CategoryIcon icon={icon} color={barColor} />
       </div>
 
       {/* Category name and progress bar */}
@@ -68,9 +40,16 @@ function CategoryRow({ name, total, percentage, icon, color }: CategoryRowProps)
           <span className="text-sm font-medium text-foreground truncate">{name}</span>
           <span className="text-sm font-semibold text-foreground ml-2">{total}</span>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-2 bg-muted rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={percentage}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${name}: ${percentage}%`}
+        >
           <div
-            className="h-full rounded-full transition-all duration-500 ease-out"
+            className="h-full rounded-full transition-all duration-500 ease-out-quart"
             style={{
               width: `${Math.min(percentage, 100)}%`,
               backgroundColor: barColor,
@@ -88,7 +67,7 @@ function CategoryRow({ name, total, percentage, icon, color }: CategoryRowProps)
 export function CategoryBreakdown() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
-  const { expenseCategories, totalExpense, isLoading, isError } = useExpenseSummary(selectedMonth);
+  const { expenseCategories, totalExpense, isLoading, isError, refetch } = useExpenseSummary(selectedMonth);
 
   if (isLoading) {
     return (
@@ -105,7 +84,14 @@ export function CategoryBreakdown() {
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.category-breakdown.title')}</h3>
-        <p className="text-guard-danger text-center py-8">{t('errors.load-categories')}</p>
+        <div className="text-center py-8" role="alert">
+          <AlertCircle className="h-12 w-12 mx-auto mb-3 text-guard-danger opacity-50" aria-hidden="true" />
+          <p className="text-guard-danger">{t('errors.load-categories')}</p>
+          <button type="button" onClick={() => refetch()} className="btn-ghost mt-4 inline-flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            {t('common.buttons.retry')}
+          </button>
+        </div>
       </div>
     );
   }
@@ -115,7 +101,7 @@ export function CategoryBreakdown() {
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.category-breakdown.title')}</h3>
         <div className="text-center py-8 text-guard-muted">
-          <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
           <p>{t('dashboard.category-breakdown.empty')}</p>
         </div>
       </div>
@@ -130,7 +116,7 @@ export function CategoryBreakdown() {
       </div>
 
       <div className="divide-y divide-border">
-        {expenseCategories.map((category) => (
+        {expenseCategories.map((category, index) => (
           <CategoryRow
             key={category.categoryId}
             name={category.categoryName}
@@ -138,6 +124,7 @@ export function CategoryBreakdown() {
             percentage={category.percentage}
             icon={category.categoryIcon}
             color={category.categoryColor}
+            index={index}
           />
         ))}
       </div>

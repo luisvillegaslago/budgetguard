@@ -89,12 +89,25 @@ module.exports = {
           from: { transform: 'translateY(10px)', opacity: '0' },
           to: { transform: 'translateY(0)', opacity: '1' },
         },
+        'backdrop-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'modal-in': {
+          from: { opacity: '0', transform: 'translateY(16px) scale(0.98)' },
+          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'fade-in': 'fade-in 0.3s ease-out',
-        'slide-up': 'slide-up 0.3s ease-out',
+        'fade-in': 'fade-in 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+        'slide-up': 'slide-up 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+        'backdrop-in': 'backdrop-in 0.2s cubic-bezier(0.25, 1, 0.5, 1)',
+        'modal-in': 'modal-in 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+      },
+      transitionTimingFunction: {
+        'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
       },
     },
   },

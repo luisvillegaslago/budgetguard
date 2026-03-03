@@ -12,7 +12,9 @@
       "delete": "Eliminar",
       "confirm": "Confirmar",
       "close": "Cerrar",
-      "create": "Crear"
+      "create": "Crear",
+      "retry": "Reintentar",
+      "add-first-transaction": "Añadir primera transacción"
     },
     "labels": {
       "optional": "opcional"
@@ -24,6 +26,7 @@
   },
   "dashboard": {
     "title": "Panel",
+    "footer": "BudgetGuard - Control de gastos familiar",
     "balance-cards": {
       "income": "Ingresos",
       "expenses": "Gastos",
@@ -53,6 +56,7 @@
         "expense": "Gasto",
         "income": "Ingreso"
       },
+      "type-group": "Tipo de transacción",
       "fields": {
         "category": "Categoría",
         "category-placeholder": "Selecciona una categoría",

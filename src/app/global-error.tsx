@@ -85,7 +85,7 @@ export default function GlobalError({ reset }: GlobalErrorProps) {
           </h1>
           <p
             style={{
-              color: '#64748B',
+              color: '#94A3B8',
               marginBottom: '2rem',
               lineHeight: 1.6,
             }}
@@ -133,7 +133,7 @@ export default function GlobalError({ reset }: GlobalErrorProps) {
             style={{
               marginTop: '2rem',
               fontSize: '0.75rem',
-              color: '#475569',
+              color: '#94A3B8',
             }}
           >
             {t['support-hint']}

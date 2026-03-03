@@ -9,7 +9,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMonthPrefetch } from '@/hooks/useMonthPrefetch';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useMonthNavigation, useSelectedMonth } from '@/stores/useFinanceStore';
-import { formatDate, getCurrentMonth } from '@/utils/helpers';
+import { cn, formatDate, getCurrentMonth } from '@/utils/helpers';
 
 export function MonthPicker() {
   const { t } = useTranslate();
@@ -25,7 +25,7 @@ export function MonthPicker() {
   const displayMonth = formatDate(`${selectedMonth}-01`, 'month');
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
       {/* Previous Month Button */}
       <button
         type="button"
@@ -33,12 +33,12 @@ export function MonthPicker() {
         className="p-2 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
         aria-label={t('navigation.previous-month')}
       >
-        <ChevronLeft className="h-5 w-5" />
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
       </button>
 
       {/* Month Display */}
-      <div className="flex items-center gap-2 min-w-[180px] justify-center">
-        <Calendar className="h-4 w-4 text-guard-primary" />
+      <div className="flex items-center gap-2 min-w-[180px] justify-center" aria-live="polite" aria-atomic="true">
+        <Calendar className="h-4 w-4 text-guard-primary" aria-hidden="true" />
         <span className="font-semibold text-foreground capitalize">{displayMonth}</span>
       </div>
 
@@ -49,19 +49,22 @@ export function MonthPicker() {
         className="p-2 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
         aria-label={t('navigation.next-month')}
       >
-        <ChevronRight className="h-5 w-5" />
+        <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      {/* Today Button (only show if not on current month) */}
-      {!isCurrentMonth && (
-        <button
-          type="button"
-          onClick={goToCurrentMonth}
-          className="ml-2 px-3 py-1.5 text-sm font-medium text-guard-primary hover:bg-guard-primary/10 rounded-lg transition-colors"
-        >
-          {t('common.today')}
-        </button>
-      )}
+      {/* Today Button (always rendered to prevent layout shift) */}
+      <button
+        type="button"
+        onClick={goToCurrentMonth}
+        className={cn(
+          'ml-2 px-3 py-1.5 text-sm font-medium text-guard-primary hover:bg-guard-primary/10 rounded-lg transition-colors',
+          isCurrentMonth ? 'invisible' : 'visible',
+        )}
+        aria-hidden={isCurrentMonth}
+        tabIndex={isCurrentMonth ? -1 : 0}
+      >
+        {t('common.today')}
+      </button>
     </div>
   );
 }

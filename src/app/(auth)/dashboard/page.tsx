@@ -12,9 +12,11 @@ import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
 import { MonthPicker } from '@/components/ui/MonthPicker';
+import { useTranslate } from '@/hooks/useTranslations';
 import { useFinanceStore } from '@/stores/useFinanceStore';
 
 export default function DashboardPage() {
+  const { t } = useTranslate();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const goToCurrentMonth = useFinanceStore((s) => s.goToCurrentMonth);
 
@@ -33,9 +35,9 @@ export default function DashboardPage() {
             {/* Logo */}
             <div className="flex items-center gap-2">
               <div className="p-2 bg-guard-primary rounded-lg">
-                <Shield className="h-5 w-5 text-white" />
+                <Shield className="h-5 w-5 text-white" aria-hidden="true" />
               </div>
-              <span className="text-xl font-bold text-foreground">BudgetGuard</span>
+              <span className="text-xl font-bold text-foreground">{t('common.app-name')}</span>
             </div>
 
             {/* Month Picker */}
@@ -46,9 +48,10 @@ export default function DashboardPage() {
               type="button"
               onClick={() => setShowTransactionForm(true)}
               className="btn-primary flex items-center gap-2"
+              aria-label={t('transactions.new')}
             >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Nueva</span>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">{t('transactions.new')}</span>
             </button>
           </div>
         </div>
@@ -63,7 +66,7 @@ export default function DashboardPage() {
           </section>
 
           {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Category Breakdown */}
             <section>
               <CategoryBreakdown />
@@ -71,7 +74,7 @@ export default function DashboardPage() {
 
             {/* Transaction List */}
             <section>
-              <TransactionList />
+              <TransactionList onAddTransaction={() => setShowTransactionForm(true)} />
             </section>
           </div>
         </div>
@@ -80,7 +83,7 @@ export default function DashboardPage() {
       {/* Footer */}
       <footer className="border-t border-border mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <p className="text-sm text-guard-muted text-center">BudgetGuard - Control de gastos familiar</p>
+          <p className="text-sm text-guard-muted text-center">{t('dashboard.footer')}</p>
         </div>
       </footer>
 

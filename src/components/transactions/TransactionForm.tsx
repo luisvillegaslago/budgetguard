@@ -7,7 +7,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { TRANSACTION_TYPE } from '@/constants/finance';
@@ -61,28 +61,86 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
     reset({ type, transactionDate: new Date(), description: '' });
   };
 
+  // Focus trap and Escape handler
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    },
+    [onClose],
+  );
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    // Focus the dialog on mount
+    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>('button, [href], input, select, textarea');
+    firstFocusable?.focus();
+
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Close on backdrop click
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="card w-full max-w-md animate-slide-up">
+    <div
+      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="transaction-form-title"
+      onClick={handleBackdropClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+    >
+      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-foreground">{t('transactions.form.title')}</h2>
+          <h2 id="transaction-form-title" className="text-xl font-bold text-foreground">
+            {t('transactions.form.title')}
+          </h2>
           <button
             type="button"
             onClick={onClose}
             className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            aria-label={t('common.buttons.close')}
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         {/* Type Toggle */}
-        <div className="flex gap-2 mb-6">
+        <fieldset className="flex gap-2 mb-6 border-0 p-0 m-0" aria-label={t('transactions.form.type-group')}>
           <button
             type="button"
             onClick={() => handleTypeChange(TRANSACTION_TYPE.EXPENSE)}
+            aria-pressed={transactionType === TRANSACTION_TYPE.EXPENSE}
             className={cn(
-              'flex-1 py-2.5 rounded-lg font-medium transition-all',
+              'flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 ease-out-quart',
               transactionType === TRANSACTION_TYPE.EXPENSE
                 ? 'bg-guard-danger text-white'
                 : 'bg-muted text-guard-muted hover:text-foreground',
@@ -93,8 +151,9 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
           <button
             type="button"
             onClick={() => handleTypeChange(TRANSACTION_TYPE.INCOME)}
+            aria-pressed={transactionType === TRANSACTION_TYPE.INCOME}
             className={cn(
-              'flex-1 py-2.5 rounded-lg font-medium transition-all',
+              'flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 ease-out-quart',
               transactionType === TRANSACTION_TYPE.INCOME
                 ? 'bg-guard-success text-white'
                 : 'bg-muted text-guard-muted hover:text-foreground',
@@ -102,7 +161,7 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
           >
             {t('transactions.form.type.income')}
           </button>
-        </div>
+        </fieldset>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Category Select */}
@@ -128,7 +187,11 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
                 </option>
               ))}
             </select>
-            {errors.categoryId && <p className="mt-1 text-sm text-guard-danger">{errors.categoryId.message}</p>}
+            {errors.categoryId && (
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.categoryId.message}
+              </p>
+            )}
           </div>
 
           {/* Amount Input */}
@@ -149,7 +212,11 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
                 errors.amount ? 'border-guard-danger' : 'border-input',
               )}
             />
-            {errors.amount && <p className="mt-1 text-sm text-guard-danger">{errors.amount.message}</p>}
+            {errors.amount && (
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.amount.message}
+              </p>
+            )}
           </div>
 
           {/* Date Input */}
@@ -168,7 +235,9 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
               )}
             />
             {errors.transactionDate && (
-              <p className="mt-1 text-sm text-guard-danger">{errors.transactionDate.message}</p>
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.transactionDate.message}
+              </p>
             )}
           </div>
 
@@ -188,12 +257,16 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
                 errors.description ? 'border-guard-danger' : 'border-input',
               )}
             />
-            {errors.description && <p className="mt-1 text-sm text-guard-danger">{errors.description.message}</p>}
+            {errors.description && (
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.description.message}
+              </p>
+            )}
           </div>
 
           {/* Error Message */}
           {createTransaction.isError && (
-            <div className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
+            <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
               <p className="text-sm text-guard-danger">{t('transactions.form.errors.create')}</p>
             </div>
           )}
@@ -203,8 +276,8 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
             type="submit"
             disabled={isSubmitting || createTransaction.isPending}
             className={cn(
-              'w-full py-3 rounded-lg font-semibold text-white transition-all',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
+              'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
               transactionType === TRANSACTION_TYPE.INCOME
                 ? 'bg-guard-success hover:bg-guard-success/90'
                 : 'bg-guard-danger hover:bg-guard-danger/90',
