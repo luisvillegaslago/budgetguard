@@ -1,0 +1,209 @@
+/* BudgetGuard Global Styles - Fintech Premium Theme */
+@import '@fontsource/inter/index.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *:focus-visible {
+    @apply rounded outline-none ring-2 ring-ring ring-offset-2;
+  }
+
+  :root {
+    /* BudgetGuard Light Theme */
+    --background: 222 47% 98%;        /* guard-light equivalent */
+    --foreground: 222 47% 11%;        /* guard-dark equivalent */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 239 84% 67%;           /* guard-primary (Indigo) */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 16% 47%;         /* guard-muted */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 214 32% 91%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;         /* guard-danger */
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 39%;           /* guard-success */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 239 84% 67%;
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    /* BudgetGuard Dark Theme */
+    --background: 222 47% 11%;        /* guard-dark */
+    --foreground: 222 47% 98%;        /* guard-light */
+    --card: 222 39% 14%;
+    --card-foreground: 222 47% 98%;
+    --popover: 222 39% 14%;
+    --popover-foreground: 222 47% 98%;
+    --primary: 239 84% 67%;           /* guard-primary (Indigo) */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 19% 27%;
+    --secondary-foreground: 222 47% 98%;
+    --muted: 217 19% 27%;
+    --muted-foreground: 215 16% 57%;
+    --accent: 217 19% 27%;
+    --accent-foreground: 222 47% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 72% 35%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 85% 45%;
+    --warning-foreground: 0 0% 100%;
+    --border: 217 19% 27%;
+    --input: 217 19% 27%;
+    --ring: 239 84% 67%;
+  }
+}
+
+@layer components {
+  /* BudgetGuard Button Styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply btn bg-guard-primary text-white hover:bg-guard-primary/90 shadow-sm hover:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+
+  .btn-success {
+    @apply btn bg-guard-success text-white hover:bg-guard-success/90;
+  }
+
+  .btn-danger {
+    @apply btn bg-guard-danger text-white hover:bg-guard-danger/90;
+  }
+
+  .btn-outline {
+    @apply btn border-2 border-guard-primary text-guard-primary bg-transparent hover:bg-guard-primary hover:text-white;
+  }
+
+  .btn-ghost {
+    @apply btn text-guard-muted hover:bg-muted hover:text-foreground;
+  }
+
+  /* Card styles */
+  .card {
+    @apply rounded-xl border border-border bg-card p-6 shadow-sm;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:shadow-md hover:border-guard-primary/20;
+  }
+
+  /* Balance card variants */
+  .balance-card {
+    @apply card relative overflow-hidden;
+  }
+
+  .balance-card-income {
+    @apply balance-card border-l-4 border-l-guard-success;
+  }
+
+  .balance-card-expense {
+    @apply balance-card border-l-4 border-l-guard-danger;
+  }
+
+  .balance-card-total {
+    @apply balance-card border-l-4 border-l-guard-primary;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* Custom scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 6px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Prevent auto-zoom on input focus in mobile */
+@media screen and (max-width: 640px) {
+  input[type='text'],
+  input[type='email'],
+  input[type='tel'],
+  input[type='number'],
+  input[type='password'],
+  input[type='search'],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* React DatePicker custom styles for BudgetGuard */
+.react-datepicker {
+  @apply border-border bg-card shadow-lg rounded-lg font-sans !important;
+}
+
+.react-datepicker__header {
+  @apply bg-muted border-b border-border !important;
+}
+
+.react-datepicker__current-month {
+  @apply text-foreground font-semibold !important;
+}
+
+.react-datepicker__day-name {
+  @apply text-muted-foreground !important;
+}
+
+.react-datepicker__day {
+  @apply text-foreground hover:bg-guard-primary/10 rounded-md !important;
+}
+
+.react-datepicker__day--selected {
+  @apply bg-guard-primary text-white hover:bg-guard-primary/90 !important;
+}
+
+.react-datepicker__day--keyboard-selected {
+  @apply bg-guard-primary/20 !important;
+}
+
+.react-datepicker__day--today {
+  @apply font-bold !important;
+}

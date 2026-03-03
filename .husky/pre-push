@@ -1,0 +1,67 @@
+#!/bin/sh
+
+# Get the branch being pushed
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+# Only run release on main branch
+if [ "$branch" != "main" ]; then
+  echo "Not on main branch. Skipping release."
+  exit 0
+fi
+
+echo "Running type checking..."
+npm run check-types
+
+if [ $? -ne 0 ]; then
+  echo "Type checking failed. Push cancelled."
+  exit 1
+fi
+
+echo "Running linting..."
+npm run lint
+
+if [ $? -ne 0 ]; then
+  echo "Linting failed. Push cancelled."
+  exit 1
+fi
+
+echo "All checks passed."
+
+# Fetch latest from origin to ensure accurate comparison
+git fetch origin main --quiet 2>/dev/null || true
+
+# Check if there are commits to push that need versioning
+commits=$(git log origin/main..HEAD --oneline 2>/dev/null)
+
+if [ -z "$commits" ]; then
+  echo "No new commits to version."
+  exit 0
+fi
+
+# Check if the latest commit is already a release commit
+last_commit=$(git log -1 --pretty=%s)
+if echo "$last_commit" | grep -q "^chore(release):"; then
+  echo "Latest commit is already a release. Skipping bump."
+  exit 0
+fi
+
+# Check if any commits need versioning (feat, fix, perf with optional scope, BREAKING CHANGE)
+needs_release=$(echo "$commits" | grep -E "^[a-f0-9]+ (feat|fix|perf)(\([^)]+\))?:|BREAKING CHANGE" || true)
+
+if [ -z "$needs_release" ]; then
+  echo "No versionable commits (feat/fix/perf). Skipping release."
+  exit 0
+fi
+
+echo "Running smart release..."
+npm run release
+
+if [ $? -ne 0 ]; then
+  echo "Release failed. Push cancelled."
+  exit 1
+fi
+
+echo "Release complete. Version bumped and tagged."
+echo "Proceeding with push (including release commit)..."
+
+exit 0

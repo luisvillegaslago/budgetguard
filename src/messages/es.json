@@ -1,0 +1,127 @@
+{
+  "common": {
+    "app-name": "BudgetGuard",
+    "loading": "Cargando...",
+    "error": "Error",
+    "today": "Hoy",
+    "records": "{count} registros",
+    "total": "Total: {amount}",
+    "buttons": {
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "delete": "Eliminar",
+      "confirm": "Confirmar",
+      "close": "Cerrar",
+      "create": "Crear"
+    },
+    "labels": {
+      "optional": "opcional"
+    }
+  },
+  "navigation": {
+    "previous-month": "Mes anterior",
+    "next-month": "Mes siguiente"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "balance-cards": {
+      "income": "Ingresos",
+      "expenses": "Gastos",
+      "balance": "Balance"
+    },
+    "category-breakdown": {
+      "title": "Gastos por Categoría",
+      "empty": "No hay gastos este mes"
+    },
+    "default-currency": "0,00 €"
+  },
+  "transactions": {
+    "title": "Transacciones",
+    "new": "Nueva Transacción",
+    "empty": {
+      "title": "No hay transacciones este mes",
+      "subtitle": "Crea tu primera transacción para empezar"
+    },
+    "delete": {
+      "button": "Eliminar transacción",
+      "confirm": "Confirmar eliminación"
+    },
+    "no-category": "Sin categoría",
+    "form": {
+      "title": "Nueva Transacción",
+      "type": {
+        "expense": "Gasto",
+        "income": "Ingreso"
+      },
+      "fields": {
+        "category": "Categoría",
+        "category-placeholder": "Selecciona una categoría",
+        "amount": "Monto (€)",
+        "amount-placeholder": "0,00",
+        "date": "Fecha",
+        "description": "Descripción",
+        "description-placeholder": "Ej: Compra semanal"
+      },
+      "submit": {
+        "expense": "Crear Gasto",
+        "income": "Crear Ingreso"
+      },
+      "saving": "Guardando...",
+      "errors": {
+        "create": "Error al crear la transacción. Intenta de nuevo."
+      }
+    }
+  },
+  "categories": {
+    "income": {
+      "salary": "Nómina",
+      "refunds": "Reembolsos",
+      "other": "Otros Ingresos"
+    },
+    "expense": {
+      "housing": "Vivienda",
+      "pet": "Blanquita",
+      "work": "Trabajo",
+      "sports": "Deporte",
+      "skydiving": "Paracaidismo",
+      "groceries": "Supermercado",
+      "transport": "Transporte",
+      "restaurant": "Restaurante",
+      "shopping": "Compras",
+      "going-out": "Salir",
+      "extra": "Gastos Extra",
+      "travel": "Viajes",
+      "annual": "Anuales"
+    }
+  },
+  "errors": {
+    "load-summary": "Error al cargar el resumen",
+    "load-categories": "Error al cargar categorías",
+    "load-transactions": "Error al cargar transacciones",
+    "generic": "Algo salió mal",
+    "page": {
+      "title": "Algo salió mal",
+      "description": "Ha ocurrido un error inesperado. Por favor, intenta de nuevo.",
+      "retry": "Intentar de nuevo"
+    },
+    "global": {
+      "title": "Error Crítico",
+      "description": "Ha ocurrido un error inesperado en la aplicación. Por favor, recarga la página para continuar.",
+      "reload": "Recargar Página",
+      "support-hint": "Si el problema persiste, contacta con soporte."
+    },
+    "not-found": {
+      "code": "404",
+      "title": "Página no encontrada",
+      "description": "La página que buscas no existe o ha sido movida.",
+      "go-home": "Volver al Dashboard"
+    }
+  },
+  "validation": {
+    "category-required": "Selecciona una categoría",
+    "amount-positive": "El monto debe ser mayor a 0",
+    "description-too-long": "La descripción es muy larga",
+    "invalid-date": "Fecha inválida",
+    "invalid-month-format": "Formato de mes inválido. Usa YYYY-MM"
+  }
+}

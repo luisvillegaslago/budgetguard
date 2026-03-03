@@ -1,0 +1,3 @@
+#!/bin/sh
+# Run quick lint validation before commit
+# npm run lint

@@ -1,0 +1,127 @@
+{
+  "common": {
+    "app-name": "BudgetGuard",
+    "loading": "Loading...",
+    "error": "Error",
+    "today": "Today",
+    "records": "{count} records",
+    "total": "Total: {amount}",
+    "buttons": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "confirm": "Confirm",
+      "close": "Close",
+      "create": "Create"
+    },
+    "labels": {
+      "optional": "optional"
+    }
+  },
+  "navigation": {
+    "previous-month": "Previous month",
+    "next-month": "Next month"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "balance-cards": {
+      "income": "Income",
+      "expenses": "Expenses",
+      "balance": "Balance"
+    },
+    "category-breakdown": {
+      "title": "Expenses by Category",
+      "empty": "No expenses this month"
+    },
+    "default-currency": "0.00 €"
+  },
+  "transactions": {
+    "title": "Transactions",
+    "new": "New Transaction",
+    "empty": {
+      "title": "No transactions this month",
+      "subtitle": "Create your first transaction to get started"
+    },
+    "delete": {
+      "button": "Delete transaction",
+      "confirm": "Confirm deletion"
+    },
+    "no-category": "No category",
+    "form": {
+      "title": "New Transaction",
+      "type": {
+        "expense": "Expense",
+        "income": "Income"
+      },
+      "fields": {
+        "category": "Category",
+        "category-placeholder": "Select a category",
+        "amount": "Amount (€)",
+        "amount-placeholder": "0.00",
+        "date": "Date",
+        "description": "Description",
+        "description-placeholder": "Ex: Weekly shopping"
+      },
+      "submit": {
+        "expense": "Create Expense",
+        "income": "Create Income"
+      },
+      "saving": "Saving...",
+      "errors": {
+        "create": "Error creating transaction. Please try again."
+      }
+    }
+  },
+  "categories": {
+    "income": {
+      "salary": "Salary",
+      "refunds": "Refunds",
+      "other": "Other Income"
+    },
+    "expense": {
+      "housing": "Housing",
+      "pet": "Pet",
+      "work": "Work",
+      "sports": "Sports",
+      "skydiving": "Skydiving",
+      "groceries": "Groceries",
+      "transport": "Transport",
+      "restaurant": "Restaurant",
+      "shopping": "Shopping",
+      "going-out": "Going Out",
+      "extra": "Extra Expenses",
+      "travel": "Travel",
+      "annual": "Annual"
+    }
+  },
+  "errors": {
+    "load-summary": "Error loading summary",
+    "load-categories": "Error loading categories",
+    "load-transactions": "Error loading transactions",
+    "generic": "Something went wrong",
+    "page": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again.",
+      "retry": "Try again"
+    },
+    "global": {
+      "title": "Critical Error",
+      "description": "An unexpected error occurred in the application. Please reload the page to continue.",
+      "reload": "Reload Page",
+      "support-hint": "If the problem persists, contact support."
+    },
+    "not-found": {
+      "code": "404",
+      "title": "Page not found",
+      "description": "The page you are looking for does not exist or has been moved.",
+      "go-home": "Back to Dashboard"
+    }
+  },
+  "validation": {
+    "category-required": "Please select a category",
+    "amount-positive": "Amount must be greater than 0",
+    "description-too-long": "Description is too long",
+    "invalid-date": "Invalid date",
+    "invalid-month-format": "Invalid month format. Use YYYY-MM"
+  }
+}
