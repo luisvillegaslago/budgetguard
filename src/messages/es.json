@@ -453,6 +453,31 @@
       "not-found": "Viaje no encontrado"
     }
   },
+  "category-history": {
+    "view-link": "Ver historial",
+    "title": "Historial de Categoría",
+    "back-dashboard": "Volver al Dashboard",
+    "range": {
+      "3m": "3M",
+      "6m": "6M",
+      "1y": "1A",
+      "all": "Todo"
+    },
+    "stats": {
+      "total": "Total",
+      "average": "Media Mensual",
+      "transactions": "Transacciones"
+    },
+    "month-total": "Total: {amount}",
+    "empty": {
+      "title": "No hay transacciones",
+      "subtitle": "Selecciona un rango más amplio"
+    },
+    "errors": {
+      "load": "Error al cargar historial",
+      "not-found": "Categoría no encontrada"
+    }
+  },
   "validation": {
     "category-required": "Selecciona una categoría",
     "amount-positive": "El monto debe ser mayor a 0",

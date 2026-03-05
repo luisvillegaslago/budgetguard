@@ -63,6 +63,7 @@ export const QUERY_KEY = {
   TRANSACTION_GROUPS: 'transaction-groups',
   TRIPS: 'trips',
   TRIP_CATEGORIES: 'trip-categories',
+  CATEGORY_HISTORY: 'category-history',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -83,6 +84,7 @@ export const API_ENDPOINT = {
   RECURRING_EXPENSES: '/api/recurring-expenses',
   TRANSACTION_GROUPS: '/api/transaction-groups',
   TRIPS: '/api/trips',
+  CATEGORY_HISTORY: '/api/categories',
 } as const;
 
 // Well-known Category References
@@ -93,6 +95,16 @@ export const GOING_OUT_CATEGORY = {
 
 // Trip default color (matches guard-trip in Tailwind config)
 export const TRIP_COLOR = '#8B5CF6' as const;
+
+// Date Range Presets (for category history)
+export const DATE_RANGE_PRESET = {
+  THREE_MONTHS: '3m',
+  SIX_MONTHS: '6m',
+  ONE_YEAR: '1y',
+  ALL: 'all',
+} as const;
+
+export type DateRangePreset = (typeof DATE_RANGE_PRESET)[keyof typeof DATE_RANGE_PRESET];
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;

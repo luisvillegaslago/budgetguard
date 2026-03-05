@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { MONTH_FORMAT_REGEX, TRANSACTION_TYPE } from '@/constants/finance';
+import { DATE_RANGE_PRESET, MONTH_FORMAT_REGEX, TRANSACTION_TYPE } from '@/constants/finance';
 
 /**
  * Transaction type enum
@@ -115,6 +115,23 @@ export const UpdateTransactionGroupSchema = z.object({
 });
 
 export type UpdateTransactionGroupInput = z.infer<typeof UpdateTransactionGroupSchema>;
+
+/**
+ * Schema for category history filters (query params)
+ */
+export const CategoryHistoryFiltersSchema = z.object({
+  range: z
+    .enum([
+      DATE_RANGE_PRESET.THREE_MONTHS,
+      DATE_RANGE_PRESET.SIX_MONTHS,
+      DATE_RANGE_PRESET.ONE_YEAR,
+      DATE_RANGE_PRESET.ALL,
+    ])
+    .optional()
+    .default(DATE_RANGE_PRESET.ONE_YEAR),
+});
+
+export type CategoryHistoryFiltersInput = z.infer<typeof CategoryHistoryFiltersSchema>;
 
 /**
  * Validate and parse request body

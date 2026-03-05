@@ -6,7 +6,7 @@
 import type { OccurrenceStatus, RecurringFrequency, TransactionType } from '@/constants/finance';
 
 // Re-export from constants (single source of truth)
-export type { OccurrenceStatus, RecurringFrequency, TransactionType } from '@/constants/finance';
+export type { DateRangePreset, OccurrenceStatus, RecurringFrequency, TransactionType } from '@/constants/finance';
 
 /**
  * Category for organizing transactions
@@ -308,4 +308,35 @@ export interface TripDetail extends Trip {
   categorySummary: TripCategorySummary[];
   totalCents: number;
   expenseCount: number;
+}
+
+/**
+ * Category history - transactions grouped by month
+ */
+export interface CategoryHistoryMonth {
+  month: string; // "2025-01"
+  totalCents: number;
+  transactionCount: number;
+  transactions: Transaction[];
+}
+
+/**
+ * Category history - aggregated summary (calculated in SQL)
+ */
+export interface CategoryHistorySummary {
+  totalCents: number;
+  transactionCount: number;
+  monthCount: number;
+  averagePerMonthCents: number;
+}
+
+/**
+ * Category history - full API response
+ */
+export interface CategoryHistoryResponse {
+  category: Category;
+  dateFrom: string;
+  dateTo: string;
+  summary: CategoryHistorySummary;
+  months: CategoryHistoryMonth[];
 }

@@ -453,6 +453,31 @@
       "not-found": "Trip not found"
     }
   },
+  "category-history": {
+    "view-link": "View history",
+    "title": "Category History",
+    "back-dashboard": "Back to Dashboard",
+    "range": {
+      "3m": "3M",
+      "6m": "6M",
+      "1y": "1Y",
+      "all": "All"
+    },
+    "stats": {
+      "total": "Total",
+      "average": "Monthly Average",
+      "transactions": "Transactions"
+    },
+    "month-total": "Total: {amount}",
+    "empty": {
+      "title": "No transactions",
+      "subtitle": "Try a wider date range"
+    },
+    "errors": {
+      "load": "Error loading history",
+      "not-found": "Category not found"
+    }
+  },
   "validation": {
     "category-required": "Please select a category",
     "amount-positive": "Amount must be greater than 0",

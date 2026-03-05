@@ -6,7 +6,8 @@
  * Supports expandable subcategory drill-down
  */
 
-import { ChevronRight, ShoppingCart } from 'lucide-react';
+import { ChevronRight, History, ShoppingCart } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -81,6 +82,7 @@ interface ExpandableSubcategoriesProps {
 }
 
 function ExpandableSubcategories({ month, categoryId, parentTotalCents }: ExpandableSubcategoriesProps) {
+  const { t } = useTranslate();
   const { data: subcategories, isLoading } = useSubcategorySummary(month, categoryId);
 
   if (isLoading) {
@@ -98,6 +100,13 @@ function ExpandableSubcategories({ month, categoryId, parentTotalCents }: Expand
       {subcategories.map((sub, index) => (
         <SubcategoryRow key={sub.subcategoryId} subcategory={sub} parentTotalCents={parentTotalCents} index={index} />
       ))}
+      <Link
+        href={`/categories/${categoryId}/history?from=dashboard`}
+        className="flex items-center gap-2 py-2 pl-12 text-xs text-guard-primary hover:text-guard-primary/80 transition-colors"
+      >
+        <History className="h-3 w-3" aria-hidden="true" />
+        {t('category-history.view-link')}
+      </Link>
     </div>
   );
 }

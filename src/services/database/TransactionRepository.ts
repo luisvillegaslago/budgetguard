@@ -5,6 +5,7 @@
 
 import sql from 'mssql';
 import type {
+  CategoryHistorySummary,
   CategorySummary,
   MonthlySummary,
   SubcategorySummary,
@@ -394,6 +395,94 @@ export async function getSubcategorySummary(month: string, parentCategoryId: num
     totalCents: row.TotalCents,
     transactionCount: row.TransactionCount,
   }));
+}
+
+// ============================================================
+// CATEGORY HISTORY
+// ============================================================
+
+/**
+ * Get aggregated summary for a category across a date range
+ * All calculations done in SQL — AmountCents already reflects shared divisor
+ */
+export async function getCategoryHistorySummary(
+  categoryId: number,
+  dateFrom: Date,
+  dateTo: Date,
+): Promise<CategoryHistorySummary> {
+  const pool = await getConnection();
+  const request = pool.request();
+
+  request.input('categoryId', sql.Int, categoryId);
+  request.input('dateFrom', sql.Date, dateFrom);
+  request.input('dateTo', sql.Date, dateTo);
+
+  const result = await request.query<{
+    TotalCents: number;
+    TransactionCount: number;
+    MonthCount: number;
+  }>(`
+    SELECT
+      ISNULL(SUM(t.AmountCents), 0) AS TotalCents,
+      COUNT(t.TransactionID) AS TransactionCount,
+      COUNT(DISTINCT FORMAT(t.TransactionDate, 'yyyy-MM')) AS MonthCount
+    FROM Transactions t
+    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
+    WHERE (t.CategoryID = @categoryId OR c.ParentCategoryID = @categoryId)
+      AND t.TransactionDate >= @dateFrom
+      AND t.TransactionDate <= @dateTo
+  `);
+
+  const row = result.recordset[0];
+  const totalCents = row?.TotalCents ?? 0;
+  const transactionCount = row?.TransactionCount ?? 0;
+  const monthCount = row?.MonthCount ?? 0;
+
+  return {
+    totalCents,
+    transactionCount,
+    monthCount,
+    averagePerMonthCents: monthCount > 0 ? Math.round(totalCents / monthCount) : 0,
+  };
+}
+
+/**
+ * Get transactions for a category across a date range
+ * Reuses rowToTransaction for consistent mapping
+ */
+export async function getCategoryHistoryTransactions(
+  categoryId: number,
+  dateFrom: Date,
+  dateTo: Date,
+): Promise<Transaction[]> {
+  const pool = await getConnection();
+  const request = pool.request();
+
+  request.input('categoryId', sql.Int, categoryId);
+  request.input('dateFrom', sql.Date, dateFrom);
+  request.input('dateTo', sql.Date, dateTo);
+
+  const result = await request.query<TransactionRow>(`
+    SELECT
+      t.TransactionID, t.CategoryID, c.Name AS CategoryName,
+      c.Icon AS CategoryIcon, c.Color AS CategoryColor,
+      c.ParentCategoryID, parent.Name AS ParentCategoryName,
+      t.AmountCents, t.Description, t.TransactionDate,
+      t.Type, t.SharedDivisor, t.OriginalAmountCents,
+      t.RecurringExpenseID, t.TransactionGroupID,
+      t.TripID, trip.Name AS TripName,
+      t.CreatedAt, t.UpdatedAt
+    FROM Transactions t
+    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
+    LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
+    LEFT JOIN Trips trip ON t.TripID = trip.TripID
+    WHERE (t.CategoryID = @categoryId OR c.ParentCategoryID = @categoryId)
+      AND t.TransactionDate >= @dateFrom
+      AND t.TransactionDate <= @dateTo
+    ORDER BY t.TransactionDate DESC, t.CreatedAt DESC
+  `);
+
+  return result.recordset.map(rowToTransaction);
 }
 
 // ============================================================
