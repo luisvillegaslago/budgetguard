@@ -39,7 +39,31 @@ All endpoints return JSON with this structure:
 | 201 | Created |
 | 400 | Bad Request (validation error) |
 | 404 | Not Found |
+| 409 | Conflict (referential integrity violation) |
 | 500 | Internal Server Error |
+
+### Money Handling Convention
+
+All monetary values follow a **euros-in, cents-stored, cents-out** convention:
+
+| Direction | Format | Example |
+|-----------|--------|---------|
+| **API Input** (request body) | Euros as decimal | `"amount": 419.28` |
+| **Storage** (database) | Integer cents | `AmountCents = 41928` |
+| **API Output** (response) | Integer cents | `"amountCents": 41928` |
+
+To convert output back to euros: `amountCents / 100`. See [Money Handling](#money-handling) for details.
+
+### Shared Expense Convention
+
+Transactions and recurring expenses support **shared expenses** (split between two people). When `isShared` is `true`:
+
+- The full amount is converted to cents, then halved using `Math.ceil()` (rounding up to ensure the user's portion covers rounding)
+- `sharedDivisor` is set to `2` (vs `1` for personal)
+- `originalAmountCents` stores the full amount before halving
+- `amountCents` stores the effective halved amount
+
+Example: `amount: 101.00` with `isShared: true` results in `amountCents: 5050` (not 5100), `originalAmountCents: 10100`, `sharedDivisor: 2`.
 
 ---
 
@@ -49,20 +73,22 @@ All endpoints return JSON with this structure:
 
 #### `GET /api/categories`
 
-List all categories, optionally filtered by type.
+List all categories, optionally filtered by type. Supports flat or hierarchical (tree) output.
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `type` | `income` \| `expense` | No | Filter by transaction type |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `type` | `income` \| `expense` | No | all | Filter by transaction type |
+| `hierarchical` | `true` \| `false` | No | `false` | Return as tree (parents with nested `subcategories[]`) |
+| `includeInactive` | `true` \| `false` | No | `false` | Include deactivated categories |
 
-**Example Request:**
+**Example Request (flat):**
 ```bash
 GET /api/categories?type=expense
 ```
 
-**Example Response:**
+**Example Response (flat):**
 ```json
 {
   "success": true,
@@ -74,16 +100,58 @@ GET /api/categories?type=expense
       "icon": "home",
       "color": "#4F46E5",
       "sortOrder": 1,
-      "isActive": true
+      "isActive": true,
+      "parentCategoryId": null,
+      "defaultShared": false
     },
     {
-      "categoryId": 2,
-      "name": "Supermercado",
+      "categoryId": 10,
+      "name": "Alquiler",
       "type": "expense",
-      "icon": "shopping-cart",
-      "color": "#10B981",
-      "sortOrder": 2,
-      "isActive": true
+      "icon": "key",
+      "color": "#6366F1",
+      "sortOrder": 1,
+      "isActive": true,
+      "parentCategoryId": 1,
+      "defaultShared": true
+    }
+  ]
+}
+```
+
+**Example Request (hierarchical):**
+```bash
+GET /api/categories?type=expense&hierarchical=true
+```
+
+**Example Response (hierarchical):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "categoryId": 1,
+      "name": "Vivienda",
+      "type": "expense",
+      "icon": "home",
+      "color": "#4F46E5",
+      "sortOrder": 1,
+      "isActive": true,
+      "parentCategoryId": null,
+      "defaultShared": false,
+      "subcategories": [
+        {
+          "categoryId": 10,
+          "name": "Alquiler",
+          "type": "expense",
+          "icon": "key",
+          "color": "#6366F1",
+          "sortOrder": 1,
+          "isActive": true,
+          "parentCategoryId": 1,
+          "defaultShared": true
+        }
+      ]
     }
   ]
 }
@@ -91,28 +159,111 @@ GET /api/categories?type=expense
 
 ---
 
+#### `GET /api/categories/:id`
+
+Get a single category by ID.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Category ID |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "categoryId": 1,
+    "name": "Vivienda",
+    "type": "expense",
+    "icon": "home",
+    "color": "#4F46E5",
+    "sortOrder": 1,
+    "isActive": true,
+    "parentCategoryId": null,
+    "defaultShared": false
+  }
+}
+```
+
+---
+
 #### `POST /api/categories`
 
-Create a new category.
+Create a new category. Supports subcategories via `parentCategoryId`.
+
+**Request Body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Category name (1-100 chars) |
+| `type` | `income` \| `expense` | Yes | - | Transaction type |
+| `icon` | string \| null | No | `null` | Lucide icon name (max 50 chars) |
+| `color` | string \| null | No | `null` | Hex color (e.g., `#4F46E5`) |
+| `sortOrder` | number | No | `0` | Display order |
+| `parentCategoryId` | number \| null | No | `null` | Parent category ID (creates a subcategory) |
+| `defaultShared` | boolean | No | `false` | Whether transactions in this category default to shared |
+
+**Example Request:**
+```json
+{
+  "name": "Alquiler",
+  "type": "expense",
+  "icon": "key",
+  "color": "#6366F1",
+  "sortOrder": 1,
+  "parentCategoryId": 1,
+  "defaultShared": true
+}
+```
+
+**Example Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "categoryId": 10,
+    "name": "Alquiler",
+    "type": "expense",
+    "icon": "key",
+    "color": "#6366F1",
+    "sortOrder": 1,
+    "isActive": true,
+    "parentCategoryId": 1,
+    "defaultShared": true
+  }
+}
+```
+
+---
+
+#### `PUT /api/categories/:id`
+
+Update an existing category. All fields are optional. Note: `type` and `parentCategoryId` are immutable after creation.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Category ID |
 
 **Request Body:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Category name (max 100 chars) |
-| `type` | `income` \| `expense` | Yes | Transaction type |
-| `icon` | string | No | Lucide icon name |
-| `color` | string | No | Hex color (e.g., `#4F46E5`) |
-| `sortOrder` | number | No | Display order (default: 0) |
+| `name` | string | No | Category name (1-100 chars) |
+| `icon` | string \| null | No | Lucide icon name |
+| `color` | string \| null | No | Hex color |
+| `sortOrder` | number | No | Display order |
+| `isActive` | boolean | No | Activate/deactivate the category |
+| `defaultShared` | boolean | No | Default shared status |
 
 **Example Request:**
 ```json
 {
-  "name": "Suscripciones",
-  "type": "expense",
-  "icon": "credit-card",
-  "color": "#8B5CF6",
-  "sortOrder": 15
+  "name": "Vivienda (actualizado)",
+  "defaultShared": true
 }
 ```
 
@@ -121,14 +272,54 @@ Create a new category.
 {
   "success": true,
   "data": {
-    "categoryId": 17,
-    "name": "Suscripciones",
+    "categoryId": 1,
+    "name": "Vivienda (actualizado)",
     "type": "expense",
-    "icon": "credit-card",
-    "color": "#8B5CF6",
-    "sortOrder": 15,
-    "isActive": true
+    "icon": "home",
+    "color": "#4F46E5",
+    "sortOrder": 1,
+    "isActive": true,
+    "parentCategoryId": null,
+    "defaultShared": true
   }
+}
+```
+
+---
+
+#### `DELETE /api/categories/:id`
+
+Delete a category (hard delete). Fails with `409 Conflict` if the category has existing transactions or subcategories.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Category ID |
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+**Error Response (409 - has transactions):**
+```json
+{
+  "success": false,
+  "error": "has-transactions",
+  "count": 5
+}
+```
+
+**Error Response (409 - has subcategories):**
+```json
+{
+  "success": false,
+  "error": "has-subcategories",
+  "count": 3
 }
 ```
 
@@ -138,15 +329,15 @@ Create a new category.
 
 #### `GET /api/transactions`
 
-List transactions for a specific month.
+List transactions for a specific month. Each transaction includes joined `category` and `parentCategory` objects.
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `month` | string | No | Month in `YYYY-MM` format (default: current month) |
-| `type` | `income` \| `expense` | No | Filter by transaction type |
-| `categoryId` | number | No | Filter by category |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `month` | string | No | Current month | Month in `YYYY-MM` format |
+| `type` | `income` \| `expense` | No | all | Filter by transaction type |
+| `categoryId` | number | No | all | Filter by category |
 
 **Example Request:**
 ```bash
@@ -160,19 +351,32 @@ GET /api/transactions?month=2025-01&type=expense
   "data": [
     {
       "transactionId": 1,
-      "categoryId": 1,
+      "categoryId": 10,
+      "category": {
+        "categoryId": 10,
+        "name": "Alquiler",
+        "type": "expense",
+        "icon": "key",
+        "color": "#6366F1",
+        "sortOrder": 0,
+        "isActive": true,
+        "parentCategoryId": 1,
+        "defaultShared": false
+      },
+      "parentCategory": {
+        "categoryId": 1,
+        "name": "Vivienda"
+      },
       "amountCents": 41928,
       "description": "Alquiler enero",
       "transactionDate": "2025-01-01",
       "type": "expense",
+      "sharedDivisor": 2,
+      "originalAmountCents": 83856,
+      "recurringExpenseId": 3,
+      "transactionGroupId": null,
       "createdAt": "2025-01-01T10:00:00.000Z",
-      "updatedAt": "2025-01-01T10:00:00.000Z",
-      "category": {
-        "categoryId": 1,
-        "name": "Vivienda",
-        "icon": "home",
-        "color": "#4F46E5"
-      }
+      "updatedAt": "2025-01-01T10:00:00.000Z"
     }
   ],
   "meta": {
@@ -182,7 +386,26 @@ GET /api/transactions?month=2025-01&type=expense
 }
 ```
 
-**Note:** `amountCents` is stored in cents. To display: `amountCents / 100` = euros.
+**Transaction Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transactionId` | number | Unique ID |
+| `categoryId` | number | Category FK |
+| `category` | object | Joined category details |
+| `parentCategory` | object \| null | Parent category (if subcategory), contains `categoryId` and `name` |
+| `amountCents` | number | Effective amount in cents (halved if shared) |
+| `description` | string \| null | Description text |
+| `transactionDate` | string | ISO date (`YYYY-MM-DD`) |
+| `type` | `income` \| `expense` | Transaction type |
+| `sharedDivisor` | number | `1` = personal, `2` = shared |
+| `originalAmountCents` | number \| null | Full amount before halving (null if personal) |
+| `recurringExpenseId` | number \| null | FK to RecurringExpenses (if created from a recurring rule) |
+| `transactionGroupId` | number \| null | FK to TransactionGroups (if part of a group) |
+| `tripId` | number \| null | FK to Trips (if part of a trip) |
+| `tripName` | string \| null | Trip name (joined from Trips table) |
+| `createdAt` | string | ISO datetime |
+| `updatedAt` | string | ISO datetime |
 
 ---
 
@@ -192,49 +415,93 @@ Create a new transaction.
 
 **Request Body:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `categoryId` | number | Yes | Category ID |
-| `amount` | number | Yes | Amount in **euros** (e.g., `419.28`) |
-| `description` | string | No | Description (max 255 chars) |
-| `transactionDate` | string | Yes | Date in ISO format |
-| `type` | `income` \| `expense` | Yes | Transaction type |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `categoryId` | number | Yes | - | Category ID |
+| `amount` | number | Yes | - | Amount in **euros** (e.g., `419.28`) |
+| `description` | string | No | `""` | Description (max 255 chars) |
+| `transactionDate` | string | Yes | - | Date in ISO format |
+| `type` | `income` \| `expense` | Yes | - | Transaction type |
+| `isShared` | boolean | No | `false` | If true, amount is halved (ceil) for storage |
 
-**Example Request:**
+**Example Request (personal):**
 ```json
 {
-  "categoryId": 1,
-  "amount": 419.28,
-  "description": "Alquiler enero",
-  "transactionDate": "2025-01-01",
+  "categoryId": 2,
+  "amount": 45.50,
+  "description": "Compra semanal",
+  "transactionDate": "2025-01-15",
   "type": "expense"
 }
 ```
 
-**Example Response:**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "transactionId": 1,
-    "categoryId": 1,
-    "amountCents": 41928,
-    "description": "Alquiler enero",
-    "transactionDate": "2025-01-01",
+    "transactionId": 42,
+    "categoryId": 2,
+    "category": {
+      "categoryId": 2,
+      "name": "Supermercado",
+      "type": "expense",
+      "icon": "shopping-cart",
+      "color": "#10B981",
+      "sortOrder": 0,
+      "isActive": true,
+      "parentCategoryId": null,
+      "defaultShared": false
+    },
+    "parentCategory": null,
+    "amountCents": 4550,
+    "description": "Compra semanal",
+    "transactionDate": "2025-01-15",
     "type": "expense",
-    "createdAt": "2025-01-01T10:00:00.000Z",
-    "updatedAt": "2025-01-01T10:00:00.000Z"
+    "sharedDivisor": 1,
+    "originalAmountCents": null,
+    "recurringExpenseId": null,
+    "transactionGroupId": null,
+    "createdAt": "2025-01-15T10:00:00.000Z",
+    "updatedAt": "2025-01-15T10:00:00.000Z"
   }
 }
 ```
 
-**Important:** Send `amount` in euros. The API converts to cents automatically.
+**Example Request (shared):**
+```json
+{
+  "categoryId": 1,
+  "amount": 838.56,
+  "description": "Alquiler enero",
+  "transactionDate": "2025-01-01",
+  "type": "expense",
+  "isShared": true
+}
+```
+
+**Example Response (201, shared):**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": 43,
+    "categoryId": 1,
+    "amountCents": 41928,
+    "originalAmountCents": 83856,
+    "sharedDivisor": 2,
+    "..."
+  }
+}
+```
+
+**Important:** Send `amount` in euros. The API converts to cents. When `isShared` is true, `amountCents = Math.ceil(eurosToCents(amount) / 2)`.
 
 ---
 
 #### `GET /api/transactions/:id`
 
-Get a single transaction by ID.
+Get a single transaction by ID. Returns the same full object shape as the list endpoint.
 
 **Path Parameters:**
 
@@ -242,22 +509,23 @@ Get a single transaction by ID.
 |-----------|------|-------------|
 | `id` | number | Transaction ID |
 
-**Example Request:**
-```bash
-GET /api/transactions/1
-```
-
 **Example Response:**
 ```json
 {
   "success": true,
   "data": {
     "transactionId": 1,
-    "categoryId": 1,
+    "categoryId": 10,
+    "category": { "..." },
+    "parentCategory": { "categoryId": 1, "name": "Vivienda" },
     "amountCents": 41928,
     "description": "Alquiler enero",
     "transactionDate": "2025-01-01",
     "type": "expense",
+    "sharedDivisor": 2,
+    "originalAmountCents": 83856,
+    "recurringExpenseId": 3,
+    "transactionGroupId": null,
     "createdAt": "2025-01-01T10:00:00.000Z",
     "updatedAt": "2025-01-01T10:00:00.000Z"
   }
@@ -268,7 +536,7 @@ GET /api/transactions/1
 
 #### `PUT /api/transactions/:id`
 
-Update an existing transaction. All fields are optional.
+Update an existing transaction. All fields are optional. Shared expense logic is recalculated when `amount` or `isShared` changes.
 
 **Path Parameters:**
 
@@ -285,6 +553,12 @@ Update an existing transaction. All fields are optional.
 | `description` | string | No | Description |
 | `transactionDate` | string | No | Date in ISO format |
 | `type` | `income` \| `expense` | No | Transaction type |
+| `isShared` | boolean | No | Shared flag (recalculates amount) |
+
+**Shared Update Behavior:**
+
+- If `amount` is provided with `isShared`, the new amount is halved
+- If only `isShared` changes (no new `amount`), the existing base amount (`originalAmountCents` or `amountCents`) is used to recalculate
 
 **Example Request:**
 ```json
@@ -300,13 +574,18 @@ Update an existing transaction. All fields are optional.
   "success": true,
   "data": {
     "transactionId": 1,
-    "categoryId": 1,
+    "categoryId": 10,
     "amountCents": 45000,
     "description": "Alquiler enero (actualizado)",
     "transactionDate": "2025-01-01",
     "type": "expense",
+    "sharedDivisor": 1,
+    "originalAmountCents": null,
+    "recurringExpenseId": null,
+    "transactionGroupId": null,
     "createdAt": "2025-01-01T10:00:00.000Z",
-    "updatedAt": "2025-01-02T15:30:00.000Z"
+    "updatedAt": "2025-01-02T15:30:00.000Z",
+    "..."
   }
 }
 ```
@@ -315,7 +594,7 @@ Update an existing transaction. All fields are optional.
 
 #### `DELETE /api/transactions/:id`
 
-Delete a transaction.
+Delete a transaction. If the transaction belongs to a transaction group, and that group becomes empty after deletion, the orphaned group row is automatically cleaned up.
 
 **Path Parameters:**
 
@@ -323,9 +602,381 @@ Delete a transaction.
 |-----------|------|-------------|
 | `id` | number | Transaction ID |
 
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+**Orphan Cleanup:** When the deleted transaction had a `transactionGroupId`, the API checks if any other transactions still reference that group. If none remain, the `TransactionGroups` row is deleted automatically.
+
+---
+
+### Transaction Groups
+
+Transaction groups allow creating multiple linked transactions in a single atomic operation. All transactions in a group share the same `TransactionGroupID`, description, date, and type. Each item targets a different subcategory.
+
+#### `POST /api/transaction-groups`
+
+Create a group of linked transactions. Uses a database transaction for atomicity.
+
+**Request Body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `description` | string | Yes | - | Shared description for all transactions (1-255 chars) |
+| `transactionDate` | string | Yes | - | Date in ISO format |
+| `type` | `income` \| `expense` | Yes | - | Transaction type (all items share this) |
+| `isShared` | boolean | No | `false` | If true, each item's amount is halved |
+| `parentCategoryId` | number | Yes | - | Parent category ID (logical grouping) |
+| `items` | array | Yes | - | 1-20 items, each with `categoryId` and `amount` |
+
+**Items Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `categoryId` | number | Yes | Subcategory ID for this line item |
+| `amount` | number | Yes | Amount in **euros** for this line item |
+
+**Balanced Rounding (shared groups):** When `isShared` is true and there are multiple items, each item is individually halved with `Math.ceil()`. This can cause the sum of halved items to exceed the halved total. The last item absorbs the rounding difference so that `sum(amountCents) == Math.ceil(totalFullCents / 2)`.
+
+**Example Request:**
+```json
+{
+  "description": "Cena restaurante",
+  "transactionDate": "2025-01-20",
+  "type": "expense",
+  "isShared": true,
+  "parentCategoryId": 4,
+  "items": [
+    { "categoryId": 11, "amount": 18.50 },
+    { "categoryId": 12, "amount": 7.30 },
+    { "categoryId": 13, "amount": 3.20 }
+  ]
+}
+```
+
+**Example Response (201):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "transactionId": 100,
+      "categoryId": 11,
+      "category": { "categoryId": 11, "name": "Comida", "..." },
+      "parentCategory": { "categoryId": 4, "name": "Restaurantes" },
+      "amountCents": 925,
+      "description": "Cena restaurante",
+      "transactionDate": "2025-01-20",
+      "type": "expense",
+      "sharedDivisor": 2,
+      "originalAmountCents": 1850,
+      "transactionGroupId": 7,
+      "..."
+    },
+    {
+      "transactionId": 101,
+      "categoryId": 12,
+      "amountCents": 365,
+      "originalAmountCents": 730,
+      "transactionGroupId": 7,
+      "..."
+    },
+    {
+      "transactionId": 102,
+      "categoryId": 13,
+      "amountCents": 160,
+      "originalAmountCents": 320,
+      "transactionGroupId": 7,
+      "..."
+    }
+  ]
+}
+```
+
+---
+
+#### `PATCH /api/transaction-groups/:id`
+
+Update a transaction group's description and/or date. Changes propagate to all transactions in the group.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Transaction Group ID |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string | No | New description (1-255 chars) |
+| `transactionDate` | string | No | New date in ISO format |
+
+**Example Request:**
+```json
+{
+  "description": "Cena restaurante (corregido)",
+  "transactionDate": "2025-01-21"
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "transactionId": 100,
+      "description": "Cena restaurante (corregido)",
+      "transactionDate": "2025-01-21",
+      "transactionGroupId": 7,
+      "..."
+    },
+    {
+      "transactionId": 101,
+      "description": "Cena restaurante (corregido)",
+      "transactionDate": "2025-01-21",
+      "transactionGroupId": 7,
+      "..."
+    }
+  ]
+}
+```
+
+---
+
+#### `DELETE /api/transaction-groups/:id`
+
+Delete an entire transaction group and all its transactions atomically (uses SQL transaction).
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Transaction Group ID |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+---
+
+### Recurring Expenses
+
+Recurring expenses define rules for expenses that repeat on a schedule. The system generates "occurrences" that users can confirm (creating a real transaction) or skip.
+
+#### `GET /api/recurring-expenses`
+
+List recurring expense rules, optionally filtered by active status.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `isActive` | `true` \| `false` | No | all | Filter by active status |
+
 **Example Request:**
 ```bash
-DELETE /api/transactions/1
+GET /api/recurring-expenses?isActive=true
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "recurringExpenseId": 1,
+      "categoryId": 10,
+      "category": {
+        "categoryId": 10,
+        "name": "Alquiler",
+        "type": "expense",
+        "icon": "key",
+        "color": "#6366F1",
+        "sortOrder": 0,
+        "isActive": true,
+        "parentCategoryId": 1,
+        "defaultShared": false
+      },
+      "amountCents": 41928,
+      "description": "Alquiler mensual",
+      "frequency": "monthly",
+      "dayOfWeek": null,
+      "dayOfMonth": 1,
+      "monthOfYear": null,
+      "startDate": "2025-01-01",
+      "endDate": null,
+      "isActive": true,
+      "sharedDivisor": 2,
+      "originalAmountCents": 83856,
+      "createdAt": "2025-01-01T10:00:00.000Z",
+      "updatedAt": "2025-01-01T10:00:00.000Z"
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+**Recurring Expense Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `recurringExpenseId` | number | Unique ID |
+| `categoryId` | number | Category FK |
+| `category` | object | Joined category details |
+| `amountCents` | number | Effective amount in cents (halved if shared) |
+| `description` | string \| null | Description text |
+| `frequency` | `weekly` \| `monthly` \| `yearly` | Recurrence frequency |
+| `dayOfWeek` | number \| null | 0-6 (Sun-Sat), required for `weekly` |
+| `dayOfMonth` | number \| null | 1-31, required for `monthly` and `yearly` |
+| `monthOfYear` | number \| null | 1-12, required for `yearly` |
+| `startDate` | string | ISO date when the rule starts |
+| `endDate` | string \| null | ISO date when the rule ends (null = indefinite) |
+| `isActive` | boolean | Whether the rule is active |
+| `sharedDivisor` | number | `1` = personal, `2` = shared |
+| `originalAmountCents` | number \| null | Full amount before halving |
+| `createdAt` | string | ISO datetime |
+| `updatedAt` | string | ISO datetime |
+
+---
+
+#### `GET /api/recurring-expenses/:id`
+
+Get a single recurring expense by ID.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Recurring Expense ID |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "recurringExpenseId": 1,
+    "categoryId": 10,
+    "category": { "..." },
+    "amountCents": 41928,
+    "description": "Alquiler mensual",
+    "frequency": "monthly",
+    "dayOfMonth": 1,
+    "..."
+  }
+}
+```
+
+---
+
+#### `POST /api/recurring-expenses`
+
+Create a new recurring expense rule. Conditional validation applies based on frequency.
+
+**Request Body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `categoryId` | number | Yes | - | Category ID |
+| `amount` | number | Yes | - | Amount in **euros** |
+| `description` | string | No | `""` | Description (max 255 chars) |
+| `frequency` | `weekly` \| `monthly` \| `yearly` | Yes | - | Recurrence frequency |
+| `dayOfWeek` | number \| null | Conditional | `null` | 0-6 (Sun-Sat). **Required for `weekly`** |
+| `dayOfMonth` | number \| null | Conditional | `null` | 1-31. **Required for `monthly` and `yearly`** |
+| `monthOfYear` | number \| null | Conditional | `null` | 1-12. **Required for `yearly`** |
+| `startDate` | string | Yes | - | Start date in ISO format |
+| `endDate` | string \| null | No | `null` | End date in ISO format (null = indefinite) |
+| `isShared` | boolean | No | `false` | If true, amount is halved |
+
+**Frequency Validation Rules:**
+
+| Frequency | Required Fields |
+|-----------|----------------|
+| `weekly` | `dayOfWeek` |
+| `monthly` | `dayOfMonth` |
+| `yearly` | `dayOfMonth` + `monthOfYear` |
+
+**Example Request:**
+```json
+{
+  "categoryId": 10,
+  "amount": 838.56,
+  "description": "Alquiler mensual",
+  "frequency": "monthly",
+  "dayOfMonth": 1,
+  "startDate": "2025-01-01",
+  "isShared": true
+}
+```
+
+**Example Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "recurringExpenseId": 1,
+    "categoryId": 10,
+    "category": { "..." },
+    "amountCents": 41928,
+    "description": "Alquiler mensual",
+    "frequency": "monthly",
+    "dayOfWeek": null,
+    "dayOfMonth": 1,
+    "monthOfYear": null,
+    "startDate": "2025-01-01",
+    "endDate": null,
+    "isActive": true,
+    "sharedDivisor": 2,
+    "originalAmountCents": 83856,
+    "createdAt": "2025-01-01T10:00:00.000Z",
+    "updatedAt": "2025-01-01T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+#### `PUT /api/recurring-expenses/:id`
+
+Update an existing recurring expense rule. All fields are optional.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Recurring Expense ID |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `categoryId` | number | No | Category ID |
+| `amount` | number | No | Amount in **euros** |
+| `description` | string \| null | No | Description |
+| `frequency` | `weekly` \| `monthly` \| `yearly` | No | Recurrence frequency |
+| `dayOfWeek` | number \| null | No | 0-6 (Sun-Sat) |
+| `dayOfMonth` | number \| null | No | 1-31 |
+| `monthOfYear` | number \| null | No | 1-12 |
+| `startDate` | string | No | Start date |
+| `endDate` | string \| null | No | End date |
+| `isShared` | boolean | No | Shared flag (recalculates amount when `amount` also provided) |
+| `isActive` | boolean | No | Activate/deactivate the rule |
+
+**Example Request:**
+```json
+{
+  "amount": 900.00,
+  "isShared": true
+}
 ```
 
 **Example Response:**
@@ -333,8 +984,519 @@ DELETE /api/transactions/1
 {
   "success": true,
   "data": {
-    "deleted": true
+    "recurringExpenseId": 1,
+    "amountCents": 45000,
+    "originalAmountCents": 90000,
+    "sharedDivisor": 2,
+    "..."
   }
+}
+```
+
+---
+
+#### `DELETE /api/recurring-expenses/:id`
+
+Soft-delete a recurring expense (sets `isActive = false`). The rule and its history are preserved.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Recurring Expense ID |
+
+**Example Response:**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+#### `GET /api/recurring-expenses/pending`
+
+Get all pending occurrences. This endpoint is retroactive: it calculates expected dates for all active rules from their `startDate` to the current month, creates `pending` occurrence records for any missing dates, and returns all pending occurrences grouped by month.
+
+**Example Request:**
+```bash
+GET /api/recurring-expenses/pending
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "months": [
+      {
+        "month": "2025-01",
+        "occurrences": [
+          {
+            "occurrenceId": 1,
+            "recurringExpenseId": 1,
+            "occurrenceDate": "2025-01-01",
+            "status": "pending",
+            "transactionId": null,
+            "modifiedAmountCents": null,
+            "processedAt": null,
+            "recurringExpense": {
+              "recurringExpenseId": 1,
+              "categoryId": 10,
+              "category": { "..." },
+              "amountCents": 41928,
+              "description": "Alquiler mensual",
+              "frequency": "monthly",
+              "..."
+            }
+          }
+        ],
+        "totalPendingCents": 41928,
+        "count": 1
+      },
+      {
+        "month": "2025-02",
+        "occurrences": [ "..." ],
+        "totalPendingCents": 41928,
+        "count": 1
+      }
+    ],
+    "totalCount": 2
+  }
+}
+```
+
+**Occurrence Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `occurrenceId` | number | Unique occurrence ID |
+| `recurringExpenseId` | number | FK to the recurring expense rule |
+| `occurrenceDate` | string | ISO date of this occurrence |
+| `status` | `pending` \| `confirmed` \| `skipped` | Current status |
+| `transactionId` | number \| null | FK to created transaction (when confirmed) |
+| `modifiedAmountCents` | number \| null | Overridden amount (if changed during confirmation) |
+| `processedAt` | string \| null | ISO datetime when confirmed/skipped |
+| `recurringExpense` | object | Full recurring expense object with category |
+
+---
+
+#### `POST /api/recurring-expenses/occurrences/:id/confirm`
+
+Confirm a pending occurrence, creating a real transaction. Optionally override the amount.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Occurrence ID |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `modifiedAmount` | number | No | Override amount in **euros** (if different from rule) |
+
+**Example Request (use default amount):**
+```json
+{}
+```
+
+**Example Request (override amount):**
+```json
+{
+  "modifiedAmount": 450.00
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "occurrenceId": 1,
+    "recurringExpenseId": 1,
+    "occurrenceDate": "2025-01-01",
+    "status": "confirmed",
+    "transactionId": 55,
+    "modifiedAmountCents": null,
+    "processedAt": "2025-01-15T08:30:00.000Z",
+    "recurringExpense": { "..." }
+  }
+}
+```
+
+**Behavior:** Creates a transaction with the recurring expense's category, description, shared settings, and links it via `recurringExpenseId`. The occurrence status is updated to `confirmed` with the created transaction's ID.
+
+**Errors:**
+- `500` if occurrence not found or not in `pending` status
+
+---
+
+#### `POST /api/recurring-expenses/occurrences/:id/skip`
+
+Skip a pending occurrence. No transaction is created.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Occurrence ID |
+
+**Request Body:** None (empty body or `{}`)
+
+**Example Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Error Response (404 - not found or already processed):**
+```json
+{
+  "success": false,
+  "error": "Ocurrencia no encontrada o ya procesada"
+}
+```
+
+---
+
+### Trips
+
+Trips allow multi-day, multi-category travel expense tracking. Trip expenses are regular transactions linked to a trip via `TripID`. Categories for trip expenses come from subcategories of the "Viajes" parent category.
+
+#### `GET /api/trips`
+
+List all trips with aggregated summary data (expense count, total, date range, category breakdown).
+
+**Example Request:**
+```bash
+GET /api/trips
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "tripId": 1,
+      "name": "Sierra Nevada 2025",
+      "createdAt": "2025-10-01T10:00:00.000Z",
+      "updatedAt": "2025-10-01T10:00:00.000Z",
+      "expenseCount": 4,
+      "totalCents": 21250,
+      "startDate": "2025-10-15",
+      "endDate": "2025-10-17",
+      "categorySummary": [
+        {
+          "categoryId": 15,
+          "categoryName": "Hotel",
+          "categoryIcon": "bed",
+          "categoryColor": "#8B5CF6",
+          "totalCents": 12000,
+          "count": 1
+        },
+        {
+          "categoryId": 16,
+          "categoryName": "Gasolina",
+          "categoryIcon": "fuel",
+          "categoryColor": "#F59E0B",
+          "totalCents": 4500,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Trip Display Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tripId` | number | Unique trip ID |
+| `name` | string | Trip name |
+| `expenseCount` | number | Number of expenses in this trip |
+| `totalCents` | number | Sum of all expense `amountCents` |
+| `startDate` | string \| null | Earliest expense date (ISO date) |
+| `endDate` | string \| null | Latest expense date (ISO date) |
+| `categorySummary` | array | Breakdown by category with totals |
+
+---
+
+#### `POST /api/trips`
+
+Create a new trip.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Trip name (1-100 chars) |
+
+**Example Request:**
+```json
+{
+  "name": "Sierra Nevada 2025"
+}
+```
+
+**Example Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "tripId": 1,
+    "name": "Sierra Nevada 2025",
+    "createdAt": "2025-10-01T10:00:00.000Z",
+    "updatedAt": "2025-10-01T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+#### `GET /api/trips/:id`
+
+Get a single trip with full expense details and category summary.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Trip ID |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "tripId": 1,
+    "name": "Sierra Nevada 2025",
+    "createdAt": "2025-10-01T10:00:00.000Z",
+    "updatedAt": "2025-10-01T10:00:00.000Z",
+    "expenses": [
+      {
+        "transactionId": 100,
+        "categoryId": 15,
+        "category": { "..." },
+        "parentCategory": { "categoryId": 5, "name": "Viajes" },
+        "amountCents": 12000,
+        "description": "Hotel 2 noches",
+        "transactionDate": "2025-10-15",
+        "type": "expense",
+        "sharedDivisor": 1,
+        "tripId": 1,
+        "tripName": "Sierra Nevada 2025",
+        "..."
+      }
+    ],
+    "categorySummary": [
+      {
+        "categoryId": 15,
+        "categoryName": "Hotel",
+        "categoryIcon": "bed",
+        "categoryColor": "#8B5CF6",
+        "totalCents": 12000,
+        "count": 1
+      }
+    ],
+    "totalCents": 21250,
+    "expenseCount": 4
+  }
+}
+```
+
+---
+
+#### `PATCH /api/trips/:id`
+
+Update a trip's name.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Trip ID |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | New trip name (1-100 chars) |
+
+**Example Request:**
+```json
+{
+  "name": "Sierra Nevada 2025 (updated)"
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "tripId": 1,
+    "name": "Sierra Nevada 2025 (updated)",
+    "createdAt": "2025-10-01T10:00:00.000Z",
+    "updatedAt": "2025-10-15T08:30:00.000Z"
+  }
+}
+```
+
+---
+
+#### `DELETE /api/trips/:id`
+
+Delete a trip and all its linked transactions atomically (uses SQL transaction).
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Trip ID |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+---
+
+#### `POST /api/trips/:id/expenses`
+
+Add an expense to a trip. All trip expenses are always of type `expense`.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Trip ID |
+
+**Request Body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `categoryId` | number | Yes | - | Category ID (typically a "Viajes" subcategory) |
+| `amount` | number | Yes | - | Amount in **euros** |
+| `description` | string | No | `""` | Description (max 255 chars) |
+| `transactionDate` | string | Yes | - | Date in ISO format |
+| `isShared` | boolean | No | `false` | If true, amount is halved |
+
+**Example Request:**
+```json
+{
+  "categoryId": 15,
+  "amount": 120.00,
+  "description": "Hotel 2 noches",
+  "transactionDate": "2025-10-15",
+  "isShared": false
+}
+```
+
+**Example Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": 100,
+    "categoryId": 15,
+    "category": { "..." },
+    "parentCategory": { "categoryId": 5, "name": "Viajes" },
+    "amountCents": 12000,
+    "description": "Hotel 2 noches",
+    "transactionDate": "2025-10-15",
+    "type": "expense",
+    "sharedDivisor": 1,
+    "originalAmountCents": null,
+    "tripId": 1,
+    "tripName": "Sierra Nevada 2025",
+    "..."
+  }
+}
+```
+
+---
+
+#### `PUT /api/trips/:id/expenses/:expenseId`
+
+Update a trip expense. All fields are optional.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Trip ID |
+| `expenseId` | number | Transaction ID |
+
+**Request Body:** Same as `POST /api/trips/:id/expenses` (all fields optional).
+
+---
+
+#### `DELETE /api/trips/:id/expenses/:expenseId`
+
+Delete a trip expense.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Trip ID |
+| `expenseId` | number | Transaction ID |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+---
+
+#### `GET /api/trips/categories`
+
+Get subcategories under the "Viajes" parent category. Used to populate the trip expense form category selector.
+
+**Example Request:**
+```bash
+GET /api/trips/categories
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "categoryId": 15,
+      "name": "Hotel",
+      "type": "expense",
+      "icon": "bed",
+      "color": "#8B5CF6",
+      "sortOrder": 0,
+      "isActive": true,
+      "parentCategoryId": 5,
+      "defaultShared": false
+    },
+    {
+      "categoryId": 16,
+      "name": "Gasolina",
+      "type": "expense",
+      "icon": "fuel",
+      "color": "#F59E0B",
+      "sortOrder": 1,
+      "isActive": true,
+      "parentCategoryId": 5,
+      "defaultShared": false
+    }
+  ]
 }
 ```
 
@@ -344,13 +1506,13 @@ DELETE /api/transactions/1
 
 #### `GET /api/summary`
 
-Get monthly summary with totals by category. Data comes from pre-calculated SQL views for optimal performance.
+Get monthly summary with totals by category. Data comes from pre-calculated SQL views (`vw_MonthlyBalance` and `vw_MonthlySummary`) for optimal performance.
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `month` | string | No | Month in `YYYY-MM` format (default: current month) |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `month` | string | No | Current month | Month in `YYYY-MM` format |
 
 **Example Request:**
 ```bash
@@ -397,6 +1559,66 @@ GET /api/summary?month=2025-01
 
 ---
 
+#### `GET /api/summary/subcategories`
+
+Get subcategory breakdown for a specific parent category in a given month. Uses the `vw_SubcategorySummary` SQL view.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `month` | string | No | Current month | Month in `YYYY-MM` format |
+| `categoryId` | number | Yes | - | Parent category ID to drill into |
+
+**Example Request:**
+```bash
+GET /api/summary/subcategories?month=2025-01&categoryId=4
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "parentCategoryId": 4,
+      "subcategoryId": 11,
+      "subcategoryName": "Comida",
+      "subcategoryIcon": "utensils",
+      "subcategoryColor": "#F59E0B",
+      "isSubcategory": true,
+      "totalCents": 18500,
+      "transactionCount": 3
+    },
+    {
+      "parentCategoryId": 4,
+      "subcategoryId": 12,
+      "subcategoryName": "Bebidas",
+      "subcategoryIcon": "wine",
+      "subcategoryColor": "#EC4899",
+      "isSubcategory": true,
+      "totalCents": 7300,
+      "transactionCount": 2
+    }
+  ]
+}
+```
+
+**Subcategory Summary Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `parentCategoryId` | number | The parent category being drilled into |
+| `subcategoryId` | number | Subcategory ID |
+| `subcategoryName` | string | Subcategory name |
+| `subcategoryIcon` | string \| null | Lucide icon name |
+| `subcategoryColor` | string \| null | Hex color |
+| `isSubcategory` | boolean | Whether this is a true subcategory (vs parent-level transactions) |
+| `totalCents` | number | Total amount in cents for this subcategory |
+| `transactionCount` | number | Number of transactions |
+
+---
+
 ### Version
 
 #### `GET /api/version`
@@ -438,12 +1660,34 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 
 ### Validation Schemas
 
-Located in `src/schemas/transaction.ts`:
+#### Transaction Schemas (`src/schemas/transaction.ts`)
 
-- **CreateTransactionSchema** - New transaction validation
-- **UpdateTransactionSchema** - Partial transaction updates
-- **TransactionFiltersSchema** - Query parameter validation
-- **CreateCategorySchema** - New category validation
+| Schema | Purpose |
+|--------|---------|
+| `CreateTransactionSchema` | New transaction validation (amount, categoryId, date, type, isShared) |
+| `UpdateTransactionSchema` | Extends CreateTransactionSchema.partial() with required transactionId |
+| `TransactionFiltersSchema` | Query parameter validation (month, type, categoryId) |
+| `CreateCategorySchema` | New category (name, type, icon, color, sortOrder, parentCategoryId, defaultShared) |
+| `UpdateCategorySchema` | Partial category updates (name, icon, color, sortOrder, isActive, defaultShared). Type and parentCategoryId are immutable |
+| `CreateTransactionGroupSchema` | Group creation (description, date, type, isShared, parentCategoryId, items[]) |
+| `UpdateTransactionGroupSchema` | Group updates (description, transactionDate) |
+
+#### Recurring Expense Schemas (`src/schemas/recurring-expense.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `CreateRecurringExpenseSchema` | New recurring expense with conditional frequency validation |
+| `UpdateRecurringExpenseSchema` | Partial recurring expense updates (all fields optional) |
+| `ConfirmOccurrenceSchema` | Occurrence confirmation with optional modified amount |
+
+#### Trip Schemas (`src/schemas/trip.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `CreateTripSchema` | New trip (name, 1-100 chars) |
+| `UpdateTripSchema` | Partial trip update (name optional) |
+| `CreateTripExpenseSchema` | Trip expense (categoryId, amount, date, description, isShared) |
+| `UpdateTripExpenseSchema` | Partial trip expense update (all fields optional) |
 
 ---
 
@@ -461,13 +1705,41 @@ Located in `src/utils/money.ts`:
 
 ```typescript
 // User input to storage
-eurosToCents(419.28) // → 41928
+eurosToCents(419.28) // -> 41928
 
 // Storage to display
-centsToEuros(41928)  // → 419.28
+centsToEuros(41928)  // -> 419.28
 
 // Formatted for UI
-formatCurrency(41928) // → "419,28 €"
+formatCurrency(41928) // -> "419,28 €"
+```
+
+### Shared Expense Calculations
+
+```typescript
+// Personal: amount stored as-is
+eurosToCents(100.00)  // -> 10000 (stored as amountCents)
+
+// Shared: halved with Math.ceil
+const full = eurosToCents(101.00)  // -> 10100
+Math.ceil(full / 2)                // -> 5050 (stored as amountCents)
+// originalAmountCents = 10100, sharedDivisor = 2
+```
+
+### Transaction Group Balanced Rounding
+
+When creating a shared transaction group, individual items are halved with `Math.ceil()`. To prevent the sum of halved items from exceeding the halved total:
+
+```
+Total: 29.00 EUR = 2900 cents
+  Item A: 18.50 EUR -> ceil(1850/2) = 925
+  Item B:  7.30 EUR -> ceil(730/2)  = 365
+  Item C:  3.20 EUR -> ceil(320/2)  = 160
+  Sum of halved items: 1450
+  Expected halved total: ceil(2900/2) = 1450
+  Difference: 0 (no adjustment needed)
+
+If rounding causes a 1-cent difference, the last item absorbs it.
 ```
 
 ---
@@ -477,8 +1749,14 @@ formatCurrency(41928) // → "419,28 €"
 | File | Purpose |
 |------|---------|
 | `src/app/api/*/route.ts` | API endpoints |
-| `src/schemas/transaction.ts` | Zod validation schemas |
-| `src/types/finance.ts` | TypeScript interfaces |
-| `src/constants/finance.ts` | Constants and types |
-| `src/services/database/*.ts` | Database repositories |
-| `src/utils/money.ts` | Money conversion utilities |
+| `src/schemas/transaction.ts` | Transaction, category, and group Zod schemas |
+| `src/schemas/recurring-expense.ts` | Recurring expense and occurrence Zod schemas |
+| `src/schemas/trip.ts` | Trip and trip expense Zod schemas |
+| `src/types/finance.ts` | TypeScript interfaces for all domain types |
+| `src/constants/finance.ts` | Constants (types, query keys, API endpoints, cache times) |
+| `src/services/database/TransactionRepository.ts` | Transaction and group database operations |
+| `src/services/database/CategoryRepository.ts` | Category database operations |
+| `src/services/database/RecurringExpenseRepository.ts` | Recurring expense and occurrence database operations |
+| `src/services/database/TripRepository.ts` | Trip CRUD and trip category database operations |
+| `src/utils/money.ts` | Money conversion utilities (eurosToCents, centsToEuros, formatCurrency) |
+| `src/utils/recurring.ts` | Recurring date calculation utilities |

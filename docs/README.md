@@ -11,6 +11,8 @@ Complete documentation for the BudgetGuard family expense tracking system.
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture, data flow, state management | architecture, providers, Zustand, TanStack Query, data flow |
 | [API_REFERENCE.md](./API_REFERENCE.md) | REST API endpoints, request/response formats | API, endpoints, routes, REST, HTTP |
 | [DATA_MODELS.md](./DATA_MODELS.md) | Database schema, TypeScript types, Zod schemas | database, schema, types, interfaces, validation, Zod |
+| [TESTING_STRATEGY.md](./TESTING_STRATEGY.md) | Testing approach, test structure, guidelines | tests, jest, integration, unit, component |
+| [CHANGELOG.md](../CHANGELOG.md) | Version history and release notes | changelog, releases, versions |
 
 ---
 
@@ -28,29 +30,51 @@ Covers the overall system design:
 - i18n system (standard and static translations)
 - Error handling strategy
 - Performance optimizations
+- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips
 
 ### API_REFERENCE.md
 
 Complete API documentation:
 - Response format standards
 - All endpoints with examples:
-  - `GET/POST /api/categories`
-  - `GET/POST /api/transactions`
-  - `GET/PUT/DELETE /api/transactions/:id`
-  - `GET /api/summary`
+  - `GET/POST /api/categories` + `PUT/DELETE /api/categories/:id`
+  - `GET/POST /api/transactions` + `GET/PUT/DELETE /api/transactions/:id`
+  - `GET /api/summary` + `GET /api/summary/subcategories`
+  - `GET/POST /api/recurring-expenses` + occurrences endpoints
+  - `POST /api/transaction-groups` + `DELETE/PATCH /api/transaction-groups/:id`
+  - `GET/POST /api/trips` + `GET/PATCH/DELETE /api/trips/:id`
+  - `POST/PUT/DELETE /api/trips/:id/expenses`
+  - `GET /api/trips/categories`
   - `GET /api/version`
 - Validation error formats
-- Money handling in API requests
+- Money handling in API requests (euros in, cents stored)
+- Shared expense halving logic
+- Transaction group balanced rounding
 
 ### DATA_MODELS.md
 
 Database and type definitions:
-- SQL Server table schemas (Categories, Transactions, Users, NextAuth tables)
-- Database views (vw_MonthlySummary, vw_MonthlyBalance)
+- SQL Server table schemas:
+  - Categories (with hierarchical subcategories)
+  - Transactions (with shared expenses, recurring, groups, trips)
+  - TransactionGroups (grouping anchor)
+  - Trips (multi-day travel expense tracking)
+  - RecurringExpenses + RecurringExpenseOccurrences
+  - Users, Accounts, Sessions, VerificationTokens (NextAuth)
+- Database views (vw_MonthlySummary, vw_MonthlyBalance, vw_SubcategorySummary)
 - Indexes and triggers
 - TypeScript interfaces for all entities
 - Zod validation schemas
 - Constants and utility functions
+
+### TESTING_STRATEGY.md
+
+Testing approach and guidelines:
+- Hybrid methodology: contracts → implementation → integration tests
+- Test distribution: Integration 60%, Unit 25%, Component 10%, E2E 5%
+- Complete test folder structure with all current test files
+- Feature-specific testing guidelines (shared expenses, recurring, groups)
+- Anti-patterns to avoid
 
 ---
 
@@ -66,12 +90,20 @@ Storage:    41928 (INT)
 Display:    "419,28 €"
 ```
 
+### Shared Expenses (÷2)
+
+Transactions can be split between 2 people:
+- `SharedDivisor = 2` marks a shared expense
+- `OriginalAmountCents` stores the full amount
+- `AmountCents = Math.ceil(Original / 2)` — rounding favors the user
+- Categories can have `DefaultShared = true` to auto-toggle the checkbox
+
 ### State Management
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
-| UI State | Zustand | Month selection, filters, modals |
-| Server State | TanStack Query | Transactions, categories, summaries |
+| UI State | Zustand | Month selection, filters, panel collapse |
+| Server State | TanStack Query | Transactions, categories, summaries, recurring |
 
 Never store server data in Zustand. Use TanStack Query hooks for all API data.
 
@@ -81,7 +113,37 @@ Zod schemas are shared between frontend forms and API endpoints. Validation happ
 
 ### Database Calculations
 
-All aggregations (sums, counts, averages) are done in SQL views, not in JavaScript. This ensures performance and accuracy.
+All aggregations (sums, counts) are done in SQL views, not in JavaScript. Subcategory transactions aggregate under their parent category.
+
+### Hierarchical Categories
+
+Categories support parent-child relationships via `ParentCategoryID`. A category with `ParentCategoryID = NULL` is a parent; otherwise it's a subcategory.
+
+### Recurring Expenses
+
+Rule-based system: define a frequency (weekly/monthly/yearly), and occurrences are generated. Users confirm or skip each occurrence from the dashboard panel.
+
+### Transaction Groups
+
+Multiple transactions linked to a single event (e.g., an outing with food, drinks, transport). Created atomically, displayed as collapsible rows with subcategory breakdown.
+
+### Trips
+
+Multi-day, multi-category travel expense tracking. Trips group transactions under a named trip entity (e.g., "Sierra Nevada 2025"). Trip expenses are regular transactions with a `TripID` foreign key. In the dashboard, trips with multiple expenses are displayed as collapsible rows. SQL views aggregate trip expenses under the trip's start date month for correct monthly summaries.
+
+---
+
+## Feature Roadmap
+
+| Phase | Status | Features |
+|-------|--------|----------|
+| Phase 1 (MVP) | ✅ Complete | Core CRUD, categories, monthly summary with SQL Views |
+| Phase 1.5 | ✅ Complete | Hierarchical categories, shared expenses, category management |
+| Phase 2 | ✅ Complete | Recurring expenses, transaction groups (outings) |
+| Phase 2.5 | ✅ Complete | Trip tracking (multi-day, multi-category travel expenses) |
+| Phase 3 | Planned | Charts, month-to-month comparison, Excel export |
+| Phase 4 | Planned | Budgets per category, alerts |
+| Phase 5 | Planned | Multi-user/family support, mobile PWA |
 
 ---
 
@@ -99,6 +161,12 @@ When asked about BudgetGuard, read the appropriate documentation:
 | "State management?" | ARCHITECTURE.md |
 | "Form validation?" | DATA_MODELS.md (Zod schemas) |
 | "How to handle money?" | ARCHITECTURE.md + DATA_MODELS.md |
+| "How to write tests?" | TESTING_STRATEGY.md |
+| "Shared expenses?" | API_REFERENCE.md + DATA_MODELS.md |
+| "Recurring expenses?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Transaction groups?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Trips?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Trip expenses?" | API_REFERENCE.md + DATA_MODELS.md |
 
 ---
 
@@ -109,6 +177,9 @@ When asked about BudgetGuard, read the appropriate documentation:
 | `database/schema.sql` | Executable database schema (idempotent) |
 | `database/seed.sql` | Initial category data |
 | `src/types/finance.ts` | TypeScript interfaces |
-| `src/schemas/transaction.ts` | Zod validation schemas |
-| `src/constants/finance.ts` | Type constants, query keys |
+| `src/schemas/transaction.ts` | Zod validation schemas (transactions, categories, groups) |
+| `src/schemas/recurring-expense.ts` | Zod schemas for recurring expenses |
+| `src/schemas/trip.ts` | Zod schemas for trips and trip expenses |
+| `src/constants/finance.ts` | Type constants, query keys, API endpoints |
 | `src/utils/money.ts` | Currency conversion utilities |
+| `src/utils/recurring.ts` | Occurrence date generation |

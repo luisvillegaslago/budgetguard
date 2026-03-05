@@ -132,17 +132,40 @@ describe('BalanceCard', () => {
 ## 📁 Folder Structure
 
 ```
-src/
-├── __tests__/
-│   ├── api/                    # API integration tests
-│   │   └── version.test.ts
-│   ├── components/             # Component tests
-│   │   ├── ErrorPage.test.tsx
-│   │   └── NotFoundPage.test.tsx
-│   ├── providers/              # Provider tests
-│   │   └── SessionProvider.test.tsx
-│   └── utils/                  # Unit tests
-│       └── staticTranslations.test.ts
+src/__tests__/
+├── api/                                    # Integration tests (API → Service → DB)
+│   ├── version.test.ts                    # Build info endpoint
+│   ├── transactions-shared.test.ts        # Shared expense API (÷2 halving)
+│   ├── categories-crud.test.ts            # Category CRUD operations
+│   ├── categories-hierarchical.test.ts    # Hierarchical category tree
+│   ├── subcategory-summary.test.ts        # Subcategory drill-down view
+│   ├── recurring-expenses-crud.test.ts    # Recurring expense CRUD
+│   ├── recurring-occurrences.test.ts      # Occurrence confirm/skip flows
+│   ├── trips-crud.test.ts                # Trip CRUD + categories API
+│   └── trip-expenses.test.ts             # Trip expense API (shared halving)
+│
+├── components/                             # Component tests (UI logic)
+│   ├── ErrorPage.test.tsx                 # Error boundary rendering
+│   ├── GlobalError.test.tsx               # Global error page
+│   ├── NotFoundPage.test.tsx              # 404 page
+│   ├── CategorySelector.test.tsx          # Hierarchical category selector
+│   ├── CategoryTree.test.tsx              # Category management tree
+│   ├── RecurringExpenseForm.test.tsx       # Recurring expense form
+│   ├── RecurringPendingPanel.test.tsx      # Pending occurrences panel
+│   ├── TransactionList-shared.test.tsx    # Shared badges + subcategory breadcrumbs
+│   └── TripGroupRow.test.tsx             # Trip group collapsible row
+│
+├── providers/                              # Provider tests
+│   └── SessionProvider.test.tsx           # NextAuth session wrapper
+│
+└── utils/                                  # Unit tests (pure functions)
+    ├── staticTranslations.test.ts         # i18n error boundary fallback
+    ├── category-tree.test.ts              # Category tree building logic
+    ├── shared-expense-logic.test.ts       # SharedDivisor + Math.ceil halving
+    ├── update-category-schema.test.ts     # Zod schema for category updates
+    ├── recurring-expense-schema.test.ts   # Zod schema for recurring expenses
+    ├── recurring-occurrences.test.ts      # Occurrence date generation
+    └── trip-schema.test.ts               # Zod schemas for trips + trip expenses
 ```
 
 ---
@@ -162,6 +185,48 @@ npm test -- staticTranslations
 # Run tests in watch mode
 npm test -- --watch
 ```
+
+---
+
+## Feature-Specific Testing Guidelines
+
+### Shared Expenses (÷2)
+
+**Integration:** Verify API correctly halves amounts with `Math.ceil` rounding.
+```typescript
+// POST with isShared: true, amount: 5.01
+// → amountCents = 251, originalAmountCents = 501
+```
+
+**Unit:** Test rounding edge cases in `shared-expense-logic.test.ts`.
+
+### Hierarchical Categories
+
+**Integration:** Verify `?hierarchical=true` returns nested tree with subcategories.
+**Component:** Test `CategorySelector` shows parent → subcategory dropdowns.
+
+### Recurring Expenses
+
+**Integration:** Full flow: create rule → generate occurrences → confirm → verify transaction created.
+**Unit:** Test occurrence date generation for weekly/monthly/yearly frequencies.
+
+### Transaction Groups
+
+**Integration:** POST creates N transactions with same `TransactionGroupID`. DELETE removes all.
+**Unit:** Test balanced rounding (last item absorbs cent difference for shared groups).
+**Component:** Test `TransactionGroupRow` expand/collapse and `TransactionGroupForm` running total.
+
+### Trips
+
+**Integration:** Full flow: create trip → add expenses → verify aggregated data (count, total, date range, category summary) → delete trip cascades to all expenses.
+**Unit:** Test `TripGroupDisplay` grouping in `useGroupedTransactions` (single-expense trips treated as ungrouped, multi-expense trips grouped).
+**Component:** Test `TripGroupRow` expand/collapse, `TripExpenseForm` category selector (Viajes subcategories only), `TripDetail` expense list and category breakdown.
+
+### Money Handling
+
+Always test with edge-case amounts:
+- `0.01` (minimum), `0.05` (rounding), `999999.99` (large)
+- Shared: odd cents like `5.01 ÷ 2 = 2.51` (Math.ceil)
 
 ---
 
@@ -206,4 +271,4 @@ expect(screen.getByText('Loading...')).toBeInTheDocument();
 
 ---
 
-**Last updated:** 2026-02-07
+**Last updated:** 2026-03-04
