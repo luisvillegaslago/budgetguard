@@ -1,0 +1,125 @@
+'use client';
+
+/**
+ * BudgetGuard Trip Card
+ * Card component showing trip summary with category color bar
+ */
+
+import { Calendar, MapPin, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useTranslate } from '@/hooks/useTranslations';
+import type { TripDisplay } from '@/types/finance';
+import { cn, formatDate } from '@/utils/helpers';
+import { formatCurrency } from '@/utils/money';
+
+interface TripCardProps {
+  trip: TripDisplay;
+  onDelete: (tripId: number) => void;
+  isDeleting: boolean;
+  isUpcoming?: boolean;
+}
+
+export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardProps) {
+  const { t } = useTranslate();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (showConfirm) {
+      onDelete(trip.tripId);
+      setShowConfirm(false);
+    } else {
+      setShowConfirm(true);
+    }
+  };
+
+  // Category color bar: horizontal stacked bar proportional to totals
+  const totalForBar = trip.categorySummary.reduce((sum, cat) => sum + cat.totalCents, 0);
+
+  return (
+    <Link
+      href={`/trips/${trip.tripId}`}
+      className={cn(
+        'card hover:shadow-md transition-all duration-200 ease-out-quart group block',
+        isUpcoming && 'border-dashed border-guard-primary/40 opacity-80 hover:opacity-100',
+      )}
+    >
+      {/* Category color bar */}
+      {trip.categorySummary.length > 0 && totalForBar > 0 && (
+        <div className="flex h-1.5 rounded-full overflow-hidden mb-4">
+          {trip.categorySummary.map((cat) => (
+            <div
+              key={cat.categoryId}
+              className="h-full"
+              style={{
+                backgroundColor: cat.categoryColor ?? '#8B5CF6',
+                width: `${(cat.totalCents / totalForBar) * 100}%`,
+              }}
+              title={`${cat.categoryName}: ${formatCurrency(cat.totalCents)}`}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-start justify-between gap-3">
+        {/* Trip info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <MapPin className="h-4 w-4 text-guard-primary flex-shrink-0" aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-foreground truncate">
+              {trip.name} {(trip.startDate ?? trip.createdAt).slice(0, 4)}
+            </h3>
+            {isUpcoming && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary flex-shrink-0">
+                {t('trips.upcoming-badge')}
+              </span>
+            )}
+          </div>
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 text-sm text-guard-muted mb-2">
+            <Calendar className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+            {trip.startDate && trip.endDate ? (
+              <span>
+                {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+              </span>
+            ) : (
+              <span>{t('trips.card.no-dates')}</span>
+            )}
+          </div>
+
+          {/* Stats */}
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-guard-muted">
+              {trip.expenseCount > 0
+                ? t('trips.card.expenses', { count: trip.expenseCount })
+                : t('trips.card.no-expenses')}
+            </span>
+            {trip.totalCents > 0 && (
+              <span className="font-semibold text-guard-danger">-{formatCurrency(trip.totalCents)}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Delete button */}
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className={cn(
+            'p-2 rounded-lg transition-all duration-200 ease-out-quart flex-shrink-0',
+            showConfirm
+              ? 'bg-guard-danger text-white'
+              : 'text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
+          )}
+          aria-label={showConfirm ? t('trips.delete.confirm', { count: trip.expenseCount }) : t('trips.delete.button')}
+        >
+          {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+        </button>
+      </div>
+    </Link>
+  );
+}

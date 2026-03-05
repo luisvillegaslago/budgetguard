@@ -2,33 +2,56 @@
 
 /**
  * BudgetGuard Transaction List
- * Displays transactions for the selected month
+ * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import { AlertCircle, ArrowDownLeft, ArrowUpRight, Plus, Receipt, RefreshCw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Pencil,
+  Plane,
+  Plus,
+  Receipt,
+  RefreshCw,
+  Repeat,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { TRANSACTION_TYPE } from '@/constants/finance';
-import { useDeleteTransaction, useTransactions } from '@/hooks/useTransactions';
+import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
+import { useDeleteTransaction, useGroupedTransactions } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useSelectedMonth } from '@/stores/useFinanceStore';
-import type { Transaction } from '@/types/finance';
+import type { Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+import { TransactionGroupRow } from './TransactionGroupRow';
+import { TripGroupRow } from './TripGroupRow';
 
 interface TransactionRowProps {
   transaction: Transaction;
   onDelete: (id: number) => void;
+  onEdit: (transaction: Transaction) => void;
   isDeleting: boolean;
   index: number;
 }
 
-function TransactionRow({ transaction, onDelete, isDeleting, index }: TransactionRowProps) {
+function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: TransactionRowProps) {
   const { t } = useTranslate();
   const [showConfirm, setShowConfirm] = useState(false);
   const isIncome = transaction.type === TRANSACTION_TYPE.INCOME;
+  const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
   const iconColor = transaction.category?.color ?? (isIncome ? '#10B981' : '#EF4444');
+
+  // Build category display name with parent breadcrumb
+  const categoryName = transaction.parentCategory
+    ? `${transaction.parentCategory.name} › ${transaction.category?.name ?? ''}`
+    : (transaction.category?.name ?? t('transactions.no-category'));
 
   const handleDelete = () => {
     if (showConfirm) {
@@ -40,9 +63,12 @@ function TransactionRow({ transaction, onDelete, isDeleting, index }: Transactio
   };
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: Edit button provides keyboard access
+    // biome-ignore lint/a11y/noStaticElementInteractions: Cannot use <button> here due to nested interactive elements
     <div
-      className="flex items-center gap-4 py-3 px-4 hover:bg-muted/50 rounded-lg transition-colors group animate-fade-in"
+      className="flex items-center gap-4 py-3 px-4 hover:bg-muted/50 rounded-lg transition-colors group animate-fade-in cursor-pointer"
       style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
+      onClick={() => onEdit(transaction)}
     >
       {/* Date */}
       <div className="w-16 flex-shrink-0">
@@ -56,34 +82,80 @@ function TransactionRow({ transaction, onDelete, isDeleting, index }: Transactio
 
       {/* Category & Description */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">
-          {transaction.category?.name ?? t('transactions.no-category')}
+        <p className="text-sm font-medium text-foreground truncate" title={categoryName}>
+          {categoryName}
         </p>
-        {transaction.description && <p className="text-xs text-guard-muted truncate">{transaction.description}</p>}
+        {transaction.description && (
+          <p className="text-xs text-guard-muted truncate" title={transaction.description}>
+            {transaction.description}
+          </p>
+        )}
       </div>
 
-      {/* Amount */}
-      <div
-        className={cn('text-sm font-semibold', {
-          'text-guard-success': isIncome,
-          'text-guard-danger': !isIncome,
-        })}
-      >
-        <span className="flex items-center gap-1">
-          {isIncome ? (
-            <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
-          ) : (
-            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-          )}
-          {isIncome ? '+' : '-'}
-          {formatCurrency(transaction.amountCents)}
-        </span>
+      {/* Amount + Shared Badge */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {transaction.recurringExpenseId && (
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+            title={t('recurring.badge')}
+          >
+            <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+          </span>
+        )}
+        {transaction.tripId && (
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center gap-0.5"
+            title={transaction.tripName ?? t('trips.badge')}
+          >
+            <Plane className="h-2.5 w-2.5" aria-hidden="true" />
+          </span>
+        )}
+        {isShared && (
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary"
+            title={t('transactions.shared-badge')}
+          >
+            {t('transactions.shared-badge')}
+          </span>
+        )}
+        <div
+          className={cn('text-sm font-semibold', {
+            'text-guard-success': isIncome,
+            'text-guard-danger': !isIncome,
+          })}
+        >
+          <span className="flex items-center gap-1">
+            {isIncome ? (
+              <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
+            ) : (
+              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+            )}
+            {isIncome ? '+' : '-'}
+            {formatCurrency(transaction.amountCents)}
+          </span>
+        </div>
       </div>
+
+      {/* Edit Button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(transaction);
+        }}
+        className="p-2 rounded-lg transition-all duration-200 ease-out-quart text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-primary/10 hover:text-guard-primary"
+        aria-label={t('category-management.actions.edit')}
+      >
+        <Pencil className="h-4 w-4" aria-hidden="true" />
+      </button>
 
       {/* Delete Button */}
       <button
         type="button"
-        onClick={handleDelete}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDelete();
+        }}
         disabled={isDeleting}
         className={cn(
           'p-2 rounded-lg transition-all duration-200 ease-out-quart',
@@ -99,19 +171,101 @@ function TransactionRow({ transaction, onDelete, isDeleting, index }: Transactio
   );
 }
 
+// Union type for sorted list items
+type ListItem =
+  | { kind: 'transaction'; data: Transaction }
+  | { kind: 'group'; data: TransactionGroupDisplay }
+  | { kind: 'trip'; data: TripGroupDisplay };
+
 interface TransactionListProps {
   onAddTransaction?: () => void;
+  onEditTransaction?: (transaction: Transaction) => void;
 }
 
-export function TransactionList({ onAddTransaction }: TransactionListProps) {
+/** Check if a transaction matches the search query */
+function matchesSearch(tx: Transaction, query: string): boolean {
+  const q = query.toLowerCase();
+  return (
+    (tx.description?.toLowerCase().includes(q) ?? false) ||
+    (tx.category?.name?.toLowerCase().includes(q) ?? false) ||
+    (tx.parentCategory?.name?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+export function TransactionList({ onAddTransaction, onEditTransaction }: TransactionListProps) {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
-  const { data, isLoading, isError, refetch } = useTransactions(selectedMonth);
+  const { isLoading, isError, refetch, grouped } = useGroupedTransactions(selectedMonth);
   const deleteTransaction = useDeleteTransaction();
+  const deleteGroup = useDeleteTransactionGroup();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleDelete = (id: number) => {
     deleteTransaction.mutate(id);
   };
+
+  const handleDeleteGroup = (groupId: number) => {
+    deleteGroup.mutate(groupId);
+  };
+
+  // Merge ungrouped transactions and groups into a single sorted list by date
+  const sortedItems = useMemo((): ListItem[] => {
+    const items: ListItem[] = [];
+
+    grouped.ungrouped.forEach((tx) => {
+      items.push({ kind: 'transaction', data: tx });
+    });
+
+    grouped.groups.forEach((group) => {
+      items.push({ kind: 'group', data: group });
+    });
+
+    grouped.tripGroups.forEach((trip) => {
+      items.push({ kind: 'trip', data: trip });
+    });
+
+    // Sort by date descending
+    items.sort((a, b) => {
+      const dateA =
+        a.kind === 'transaction'
+          ? a.data.transactionDate
+          : a.kind === 'group'
+            ? a.data.transactionDate
+            : a.data.startDate;
+      const dateB =
+        b.kind === 'transaction'
+          ? b.data.transactionDate
+          : b.kind === 'group'
+            ? b.data.transactionDate
+            : b.data.startDate;
+      return dateB.localeCompare(dateA);
+    });
+
+    return items;
+  }, [grouped]);
+
+  // Client-side search filter
+  const filteredItems = useMemo((): ListItem[] => {
+    if (!searchQuery) return sortedItems;
+
+    return sortedItems.filter((item) => {
+      if (item.kind === 'transaction') {
+        return matchesSearch(item.data, searchQuery);
+      }
+      if (item.kind === 'group') {
+        // Match if group description or any sub-transaction matches
+        const q = searchQuery.toLowerCase();
+        return (
+          (item.data.description?.toLowerCase().includes(q) ?? false) ||
+          (item.data.parentCategoryName?.toLowerCase().includes(q) ?? false) ||
+          item.data.transactions.some((tx) => matchesSearch(tx, q))
+        );
+      }
+      // trip
+      const q = searchQuery.toLowerCase();
+      return item.data.tripName.toLowerCase().includes(q) || item.data.transactions.some((tx) => matchesSearch(tx, q));
+    });
+  }, [sortedItems, searchQuery]);
 
   if (isLoading) {
     return (
@@ -140,9 +294,12 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
     );
   }
 
-  const transactions = data?.data ?? [];
+  const totalCount =
+    grouped.ungrouped.length +
+    grouped.groups.reduce((sum, g) => sum + g.transactions.length, 0) +
+    grouped.tripGroups.reduce((sum, tg) => sum + tg.transactions.length, 0);
 
-  if (transactions.length === 0) {
+  if (sortedItems.length === 0 && !searchQuery) {
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('transactions.title')}</h3>
@@ -169,20 +326,70 @@ export function TransactionList({ onAddTransaction }: TransactionListProps) {
     <div className="card">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-foreground">{t('transactions.title')}</h3>
-        <span className="text-sm text-guard-muted">{t('common.records', { count: transactions.length })}</span>
+        <span className="text-sm text-guard-muted">{t('common.records', { count: totalCount })}</span>
+      </div>
+
+      {/* Search filter */}
+      <div className="relative mb-3 -mx-4 px-4">
+        <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-guard-muted" aria-hidden="true" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('transactions.search-placeholder')}
+          className="w-full pl-9 pr-9 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent transition-colors"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 text-guard-muted hover:text-foreground transition-colors"
+            aria-label={t('common.buttons.clear')}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <ul className="-mx-4">
-        {transactions.map((transaction, index) => (
-          <li key={transaction.transactionId}>
-            <TransactionRow
-              transaction={transaction}
-              onDelete={handleDelete}
-              isDeleting={deleteTransaction.isPending}
-              index={index}
-            />
-          </li>
-        ))}
+        {filteredItems.length === 0 && searchQuery ? (
+          <li className="text-center py-6 text-sm text-guard-muted">{t('transactions.search-empty')}</li>
+        ) : null}
+        {filteredItems.map((item, index) => {
+          if (item.kind === 'group') {
+            return (
+              <li key={`group-${item.data.transactionGroupId}`}>
+                <TransactionGroupRow
+                  group={item.data}
+                  onDelete={handleDeleteGroup}
+                  onEditTransaction={onEditTransaction}
+                  isDeleting={deleteGroup.isPending}
+                  index={index}
+                />
+              </li>
+            );
+          }
+
+          if (item.kind === 'trip') {
+            return (
+              <li key={`trip-${item.data.tripId}`}>
+                <TripGroupRow tripGroup={item.data} onEditTransaction={onEditTransaction} index={index} />
+              </li>
+            );
+          }
+
+          return (
+            <li key={item.data.transactionId}>
+              <TransactionRow
+                transaction={item.data}
+                onDelete={handleDelete}
+                onEdit={onEditTransaction ?? (() => {})}
+                isDeleting={deleteTransaction.isPending}
+                index={index}
+              />
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

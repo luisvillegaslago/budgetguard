@@ -7,8 +7,14 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { SHARED_EXPENSE } from '@/constants/finance';
 import { CreateTransactionSchema, validateRequest } from '@/schemas/transaction';
-import { deleteTransaction, getTransactionById, updateTransaction } from '@/services/database/TransactionRepository';
+import {
+  cleanupOrphanedGroup,
+  deleteTransaction,
+  getTransactionById,
+  updateTransaction,
+} from '@/services/database/TransactionRepository';
 import { eurosToCents } from '@/utils/money';
 
 interface RouteParams {
@@ -56,16 +62,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: false, errors: validation.errors }, { status: 400 });
     }
 
-    const { amount, ...rest } = validation.data;
+    const { amount, isShared, ...rest } = validation.data;
 
     const updateData: Parameters<typeof updateTransaction>[1] = {
       ...rest,
       description: rest.description ?? undefined,
     };
 
-    // Convert euros to cents if amount is provided
+    // Convert euros to cents if amount is provided, applying shared expense halving
     if (amount !== undefined) {
-      updateData.amountCents = eurosToCents(amount);
+      const fullAmountCents = eurosToCents(amount);
+      const sharedDivisor = isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR;
+
+      updateData.amountCents = isShared ? Math.ceil(fullAmountCents / sharedDivisor) : fullAmountCents;
+      updateData.originalAmountCents = isShared ? fullAmountCents : null;
+      updateData.sharedDivisor = sharedDivisor;
+    } else if (isShared !== undefined) {
+      // isShared changed but amount didn't — need to recalculate from existing transaction
+      const existing = await getTransactionById(transactionId);
+      if (existing) {
+        const baseAmount = existing.originalAmountCents ?? existing.amountCents;
+        const sharedDivisor = isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR;
+        updateData.amountCents = isShared ? Math.ceil(baseAmount / sharedDivisor) : baseAmount;
+        updateData.originalAmountCents = isShared ? baseAmount : null;
+        updateData.sharedDivisor = sharedDivisor;
+      }
     }
 
     const transaction = await updateTransaction(transactionId, updateData);
@@ -91,10 +112,21 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: false, error: 'ID invalido' }, { status: 400 });
     }
 
+    // Check if transaction belongs to a group before deleting (for orphan cleanup)
+    const existing = await getTransactionById(transactionId);
+    if (!existing) {
+      return NextResponse.json({ success: false, error: 'Transaccion no encontrada' }, { status: 404 });
+    }
+
     const deleted = await deleteTransaction(transactionId);
 
     if (!deleted) {
       return NextResponse.json({ success: false, error: 'Transaccion no encontrada' }, { status: 404 });
+    }
+
+    // Clean up orphaned group if this transaction belonged to one
+    if (existing.transactionGroupId) {
+      await cleanupOrphanedGroup(existing.transactionGroupId);
     }
 
     return NextResponse.json({ success: true, data: { deleted: true } });

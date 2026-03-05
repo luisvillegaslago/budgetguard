@@ -7,15 +7,19 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { CreateCategorySchema, validateRequest } from '@/schemas/transaction';
-import { createCategory, getCategories } from '@/services/database/CategoryRepository';
+import { createCategory, getCategories, getCategoriesHierarchical } from '@/services/database/CategoryRepository';
 import type { TransactionType } from '@/types/finance';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') as TransactionType | null;
+    const hierarchical = searchParams.get('hierarchical') === 'true';
+    const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    const categories = await getCategories(type ?? undefined);
+    const categories = hierarchical
+      ? await getCategoriesHierarchical(type ?? undefined, includeInactive)
+      : await getCategories(type ?? undefined, includeInactive);
 
     return NextResponse.json({
       success: true,

@@ -19,6 +19,12 @@ export const FILTER_TYPE = {
 
 export type FilterType = (typeof FILTER_TYPE)[keyof typeof FILTER_TYPE];
 
+// Shared Expense Configuration
+export const SHARED_EXPENSE = {
+  DIVISOR: 2,
+  DEFAULT_DIVISOR: 1,
+} as const;
+
 // Balance Card Variants
 export const CARD_VARIANT = {
   INCOME: 'income',
@@ -28,11 +34,35 @@ export const CARD_VARIANT = {
 
 export type CardVariant = (typeof CARD_VARIANT)[keyof typeof CARD_VARIANT];
 
+// Recurring Expense Frequencies
+export const RECURRING_FREQUENCY = {
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+  YEARLY: 'yearly',
+} as const;
+
+export type RecurringFrequency = (typeof RECURRING_FREQUENCY)[keyof typeof RECURRING_FREQUENCY];
+
+// Occurrence Statuses
+export const OCCURRENCE_STATUS = {
+  PENDING: 'pending',
+  CONFIRMED: 'confirmed',
+  SKIPPED: 'skipped',
+} as const;
+
+export type OccurrenceStatus = (typeof OCCURRENCE_STATUS)[keyof typeof OCCURRENCE_STATUS];
+
 // TanStack Query Keys
 export const QUERY_KEY = {
   CATEGORIES: 'categories',
   TRANSACTIONS: 'transactions',
   SUMMARY: 'summary',
+  SUBCATEGORY_SUMMARY: 'subcategory-summary',
+  RECURRING_EXPENSES: 'recurring-expenses',
+  PENDING_OCCURRENCES: 'pending-occurrences',
+  TRANSACTION_GROUPS: 'transaction-groups',
+  TRIPS: 'trips',
+  TRIP_CATEGORIES: 'trip-categories',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -49,6 +79,16 @@ export const API_ENDPOINT = {
   CATEGORIES: '/api/categories',
   TRANSACTIONS: '/api/transactions',
   SUMMARY: '/api/summary',
+  SUBCATEGORY_SUMMARY: '/api/summary/subcategories',
+  RECURRING_EXPENSES: '/api/recurring-expenses',
+  TRANSACTION_GROUPS: '/api/transaction-groups',
+  TRIPS: '/api/trips',
+} as const;
+
+// Well-known Category References
+export const GOING_OUT_CATEGORY = {
+  NAME: 'Salir',
+  ICON: 'beer',
 } as const;
 
 // Month format regex

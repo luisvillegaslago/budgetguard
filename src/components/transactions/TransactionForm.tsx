@@ -3,52 +3,86 @@
 /**
  * BudgetGuard Transaction Form
  * Form for creating new transactions with Zod validation
+ * Supports hierarchical categories and shared expense toggle
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X } from 'lucide-react';
+import { Users, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
+import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { TRANSACTION_TYPE } from '@/constants/finance';
-import { useCategories } from '@/hooks/useCategories';
-import { useCreateTransaction } from '@/hooks/useTransactions';
+import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateTransactionInput, CreateTransactionSchema } from '@/schemas/transaction';
-import type { TransactionType } from '@/types/finance';
+import { useSelectedMonth } from '@/stores/useFinanceStore';
+import type { Transaction, TransactionType } from '@/types/finance';
 import { cn } from '@/utils/helpers';
+import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 interface TransactionFormProps {
   onClose: () => void;
   defaultType?: TransactionType;
+  transaction?: Transaction;
 }
 
-export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENSE }: TransactionFormProps) {
+export function TransactionForm({
+  onClose,
+  defaultType = TRANSACTION_TYPE.EXPENSE,
+  transaction,
+}: TransactionFormProps) {
   const { t } = useTranslate();
-  const [transactionType, setTransactionType] = useState<TransactionType>(defaultType);
-  const { data: categories, isLoading: categoriesLoading } = useCategories(transactionType);
+  const isEditing = !!transaction;
+  const initialType = transaction?.type ?? defaultType;
+  const [transactionType, setTransactionType] = useState<TransactionType>(initialType);
+  const selectedMonth = useSelectedMonth();
   const createTransaction = useCreateTransaction();
+  const updateTransaction = useUpdateTransaction();
+  const mutation = isEditing ? updateTransaction : createTransaction;
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    setValue,
+    control,
   } = useForm<CreateTransactionInput>({
     resolver: zodResolver(CreateTransactionSchema),
-    defaultValues: {
-      type: defaultType,
-      transactionDate: new Date(),
-      description: '',
-    },
+    // Date strings ("YYYY-MM-DD") are used for <input type="date"> compatibility;
+    // z.coerce.date() handles string→Date conversion at validation time
+    defaultValues: isEditing
+      ? {
+          type: transaction.type,
+          categoryId: transaction.categoryId,
+          amount: centsToEuros(transaction.originalAmountCents ?? transaction.amountCents),
+          description: transaction.description ?? '',
+          transactionDate: transaction.transactionDate as unknown as Date,
+          isShared: transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR,
+        }
+      : {
+          type: defaultType,
+          transactionDate: (selectedMonth === new Date().toISOString().slice(0, 7)
+            ? new Date().toISOString().split('T')[0]
+            : `${selectedMonth}-01`) as unknown as Date,
+          description: '',
+          isShared: false,
+        },
   });
+
+  // Watch amount and isShared for reactive hint
+  const watchedAmount = useWatch({ control, name: 'amount' });
+  const watchedIsShared = useWatch({ control, name: 'isShared' });
 
   const onSubmit = async (data: CreateTransactionInput) => {
     try {
-      await createTransaction.mutateAsync({
-        ...data,
-        type: transactionType,
-      });
+      const payload = { ...data, type: transactionType };
+      if (isEditing) {
+        await updateTransaction.mutateAsync({ id: transaction.transactionId, data: payload });
+      } else {
+        await createTransaction.mutateAsync(payload);
+      }
       reset();
       onClose();
     } catch (_error) {
@@ -58,15 +92,37 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
 
   const handleTypeChange = (type: TransactionType) => {
     setTransactionType(type);
-    reset({ type, transactionDate: new Date(), description: '' });
+    reset({
+      type,
+      transactionDate: (selectedMonth === new Date().toISOString().slice(0, 7)
+        ? new Date().toISOString().split('T')[0]
+        : `${selectedMonth}-01`) as unknown as Date,
+      description: '',
+      isShared: false,
+    });
   };
+
+  const handleCategoryChange = (categoryId: number) => {
+    setValue('categoryId', categoryId, { shouldValidate: true });
+  };
+
+  const handleSharedDefaultChange = (defaultShared: boolean) => {
+    setValue('isShared', defaultShared);
+  };
+
+  // Compute shared hint display
+  const showSharedHint = watchedIsShared && watchedAmount > 0;
+  const sharedHintTotal = showSharedHint ? formatCurrency(eurosToCents(watchedAmount)) : '';
+  const sharedHintHalf = showSharedHint
+    ? formatCurrency(Math.ceil(eurosToCents(watchedAmount) / SHARED_EXPENSE.DIVISOR))
+    : '';
 
   // Focus trap and Escape handler
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !isEditing) {
         onClose();
         return;
       }
@@ -87,23 +143,19 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
         }
       }
     },
-    [onClose],
+    [onClose, isEditing],
   );
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
-    // Focus the dialog on mount
-    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>('button, [href], input, select, textarea');
-    firstFocusable?.focus();
+    const amountInput = dialogRef.current?.querySelector<HTMLElement>('#amount');
+    amountInput?.focus();
 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Close on backdrop click
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  const handleBackdropClick = (_e: React.MouseEvent<HTMLDivElement>) => {
+    // Do not close on backdrop click — user must use X button or Escape
   };
 
   return (
@@ -114,14 +166,14 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
       aria-labelledby="transaction-form-title"
       onClick={handleBackdropClick}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape' && !isEditing) onClose();
       }}
     >
-      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in">
+      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="transaction-form-title" className="text-xl font-bold text-foreground">
-            {t('transactions.form.title')}
+            {isEditing ? t('transactions.form.edit-title') : t('transactions.form.title')}
           </h2>
           <button
             type="button"
@@ -134,13 +186,18 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
         </div>
 
         {/* Type Toggle */}
-        <fieldset className="flex gap-2 mb-6 border-0 p-0 m-0" aria-label={t('transactions.form.type-group')}>
+        <fieldset
+          className="flex gap-2 mb-6 border-0 p-0 m-0"
+          aria-label={t('transactions.form.type-group')}
+          disabled={isEditing}
+        >
           <button
             type="button"
             onClick={() => handleTypeChange(TRANSACTION_TYPE.EXPENSE)}
             aria-pressed={transactionType === TRANSACTION_TYPE.EXPENSE}
             className={cn(
               'flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 ease-out-quart',
+              isEditing && 'opacity-60 cursor-not-allowed',
               transactionType === TRANSACTION_TYPE.EXPENSE
                 ? 'bg-guard-danger text-white'
                 : 'bg-muted text-guard-muted hover:text-foreground',
@@ -154,6 +211,7 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
             aria-pressed={transactionType === TRANSACTION_TYPE.INCOME}
             className={cn(
               'flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 ease-out-quart',
+              isEditing && 'opacity-60 cursor-not-allowed',
               transactionType === TRANSACTION_TYPE.INCOME
                 ? 'bg-guard-success text-white'
                 : 'bg-muted text-guard-muted hover:text-foreground',
@@ -164,35 +222,8 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
         </fieldset>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Category Select */}
-          <div>
-            <label htmlFor="categoryId" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.category')}
-            </label>
-            <select
-              id="categoryId"
-              {...register('categoryId', { valueAsNumber: true })}
-              disabled={categoriesLoading}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                errors.categoryId ? 'border-guard-danger' : 'border-input',
-              )}
-            >
-              <option value="">{t('transactions.form.fields.category-placeholder')}</option>
-              {categories?.map((cat) => (
-                <option key={cat.categoryId} value={cat.categoryId}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-            {errors.categoryId && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.categoryId.message}
-              </p>
-            )}
-          </div>
+          {/* Hidden categoryId field for form validation */}
+          <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
 
           {/* Amount Input */}
           <div>
@@ -204,11 +235,14 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
               type="number"
               step="0.01"
               min="0.01"
+              autoComplete="off"
               placeholder={t('transactions.form.fields.amount-placeholder')}
               {...register('amount', { valueAsNumber: true })}
+              onWheel={(e) => e.currentTarget.blur()}
               className={cn(
                 'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
                 'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                'transition-colors duration-200 ease-out-quart',
                 errors.amount ? 'border-guard-danger' : 'border-input',
               )}
             />
@@ -231,6 +265,7 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
               className={cn(
                 'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
                 'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                'transition-colors duration-200 ease-out-quart',
                 errors.transactionDate ? 'border-guard-danger' : 'border-input',
               )}
             />
@@ -241,6 +276,43 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
             )}
           </div>
 
+          {/* Hierarchical Category Selector */}
+          <CategorySelector
+            type={transactionType}
+            onCategoryChange={handleCategoryChange}
+            onSharedDefaultChange={handleSharedDefaultChange}
+            error={errors.categoryId?.message}
+            disabled={isSubmitting}
+            initialCategoryId={transaction?.categoryId}
+          />
+
+          {/* Shared Expense Toggle */}
+          <div className="flex items-start gap-3">
+            <div className="flex items-center h-6 mt-0.5">
+              <input
+                id="isShared"
+                type="checkbox"
+                {...register('isShared')}
+                className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
+              />
+            </div>
+            <div className="flex-1">
+              <label htmlFor="isShared" className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+                {t('transactions.form.fields.shared')}
+              </label>
+              {/* Shared hint */}
+              {showSharedHint && (
+                <p className="text-xs text-guard-muted mt-1 animate-fade-in">
+                  {t('transactions.form.fields.shared-hint', {
+                    total: sharedHintTotal,
+                    half: sharedHintHalf,
+                  })}
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Description Input */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-foreground mb-1.5">
@@ -249,11 +321,13 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
             <input
               id="description"
               type="text"
+              autoComplete="off"
               placeholder={t('transactions.form.fields.description-placeholder')}
               {...register('description')}
               className={cn(
                 'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
                 'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                'transition-colors duration-200 ease-out-quart',
                 errors.description ? 'border-guard-danger' : 'border-input',
               )}
             />
@@ -265,16 +339,18 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
           </div>
 
           {/* Error Message */}
-          {createTransaction.isError && (
+          {mutation.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
-              <p className="text-sm text-guard-danger">{t('transactions.form.errors.create')}</p>
+              <p className="text-sm text-guard-danger">
+                {isEditing ? t('transactions.form.errors.update') : t('transactions.form.errors.create')}
+              </p>
             </div>
           )}
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || createTransaction.isPending}
+            disabled={isSubmitting || mutation.isPending}
             className={cn(
               'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
               'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
@@ -283,11 +359,17 @@ export function TransactionForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENS
                 : 'bg-guard-danger hover:bg-guard-danger/90',
             )}
           >
-            {isSubmitting || createTransaction.isPending ? (
+            {isSubmitting || mutation.isPending ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner size="sm" className="border-white/30 border-t-white" />
-                {t('transactions.form.saving')}
+                {isEditing ? t('transactions.form.updating') : t('transactions.form.saving')}
               </span>
+            ) : isEditing ? (
+              transactionType === TRANSACTION_TYPE.INCOME ? (
+                t('transactions.form.submit.edit-income')
+              ) : (
+                t('transactions.form.submit.edit-expense')
+              )
             ) : transactionType === TRANSACTION_TYPE.INCOME ? (
               t('transactions.form.submit.income')
             ) : (

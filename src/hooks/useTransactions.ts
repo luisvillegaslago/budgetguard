@@ -4,9 +4,16 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useMemo } from 'react';
+import { API_ENDPOINT, CACHE_TIME, QUERY_KEY, SHARED_EXPENSE } from '@/constants/finance';
 import type { CreateTransactionInput } from '@/schemas/transaction';
-import type { ApiResponse, Transaction, TransactionType } from '@/types/finance';
+import type {
+  ApiResponse,
+  Transaction,
+  TransactionGroupDisplay,
+  TransactionType,
+  TripGroupDisplay,
+} from '@/types/finance';
 
 interface TransactionsResponse {
   data: Transaction[];
@@ -151,4 +158,117 @@ export function useDeleteTransaction() {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
     },
   });
+}
+
+interface GroupedTransactionsResult {
+  ungrouped: Transaction[];
+  groups: TransactionGroupDisplay[];
+  tripGroups: TripGroupDisplay[];
+}
+
+/**
+ * Hook that wraps useTransactions and splits results into ungrouped + grouped
+ * Client-side grouping via useMemo — acceptable for typical monthly volumes (50-200 transactions)
+ */
+export function useGroupedTransactions(month: string, filters?: TransactionFilters) {
+  const query = useTransactions(month, filters);
+
+  const grouped = useMemo((): GroupedTransactionsResult => {
+    const transactions = query.data?.data ?? [];
+
+    const ungrouped: Transaction[] = [];
+    const groupMap = new Map<number, Transaction[]>();
+
+    transactions.forEach((tx) => {
+      if (tx.transactionGroupId) {
+        const existing = groupMap.get(tx.transactionGroupId) ?? [];
+        existing.push(tx);
+        groupMap.set(tx.transactionGroupId, existing);
+      } else {
+        ungrouped.push(tx);
+      }
+    });
+
+    const groups: TransactionGroupDisplay[] = [];
+
+    groupMap.forEach((txs, groupId) => {
+      // Single-transaction groups are treated as regular rows
+      if (txs.length <= 1) {
+        txs.forEach((tx) => {
+          ungrouped.push(tx);
+        });
+        return;
+      }
+
+      const first = txs[0];
+      if (!first) return;
+
+      const totalAmountCents = txs.reduce((sum, tx) => sum + tx.amountCents, 0);
+      const isShared = txs.some((tx) => tx.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR);
+
+      groups.push({
+        transactionGroupId: groupId,
+        description: first.description,
+        transactionDate: first.transactionDate,
+        parentCategoryName: first.parentCategory?.name ?? first.category?.name ?? '',
+        parentCategoryIcon: first.parentCategory ? (first.category?.icon ?? null) : (first.category?.icon ?? null),
+        parentCategoryColor: first.category?.color ?? null,
+        totalAmountCents,
+        isShared,
+        type: first.type,
+        transactions: txs,
+      });
+    });
+
+    // Separate trip transactions from ungrouped
+    const nonTrip: Transaction[] = [];
+    const tripMap = new Map<number, Transaction[]>();
+
+    ungrouped.forEach((tx) => {
+      if (tx.tripId) {
+        const existing = tripMap.get(tx.tripId) ?? [];
+        existing.push(tx);
+        tripMap.set(tx.tripId, existing);
+      } else {
+        nonTrip.push(tx);
+      }
+    });
+
+    const tripGroups: TripGroupDisplay[] = [];
+
+    tripMap.forEach((txs, tripId) => {
+      // Single-transaction trips are treated as regular rows (consistent with group pattern)
+      if (txs.length <= 1) {
+        txs.forEach((tx) => {
+          nonTrip.push(tx);
+        });
+        return;
+      }
+
+      const first = txs[0];
+      if (!first) return;
+
+      const totalAmountCents = txs.reduce((sum, tx) => sum + tx.amountCents, 0);
+      const startDate = txs.reduce(
+        (min, tx) => (tx.transactionDate < min ? tx.transactionDate : min),
+        first.transactionDate,
+      );
+
+      // Sort trip expenses chronologically (oldest first)
+      const sorted = [...txs].sort((a, b) => a.transactionDate.localeCompare(b.transactionDate));
+
+      tripGroups.push({
+        tripId,
+        tripName: first.tripName ?? `Trip #${tripId}`,
+        startDate,
+        totalAmountCents,
+        type: first.type,
+        transactions: sorted,
+      });
+    });
+
+    return { ungrouped: nonTrip, groups, tripGroups };
+  }, [query.data]);
+
+  return { ...query, grouped };
 }

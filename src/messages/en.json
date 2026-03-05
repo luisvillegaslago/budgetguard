@@ -14,15 +14,33 @@
       "close": "Close",
       "create": "Create",
       "retry": "Retry",
-      "add-first-transaction": "Add first transaction"
+      "add-first-transaction": "Add first transaction",
+      "clear": "Clear"
     },
     "labels": {
       "optional": "optional"
+    },
+    "months-short": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
     }
   },
   "navigation": {
     "previous-month": "Previous month",
-    "next-month": "Next month"
+    "next-month": "Next month",
+    "previous-year": "Previous year",
+    "next-year": "Next year",
+    "month-picker": "Month picker"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -34,13 +52,22 @@
     },
     "category-breakdown": {
       "title": "Expenses by Category",
-      "empty": "No expenses this month"
+      "empty": "No expenses this month",
+      "expand": "Expand subcategories",
+      "collapse": "Collapse subcategories",
+      "general": "General"
     },
-    "default-currency": "0.00 €"
+    "default-currency": "0.00 €",
+    "actions": {
+      "going-out": "Going out",
+      "menu": "Menu"
+    }
   },
   "transactions": {
     "title": "Transactions",
     "new": "New Transaction",
+    "search-placeholder": "Search by category or description...",
+    "search-empty": "No transactions found",
     "empty": {
       "title": "No transactions this month",
       "subtitle": "Create your first transaction to get started"
@@ -50,6 +77,36 @@
       "confirm": "Confirm deletion"
     },
     "no-category": "No category",
+    "shared-badge": "÷2",
+    "groups": {
+      "title": "Create Outing",
+      "edit-title": "Edit Outing",
+      "description-placeholder": "Ex: Rico's farewell",
+      "parent-category": "Category",
+      "subcategories": "Subcategories",
+      "running-total": "Total: {amount}",
+      "submit": "Create Outing",
+      "saving": "Creating outing...",
+      "badge": "Outing",
+      "expand": "Expand breakdown",
+      "collapse": "Collapse breakdown",
+      "new": "New Outing",
+      "delete": {
+        "button": "Delete outing",
+        "confirm": "Delete entire outing ({count} transactions)?"
+      },
+      "errors": {
+        "create": "Error creating outing. Please try again.",
+        "update": "Error updating outing. Please try again.",
+        "min-items": "Add at least one amount"
+      }
+    },
+    "trip-group": {
+      "expand": "Expand trip",
+      "collapse": "Collapse trip",
+      "expenses": "{count} expenses",
+      "view-detail": "View trip detail"
+    },
     "form": {
       "title": "New Transaction",
       "type": {
@@ -60,19 +117,28 @@
       "fields": {
         "category": "Category",
         "category-placeholder": "Select a category",
+        "subcategory": "Subcategory",
+        "subcategory-placeholder": "No subcategory",
         "amount": "Amount (€)",
         "amount-placeholder": "0.00",
         "date": "Date",
         "description": "Description",
-        "description-placeholder": "Ex: Weekly shopping"
+        "description-placeholder": "Ex: Weekly shopping",
+        "shared": "Shared expense (÷2)",
+        "shared-hint": "Total: {total} → Your part: {half}"
       },
       "submit": {
         "expense": "Create Expense",
-        "income": "Create Income"
+        "income": "Create Income",
+        "edit-expense": "Save Expense",
+        "edit-income": "Save Income"
       },
       "saving": "Saving...",
+      "updating": "Updating...",
+      "edit-title": "Edit Transaction",
       "errors": {
-        "create": "Error creating transaction. Please try again."
+        "create": "Error creating transaction. Please try again.",
+        "update": "Error updating transaction. Please try again."
       }
     }
   },
@@ -93,9 +159,108 @@
       "restaurant": "Restaurant",
       "shopping": "Shopping",
       "going-out": "Going Out",
+      "housing-sub": {
+        "internet": "Internet",
+        "housekeeper": "Housekeeper",
+        "heating": "Heating",
+        "electricity": "Electricity",
+        "garage": "Garage",
+        "community": "Community fees",
+        "home-shopping": "Home shopping",
+        "other": "Other"
+      },
+      "going-out-sub": {
+        "food": "Food",
+        "drinks": "Drinks",
+        "transport": "Transport",
+        "wardrobe": "Wardrobe",
+        "other": "Other"
+      },
+      "transport-sub": {
+        "gas": "Gas",
+        "toll": "Toll",
+        "taxi": "Taxi",
+        "parking": "Parking",
+        "public-transport": "Public Transport"
+      },
+      "sports-sub": {
+        "padel": "Padel",
+        "gym": "Gym",
+        "races": "Races",
+        "general": "General"
+      },
+      "work-sub": {
+        "social-security": "Social Security",
+        "taxes": "Taxes",
+        "anthropic": "Anthropic",
+        "general": "General"
+      },
       "extra": "Extra Expenses",
       "travel": "Travel",
       "annual": "Annual"
+    }
+  },
+  "category-management": {
+    "title": "Category Management",
+    "subtitle": "Organize your income and expense categories",
+    "back": "Back to Dashboard",
+    "add-category": "Add Category",
+    "add-subcategory": "Add Subcategory",
+    "edit-category": "Edit Category",
+    "filter": {
+      "all": "All",
+      "income": "Income",
+      "expense": "Expenses"
+    },
+    "badges": {
+      "inactive": "Inactive",
+      "shared": "Shared"
+    },
+    "empty": {
+      "title": "No categories yet",
+      "subtitle": "Create your first category to get started",
+      "cta": "Create First Category"
+    },
+    "form": {
+      "title-create": "New Category",
+      "title-edit": "Edit Category",
+      "title-subcategory": "New Subcategory",
+      "subcategory-of": "Subcategory of {parent}",
+      "fields": {
+        "name": "Name",
+        "name-placeholder": "Category name",
+        "type": "Type",
+        "icon": "Icon",
+        "color": "Color",
+        "sort-order": "Sort Order",
+        "sort-order-placeholder": "0",
+        "shared": "Shared by default"
+      },
+      "submit-create": "Create Category",
+      "submit-edit": "Save Changes",
+      "saving": "Saving...",
+      "errors": {
+        "create": "Error creating category. Please try again.",
+        "update": "Error updating category. Please try again."
+      }
+    },
+    "delete": {
+      "title": "Delete Category",
+      "confirm": "Are you sure you want to delete \"{name}\"? This action cannot be undone.",
+      "has-transactions": "This category has {count} transactions. Deactivate it to hide it from forms without losing data.",
+      "has-subcategories": "This category has {count} subcategories. Delete them first before deleting the parent category.",
+      "deactivate-instead": "Deactivate instead",
+      "deleting": "Deleting...",
+      "errors": {
+        "delete": "Error deleting category. Please try again."
+      }
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "add-subcategory": "Add subcategory"
     }
   },
   "errors": {
@@ -119,6 +284,173 @@
       "title": "Page not found",
       "description": "The page you are looking for does not exist or has been moved.",
       "go-home": "Back to Dashboard"
+    }
+  },
+  "recurring": {
+    "badge": "Recurring",
+    "frequency": {
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "days-of-week": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "days-of-week-long": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "pending": {
+      "title": "Pending recurring expenses",
+      "count": "({count})",
+      "confirm": "Confirm",
+      "skip": "Skip",
+      "confirm-all-month": "Confirm all for {month}",
+      "confirm-all": "Confirm all ({count})",
+      "modify": "Modify amount",
+      "modified-amount": "New amount (€)",
+      "processing": "Processing...",
+      "error": "Error processing occurrence"
+    },
+    "management": {
+      "title": "Recurring Expenses",
+      "subtitle": "Manage your recurring expenses",
+      "back": "Back to Dashboard",
+      "add": "New Recurring Expense",
+      "empty": {
+        "title": "No recurring expenses",
+        "subtitle": "Create your first recurring expense to automate your records"
+      },
+      "active": "Active",
+      "inactive": "Inactive",
+      "actions": {
+        "edit": "Edit",
+        "deactivate": "Deactivate",
+        "activate": "Activate"
+      }
+    },
+    "form": {
+      "title-create": "New Recurring Expense",
+      "title-edit": "Edit Recurring Expense",
+      "fields": {
+        "category": "Category",
+        "amount": "Amount (€)",
+        "description": "Description",
+        "frequency": "Frequency",
+        "day-of-week": "Day of week",
+        "day-of-month": "Day of month",
+        "month-of-year": "Month",
+        "start-date": "Start date",
+        "end-date": "End date",
+        "shared": "Shared expense (÷2)"
+      },
+      "submit-create": "Create Recurring Expense",
+      "submit-edit": "Save Changes",
+      "saving": "Saving...",
+      "errors": {
+        "create": "Error creating recurring expense. Please try again.",
+        "update": "Error updating recurring expense. Please try again."
+      }
+    },
+    "months": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    }
+  },
+  "trips": {
+    "title": "Trips",
+    "subtitle": "Manage your trips and associated expenses",
+    "back": "Back to Dashboard",
+    "new": "New Trip",
+    "search-placeholder": "Search trip...",
+    "search-empty": "No trips found",
+    "empty": {
+      "title": "No trips yet",
+      "subtitle": "Create your first trip to start tracking expenses",
+      "cta": "Create First Trip"
+    },
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "upcoming-badge": "Upcoming",
+    "card": {
+      "expenses": "{count} expenses",
+      "no-expenses": "No expenses",
+      "date-range": "{start} — {end}",
+      "no-dates": "No dates"
+    },
+    "detail": {
+      "add-expense": "Add Expense",
+      "total": "Total",
+      "edit-name": "Edit name",
+      "save-name": "Save name",
+      "cancel-edit": "Cancel edit",
+      "empty": {
+        "title": "No expenses in this trip",
+        "subtitle": "Add your first expense to get started"
+      }
+    },
+    "expense-form": {
+      "title-create": "New Trip Expense",
+      "title-edit": "Edit Trip Expense",
+      "fields": {
+        "category": "Category",
+        "category-placeholder": "Select a category",
+        "amount": "Amount (€)",
+        "amount-placeholder": "0.00",
+        "date": "Date",
+        "description": "Description",
+        "description-placeholder": "Ex: Hotel 2 nights",
+        "shared": "Shared expense (÷2)",
+        "shared-hint": "Total: {total} → Your part: {half}"
+      },
+      "submit-create": "Create Expense",
+      "submit-edit": "Save Expense",
+      "saving": "Saving...",
+      "errors": {
+        "create": "Error creating expense. Please try again.",
+        "update": "Error updating expense. Please try again."
+      }
+    },
+    "create-form": {
+      "title": "New Trip",
+      "fields": {
+        "name": "Trip name",
+        "name-placeholder": "Ex: Sierra Nevada 2026"
+      },
+      "submit": "Create Trip",
+      "saving": "Creating..."
+    },
+    "delete": {
+      "button": "Delete trip",
+      "confirm": "Delete trip and {count} associated expenses?"
+    },
+    "badge": "Trip",
+    "errors": {
+      "load": "Error loading trips",
+      "load-detail": "Error loading trip",
+      "create": "Error creating trip. Please try again.",
+      "not-found": "Trip not found"
     }
   },
   "validation": {

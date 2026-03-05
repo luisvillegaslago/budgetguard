@@ -23,6 +23,9 @@ interface FinanceUIState {
   // Transaction filters
   filters: FinanceFilters;
 
+  // Recurring panel state
+  isRecurringPanelCollapsed: boolean;
+
   // Actions
   setSelectedMonth: (month: string) => void;
   goToPreviousMonth: () => void;
@@ -30,6 +33,7 @@ interface FinanceUIState {
   goToCurrentMonth: () => void;
   setFilters: (filters: Partial<FinanceFilters>) => void;
   resetFilters: () => void;
+  toggleRecurringPanel: () => void;
 }
 
 const defaultFilters: FinanceFilters = {
@@ -40,6 +44,7 @@ const defaultFilters: FinanceFilters = {
 export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   selectedMonth: getCurrentMonth(),
   filters: defaultFilters,
+  isRecurringPanelCollapsed: false,
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
 
@@ -66,6 +71,10 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   resetFilters: () => {
     set({ filters: defaultFilters });
   },
+
+  toggleRecurringPanel: () => {
+    set((state) => ({ isRecurringPanelCollapsed: !state.isRecurringPanelCollapsed }));
+  },
 }));
 
 // Atomic selectors to prevent unnecessary re-renders
@@ -85,3 +94,6 @@ export const useMonthNavigation = () =>
 export const useFilters = () => useFinanceStore(useShallow((s) => s.filters));
 export const useSetFilters = () => useFinanceStore((s) => s.setFilters);
 export const useResetFilters = () => useFinanceStore((s) => s.resetFilters);
+
+export const useIsRecurringPanelCollapsed = () => useFinanceStore((s) => s.isRecurringPanelCollapsed);
+export const useToggleRecurringPanel = () => useFinanceStore((s) => s.toggleRecurringPanel);

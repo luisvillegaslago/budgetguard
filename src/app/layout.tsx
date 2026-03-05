@@ -30,7 +30,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html lang={locale} className="dark" suppressHydrationWarning>
-      <body className={cn('min-h-screen bg-background font-sans text-foreground antialiased')}>
+      <body className={cn('min-h-screen bg-background font-sans text-foreground antialiased')} suppressHydrationWarning>
         <QueryProvider>
           <TranslationProvider>
             <div className="relative min-h-screen">{children}</div>

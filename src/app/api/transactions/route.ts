@@ -6,6 +6,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { SHARED_EXPENSE } from '@/constants/finance';
 import { CreateTransactionSchema, TransactionFiltersSchema, validateRequest } from '@/schemas/transaction';
 import { createTransaction, getTransactionsByMonth } from '@/services/database/TransactionRepository';
 import { getCurrentMonth } from '@/utils/helpers';
@@ -53,12 +54,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, errors: validation.errors }, { status: 400 });
     }
 
-    const { amount, ...rest } = validation.data;
+    const { amount, isShared, ...rest } = validation.data;
 
     // Convert euros to cents for storage
+    const fullAmountCents = eurosToCents(amount);
+    const sharedDivisor = isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR;
+
+    // Math.ceil ensures user's part covers the rounding (101 → 51, not 50)
+    const effectiveAmount = isShared ? Math.ceil(fullAmountCents / sharedDivisor) : fullAmountCents;
+
     const transaction = await createTransaction({
       ...rest,
-      amountCents: eurosToCents(amount),
+      amountCents: effectiveAmount,
+      originalAmountCents: isShared ? fullAmountCents : null,
+      sharedDivisor,
       description: rest.description ?? undefined,
     });
 

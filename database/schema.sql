@@ -17,10 +17,13 @@ IF OBJECT_ID('TR_Accounts_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_Accounts
 IF OBJECT_ID('TR_Users_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_Users_UpdatedAt;
 IF OBJECT_ID('TR_Transactions_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_Transactions_UpdatedAt;
 IF OBJECT_ID('TR_Categories_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_Categories_UpdatedAt;
+IF OBJECT_ID('TR_RecurringExpenses_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_RecurringExpenses_UpdatedAt;
+IF OBJECT_ID('TR_Trips_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_Trips_UpdatedAt;
 GO
 
 -- Drop views (they depend on tables)
 IF OBJECT_ID('vw_MonthlyBalance', 'V') IS NOT NULL DROP VIEW vw_MonthlyBalance;
+IF OBJECT_ID('vw_SubcategorySummary', 'V') IS NOT NULL DROP VIEW vw_SubcategorySummary;
 IF OBJECT_ID('vw_MonthlySummary', 'V') IS NOT NULL DROP VIEW vw_MonthlySummary;
 GO
 
@@ -28,7 +31,11 @@ GO
 DROP TABLE IF EXISTS VerificationTokens;
 DROP TABLE IF EXISTS Sessions;
 DROP TABLE IF EXISTS Accounts;
+DROP TABLE IF EXISTS RecurringExpenseOccurrences;
 DROP TABLE IF EXISTS Transactions;
+DROP TABLE IF EXISTS RecurringExpenses;
+DROP TABLE IF EXISTS TransactionGroups;
+DROP TABLE IF EXISTS Trips;
 
 -- Drop base tables
 DROP TABLE IF EXISTS Users;
@@ -40,6 +47,7 @@ GO
 -- ============================================================
 
 -- Categories table for organizing transactions
+-- Supports hierarchical subcategories via self-referencing ParentCategoryID
 CREATE TABLE Categories (
     CategoryID INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(100) NOT NULL,
@@ -48,26 +56,57 @@ CREATE TABLE Categories (
     Color NVARCHAR(7) NULL,           -- Hex color (#4F46E5)
     SortOrder INT DEFAULT 0,
     IsActive BIT DEFAULT 1,
+    ParentCategoryID INT NULL,        -- Self-referencing FK for subcategories (NULL = parent)
+    DefaultShared BIT DEFAULT 0 NOT NULL, -- Auto-toggle shared checkbox in form
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
-    UpdatedAt DATETIME2 DEFAULT GETUTCDATE()
+    UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
+    CONSTRAINT FK_Categories_Parent FOREIGN KEY (ParentCategoryID)
+        REFERENCES Categories(CategoryID) ON DELETE NO ACTION
 );
 
 -- Indexes for category lookups
 CREATE INDEX IX_Categories_Type ON Categories(Type);
 CREATE INDEX IX_Categories_Active ON Categories(IsActive);
+CREATE INDEX IX_Categories_Parent ON Categories(ParentCategoryID);
+
+-- Trips for multi-day, multi-category travel expense tracking
+-- Trip expenses are regular Transactions with a TripID FK
+CREATE TABLE Trips (
+    TripID INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(100) NOT NULL,
+    CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
+    UpdatedAt DATETIME2 DEFAULT GETUTCDATE()
+);
+
+-- Transaction Groups for linking related transactions (e.g., outings with multiple subcategory expenses)
+-- Minimal identity anchor; description/date come from the transactions themselves
+CREATE TABLE TransactionGroups (
+    TransactionGroupID INT IDENTITY(1,1) PRIMARY KEY,
+    CreatedAt DATETIME2 DEFAULT GETUTCDATE()
+);
 
 -- Transactions table for income and expenses
 -- IMPORTANT: AmountCents stores money in cents to avoid floating point errors
 -- Example: €419.28 is stored as 41928
+-- SharedDivisor: 1 = not shared, 2 = split between 2, etc.
+-- OriginalAmountCents: full amount before division (only when SharedDivisor > 1)
 CREATE TABLE Transactions (
     TransactionID INT IDENTITY(1,1) PRIMARY KEY,
     CategoryID INT NOT NULL FOREIGN KEY REFERENCES Categories(CategoryID),
-    AmountCents INT NOT NULL,         -- Stored in cents (41928 = €419.28)
+    AmountCents INT NOT NULL,         -- Effective amount (halved if shared) in cents
     Description NVARCHAR(255) NULL,
     TransactionDate DATE NOT NULL,
     Type NVARCHAR(10) NOT NULL CHECK (Type IN ('income', 'expense')),
+    SharedDivisor TINYINT DEFAULT 1 NOT NULL, -- 1=personal, 2=split-by-2, etc.
+    OriginalAmountCents INT NULL,     -- Full amount before division (NULL if not shared)
+    TransactionGroupID INT NULL,     -- FK to TransactionGroups (NULL if standalone)
+    TripID INT NULL,                -- FK to Trips (NULL if not a trip expense)
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
-    UpdatedAt DATETIME2 DEFAULT GETUTCDATE()
+    UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
+    CONSTRAINT FK_Transactions_TransactionGroup
+        FOREIGN KEY (TransactionGroupID) REFERENCES TransactionGroups(TransactionGroupID),
+    CONSTRAINT FK_Transactions_Trip
+        FOREIGN KEY (TripID) REFERENCES Trips(TripID)
 );
 
 -- Indexes for efficient querying by date and type
@@ -75,6 +114,84 @@ CREATE INDEX IX_Transactions_Date ON Transactions(TransactionDate);
 CREATE INDEX IX_Transactions_Type_Date ON Transactions(Type, TransactionDate);
 CREATE INDEX IX_Transactions_Category ON Transactions(CategoryID);
 CREATE INDEX IX_Transactions_YearMonth ON Transactions(TransactionDate) INCLUDE (Type, AmountCents, CategoryID);
+CREATE INDEX IX_Transactions_Shared ON Transactions(SharedDivisor);
+CREATE INDEX IX_Transactions_TransactionGroup ON Transactions(TransactionGroupID);
+CREATE INDEX IX_Transactions_TripID ON Transactions(TripID);
+
+GO
+
+-- ============================================================
+-- RECURRING EXPENSES
+-- ============================================================
+
+-- RecurringExpenses: Rules defining recurring expenses
+CREATE TABLE RecurringExpenses (
+    RecurringExpenseID INT IDENTITY(1,1) PRIMARY KEY,
+    CategoryID INT NOT NULL FOREIGN KEY REFERENCES Categories(CategoryID),
+    AmountCents INT NOT NULL,
+    Description NVARCHAR(255) NULL,
+    Frequency NVARCHAR(10) NOT NULL CHECK (Frequency IN ('weekly', 'monthly', 'yearly')),
+    DayOfWeek TINYINT NULL,            -- 0=Sunday .. 6=Saturday (for weekly)
+    DayOfMonth TINYINT NULL,           -- 1-31 (for monthly/yearly)
+    MonthOfYear TINYINT NULL,          -- 1-12 (for yearly)
+    StartDate DATE NOT NULL,
+    EndDate DATE NULL,
+    IsActive BIT DEFAULT 1 NOT NULL,
+    SharedDivisor TINYINT DEFAULT 1 NOT NULL,
+    OriginalAmountCents INT NULL,
+    CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
+    UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
+
+    CONSTRAINT CK_RecurringExpenses_Weekly
+        CHECK (Frequency != 'weekly' OR DayOfWeek IS NOT NULL),
+    CONSTRAINT CK_RecurringExpenses_Monthly
+        CHECK (Frequency != 'monthly' OR DayOfMonth IS NOT NULL),
+    CONSTRAINT CK_RecurringExpenses_Yearly
+        CHECK (Frequency != 'yearly' OR (DayOfMonth IS NOT NULL AND MonthOfYear IS NOT NULL)),
+    CONSTRAINT CK_RecurringExpenses_DayOfWeek_Range
+        CHECK (DayOfWeek IS NULL OR (DayOfWeek >= 0 AND DayOfWeek <= 6)),
+    CONSTRAINT CK_RecurringExpenses_DayOfMonth_Range
+        CHECK (DayOfMonth IS NULL OR (DayOfMonth >= 1 AND DayOfMonth <= 31)),
+    CONSTRAINT CK_RecurringExpenses_MonthOfYear_Range
+        CHECK (MonthOfYear IS NULL OR (MonthOfYear >= 1 AND MonthOfYear <= 12))
+);
+
+CREATE INDEX IX_RecurringExpenses_Active ON RecurringExpenses(IsActive);
+CREATE INDEX IX_RecurringExpenses_Category ON RecurringExpenses(CategoryID);
+
+-- RecurringExpenseOccurrences: Individual occurrence tracking per date
+CREATE TABLE RecurringExpenseOccurrences (
+    OccurrenceID INT IDENTITY(1,1) PRIMARY KEY,
+    RecurringExpenseID INT NOT NULL,
+    OccurrenceDate DATE NOT NULL,
+    Status NVARCHAR(10) NOT NULL DEFAULT 'pending'
+        CHECK (Status IN ('pending', 'confirmed', 'skipped')),
+    TransactionID INT NULL,
+    ModifiedAmountCents INT NULL,
+    ProcessedAt DATETIME2 NULL,
+
+    CONSTRAINT FK_Occurrences_RecurringExpense
+        FOREIGN KEY (RecurringExpenseID) REFERENCES RecurringExpenses(RecurringExpenseID)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_Occurrences_Transaction
+        FOREIGN KEY (TransactionID) REFERENCES Transactions(TransactionID)
+        ON DELETE SET NULL,
+    CONSTRAINT UQ_Occurrence_Date
+        UNIQUE (RecurringExpenseID, OccurrenceDate)
+);
+
+CREATE INDEX IX_Occurrences_Status ON RecurringExpenseOccurrences(Status);
+CREATE INDEX IX_Occurrences_Date ON RecurringExpenseOccurrences(OccurrenceDate);
+
+GO
+
+-- Add RecurringExpenseID column to Transactions
+ALTER TABLE Transactions
+ADD RecurringExpenseID INT NULL
+    CONSTRAINT FK_Transactions_RecurringExpense
+    FOREIGN KEY REFERENCES RecurringExpenses(RecurringExpenseID);
+
+CREATE INDEX IX_Transactions_RecurringExpense ON Transactions(RecurringExpenseID);
 
 GO
 
@@ -82,27 +199,40 @@ GO
 -- VIEWS (Pre-calculated aggregations)
 -- ============================================================
 
--- View: Monthly summary by category
--- All calculations done in SQL, not in client JavaScript
+-- View: Monthly summary grouped by PARENT category
+-- Subcategory transactions aggregate under their parent
+-- Trip-linked transactions use trip start date (MIN date) for month attribution
 CREATE VIEW vw_MonthlySummary AS
 SELECT
-    FORMAT(t.TransactionDate, 'yyyy-MM') AS Month,
+    FORMAT(
+      CASE WHEN t.TripID IS NOT NULL THEN tripAgg.TripStartDate ELSE t.TransactionDate END,
+      'yyyy-MM'
+    ) AS Month,
     t.Type,
-    t.CategoryID,
-    c.Name AS CategoryName,
-    c.Icon AS CategoryIcon,
-    c.Color AS CategoryColor,
+    COALESCE(c.ParentCategoryID, c.CategoryID) AS CategoryID,
+    COALESCE(parent.Name, c.Name) AS CategoryName,
+    COALESCE(parent.Icon, c.Icon) AS CategoryIcon,
+    COALESCE(parent.Color, c.Color) AS CategoryColor,
     SUM(t.AmountCents) AS TotalCents,
     COUNT(*) AS TransactionCount
 FROM Transactions t
 INNER JOIN Categories c ON t.CategoryID = c.CategoryID
+LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
+LEFT JOIN (
+    SELECT TripID, MIN(TransactionDate) AS TripStartDate
+    FROM Transactions WHERE TripID IS NOT NULL
+    GROUP BY TripID
+) tripAgg ON t.TripID = tripAgg.TripID
 GROUP BY
-    FORMAT(t.TransactionDate, 'yyyy-MM'),
+    FORMAT(
+      CASE WHEN t.TripID IS NOT NULL THEN tripAgg.TripStartDate ELSE t.TransactionDate END,
+      'yyyy-MM'
+    ),
     t.Type,
-    t.CategoryID,
-    c.Name,
-    c.Icon,
-    c.Color;
+    COALESCE(c.ParentCategoryID, c.CategoryID),
+    COALESCE(parent.Name, c.Name),
+    COALESCE(parent.Icon, c.Icon),
+    COALESCE(parent.Color, c.Color);
 GO
 
 -- View: Monthly balance totals (income, expense, net balance)
@@ -114,6 +244,42 @@ SELECT
     SUM(CASE WHEN Type = 'income' THEN TotalCents ELSE -TotalCents END) AS BalanceCents
 FROM vw_MonthlySummary
 GROUP BY Month;
+GO
+
+-- View: Subcategory drill-down within a parent category
+-- Trip-linked transactions use trip start date for month attribution
+CREATE VIEW vw_SubcategorySummary AS
+SELECT
+    FORMAT(
+      CASE WHEN t.TripID IS NOT NULL THEN tripAgg.TripStartDate ELSE t.TransactionDate END,
+      'yyyy-MM'
+    ) AS Month,
+    COALESCE(c.ParentCategoryID, c.CategoryID) AS ParentCategoryID,
+    t.CategoryID AS SubcategoryID,
+    c.Name AS SubcategoryName,
+    c.Icon AS SubcategoryIcon,
+    c.Color AS SubcategoryColor,
+    c.ParentCategoryID AS IsSubcategory,
+    SUM(t.AmountCents) AS TotalCents,
+    COUNT(*) AS TransactionCount
+FROM Transactions t
+INNER JOIN Categories c ON t.CategoryID = c.CategoryID
+LEFT JOIN (
+    SELECT TripID, MIN(TransactionDate) AS TripStartDate
+    FROM Transactions WHERE TripID IS NOT NULL
+    GROUP BY TripID
+) tripAgg ON t.TripID = tripAgg.TripID
+GROUP BY
+    FORMAT(
+      CASE WHEN t.TripID IS NOT NULL THEN tripAgg.TripStartDate ELSE t.TransactionDate END,
+      'yyyy-MM'
+    ),
+    COALESCE(c.ParentCategoryID, c.CategoryID),
+    t.CategoryID,
+    c.Name,
+    c.Icon,
+    c.Color,
+    c.ParentCategoryID;
 GO
 
 -- ============================================================
@@ -240,6 +406,32 @@ BEGIN
     SET UpdatedAt = GETUTCDATE()
     FROM Accounts a
     INNER JOIN inserted i ON a.AccountID = i.AccountID;
+END;
+GO
+
+CREATE TRIGGER TR_Trips_UpdatedAt
+ON Trips
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE Trips
+    SET UpdatedAt = GETUTCDATE()
+    FROM Trips t
+    INNER JOIN inserted i ON t.TripID = i.TripID;
+END;
+GO
+
+CREATE TRIGGER TR_RecurringExpenses_UpdatedAt
+ON RecurringExpenses
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE RecurringExpenses
+    SET UpdatedAt = GETUTCDATE()
+    FROM RecurringExpenses r
+    INNER JOIN inserted i ON r.RecurringExpenseID = i.RecurringExpenseID;
 END;
 GO
 

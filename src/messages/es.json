@@ -14,15 +14,33 @@
       "close": "Cerrar",
       "create": "Crear",
       "retry": "Reintentar",
-      "add-first-transaction": "Añadir primera transacción"
+      "add-first-transaction": "Añadir primera transacción",
+      "clear": "Limpiar"
     },
     "labels": {
       "optional": "opcional"
+    },
+    "months-short": {
+      "1": "Ene",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Abr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Ago",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dic"
     }
   },
   "navigation": {
     "previous-month": "Mes anterior",
-    "next-month": "Mes siguiente"
+    "next-month": "Mes siguiente",
+    "previous-year": "Año anterior",
+    "next-year": "Año siguiente",
+    "month-picker": "Selector de mes"
   },
   "dashboard": {
     "title": "Panel",
@@ -34,13 +52,22 @@
     },
     "category-breakdown": {
       "title": "Gastos por Categoría",
-      "empty": "No hay gastos este mes"
+      "empty": "No hay gastos este mes",
+      "expand": "Expandir subcategorías",
+      "collapse": "Contraer subcategorías",
+      "general": "General"
     },
-    "default-currency": "0,00 €"
+    "default-currency": "0,00 €",
+    "actions": {
+      "going-out": "Salir",
+      "menu": "Menú"
+    }
   },
   "transactions": {
     "title": "Transacciones",
     "new": "Nueva Transacción",
+    "search-placeholder": "Buscar por categoría o descripción...",
+    "search-empty": "No se encontraron transacciones",
     "empty": {
       "title": "No hay transacciones este mes",
       "subtitle": "Crea tu primera transacción para empezar"
@@ -50,6 +77,36 @@
       "confirm": "Confirmar eliminación"
     },
     "no-category": "Sin categoría",
+    "shared-badge": "÷2",
+    "groups": {
+      "title": "Crear Salida",
+      "edit-title": "Editar Salida",
+      "description-placeholder": "Ej: Despedida Rico",
+      "parent-category": "Categoría",
+      "subcategories": "Subcategorías",
+      "running-total": "Total: {amount}",
+      "submit": "Crear Salida",
+      "saving": "Creando salida...",
+      "badge": "Salida",
+      "expand": "Expandir desglose",
+      "collapse": "Contraer desglose",
+      "new": "Nueva Salida",
+      "delete": {
+        "button": "Eliminar salida",
+        "confirm": "¿Eliminar toda la salida ({count} transacciones)?"
+      },
+      "errors": {
+        "create": "Error al crear la salida. Intenta de nuevo.",
+        "update": "Error al actualizar la salida. Intenta de nuevo.",
+        "min-items": "Añade al menos un monto"
+      }
+    },
+    "trip-group": {
+      "expand": "Expandir viaje",
+      "collapse": "Contraer viaje",
+      "expenses": "{count} gastos",
+      "view-detail": "Ver detalle del viaje"
+    },
     "form": {
       "title": "Nueva Transacción",
       "type": {
@@ -60,19 +117,28 @@
       "fields": {
         "category": "Categoría",
         "category-placeholder": "Selecciona una categoría",
+        "subcategory": "Subcategoría",
+        "subcategory-placeholder": "Sin subcategoría",
         "amount": "Monto (€)",
         "amount-placeholder": "0,00",
         "date": "Fecha",
         "description": "Descripción",
-        "description-placeholder": "Ej: Compra semanal"
+        "description-placeholder": "Ej: Compra semanal",
+        "shared": "Gasto compartido (÷2)",
+        "shared-hint": "Total: {total} → Tu parte: {half}"
       },
       "submit": {
         "expense": "Crear Gasto",
-        "income": "Crear Ingreso"
+        "income": "Crear Ingreso",
+        "edit-expense": "Guardar Gasto",
+        "edit-income": "Guardar Ingreso"
       },
       "saving": "Guardando...",
+      "updating": "Actualizando...",
+      "edit-title": "Editar Transacción",
       "errors": {
-        "create": "Error al crear la transacción. Intenta de nuevo."
+        "create": "Error al crear la transacción. Intenta de nuevo.",
+        "update": "Error al actualizar. Inténtalo de nuevo."
       }
     }
   },
@@ -93,9 +159,108 @@
       "restaurant": "Restaurante",
       "shopping": "Compras",
       "going-out": "Salir",
+      "housing-sub": {
+        "internet": "Internet",
+        "housekeeper": "Asistenta",
+        "heating": "Calefacción",
+        "electricity": "Luz",
+        "garage": "Garaje",
+        "community": "Comunidad",
+        "home-shopping": "Compras Casa",
+        "other": "Otros"
+      },
+      "going-out-sub": {
+        "food": "Comida",
+        "drinks": "Copas",
+        "transport": "Transporte",
+        "wardrobe": "Ropero",
+        "other": "Otros"
+      },
+      "transport-sub": {
+        "gas": "Gasolina",
+        "toll": "Peaje",
+        "taxi": "Taxi",
+        "parking": "Parking",
+        "public-transport": "Transporte Público"
+      },
+      "sports-sub": {
+        "padel": "Pádel",
+        "gym": "Gimnasio",
+        "races": "Carreras",
+        "general": "General"
+      },
+      "work-sub": {
+        "social-security": "Seguridad Social",
+        "taxes": "Impuestos",
+        "anthropic": "Anthropic",
+        "general": "General"
+      },
       "extra": "Gastos Extra",
       "travel": "Viajes",
       "annual": "Anuales"
+    }
+  },
+  "category-management": {
+    "title": "Gestión de Categorías",
+    "subtitle": "Organiza tus categorías de ingresos y gastos",
+    "back": "Volver al Dashboard",
+    "add-category": "Añadir Categoría",
+    "add-subcategory": "Añadir Subcategoría",
+    "edit-category": "Editar Categoría",
+    "filter": {
+      "all": "Todas",
+      "income": "Ingresos",
+      "expense": "Gastos"
+    },
+    "badges": {
+      "inactive": "Inactiva",
+      "shared": "Compartida"
+    },
+    "empty": {
+      "title": "No hay categorías aún",
+      "subtitle": "Crea tu primera categoría para empezar",
+      "cta": "Crear Primera Categoría"
+    },
+    "form": {
+      "title-create": "Nueva Categoría",
+      "title-edit": "Editar Categoría",
+      "title-subcategory": "Nueva Subcategoría",
+      "subcategory-of": "Subcategoría de {parent}",
+      "fields": {
+        "name": "Nombre",
+        "name-placeholder": "Nombre de la categoría",
+        "type": "Tipo",
+        "icon": "Icono",
+        "color": "Color",
+        "sort-order": "Orden",
+        "sort-order-placeholder": "0",
+        "shared": "Compartida por defecto"
+      },
+      "submit-create": "Crear Categoría",
+      "submit-edit": "Guardar Cambios",
+      "saving": "Guardando...",
+      "errors": {
+        "create": "Error al crear la categoría. Intenta de nuevo.",
+        "update": "Error al actualizar la categoría. Intenta de nuevo."
+      }
+    },
+    "delete": {
+      "title": "Eliminar Categoría",
+      "confirm": "¿Estás seguro de que quieres eliminar \"{name}\"? Esta acción no se puede deshacer.",
+      "has-transactions": "Esta categoría tiene {count} transacciones. Desactívala para ocultarla de los formularios sin perder datos.",
+      "has-subcategories": "Esta categoría tiene {count} subcategorías. Elimínalas primero antes de poder eliminar la categoría padre.",
+      "deactivate-instead": "Desactivar en su lugar",
+      "deleting": "Eliminando...",
+      "errors": {
+        "delete": "Error al eliminar la categoría. Intenta de nuevo."
+      }
+    },
+    "actions": {
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "activate": "Activar",
+      "deactivate": "Desactivar",
+      "add-subcategory": "Añadir subcategoría"
     }
   },
   "errors": {
@@ -119,6 +284,173 @@
       "title": "Página no encontrada",
       "description": "La página que buscas no existe o ha sido movida.",
       "go-home": "Volver al Dashboard"
+    }
+  },
+  "recurring": {
+    "badge": "Recurrente",
+    "frequency": {
+      "weekly": "Semanal",
+      "monthly": "Mensual",
+      "yearly": "Anual"
+    },
+    "days-of-week": {
+      "0": "Dom",
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Mie",
+      "4": "Jue",
+      "5": "Vie",
+      "6": "Sab"
+    },
+    "days-of-week-long": {
+      "0": "Domingo",
+      "1": "Lunes",
+      "2": "Martes",
+      "3": "Miercoles",
+      "4": "Jueves",
+      "5": "Viernes",
+      "6": "Sabado"
+    },
+    "pending": {
+      "title": "Gastos recurrentes pendientes",
+      "count": "({count})",
+      "confirm": "Confirmar",
+      "skip": "Omitir",
+      "confirm-all-month": "Confirmar todos de {month}",
+      "confirm-all": "Confirmar todos ({count})",
+      "modify": "Modificar monto",
+      "modified-amount": "Nuevo monto (€)",
+      "processing": "Procesando...",
+      "error": "Error al procesar ocurrencia"
+    },
+    "management": {
+      "title": "Gastos Recurrentes",
+      "subtitle": "Gestiona tus gastos que se repiten",
+      "back": "Volver al Dashboard",
+      "add": "Nuevo Gasto Recurrente",
+      "empty": {
+        "title": "No hay gastos recurrentes",
+        "subtitle": "Crea tu primer gasto recurrente para automatizar tus registros"
+      },
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "actions": {
+        "edit": "Editar",
+        "deactivate": "Desactivar",
+        "activate": "Activar"
+      }
+    },
+    "form": {
+      "title-create": "Nuevo Gasto Recurrente",
+      "title-edit": "Editar Gasto Recurrente",
+      "fields": {
+        "category": "Categoría",
+        "amount": "Monto (€)",
+        "description": "Descripción",
+        "frequency": "Frecuencia",
+        "day-of-week": "Día de la semana",
+        "day-of-month": "Día del mes",
+        "month-of-year": "Mes",
+        "start-date": "Fecha de inicio",
+        "end-date": "Fecha de fin",
+        "shared": "Gasto compartido (÷2)"
+      },
+      "submit-create": "Crear Gasto Recurrente",
+      "submit-edit": "Guardar Cambios",
+      "saving": "Guardando...",
+      "errors": {
+        "create": "Error al crear el gasto recurrente. Intenta de nuevo.",
+        "update": "Error al actualizar. Inténtalo de nuevo."
+      }
+    },
+    "months": {
+      "1": "Enero",
+      "2": "Febrero",
+      "3": "Marzo",
+      "4": "Abril",
+      "5": "Mayo",
+      "6": "Junio",
+      "7": "Julio",
+      "8": "Agosto",
+      "9": "Septiembre",
+      "10": "Octubre",
+      "11": "Noviembre",
+      "12": "Diciembre"
+    }
+  },
+  "trips": {
+    "title": "Viajes",
+    "subtitle": "Gestiona tus viajes y gastos asociados",
+    "back": "Volver al Dashboard",
+    "new": "Nuevo Viaje",
+    "search-placeholder": "Buscar viaje...",
+    "search-empty": "No se encontraron viajes",
+    "empty": {
+      "title": "No hay viajes aún",
+      "subtitle": "Crea tu primer viaje para empezar a registrar gastos",
+      "cta": "Crear Primer Viaje"
+    },
+    "upcoming": "Próximos",
+    "past": "Realizados",
+    "upcoming-badge": "Próximo",
+    "card": {
+      "expenses": "{count} gastos",
+      "no-expenses": "Sin gastos",
+      "date-range": "{start} — {end}",
+      "no-dates": "Sin fechas"
+    },
+    "detail": {
+      "add-expense": "Añadir Gasto",
+      "total": "Total",
+      "edit-name": "Editar nombre",
+      "save-name": "Guardar nombre",
+      "cancel-edit": "Cancelar edición",
+      "empty": {
+        "title": "No hay gastos en este viaje",
+        "subtitle": "Añade tu primer gasto para empezar"
+      }
+    },
+    "expense-form": {
+      "title-create": "Nuevo Gasto de Viaje",
+      "title-edit": "Editar Gasto de Viaje",
+      "fields": {
+        "category": "Categoría",
+        "category-placeholder": "Selecciona una categoría",
+        "amount": "Monto (€)",
+        "amount-placeholder": "0,00",
+        "date": "Fecha",
+        "description": "Descripción",
+        "description-placeholder": "Ej: Hotel 2 noches",
+        "shared": "Gasto compartido (÷2)",
+        "shared-hint": "Total: {total} → Tu parte: {half}"
+      },
+      "submit-create": "Crear Gasto",
+      "submit-edit": "Guardar Gasto",
+      "saving": "Guardando...",
+      "errors": {
+        "create": "Error al crear el gasto. Intenta de nuevo.",
+        "update": "Error al actualizar. Inténtalo de nuevo."
+      }
+    },
+    "create-form": {
+      "title": "Nuevo Viaje",
+      "fields": {
+        "name": "Nombre del viaje",
+        "name-placeholder": "Ej: Sierra Nevada 2026"
+      },
+      "submit": "Crear Viaje",
+      "saving": "Creando..."
+    },
+    "delete": {
+      "button": "Eliminar viaje",
+      "confirm": "¿Eliminar viaje y {count} gastos asociados?"
+    },
+    "badge": "Viaje",
+    "errors": {
+      "load": "Error al cargar viajes",
+      "load-detail": "Error al cargar el viaje",
+      "create": "Error al crear el viaje. Intenta de nuevo.",
+      "not-found": "Viaje no encontrado"
     }
   },
   "validation": {

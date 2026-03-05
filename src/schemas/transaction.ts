@@ -21,6 +21,7 @@ export const CreateTransactionSchema = z.object({
   description: z.string().max(255, 'La descripcion es muy larga').optional().default(''),
   transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
   type: TransactionTypeSchema,
+  isShared: z.boolean().optional().default(false),
 });
 
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;
@@ -58,9 +59,62 @@ export const CreateCategorySchema = z.object({
     .optional()
     .nullable(),
   sortOrder: z.number().int().optional().default(0),
+  parentCategoryId: z.number().int().positive().optional().nullable(),
+  defaultShared: z.boolean().optional().default(false),
 });
 
 export type CreateCategoryInput = z.infer<typeof CreateCategorySchema>;
+
+/**
+ * Schema for updating an existing category
+ * Type and parentCategoryId are immutable post-creation
+ */
+export const UpdateCategorySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  icon: z.string().max(50).optional().nullable(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional()
+    .nullable(),
+  sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+  defaultShared: z.boolean().optional(),
+});
+
+export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;
+
+/**
+ * Schema for a single item within a transaction group
+ */
+const TransactionGroupItemSchema = z.object({
+  categoryId: z.number().int().positive(),
+  amount: z.number().positive(),
+});
+
+/**
+ * Schema for creating a transaction group (multiple linked transactions)
+ */
+export const CreateTransactionGroupSchema = z.object({
+  description: z.string().min(1).max(255),
+  transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
+  type: TransactionTypeSchema,
+  isShared: z.boolean().optional().default(false),
+  parentCategoryId: z.number().int().positive(),
+  items: z.array(TransactionGroupItemSchema).min(1).max(20),
+});
+
+export type CreateTransactionGroupInput = z.infer<typeof CreateTransactionGroupSchema>;
+
+/**
+ * Schema for updating a transaction group (description and date propagated to all)
+ */
+export const UpdateTransactionGroupSchema = z.object({
+  description: z.string().min(1).max(255).optional(),
+  transactionDate: z.coerce.date({ message: 'Fecha invalida' }).optional(),
+});
+
+export type UpdateTransactionGroupInput = z.infer<typeof UpdateTransactionGroupSchema>;
 
 /**
  * Validate and parse request body
