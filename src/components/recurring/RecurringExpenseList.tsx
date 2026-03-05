@@ -5,8 +5,10 @@
  * Displays all recurring expense rules with management actions
  */
 
-import { AlertCircle, Pencil, Power, RefreshCw, Repeat } from 'lucide-react';
+import { Pencil, Power, Repeat } from 'lucide-react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE } from '@/constants/finance';
 import {
@@ -153,8 +155,17 @@ export function RecurringExpenseList({ onEdit, onAdd }: RecurringExpenseListProp
   if (isLoading) {
     return (
       <div className="card">
-        <div className="flex items-center justify-center py-8">
-          <LoadingSpinner />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-4 py-3 px-4 animate-pulse">
+              <div className="h-9 w-9 bg-muted rounded-lg" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-28 bg-muted rounded" />
+                <div className="h-3 w-20 bg-muted rounded" />
+              </div>
+              <div className="h-4 w-16 bg-muted rounded" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -163,14 +174,7 @@ export function RecurringExpenseList({ onEdit, onAdd }: RecurringExpenseListProp
   if (isError) {
     return (
       <div className="card">
-        <div className="text-center py-8" role="alert">
-          <AlertCircle className="h-12 w-12 mx-auto mb-3 text-guard-danger opacity-50" aria-hidden="true" />
-          <p className="text-guard-danger">{t('errors.generic')}</p>
-          <button type="button" onClick={() => refetch()} className="btn-ghost mt-4 inline-flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {t('common.buttons.retry')}
-          </button>
-        </div>
+        <ErrorState message={t('errors.generic')} onRetry={() => refetch()} />
       </div>
     );
   }
@@ -180,14 +184,16 @@ export function RecurringExpenseList({ onEdit, onAdd }: RecurringExpenseListProp
   if (expenses.length === 0) {
     return (
       <div className="card">
-        <div className="text-center py-12 text-guard-muted">
-          <Repeat className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
-          <p className="font-medium">{t('recurring.management.empty.title')}</p>
-          <p className="text-sm mt-1">{t('recurring.management.empty.subtitle')}</p>
-          <button type="button" onClick={onAdd} className="btn-primary mt-4 inline-flex items-center gap-2">
-            {t('recurring.management.add')}
-          </button>
-        </div>
+        <EmptyState
+          icon={Repeat}
+          title={t('recurring.management.empty.title')}
+          subtitle={t('recurring.management.empty.subtitle')}
+          action={
+            <button type="button" onClick={onAdd} className="btn-primary inline-flex items-center gap-2">
+              {t('recurring.management.add')}
+            </button>
+          }
+        />
       </div>
     );
   }

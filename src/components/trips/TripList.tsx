@@ -5,9 +5,10 @@
  * Displays all trips as card components with loading/error/empty states
  */
 
-import { AlertCircle, MapPin, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { MapPin, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteTrip, useTrips } from '@/hooks/useTrips';
 import type { TripDisplay } from '@/types/finance';
@@ -55,36 +56,41 @@ export function TripList({ onAdd }: TripListProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <LoadingSpinner />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="card animate-pulse">
+            <div className="h-1.5 w-full bg-muted rounded-full mb-4" />
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 bg-muted rounded" />
+                <div className="h-5 w-32 bg-muted rounded" />
+              </div>
+              <div className="h-4 w-24 bg-muted rounded" />
+              <div className="h-4 w-20 bg-muted rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
 
   if (isError) {
-    return (
-      <div className="text-center py-12" role="alert">
-        <AlertCircle className="h-12 w-12 mx-auto mb-3 text-guard-danger opacity-50" aria-hidden="true" />
-        <p className="text-guard-danger">{t('trips.errors.load')}</p>
-        <button type="button" onClick={() => refetch()} className="btn-ghost mt-4 inline-flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          {t('common.buttons.retry')}
-        </button>
-      </div>
-    );
+    return <ErrorState message={t('trips.errors.load')} onRetry={() => refetch()} />;
   }
 
   if (!trips || trips.length === 0) {
     return (
-      <div className="text-center py-12 text-guard-muted">
-        <MapPin className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
-        <p>{t('trips.empty.title')}</p>
-        <p className="text-sm mt-1">{t('trips.empty.subtitle')}</p>
-        <button type="button" onClick={onAdd} className="btn-primary mt-4 inline-flex items-center gap-2">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t('trips.empty.cta')}
-        </button>
-      </div>
+      <EmptyState
+        icon={MapPin}
+        title={t('trips.empty.title')}
+        subtitle={t('trips.empty.subtitle')}
+        action={
+          <button type="button" onClick={onAdd} className="btn-primary inline-flex items-center gap-2">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t('trips.empty.cta')}
+          </button>
+        }
+      />
     );
   }
 

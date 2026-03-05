@@ -91,5 +91,8 @@ export const GOING_OUT_CATEGORY = {
   ICON: 'beer',
 } as const;
 
+// Trip default color (matches guard-trip in Tailwind config)
+export const TRIP_COLOR = '#8B5CF6' as const;
+
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;

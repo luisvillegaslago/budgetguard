@@ -5,24 +5,14 @@
  * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import {
-  AlertCircle,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Pencil,
-  Plane,
-  Plus,
-  Receipt,
-  RefreshCw,
-  Repeat,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Pencil, Plane, Plus, Receipt, Repeat, Search, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useDeleteTransaction, useGroupedTransactions } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -43,7 +33,7 @@ interface TransactionRowProps {
 
 function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: TransactionRowProps) {
   const { t } = useTranslate();
-  const [showConfirm, setShowConfirm] = useState(false);
+  const { showConfirm, handleConfirm: handleDelete } = useConfirmTimeout(() => onDelete(transaction.transactionId));
   const isIncome = transaction.type === TRANSACTION_TYPE.INCOME;
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
   const iconColor = transaction.category?.color ?? (isIncome ? '#10B981' : '#EF4444');
@@ -52,15 +42,6 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
   const categoryName = transaction.parentCategory
     ? `${transaction.parentCategory.name} › ${transaction.category?.name ?? ''}`
     : (transaction.category?.name ?? t('transactions.no-category'));
-
-  const handleDelete = () => {
-    if (showConfirm) {
-      onDelete(transaction.transactionId);
-      setShowConfirm(false);
-    } else {
-      setShowConfirm(true);
-    }
-  };
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: Edit button provides keyboard access
@@ -165,7 +146,13 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
         )}
         aria-label={showConfirm ? t('transactions.delete.confirm') : t('transactions.delete.button')}
       >
-        {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+        {isDeleting ? (
+          <LoadingSpinner size="sm" />
+        ) : showConfirm ? (
+          <span className="text-xs font-bold">?</span>
+        ) : (
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        )}
       </button>
     </div>
   );
@@ -271,8 +258,18 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('transactions.title')}</h3>
-        <div className="flex items-center justify-center py-8">
-          <LoadingSpinner />
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-4 py-3 px-4 animate-pulse">
+              <div className="h-4 w-12 bg-muted rounded" />
+              <div className="h-9 w-9 bg-muted rounded-lg" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-28 bg-muted rounded" />
+                <div className="h-3 w-20 bg-muted rounded" />
+              </div>
+              <div className="h-4 w-16 bg-muted rounded" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -282,14 +279,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('transactions.title')}</h3>
-        <div className="text-center py-8" role="alert">
-          <AlertCircle className="h-12 w-12 mx-auto mb-3 text-guard-danger opacity-50" aria-hidden="true" />
-          <p className="text-guard-danger">{t('errors.load-transactions')}</p>
-          <button type="button" onClick={() => refetch()} className="btn-ghost mt-4 inline-flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {t('common.buttons.retry')}
-          </button>
-        </div>
+        <ErrorState message={t('errors.load-transactions')} onRetry={() => refetch()} />
       </div>
     );
   }
@@ -303,21 +293,19 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('transactions.title')}</h3>
-        <div className="text-center py-8 text-guard-muted">
-          <Receipt className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
-          <p>{t('transactions.empty.title')}</p>
-          <p className="text-sm mt-1">{t('transactions.empty.subtitle')}</p>
-          {onAddTransaction && (
-            <button
-              type="button"
-              onClick={onAddTransaction}
-              className="btn-primary mt-4 inline-flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {t('common.buttons.add-first-transaction')}
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={Receipt}
+          title={t('transactions.empty.title')}
+          subtitle={t('transactions.empty.subtitle')}
+          action={
+            onAddTransaction && (
+              <button type="button" onClick={onAddTransaction} className="btn-primary inline-flex items-center gap-2">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t('common.buttons.add-first-transaction')}
+              </button>
+            )
+          }
+        />
       </div>
     );
   }

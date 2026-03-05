@@ -7,6 +7,7 @@
  */
 
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { TRIP_COLOR } from '@/constants/finance';
 import type { TripCategorySummary } from '@/types/finance';
 import { formatCurrency } from '@/utils/money';
 
@@ -20,7 +21,7 @@ export function TripSummaryCards({ categorySummary }: TripSummaryCardsProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {categorySummary.map((cat) => {
-        const color = cat.categoryColor ?? '#8B5CF6';
+        const color = cat.categoryColor ?? TRIP_COLOR;
         return (
           <div key={cat.categoryId} className="flex items-center gap-2.5 p-3 rounded-lg border border-border bg-card">
             <div className="flex-shrink-0 p-1.5 rounded-lg" style={{ backgroundColor: `${color}15` }}>

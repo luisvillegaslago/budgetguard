@@ -199,15 +199,39 @@ function MonthSection({ monthData }: MonthSectionProps) {
 
 export function RecurringPendingPanel() {
   const { t } = useTranslate();
-  const { data, isLoading } = usePendingOccurrences();
+  const { data, isLoading, isError, refetch } = usePendingOccurrences();
   const isCollapsed = useIsRecurringPanelCollapsed();
   const togglePanel = useToggleRecurringPanel();
   const confirmAllMutation = useConfirmAllOccurrences();
 
   // Don't render if loading or no pending occurrences
-  if (isLoading || !data || data.totalCount === 0) {
+  if (isLoading || (!data && !isError) || (data && data.totalCount === 0)) {
     return null;
   }
+
+  if (isError) {
+    return (
+      <div className="rounded-[var(--radius)] border border-guard-danger/20 bg-guard-danger/5 px-5 py-4" role="alert">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-guard-danger/10">
+              <Repeat className="h-4 w-4 text-guard-danger" aria-hidden="true" />
+            </div>
+            <p className="text-sm text-guard-danger">{t('recurring.pending.error')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors"
+          >
+            {t('common.buttons.retry')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   const allOccurrenceIds = data.months.flatMap((m) => m.occurrences.map((o) => o.occurrenceId));
 

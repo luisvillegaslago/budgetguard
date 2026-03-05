@@ -7,8 +7,9 @@
 
 import { Calendar, MapPin, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { TRIP_COLOR } from '@/constants/finance';
+import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { TripDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -23,17 +24,12 @@ interface TripCardProps {
 
 export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardProps) {
   const { t } = useTranslate();
-  const [showConfirm, setShowConfirm] = useState(false);
+  const { showConfirm, handleConfirm } = useConfirmTimeout(() => onDelete(trip.tripId));
 
   const handleDelete = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (showConfirm) {
-      onDelete(trip.tripId);
-      setShowConfirm(false);
-    } else {
-      setShowConfirm(true);
-    }
+    handleConfirm();
   };
 
   // Category color bar: horizontal stacked bar proportional to totals
@@ -55,7 +51,7 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardPro
               key={cat.categoryId}
               className="h-full"
               style={{
-                backgroundColor: cat.categoryColor ?? '#8B5CF6',
+                backgroundColor: cat.categoryColor ?? TRIP_COLOR,
                 width: `${(cat.totalCents / totalForBar) * 100}%`,
               }}
               title={`${cat.categoryName}: ${formatCurrency(cat.totalCents)}`}
@@ -117,7 +113,13 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardPro
           )}
           aria-label={showConfirm ? t('trips.delete.confirm', { count: trip.expenseCount }) : t('trips.delete.button')}
         >
-          {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+          {isDeleting ? (
+            <LoadingSpinner size="sm" />
+          ) : showConfirm ? (
+            <span className="text-xs font-bold">?</span>
+          ) : (
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          )}
         </button>
       </div>
     </Link>

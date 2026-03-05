@@ -23,7 +23,7 @@ export default function CategoriesPage() {
             <div className="flex items-center gap-3">
               <Link
                 href="/dashboard"
-                className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                 aria-label={t('category-management.back')}
               >
                 <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -36,11 +36,10 @@ export default function CategoriesPage() {
               </div>
             </div>
 
-            {/* Title */}
-            <h1 className="text-lg font-semibold text-foreground hidden sm:block">{t('category-management.title')}</h1>
-
-            {/* Spacer for alignment */}
-            <div className="w-[120px]" />
+            {/* Title (centered via flex-1) */}
+            <h1 className="text-lg font-semibold text-foreground hidden sm:block flex-1 text-center">
+              {t('category-management.title')}
+            </h1>
           </div>
         </div>
       </header>

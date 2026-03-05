@@ -8,11 +8,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, X } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { SHARED_EXPENSE, TRIP_COLOR } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useTripCategories } from '@/hooks/useTripCategories';
 import { useCreateTripExpense, useUpdateTripExpense } from '@/hooks/useTripExpenses';
@@ -34,7 +34,6 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
   const createExpense = useCreateTripExpense(tripId);
   const updateExpense = useUpdateTripExpense(tripId);
   const mutation = isEditing ? updateExpense : createExpense;
-  const dialogRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -83,35 +82,9 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
     ? formatCurrency(Math.ceil(eurosToCents(watchedAmount) / SHARED_EXPENSE.DIVISOR))
     : '';
 
-  // Focus trap and Escape
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    },
-    [onClose],
-  );
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  const handleBackdropClick = (_e: React.MouseEvent<HTMLDivElement>) => {
-    // Do not close on backdrop click
-  };
-
   return (
-    <div
-      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="trip-expense-form-title"
-      onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
-      }}
-    >
-      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+    <ModalBackdrop onClose={onClose} labelledBy="trip-expense-form-title">
+      <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="trip-expense-form-title" className="text-xl font-bold text-foreground">
@@ -141,7 +114,7 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
               <div className="grid grid-cols-2 gap-2">
                 {categories?.map((cat) => {
                   const isSelected = watchedCategoryId === cat.categoryId;
-                  const color = cat.color ?? '#8B5CF6';
+                  const color = cat.color ?? TRIP_COLOR;
                   return (
                     <button
                       key={cat.categoryId}
@@ -305,6 +278,6 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
           </button>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

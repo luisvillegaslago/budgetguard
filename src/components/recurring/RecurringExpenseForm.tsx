@@ -8,10 +8,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { type Resolver, useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCreateRecurringExpense, useUpdateRecurringExpense } from '@/hooks/useRecurringExpenses';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -124,59 +125,12 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
     }
   };
 
-  // Focus trap and Escape handler
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      if (e.key === 'Tab' && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    },
-    [onClose],
-  );
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  const handleBackdropClick = (_e: React.MouseEvent<HTMLDivElement>) => {
-    // Do not close on backdrop click
-  };
-
   const isPending = createMutation.isPending || updateMutation.isPending;
   const isError = createMutation.isError || updateMutation.isError;
 
   return (
-    <div
-      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="recurring-form-title"
-      onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
-      }}
-    >
-      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+    <ModalBackdrop onClose={onClose} labelledBy="recurring-form-title">
+      <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="recurring-form-title" className="text-xl font-bold text-foreground">
@@ -217,8 +171,9 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
               type="number"
               step="0.01"
               min="0.01"
-              placeholder="0.00"
+              placeholder={t('transactions.form.fields.amount-placeholder')}
               {...register('amount', { valueAsNumber: true })}
+              onWheel={(e) => e.currentTarget.blur()}
               className={cn(
                 'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
                 'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
@@ -322,6 +277,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                 min="1"
                 max="31"
                 {...register('dayOfMonth', { valueAsNumber: true })}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={cn(
                   'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
                   'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
@@ -417,7 +373,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
               id="re-description"
               type="text"
               autoComplete="off"
-              placeholder=""
+              placeholder={t('transactions.form.fields.description-placeholder')}
               {...register('description')}
               className={cn(
                 'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
@@ -460,6 +416,6 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
           </button>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

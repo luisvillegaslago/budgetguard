@@ -7,9 +7,10 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useCreateTrip } from '@/hooks/useTrips';
 import { type CreateTripInput, CreateTripSchema } from '@/schemas/trip';
@@ -23,7 +24,7 @@ interface TripCreateFormProps {
 export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
   const { t } = useTranslate();
   const createTrip = useCreateTrip();
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -42,36 +43,14 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
     }
   };
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    },
-    [onClose],
-  );
-
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    const firstInput = dialogRef.current?.querySelector<HTMLElement>('input');
+    const firstInput = formRef.current?.querySelector<HTMLElement>('input');
     firstInput?.focus();
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  const handleBackdropClick = (_e: React.MouseEvent<HTMLDivElement>) => {
-    // Do not close on backdrop click
-  };
+  }, []);
 
   return (
-    <div
-      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="trip-create-title"
-      onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
-      }}
-    >
-      <div ref={dialogRef} className="card w-full max-w-sm animate-modal-in">
+    <ModalBackdrop onClose={onClose} labelledBy="trip-create-title">
+      <div ref={formRef} className="card w-full max-w-sm animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="trip-create-title" className="text-xl font-bold text-foreground">
@@ -141,6 +120,6 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
           </button>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

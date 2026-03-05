@@ -9,7 +9,7 @@ import { ArrowUpRight, ChevronDown, ChevronRight, ExternalLink, Plane } from 'lu
 import Link from 'next/link';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
-import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_TYPE, TRIP_COLOR } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction, TripGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -25,7 +25,7 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
   const { t } = useTranslate();
   const [isExpanded, setIsExpanded] = useState(false);
   const isIncome = tripGroup.type === TRANSACTION_TYPE.INCOME;
-  const tripColor = '#8B5CF6'; // Purple for trips
+  const tripColor = TRIP_COLOR;
 
   return (
     <div className="animate-fade-in" style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}>

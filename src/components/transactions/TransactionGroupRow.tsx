@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction, TransactionGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -32,18 +33,9 @@ export function TransactionGroupRow({
 }: TransactionGroupRowProps) {
   const { t } = useTranslate();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const { showConfirm, handleConfirm: handleDelete } = useConfirmTimeout(() => onDelete(group.transactionGroupId));
   const isIncome = group.type === TRANSACTION_TYPE.INCOME;
   const iconColor = group.parentCategoryColor ?? (isIncome ? '#10B981' : '#EF4444');
-
-  const handleDelete = () => {
-    if (showConfirm) {
-      onDelete(group.transactionGroupId);
-      setShowConfirm(false);
-    } else {
-      setShowConfirm(true);
-    }
-  };
 
   return (
     <div className="animate-fade-in" style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}>
@@ -140,7 +132,13 @@ export function TransactionGroupRow({
               : t('transactions.groups.delete.button')
           }
         >
-          {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+          {isDeleting ? (
+            <LoadingSpinner size="sm" />
+          ) : showConfirm ? (
+            <span className="text-xs font-bold">?</span>
+          ) : (
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          )}
         </button>
       </div>
 

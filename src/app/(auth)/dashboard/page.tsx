@@ -78,10 +78,11 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowNavMenu(!showNavMenu)}
-                  className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                   aria-label={t('dashboard.actions.menu')}
                   aria-expanded={showNavMenu}
                   aria-haspopup="true"
+                  title={t('dashboard.actions.menu')}
                 >
                   <LayoutGrid className="h-5 w-5" aria-hidden="true" />
                 </button>
@@ -142,7 +143,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           {/* Balance Cards */}
           <section>

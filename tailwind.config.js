@@ -23,6 +23,7 @@ module.exports = {
           danger: '#EF4444',   // Rose (Expenses/Alerts)
           muted: '#64748B',    // Slate (Text/Secondary info)
           light: '#F8FAFC',    // Off-white (Card backgrounds)
+          trip: '#8B5CF6',     // Violet (Trip-related elements)
         },
         // System colors using CSS variables
         background: 'hsl(var(--background))',

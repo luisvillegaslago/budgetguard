@@ -6,9 +6,11 @@
  * Supports expandable subcategory drill-down
  */
 
-import { AlertCircle, ChevronRight, RefreshCw, ShoppingCart } from 'lucide-react';
+import { ChevronRight, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useExpenseSummary } from '@/hooks/useFormattedSummary';
 import { useSubcategorySummary } from '@/hooks/useSubcategorySummary';
@@ -195,8 +197,17 @@ export function CategoryBreakdown() {
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.category-breakdown.title')}</h3>
-        <div className="flex items-center justify-center py-8">
-          <LoadingSpinner />
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-4 animate-pulse">
+              <div className="h-10 w-10 bg-muted rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-24 bg-muted rounded" />
+                <div className="h-2 w-full bg-muted rounded-full" />
+              </div>
+              <div className="h-4 w-8 bg-muted rounded" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -206,14 +217,7 @@ export function CategoryBreakdown() {
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.category-breakdown.title')}</h3>
-        <div className="text-center py-8" role="alert">
-          <AlertCircle className="h-12 w-12 mx-auto mb-3 text-guard-danger opacity-50" aria-hidden="true" />
-          <p className="text-guard-danger">{t('errors.load-categories')}</p>
-          <button type="button" onClick={() => refetch()} className="btn-ghost mt-4 inline-flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {t('common.buttons.retry')}
-          </button>
-        </div>
+        <ErrorState message={t('errors.load-categories')} onRetry={() => refetch()} />
       </div>
     );
   }
@@ -222,10 +226,7 @@ export function CategoryBreakdown() {
     return (
       <div className="card">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.category-breakdown.title')}</h3>
-        <div className="text-center py-8 text-guard-muted">
-          <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
-          <p>{t('dashboard.category-breakdown.empty')}</p>
-        </div>
+        <EmptyState icon={ShoppingCart} title={t('dashboard.category-breakdown.empty')} />
       </div>
     );
   }

@@ -8,11 +8,12 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useCreateTransactionGroup } from '@/hooks/useTransactionGroups';
@@ -149,46 +150,15 @@ export function TransactionGroupForm({
     return !Number.isNaN(num) && num > 0;
   });
 
-  // Focus trap and Escape handler
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      if (e.key === 'Tab' && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    },
-    [onClose],
-  );
+  // Auto-focus first input on mount
+  const formContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>('button, [href], input, select, textarea');
+    const firstFocusable = formContainerRef.current?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea',
+    );
     firstFocusable?.focus();
-
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  const handleBackdropClick = (_e: React.MouseEvent<HTMLDivElement>) => {
-    // Do not close on backdrop click
-  };
+  }, []);
 
   const selectClasses = cn(
     'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
@@ -199,17 +169,8 @@ export function TransactionGroupForm({
   );
 
   return (
-    <div
-      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="group-form-title"
-      onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
-      }}
-    >
-      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+    <ModalBackdrop onClose={onClose} labelledBy="group-form-title">
+      <div ref={formContainerRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="group-form-title" className="text-xl font-bold text-foreground">
@@ -406,6 +367,6 @@ export function TransactionGroupForm({
           </button>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

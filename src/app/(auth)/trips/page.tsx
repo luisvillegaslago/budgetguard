@@ -31,7 +31,7 @@ export default function TripsPage() {
           <div className="flex items-center gap-4">
             <Link
               href="/dashboard"
-              className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
               aria-label={t('trips.back')}
             >
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />

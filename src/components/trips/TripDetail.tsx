@@ -7,6 +7,7 @@
 
 import { Check, MapPin, Pencil, Plus, Receipt, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteTripExpense } from '@/hooks/useTripExpenses';
@@ -131,15 +132,17 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
       {/* Expense List */}
       <div className="card">
         {trip.expenses.length === 0 ? (
-          <div className="text-center py-8 text-guard-muted">
-            <Receipt className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
-            <p>{t('trips.detail.empty.title')}</p>
-            <p className="text-sm mt-1">{t('trips.detail.empty.subtitle')}</p>
-            <button type="button" onClick={onAddExpense} className="btn-primary mt-4 inline-flex items-center gap-2">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {t('trips.detail.add-expense')}
-            </button>
-          </div>
+          <EmptyState
+            icon={Receipt}
+            title={t('trips.detail.empty.title')}
+            subtitle={t('trips.detail.empty.subtitle')}
+            action={
+              <button type="button" onClick={onAddExpense} className="btn-primary inline-flex items-center gap-2">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t('trips.detail.add-expense')}
+              </button>
+            }
+          />
         ) : (
           <ul className="-mx-4">
             {trip.expenses.map((expense, index) => (

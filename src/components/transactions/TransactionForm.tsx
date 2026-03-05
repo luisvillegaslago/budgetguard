@@ -8,10 +8,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -117,59 +118,17 @@ export function TransactionForm({
     ? formatCurrency(Math.ceil(eurosToCents(watchedAmount) / SHARED_EXPENSE.DIVISOR))
     : '';
 
-  // Focus trap and Escape handler
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isEditing) {
-        onClose();
-        return;
-      }
-
-      if (e.key === 'Tab' && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    },
-    [onClose, isEditing],
-  );
+  // Auto-focus amount input on mount
+  const amountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    const amountInput = dialogRef.current?.querySelector<HTMLElement>('#amount');
+    const amountInput = amountRef.current?.querySelector<HTMLElement>('#amount');
     amountInput?.focus();
-
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  const handleBackdropClick = (_e: React.MouseEvent<HTMLDivElement>) => {
-    // Do not close on backdrop click — user must use X button or Escape
-  };
+  }, []);
 
   return (
-    <div
-      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="transaction-form-title"
-      onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape' && !isEditing) onClose();
-      }}
-    >
-      <div ref={dialogRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+    <ModalBackdrop onClose={onClose} labelledBy="transaction-form-title" escapeClose={!isEditing}>
+      <div ref={amountRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="transaction-form-title" className="text-xl font-bold text-foreground">
@@ -378,6 +337,6 @@ export function TransactionForm({
           </button>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
