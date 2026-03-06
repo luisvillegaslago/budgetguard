@@ -20,6 +20,8 @@ const mockCategories: Category[] = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [
       {
         categoryId: 10,
@@ -31,6 +33,8 @@ const mockCategories: Category[] = [
         isActive: true,
         parentCategoryId: 1,
         defaultShared: true,
+        defaultVatPercent: null,
+        defaultDeductionPercent: null,
       },
       {
         categoryId: 11,
@@ -42,6 +46,8 @@ const mockCategories: Category[] = [
         isActive: false,
         parentCategoryId: 1,
         defaultShared: false,
+        defaultVatPercent: null,
+        defaultDeductionPercent: null,
       },
     ],
   },
@@ -55,6 +61,8 @@ const mockCategories: Category[] = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [],
   },
   {
@@ -67,6 +75,8 @@ const mockCategories: Category[] = [
     isActive: false,
     parentCategoryId: null,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [],
   },
 ];

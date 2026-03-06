@@ -478,6 +478,125 @@
       "not-found": "Categoría no encontrada"
     }
   },
+  "fiscal": {
+    "title": "Fiscal",
+    "back": "Volver al Dashboard",
+    "quarter-selector": {
+      "q1": "T1",
+      "q2": "T2",
+      "q3": "T3",
+      "q4": "T4",
+      "q1-long": "Ene - Mar",
+      "q2-long": "Abr - Jun",
+      "q3-long": "Jul - Sep",
+      "q4-long": "Oct - Dic"
+    },
+    "modelo303": {
+      "title": "Modelo 303 — IVA",
+      "devengado": "IVA Devengado",
+      "deducible": "IVA Deducible",
+      "casilla07": "Base imponible (op. interiores)",
+      "casilla09": "Cuota IVA repercutido",
+      "casilla27": "Total IVA devengado",
+      "casilla28": "Base deducciones",
+      "casilla29": "Cuota IVA deducible",
+      "casilla45": "Total IVA deducible",
+      "casilla60": "Exportaciones / op. exentas con derecho a deducción",
+      "result": "Resultado",
+      "to-pay": "A ingresar",
+      "to-compensate": "A compensar"
+    },
+    "modelo130": {
+      "title": "Modelo 130 — IRPF",
+      "casilla1": "Ingresos acumulados",
+      "casilla2": "Gastos deducibles acumulados",
+      "casilla3": "Beneficio",
+      "casilla4": "20% del beneficio",
+      "casilla5": "Pagos trimestres anteriores",
+      "casilla7": "A ingresar",
+      "cumulative-note": "Acumulado desde enero",
+      "gastos-documentados": "Gastos documentados",
+      "gastos-dificil": "5% difícil justificación (máx. 2.000€/año)"
+    },
+    "modelo390": {
+      "title": "Modelo 390 — Resumen anual IVA",
+      "devengado": "IVA Devengado",
+      "deducible": "IVA Deducible",
+      "operaciones": "Volumen de Operaciones",
+      "casilla47": "Total cuotas devengadas",
+      "casilla605": "Base IVA deducible (21%)",
+      "casilla606": "Cuota IVA deducible (21%)",
+      "casilla48": "Total bases deducibles",
+      "casilla49": "Total cuotas deducibles",
+      "casilla64": "Total deducciones",
+      "casilla65": "Resultado",
+      "casilla97": "A compensar",
+      "casilla104": "Exportaciones / op. exentas",
+      "casilla108": "Total vol. operaciones"
+    },
+    "modelo100": {
+      "title": "Modelo 100 — IRPF anual",
+      "subtitle": "Actividades económicas (est. directa simplificada)",
+      "ingresos": "Ingresos",
+      "gastos": "Gastos",
+      "resultado": "Resultado",
+      "casilla0171": "Ingresos de explotación",
+      "casilla0180": "Total ingresos computables",
+      "casilla0218": "Suma gastos deducibles",
+      "casilla0221": "Diferencia (ingresos − gastos)",
+      "casilla0222": "Gastos difícil justificación (5%, máx. 2.000€)",
+      "casilla0223": "Total gastos deducibles",
+      "casilla0224": "Rendimiento neto",
+      "renta-web-note": "Completa el resto del Modelo 100 en Renta Web"
+    },
+    "annual": {
+      "title": "Resumen Anual",
+      "tab-quarterly": "Trimestral",
+      "tab-annual": "Anual"
+    },
+    "expenses": {
+      "title": "Gastos Deducibles",
+      "date": "Fecha",
+      "vendor": "Proveedor",
+      "description": "Concepto",
+      "total": "Total",
+      "vat-rate": "IVA%",
+      "base": "Base",
+      "vat": "IVA",
+      "deduction-rate": "Deduc%",
+      "base-deductible": "Base Deduc",
+      "vat-deductible": "IVA Deduc",
+      "subtotal": "Subtotal trimestre",
+      "empty": "No hay gastos deducibles este trimestre"
+    },
+    "invoices": {
+      "title": "Facturas Emitidas",
+      "number": "Nº",
+      "date": "Fecha",
+      "client": "Cliente",
+      "description": "Descripción",
+      "base": "Importe sin IVA",
+      "vat": "IVA",
+      "total-quarter": "Total trimestre",
+      "empty": "No hay facturas emitidas este trimestre"
+    },
+    "form": {
+      "section-title": "Datos Fiscales",
+      "vat-percent": "IVA (%)",
+      "deduction-percent": "Deducción (%)",
+      "vendor-name": "Proveedor",
+      "vendor-placeholder": "Ej: Vodafone",
+      "invoice-number": "Nº Factura",
+      "invoice-placeholder": "Ej: F-2025-001"
+    },
+    "category-defaults": {
+      "vat-percent": "IVA por defecto (%)",
+      "deduction-percent": "Deducción por defecto (%)"
+    },
+    "errors": {
+      "load": "Error al cargar el informe fiscal"
+    }
+  },
   "validation": {
     "category-required": "Selecciona una categoría",
     "amount-positive": "El monto debe ser mayor a 0",

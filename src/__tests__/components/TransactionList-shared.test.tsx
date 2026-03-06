@@ -22,6 +22,8 @@ const mockTransactions: Transaction[] = [
       isActive: true,
       parentCategoryId: 1,
       defaultShared: true,
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     },
     parentCategory: { categoryId: 1, name: 'Vivienda' },
     amountCents: 2500,
@@ -34,6 +36,10 @@ const mockTransactions: Transaction[] = [
     transactionGroupId: null,
     tripId: null,
     tripName: null,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
+    invoiceNumber: null,
     createdAt: '2025-01-15T00:00:00Z',
     updatedAt: '2025-01-15T00:00:00Z',
   },
@@ -50,6 +56,8 @@ const mockTransactions: Transaction[] = [
       isActive: true,
       parentCategoryId: null,
       defaultShared: false,
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     },
     parentCategory: null,
     amountCents: 4500,
@@ -62,6 +70,10 @@ const mockTransactions: Transaction[] = [
     transactionGroupId: null,
     tripId: null,
     tripName: null,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
+    invoiceNumber: null,
     createdAt: '2025-01-14T00:00:00Z',
     updatedAt: '2025-01-14T00:00:00Z',
   },
@@ -94,6 +106,7 @@ jest.mock('@/hooks/useTransactionGroups', () => ({
 
 jest.mock('@/stores/useFinanceStore', () => ({
   useSelectedMonth: () => '2025-01',
+  useFilters: () => ({ type: 'all', categoryId: null }),
 }));
 
 jest.mock('@/hooks/useTranslations', () => ({

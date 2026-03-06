@@ -5,7 +5,7 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { Beer, LayoutGrid, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
+import { Beer, Calculator, LayoutGrid, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
@@ -106,6 +106,14 @@ export default function DashboardPage() {
                     >
                       <Plane className="h-4 w-4 text-guard-muted" aria-hidden="true" />
                       {t('trips.title')}
+                    </Link>
+                    <Link
+                      href="/fiscal"
+                      onClick={() => setShowNavMenu(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Calculator className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+                      {t('fiscal.title')}
                     </Link>
                     <Link
                       href="/recurring-expenses"

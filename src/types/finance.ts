@@ -6,7 +6,14 @@
 import type { OccurrenceStatus, RecurringFrequency, TransactionType } from '@/constants/finance';
 
 // Re-export from constants (single source of truth)
-export type { DateRangePreset, OccurrenceStatus, RecurringFrequency, TransactionType } from '@/constants/finance';
+export type {
+  DateRangePreset,
+  FiscalQuarter,
+  OccurrenceStatus,
+  RecurringFrequency,
+  TransactionType,
+  VatRate,
+} from '@/constants/finance';
 
 /**
  * Category for organizing transactions
@@ -21,6 +28,8 @@ export interface Category {
   isActive: boolean;
   parentCategoryId: number | null;
   defaultShared: boolean;
+  defaultVatPercent: number | null;
+  defaultDeductionPercent: number | null;
   subcategories?: Category[];
 }
 
@@ -43,6 +52,10 @@ export interface Transaction {
   transactionGroupId: number | null;
   tripId: number | null;
   tripName: string | null;
+  vatPercent: number | null;
+  deductionPercent: number | null;
+  vendorName: string | null;
+  invoiceNumber: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -339,4 +352,122 @@ export interface CategoryHistoryResponse {
   dateTo: string;
   summary: CategoryHistorySummary;
   months: CategoryHistoryMonth[];
+}
+
+// ============================================================
+// FISCAL TYPES (Modelo 303 - IVA, Modelo 130 - IRPF)
+// ============================================================
+
+/**
+ * Computed fiscal fields from computeFiscalFields()
+ */
+export interface FiscalComputedFields {
+  baseCents: number;
+  ivaCents: number;
+  baseDeducibleCents: number;
+  ivaDeducibleCents: number;
+}
+
+/**
+ * Transaction with fiscal computed fields (from vw_FiscalQuarterly + computeFiscalFields)
+ */
+export interface FiscalTransaction extends FiscalComputedFields {
+  transactionId: number;
+  transactionDate: string;
+  categoryName: string;
+  parentCategoryName: string;
+  vendorName: string | null;
+  invoiceNumber: string | null;
+  description: string | null;
+  type: TransactionType;
+  fullAmountCents: number;
+  vatPercent: number;
+  deductionPercent: number;
+}
+
+/**
+ * Modelo 303 summary for one quarter (IVA)
+ */
+export interface Modelo303Summary {
+  fiscalYear: number;
+  fiscalQuarter: number;
+  casilla07Cents: number; // Base imponible operaciones interiores (VatPercent > 0)
+  casilla09Cents: number; // Cuota IVA devengado
+  casilla27Cents: number; // Total IVA devengado
+  casilla28Cents: number; // Base deducciones
+  casilla29Cents: number; // Cuota IVA deducible
+  casilla45Cents: number; // Total IVA deducible
+  casilla60Cents: number; // Exportaciones / operaciones exentas con derecho a deducción (VatPercent = 0)
+  resultCents: number;
+}
+
+/**
+ * Modelo 130 summary for one quarter (IRPF, cumulative)
+ */
+export interface Modelo130Summary {
+  fiscalYear: number;
+  fiscalQuarter: number;
+  casilla1Cents: number; // Cumulative income
+  casilla2Cents: number; // Cumulative deductible expenses (documented + difícil justificación)
+  casilla3Cents: number; // Profit (C01 - C02)
+  casilla4Cents: number; // 20% of profit
+  casilla5Cents: number; // Previous quarter payments
+  casilla7Cents: number; // Amount to pay
+  gastosDocumentadosCents: number; // Documented expenses subtotal
+  gastosDificilCents: number; // 5% difficult-to-justify expenses (capped at 2000€/year)
+}
+
+/**
+ * Modelo 390 summary (annual VAT - sum of 4 quarterly 303s)
+ */
+export interface Modelo390Summary {
+  fiscalYear: number;
+  casilla47Cents: number; // Total cuotas devengadas (sum of C27)
+  casilla48Cents: number; // Total bases deducibles (sum of C28)
+  casilla49Cents: number; // Total cuotas deducibles (sum of C29)
+  casilla605Cents: number; // Base IVA deducible operaciones interiores 21%
+  casilla606Cents: number; // Cuota IVA deducible 21%
+  casilla64Cents: number; // Total deducciones (= C49)
+  casilla65Cents: number; // Resultado (C47 - C64)
+  casilla84Cents: number; // Suma resultados (= C65)
+  casilla86Cents: number; // Resultado liquidación (= C84)
+  casilla97Cents: number; // A compensar (abs(C86) if negative, else 0)
+  casilla104Cents: number; // Exportaciones/exentas con deducción (sum of C60)
+  casilla108Cents: number; // Total volumen operaciones (= C104)
+}
+
+/**
+ * Modelo 100 — Economic activities section (Estimación Directa Simplificada)
+ * Only covers the professional activities section; user completes the rest in Renta Web
+ */
+export interface Modelo100Section {
+  fiscalYear: number;
+  casilla0171Cents: number; // Ingresos de explotación
+  casilla0180Cents: number; // Total ingresos computables (= C0171)
+  casilla0218Cents: number; // Suma gastos deducibles (documented)
+  casilla0221Cents: number; // Diferencia (C0180 - C0218)
+  casilla0222Cents: number; // Gastos difícil justificación (5%, max 2000€)
+  casilla0223Cents: number; // Total gastos deducibles (C0218 + C0222)
+  casilla0224Cents: number; // Rendimiento neto (C0180 - C0223)
+}
+
+/**
+ * Full fiscal report for a year + quarter
+ */
+export interface FiscalReport {
+  fiscalYear: number;
+  fiscalQuarter: number;
+  modelo303: Modelo303Summary;
+  modelo130: Modelo130Summary;
+  expenses: FiscalTransaction[];
+  invoices: FiscalTransaction[];
+}
+
+/**
+ * Full annual fiscal report (Modelo 390 + Modelo 100)
+ */
+export interface AnnualFiscalReport {
+  fiscalYear: number;
+  modelo390: Modelo390Summary;
+  modelo100: Modelo100Section;
 }

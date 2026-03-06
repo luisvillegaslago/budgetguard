@@ -3,13 +3,14 @@
 /**
  * BudgetGuard Balance Cards
  * Three cards showing Income, Expenses, and Net Balance
+ * Clicking Income or Expense cards toggles type filter on TransactionList
  */
 
 import { AlertCircle, ArrowDownLeft, ArrowUpRight, RefreshCw, Scale } from 'lucide-react';
-import { CARD_VARIANT, type CardVariant } from '@/constants/finance';
+import { CARD_VARIANT, type CardVariant, FILTER_TYPE, type FilterType } from '@/constants/finance';
 import { useFormattedSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useSelectedMonth } from '@/stores/useFinanceStore';
+import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinanceStore';
 import { cn } from '@/utils/helpers';
 
 interface BalanceCardProps {
@@ -19,9 +20,11 @@ interface BalanceCardProps {
   variant: CardVariant;
   isPositive?: boolean;
   staggerClass?: string;
+  isActive?: boolean;
+  onClick?: () => void;
 }
 
-function BalanceCard({ title, value, icon, variant, isPositive, staggerClass }: BalanceCardProps) {
+function BalanceCard({ title, value, icon, variant, isPositive, staggerClass, isActive, onClick }: BalanceCardProps) {
   const variantStyles: Record<CardVariant, string> = {
     [CARD_VARIANT.INCOME]: 'balance-card-income',
     [CARD_VARIANT.EXPENSE]: 'balance-card-expense',
@@ -34,31 +37,55 @@ function BalanceCard({ title, value, icon, variant, isPositive, staggerClass }: 
     [CARD_VARIANT.BALANCE]: 'bg-guard-primary/10 text-guard-primary',
   };
 
-  return (
-    <div className={cn('balance-card animate-slide-up', staggerClass, variantStyles[variant])}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-guard-muted">{title}</p>
-          <p
-            className={cn('text-2xl font-bold mt-1', {
-              'text-guard-success': variant === CARD_VARIANT.INCOME || (variant === CARD_VARIANT.BALANCE && isPositive),
-              'text-guard-danger':
-                variant === CARD_VARIANT.EXPENSE || (variant === CARD_VARIANT.BALANCE && !isPositive),
-            })}
-          >
-            {value}
-          </p>
-        </div>
-        <div className={cn('p-2.5 rounded-xl', iconBgStyles[variant])}>{icon}</div>
+  const content = (
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-sm font-medium text-guard-muted">{title}</p>
+        <p
+          className={cn('text-2xl font-bold mt-1', {
+            'text-guard-success': variant === CARD_VARIANT.INCOME || (variant === CARD_VARIANT.BALANCE && isPositive),
+            'text-guard-danger': variant === CARD_VARIANT.EXPENSE || (variant === CARD_VARIANT.BALANCE && !isPositive),
+          })}
+        >
+          {value}
+        </p>
       </div>
+      <div className={cn('p-2.5 rounded-xl', iconBgStyles[variant])}>{icon}</div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={isActive}
+        className={cn(
+          'balance-card animate-slide-up text-left w-full',
+          staggerClass,
+          variantStyles[variant],
+          'cursor-pointer transition-all duration-200 ease-out-quart',
+          isActive && 'ring-2 ring-guard-primary ring-offset-2 ring-offset-background',
+        )}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={cn('balance-card animate-slide-up', staggerClass, variantStyles[variant])}>{content}</div>;
 }
 
 export function BalanceCards() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
+  const filters = useFilters();
+  const setFilters = useSetFilters();
   const { formatted, isLoading, isError, refetch } = useFormattedSummary(selectedMonth);
+
+  const handleFilterToggle = (type: FilterType) => {
+    setFilters({ type: filters.type === type ? FILTER_TYPE.ALL : type });
+  };
 
   if (isLoading) {
     return (
@@ -102,6 +129,8 @@ export function BalanceCards() {
         icon={<ArrowDownLeft className="h-5 w-5" aria-hidden="true" />}
         variant={CARD_VARIANT.INCOME}
         staggerClass="stagger-1"
+        isActive={filters.type === FILTER_TYPE.INCOME}
+        onClick={() => handleFilterToggle(FILTER_TYPE.INCOME)}
       />
 
       <BalanceCard
@@ -110,6 +139,8 @@ export function BalanceCards() {
         icon={<ArrowUpRight className="h-5 w-5" aria-hidden="true" />}
         variant={CARD_VARIANT.EXPENSE}
         staggerClass="stagger-2"
+        isActive={filters.type === FILTER_TYPE.EXPENSE}
+        onClick={() => handleFilterToggle(FILTER_TYPE.EXPENSE)}
       />
 
       <BalanceCard

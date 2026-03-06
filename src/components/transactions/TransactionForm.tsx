@@ -7,13 +7,14 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Users, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateTransactionInput, CreateTransactionSchema } from '@/schemas/transaction';
@@ -37,6 +38,10 @@ export function TransactionForm({
   const isEditing = !!transaction;
   const initialType = transaction?.type ?? defaultType;
   const [transactionType, setTransactionType] = useState<TransactionType>(initialType);
+  const [showFiscal, setShowFiscal] = useState(
+    () => isEditing && (transaction.vatPercent !== null || transaction.deductionPercent !== null),
+  );
+  const fiscalDirtyRef = useRef(isEditing);
   const selectedMonth = useSelectedMonth();
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
@@ -61,6 +66,10 @@ export function TransactionForm({
           description: transaction.description ?? '',
           transactionDate: transaction.transactionDate as unknown as Date,
           isShared: transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR,
+          vatPercent: transaction.vatPercent,
+          deductionPercent: transaction.deductionPercent,
+          vendorName: transaction.vendorName,
+          invoiceNumber: transaction.invoiceNumber,
         }
       : {
           type: defaultType,
@@ -69,12 +78,30 @@ export function TransactionForm({
             : `${selectedMonth}-01`) as unknown as Date,
           description: '',
           isShared: false,
+          vatPercent: null,
+          deductionPercent: null,
+          vendorName: null,
+          invoiceNumber: null,
         },
   });
 
   // Watch amount and isShared for reactive hint
   const watchedAmount = useWatch({ control, name: 'amount' });
   const watchedIsShared = useWatch({ control, name: 'isShared' });
+  const watchedCategoryId = useWatch({ control, name: 'categoryId' });
+
+  // Auto-fill fiscal defaults from category
+  const fiscalDefaults = useFiscalDefaults(watchedCategoryId ?? null);
+
+  useEffect(() => {
+    if (fiscalDefaults && !fiscalDirtyRef.current) {
+      setValue('vatPercent', fiscalDefaults.vatPercent);
+      setValue('deductionPercent', fiscalDefaults.deductionPercent);
+      setShowFiscal(true);
+    } else if (!fiscalDefaults && !fiscalDirtyRef.current) {
+      setShowFiscal(false);
+    }
+  }, [fiscalDefaults, setValue]);
 
   const onSubmit = async (data: CreateTransactionInput) => {
     try {
@@ -294,6 +321,100 @@ export function TransactionForm({
               <p role="alert" className="mt-1 text-sm text-guard-danger">
                 {errors.description.message}
               </p>
+            )}
+          </div>
+
+          {/* Fiscal Data Section (collapsible) */}
+          <div className="border border-border rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowFiscal(!showFiscal)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <span>{t('fiscal.form.section-title')}</span>
+              {showFiscal ? (
+                <ChevronUp className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+              )}
+            </button>
+
+            {showFiscal && (
+              <div className="px-4 pb-4 space-y-3 border-t border-border animate-fade-in">
+                <div className="grid grid-cols-2 gap-3 pt-3">
+                  {/* VAT % */}
+                  <div>
+                    <label htmlFor="vatPercent" className="block text-xs font-medium text-foreground mb-1">
+                      {t('fiscal.form.vat-percent')}
+                    </label>
+                    <input
+                      id="vatPercent"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      {...register('vatPercent', { valueAsNumber: true })}
+                      onChange={(e) => {
+                        fiscalDirtyRef.current = true;
+                        register('vatPercent', { valueAsNumber: true }).onChange(e);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Deduction % */}
+                  <div>
+                    <label htmlFor="deductionPercent" className="block text-xs font-medium text-foreground mb-1">
+                      {t('fiscal.form.deduction-percent')}
+                    </label>
+                    <input
+                      id="deductionPercent"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      {...register('deductionPercent', { valueAsNumber: true })}
+                      onChange={(e) => {
+                        fiscalDirtyRef.current = true;
+                        register('deductionPercent', { valueAsNumber: true }).onChange(e);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Vendor */}
+                <div>
+                  <label htmlFor="vendorName" className="block text-xs font-medium text-foreground mb-1">
+                    {t('fiscal.form.vendor-name')}
+                  </label>
+                  <input
+                    id="vendorName"
+                    type="text"
+                    autoComplete="off"
+                    placeholder={t('fiscal.form.vendor-placeholder')}
+                    {...register('vendorName')}
+                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                  />
+                </div>
+
+                {/* Invoice Number */}
+                <div>
+                  <label htmlFor="invoiceNumber" className="block text-xs font-medium text-foreground mb-1">
+                    {t('fiscal.form.invoice-number')}
+                  </label>
+                  <input
+                    id="invoiceNumber"
+                    type="text"
+                    autoComplete="off"
+                    placeholder={t('fiscal.form.invoice-placeholder')}
+                    {...register('invoiceNumber')}
+                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
             )}
           </div>
 

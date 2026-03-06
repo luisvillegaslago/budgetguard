@@ -19,6 +19,8 @@ const mockExpense: RecurringExpense = {
     isActive: true,
     parentCategoryId: null,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
   amountCents: 45000,
   description: 'Alquiler mensual',

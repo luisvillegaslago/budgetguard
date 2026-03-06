@@ -28,6 +28,8 @@ const mockOccurrence: RecurringOccurrence = {
       isActive: true,
       parentCategoryId: null,
       defaultShared: false,
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     },
     amountCents: 45000,
     description: 'Alquiler',

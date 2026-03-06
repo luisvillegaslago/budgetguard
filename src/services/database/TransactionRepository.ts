@@ -32,6 +32,10 @@ interface TransactionRow {
   TransactionGroupID: number | null;
   TripID: number | null;
   TripName: string | null;
+  VatPercent: number | null;
+  DeductionPercent: number | null;
+  VendorName: string | null;
+  InvoiceNumber: string | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -83,6 +87,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
       isActive: true,
       parentCategoryId: row.ParentCategoryID,
       defaultShared: false,
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     },
     parentCategory: row.ParentCategoryID
       ? { categoryId: row.ParentCategoryID, name: row.ParentCategoryName ?? '' }
@@ -97,6 +103,10 @@ function rowToTransaction(row: TransactionRow): Transaction {
     transactionGroupId: row.TransactionGroupID,
     tripId: row.TripID,
     tripName: row.TripName,
+    vatPercent: row.VatPercent,
+    deductionPercent: row.DeductionPercent,
+    vendorName: row.VendorName,
+    invoiceNumber: row.InvoiceNumber,
     createdAt: row.CreatedAt.toISOString(),
     updatedAt: row.UpdatedAt.toISOString(),
   };
@@ -123,6 +133,7 @@ export async function getTransactionsByMonth(
       t.Type, t.SharedDivisor, t.OriginalAmountCents,
       t.RecurringExpenseID, t.TransactionGroupID,
       t.TripID, trip.Name AS TripName,
+      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
       t.CreatedAt, t.UpdatedAt
     FROM Transactions t
     INNER JOIN Categories c ON t.CategoryID = c.CategoryID
@@ -173,6 +184,7 @@ export async function getTransactionById(transactionId: number): Promise<Transac
       t.Type, t.SharedDivisor, t.OriginalAmountCents,
       t.RecurringExpenseID, t.TransactionGroupID,
       t.TripID, trip.Name AS TripName,
+      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
       t.CreatedAt, t.UpdatedAt
     FROM Transactions t
     INNER JOIN Categories c ON t.CategoryID = c.CategoryID
@@ -200,6 +212,10 @@ export async function createTransaction(data: {
   recurringExpenseId?: number | null;
   transactionGroupId?: number | null;
   tripId?: number | null;
+  vatPercent?: number | null;
+  deductionPercent?: number | null;
+  vendorName?: string | null;
+  invoiceNumber?: string | null;
 }): Promise<Transaction> {
   const pool = await getConnection();
   const request = pool.request();
@@ -214,12 +230,16 @@ export async function createTransaction(data: {
   request.input('recurringExpenseId', sql.Int, data.recurringExpenseId ?? null);
   request.input('transactionGroupId', sql.Int, data.transactionGroupId ?? null);
   request.input('tripId', sql.Int, data.tripId ?? null);
+  request.input('vatPercent', sql.Decimal(5, 2), data.vatPercent ?? null);
+  request.input('deductionPercent', sql.Decimal(5, 2), data.deductionPercent ?? null);
+  request.input('vendorName', sql.NVarChar(150), data.vendorName ?? null);
+  request.input('invoiceNumber', sql.NVarChar(50), data.invoiceNumber ?? null);
 
   const result = await request.query<{ TransactionID: number }>(`
     DECLARE @out TABLE (TransactionID INT);
-    INSERT INTO Transactions (CategoryID, AmountCents, Description, TransactionDate, Type, SharedDivisor, OriginalAmountCents, RecurringExpenseID, TransactionGroupID, TripID)
+    INSERT INTO Transactions (CategoryID, AmountCents, Description, TransactionDate, Type, SharedDivisor, OriginalAmountCents, RecurringExpenseID, TransactionGroupID, TripID, VatPercent, DeductionPercent, VendorName, InvoiceNumber)
     OUTPUT INSERTED.TransactionID INTO @out
-    VALUES (@categoryId, @amountCents, @description, @transactionDate, @type, @sharedDivisor, @originalAmountCents, @recurringExpenseId, @transactionGroupId, @tripId);
+    VALUES (@categoryId, @amountCents, @description, @transactionDate, @type, @sharedDivisor, @originalAmountCents, @recurringExpenseId, @transactionGroupId, @tripId, @vatPercent, @deductionPercent, @vendorName, @invoiceNumber);
     SELECT * FROM @out;
   `);
 
@@ -249,6 +269,10 @@ export async function updateTransaction(
     type: TransactionType;
     sharedDivisor: number;
     originalAmountCents: number | null;
+    vatPercent: number | null;
+    deductionPercent: number | null;
+    vendorName: string | null;
+    invoiceNumber: string | null;
   }>,
 ): Promise<Transaction | null> {
   const pool = await getConnection();
@@ -285,6 +309,22 @@ export async function updateTransaction(
   if (data.originalAmountCents !== undefined) {
     request.input('originalAmountCents', sql.Int, data.originalAmountCents);
     updates.push('OriginalAmountCents = @originalAmountCents');
+  }
+  if (data.vatPercent !== undefined) {
+    request.input('vatPercent', sql.Decimal(5, 2), data.vatPercent);
+    updates.push('VatPercent = @vatPercent');
+  }
+  if (data.deductionPercent !== undefined) {
+    request.input('deductionPercent', sql.Decimal(5, 2), data.deductionPercent);
+    updates.push('DeductionPercent = @deductionPercent');
+  }
+  if (data.vendorName !== undefined) {
+    request.input('vendorName', sql.NVarChar(150), data.vendorName);
+    updates.push('VendorName = @vendorName');
+  }
+  if (data.invoiceNumber !== undefined) {
+    request.input('invoiceNumber', sql.NVarChar(50), data.invoiceNumber);
+    updates.push('InvoiceNumber = @invoiceNumber');
   }
 
   if (updates.length === 0) {
@@ -471,6 +511,7 @@ export async function getCategoryHistoryTransactions(
       t.Type, t.SharedDivisor, t.OriginalAmountCents,
       t.RecurringExpenseID, t.TransactionGroupID,
       t.TripID, trip.Name AS TripName,
+      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
       t.CreatedAt, t.UpdatedAt
     FROM Transactions t
     INNER JOIN Categories c ON t.CategoryID = c.CategoryID
@@ -569,6 +610,7 @@ export async function getTransactionsByGroupId(groupId: number): Promise<Transac
       t.Type, t.SharedDivisor, t.OriginalAmountCents,
       t.RecurringExpenseID, t.TransactionGroupID,
       t.TripID, trip.Name AS TripName,
+      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
       t.CreatedAt, t.UpdatedAt
     FROM Transactions t
     INNER JOIN Categories c ON t.CategoryID = c.CategoryID

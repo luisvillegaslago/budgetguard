@@ -64,6 +64,8 @@ export const QUERY_KEY = {
   TRIPS: 'trips',
   TRIP_CATEGORIES: 'trip-categories',
   CATEGORY_HISTORY: 'category-history',
+  FISCAL_REPORT: 'fiscal-report',
+  FISCAL_ANNUAL: 'fiscal-annual',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -85,6 +87,8 @@ export const API_ENDPOINT = {
   TRANSACTION_GROUPS: '/api/transaction-groups',
   TRIPS: '/api/trips',
   CATEGORY_HISTORY: '/api/categories',
+  FISCAL: '/api/fiscal',
+  FISCAL_ANNUAL: '/api/fiscal/annual',
 } as const;
 
 // Well-known Category References
@@ -105,6 +109,38 @@ export const DATE_RANGE_PRESET = {
 } as const;
 
 export type DateRangePreset = (typeof DATE_RANGE_PRESET)[keyof typeof DATE_RANGE_PRESET];
+
+// Spanish VAT rates
+export const VAT_RATE = {
+  EXEMPT: 0,
+  SUPER_REDUCED: 4,
+  REDUCED: 10,
+  STANDARD: 21,
+} as const;
+
+export type VatRate = (typeof VAT_RATE)[keyof typeof VAT_RATE];
+
+// Fiscal quarters
+export const FISCAL_QUARTER = {
+  Q1: 1,
+  Q2: 2,
+  Q3: 3,
+  Q4: 4,
+} as const;
+
+export type FiscalQuarter = (typeof FISCAL_QUARTER)[keyof typeof FISCAL_QUARTER];
+
+// IRPF rate for Modelo 130
+export const IRPF_RATE = 20 as const;
+
+// Professional income category — only this category counts as fiscal income in models 303/130/390/100
+export const PROFESSIONAL_INCOME_CATEGORY = 'Facturas' as const;
+
+// Gastos de difícil justificación (Estimación Directa Simplificada)
+export const GASTOS_DIFICIL = {
+  RATE: 5, // 5% of net income
+  MAX_CENTS: 200_000, // 2,000€ annual cap
+} as const;
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;

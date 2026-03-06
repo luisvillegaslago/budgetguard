@@ -16,6 +16,8 @@ const mockCategory: Category = {
   isActive: true,
   parentCategoryId: null,
   defaultShared: true,
+  defaultVatPercent: null,
+  defaultDeductionPercent: null,
 };
 
 const mockInactiveCategory: Category = {

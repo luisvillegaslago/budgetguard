@@ -22,6 +22,7 @@ IF OBJECT_ID('TR_Trips_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER TR_Trips_Updat
 GO
 
 -- Drop views (they depend on tables)
+IF OBJECT_ID('vw_FiscalQuarterly', 'V') IS NOT NULL DROP VIEW vw_FiscalQuarterly;
 IF OBJECT_ID('vw_MonthlyBalance', 'V') IS NOT NULL DROP VIEW vw_MonthlyBalance;
 IF OBJECT_ID('vw_SubcategorySummary', 'V') IS NOT NULL DROP VIEW vw_SubcategorySummary;
 IF OBJECT_ID('vw_MonthlySummary', 'V') IS NOT NULL DROP VIEW vw_MonthlySummary;
@@ -58,6 +59,8 @@ CREATE TABLE Categories (
     IsActive BIT DEFAULT 1,
     ParentCategoryID INT NULL,        -- Self-referencing FK for subcategories (NULL = parent)
     DefaultShared BIT DEFAULT 0 NOT NULL, -- Auto-toggle shared checkbox in form
+    DefaultVatPercent DECIMAL(5,2) NULL,      -- Fiscal: default VAT % for transactions
+    DefaultDeductionPercent DECIMAL(5,2) NULL, -- Fiscal: default deduction % for transactions
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
     CONSTRAINT FK_Categories_Parent FOREIGN KEY (ParentCategoryID)
@@ -101,6 +104,10 @@ CREATE TABLE Transactions (
     OriginalAmountCents INT NULL,     -- Full amount before division (NULL if not shared)
     TransactionGroupID INT NULL,     -- FK to TransactionGroups (NULL if standalone)
     TripID INT NULL,                -- FK to Trips (NULL if not a trip expense)
+    VatPercent DECIMAL(5,2) NULL,        -- Fiscal: VAT percentage (NULL = not fiscal)
+    DeductionPercent DECIMAL(5,2) NULL,  -- Fiscal: deduction percentage
+    VendorName NVARCHAR(150) NULL,       -- Fiscal: vendor/supplier name
+    InvoiceNumber NVARCHAR(50) NULL,     -- Fiscal: invoice number
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
     CONSTRAINT FK_Transactions_TransactionGroup
@@ -117,6 +124,10 @@ CREATE INDEX IX_Transactions_YearMonth ON Transactions(TransactionDate) INCLUDE 
 CREATE INDEX IX_Transactions_Shared ON Transactions(SharedDivisor);
 CREATE INDEX IX_Transactions_TransactionGroup ON Transactions(TransactionGroupID);
 CREATE INDEX IX_Transactions_TripID ON Transactions(TripID);
+CREATE INDEX IX_Transactions_Fiscal ON Transactions(VatPercent, DeductionPercent)
+    WHERE VatPercent IS NOT NULL;
+CREATE INDEX IX_Transactions_InvoiceNumber ON Transactions(InvoiceNumber)
+    WHERE InvoiceNumber IS NOT NULL;
 
 GO
 
@@ -280,6 +291,31 @@ GROUP BY
     c.Icon,
     c.Color,
     c.ParentCategoryID;
+GO
+
+-- View: Fiscal quarterly data (raw data, calculations in TypeScript)
+-- Used for Modelo 303 (IVA) and Modelo 130 (IRPF) reports
+CREATE VIEW vw_FiscalQuarterly AS
+SELECT
+    YEAR(t.TransactionDate) AS FiscalYear,
+    DATEPART(QUARTER, t.TransactionDate) AS FiscalQuarter,
+    t.Type,
+    t.TransactionID,
+    t.CategoryID,
+    c.Name AS CategoryName,
+    COALESCE(parent.Name, c.Name) AS ParentCategoryName,
+    t.TransactionDate,
+    t.VendorName,
+    t.InvoiceNumber,
+    t.Description,
+    COALESCE(t.OriginalAmountCents, t.AmountCents) AS FullAmountCents,
+    ISNULL(t.VatPercent, 0) AS VatPercent,
+    ISNULL(t.DeductionPercent, 0) AS DeductionPercent
+FROM Transactions t
+INNER JOIN Categories c ON t.CategoryID = c.CategoryID
+LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
+WHERE t.VatPercent IS NOT NULL OR t.DeductionPercent IS NOT NULL
+    OR t.InvoiceNumber IS NOT NULL;
 GO
 
 -- ============================================================

@@ -22,6 +22,10 @@ export const CreateTransactionSchema = z.object({
   transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
   type: TransactionTypeSchema,
   isShared: z.boolean().optional().default(false),
+  vatPercent: z.number().min(0).max(100).optional().nullable(),
+  deductionPercent: z.number().min(0).max(100).optional().nullable(),
+  vendorName: z.string().max(150).optional().nullable(),
+  invoiceNumber: z.string().max(50).optional().nullable(),
 });
 
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;
@@ -61,6 +65,8 @@ export const CreateCategorySchema = z.object({
   sortOrder: z.number().int().optional().default(0),
   parentCategoryId: z.number().int().positive().optional().nullable(),
   defaultShared: z.boolean().optional().default(false),
+  defaultVatPercent: z.number().min(0).max(100).optional().nullable(),
+  defaultDeductionPercent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export type CreateCategoryInput = z.infer<typeof CreateCategorySchema>;
@@ -80,6 +86,8 @@ export const UpdateCategorySchema = z.object({
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
   defaultShared: z.boolean().optional(),
+  defaultVatPercent: z.number().min(0).max(100).optional().nullable(),
+  defaultDeductionPercent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;

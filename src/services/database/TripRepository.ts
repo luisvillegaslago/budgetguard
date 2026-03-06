@@ -97,6 +97,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
       isActive: true,
       parentCategoryId: row.ParentCategoryID,
       defaultShared: false,
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     },
     parentCategory: row.ParentCategoryID
       ? { categoryId: row.ParentCategoryID, name: row.ParentCategoryName ?? '' }
@@ -111,6 +113,10 @@ function rowToTransaction(row: TransactionRow): Transaction {
     transactionGroupId: row.TransactionGroupID,
     tripId: row.TripID,
     tripName: row.TripName,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
+    invoiceNumber: null,
     createdAt: row.CreatedAt.toISOString(),
     updatedAt: row.UpdatedAt.toISOString(),
   };
@@ -373,6 +379,8 @@ export async function getTripCategories(): Promise<Category[]> {
       isActive: Boolean(row.IsActive),
       parentCategoryId: row.ParentCategoryID,
       defaultShared: Boolean(row.DefaultShared),
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     }),
   );
 }

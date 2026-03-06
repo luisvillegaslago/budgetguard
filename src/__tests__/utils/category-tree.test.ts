@@ -30,6 +30,8 @@ const makeCategory = (overrides: Partial<Category> & Pick<Category, 'categoryId'
   isActive: true,
   parentCategoryId: null,
   defaultShared: false,
+  defaultVatPercent: null,
+  defaultDeductionPercent: null,
   ...overrides,
 });
 

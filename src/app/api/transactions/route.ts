@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, errors: validation.errors }, { status: 400 });
     }
 
-    const { amount, isShared, ...rest } = validation.data;
+    const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, ...rest } = validation.data;
 
     // Convert euros to cents for storage
     const fullAmountCents = eurosToCents(amount);
@@ -69,6 +69,10 @@ export async function POST(request: NextRequest) {
       originalAmountCents: isShared ? fullAmountCents : null,
       sharedDivisor,
       description: rest.description ?? undefined,
+      vatPercent: vatPercent ?? null,
+      deductionPercent: deductionPercent ?? null,
+      vendorName: vendorName ?? null,
+      invoiceNumber: invoiceNumber ?? null,
     });
 
     return NextResponse.json({ success: true, data: transaction }, { status: 201 });

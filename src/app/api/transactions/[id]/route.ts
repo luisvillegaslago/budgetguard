@@ -62,12 +62,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: false, errors: validation.errors }, { status: 400 });
     }
 
-    const { amount, isShared, ...rest } = validation.data;
+    const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, ...rest } = validation.data;
 
     const updateData: Parameters<typeof updateTransaction>[1] = {
       ...rest,
       description: rest.description ?? undefined,
     };
+
+    // Pass fiscal fields if provided
+    if (vatPercent !== undefined) updateData.vatPercent = vatPercent ?? null;
+    if (deductionPercent !== undefined) updateData.deductionPercent = deductionPercent ?? null;
+    if (vendorName !== undefined) updateData.vendorName = vendorName ?? null;
+    if (invoiceNumber !== undefined) updateData.invoiceNumber = invoiceNumber ?? null;
 
     // Convert euros to cents if amount is provided, applying shared expense halving
     if (amount !== undefined) {

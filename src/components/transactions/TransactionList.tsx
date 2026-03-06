@@ -11,12 +11,12 @@ import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { FILTER_TYPE, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useDeleteTransaction, useGroupedTransactions } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useSelectedMonth } from '@/stores/useFinanceStore';
+import { useFilters, useSelectedMonth } from '@/stores/useFinanceStore';
 import type { Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
@@ -182,6 +182,7 @@ function matchesSearch(tx: Transaction, query: string): boolean {
 export function TransactionList({ onAddTransaction, onEditTransaction }: TransactionListProps) {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
+  const filters = useFilters();
   const { isLoading, isError, refetch, grouped } = useGroupedTransactions(selectedMonth);
   const deleteTransaction = useDeleteTransaction();
   const deleteGroup = useDeleteTransactionGroup();
@@ -231,28 +232,42 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
     return items;
   }, [grouped]);
 
-  // Client-side search filter
+  // Client-side type + search filter
   const filteredItems = useMemo((): ListItem[] => {
-    if (!searchQuery) return sortedItems;
+    let items = sortedItems;
 
-    return sortedItems.filter((item) => {
-      if (item.kind === 'transaction') {
-        return matchesSearch(item.data, searchQuery);
-      }
-      if (item.kind === 'group') {
-        // Match if group description or any sub-transaction matches
+    // Type filter from BalanceCards
+    if (filters.type !== FILTER_TYPE.ALL) {
+      items = items.filter((item) => {
+        if (item.kind === 'transaction') return item.data.type === filters.type;
+        if (item.kind === 'group') return item.data.type === filters.type;
+        return item.data.type === filters.type;
+      });
+    }
+
+    // Search filter
+    if (searchQuery) {
+      items = items.filter((item) => {
+        if (item.kind === 'transaction') {
+          return matchesSearch(item.data, searchQuery);
+        }
+        if (item.kind === 'group') {
+          const q = searchQuery.toLowerCase();
+          return (
+            (item.data.description?.toLowerCase().includes(q) ?? false) ||
+            (item.data.parentCategoryName?.toLowerCase().includes(q) ?? false) ||
+            item.data.transactions.some((tx) => matchesSearch(tx, q))
+          );
+        }
         const q = searchQuery.toLowerCase();
         return (
-          (item.data.description?.toLowerCase().includes(q) ?? false) ||
-          (item.data.parentCategoryName?.toLowerCase().includes(q) ?? false) ||
-          item.data.transactions.some((tx) => matchesSearch(tx, q))
+          item.data.tripName.toLowerCase().includes(q) || item.data.transactions.some((tx) => matchesSearch(tx, q))
         );
-      }
-      // trip
-      const q = searchQuery.toLowerCase();
-      return item.data.tripName.toLowerCase().includes(q) || item.data.transactions.some((tx) => matchesSearch(tx, q));
-    });
-  }, [sortedItems, searchQuery]);
+      });
+    }
+
+    return items;
+  }, [sortedItems, searchQuery, filters.type]);
 
   if (isLoading) {
     return (

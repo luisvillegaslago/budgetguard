@@ -17,6 +17,8 @@ interface CategoryRow {
   IsActive: boolean;
   ParentCategoryID: number | null;
   DefaultShared: boolean;
+  DefaultVatPercent: number | null;
+  DefaultDeductionPercent: number | null;
 }
 
 /**
@@ -33,6 +35,8 @@ function rowToCategory(row: CategoryRow): Category {
     isActive: row.IsActive,
     parentCategoryId: row.ParentCategoryID,
     defaultShared: row.DefaultShared,
+    defaultVatPercent: row.DefaultVatPercent,
+    defaultDeductionPercent: row.DefaultDeductionPercent,
   };
 }
 
@@ -63,7 +67,7 @@ export async function getCategories(type?: TransactionType, includeInactive = fa
 
   let query = `
     SELECT CategoryID, Name, Type, Icon, Color, SortOrder, IsActive,
-           ParentCategoryID, DefaultShared
+           ParentCategoryID, DefaultShared, DefaultVatPercent, DefaultDeductionPercent
     FROM Categories
   `;
 
@@ -99,7 +103,7 @@ export async function getCategoryById(categoryId: number): Promise<Category | nu
 
   const result = await request.query<CategoryRow>(`
     SELECT CategoryID, Name, Type, Icon, Color, SortOrder, IsActive,
-           ParentCategoryID, DefaultShared
+           ParentCategoryID, DefaultShared, DefaultVatPercent, DefaultDeductionPercent
     FROM Categories
     WHERE CategoryID = @categoryId
   `);
@@ -119,6 +123,8 @@ export async function createCategory(data: {
   sortOrder?: number;
   parentCategoryId?: number | null;
   defaultShared?: boolean;
+  defaultVatPercent?: number | null;
+  defaultDeductionPercent?: number | null;
 }): Promise<Category> {
   const pool = await getConnection();
   const request = pool.request();
@@ -130,19 +136,23 @@ export async function createCategory(data: {
   request.input('sortOrder', sql.Int, data.sortOrder ?? 0);
   request.input('parentCategoryId', sql.Int, data.parentCategoryId ?? null);
   request.input('defaultShared', sql.Bit, data.defaultShared ?? false);
+  request.input('defaultVatPercent', sql.Decimal(5, 2), data.defaultVatPercent ?? null);
+  request.input('defaultDeductionPercent', sql.Decimal(5, 2), data.defaultDeductionPercent ?? null);
 
   const result = await request.query<CategoryRow>(`
     DECLARE @out TABLE (
       CategoryID INT, Name NVARCHAR(100), Type NVARCHAR(10),
       Icon NVARCHAR(50), Color NVARCHAR(7), SortOrder INT, IsActive BIT,
-      ParentCategoryID INT, DefaultShared BIT
+      ParentCategoryID INT, DefaultShared BIT,
+      DefaultVatPercent DECIMAL(5,2), DefaultDeductionPercent DECIMAL(5,2)
     );
-    INSERT INTO Categories (Name, Type, Icon, Color, SortOrder, ParentCategoryID, DefaultShared)
+    INSERT INTO Categories (Name, Type, Icon, Color, SortOrder, ParentCategoryID, DefaultShared, DefaultVatPercent, DefaultDeductionPercent)
     OUTPUT INSERTED.CategoryID, INSERTED.Name, INSERTED.Type,
            INSERTED.Icon, INSERTED.Color, INSERTED.SortOrder, INSERTED.IsActive,
-           INSERTED.ParentCategoryID, INSERTED.DefaultShared
+           INSERTED.ParentCategoryID, INSERTED.DefaultShared,
+           INSERTED.DefaultVatPercent, INSERTED.DefaultDeductionPercent
     INTO @out
-    VALUES (@name, @type, @icon, @color, @sortOrder, @parentCategoryId, @defaultShared);
+    VALUES (@name, @type, @icon, @color, @sortOrder, @parentCategoryId, @defaultShared, @defaultVatPercent, @defaultDeductionPercent);
     SELECT * FROM @out;
   `);
 
@@ -166,6 +176,8 @@ export async function updateCategory(
     sortOrder: number;
     isActive: boolean;
     defaultShared: boolean;
+    defaultVatPercent: number | null;
+    defaultDeductionPercent: number | null;
   }>,
 ): Promise<Category | null> {
   const pool = await getConnection();
@@ -199,6 +211,14 @@ export async function updateCategory(
     request.input('defaultShared', sql.Bit, data.defaultShared);
     updates.push('DefaultShared = @defaultShared');
   }
+  if (data.defaultVatPercent !== undefined) {
+    request.input('defaultVatPercent', sql.Decimal(5, 2), data.defaultVatPercent);
+    updates.push('DefaultVatPercent = @defaultVatPercent');
+  }
+  if (data.defaultDeductionPercent !== undefined) {
+    request.input('defaultDeductionPercent', sql.Decimal(5, 2), data.defaultDeductionPercent);
+    updates.push('DefaultDeductionPercent = @defaultDeductionPercent');
+  }
 
   if (updates.length === 0) {
     return getCategoryById(categoryId);
@@ -208,13 +228,15 @@ export async function updateCategory(
     DECLARE @out TABLE (
       CategoryID INT, Name NVARCHAR(100), Type NVARCHAR(10),
       Icon NVARCHAR(50), Color NVARCHAR(7), SortOrder INT, IsActive BIT,
-      ParentCategoryID INT, DefaultShared BIT
+      ParentCategoryID INT, DefaultShared BIT,
+      DefaultVatPercent DECIMAL(5,2), DefaultDeductionPercent DECIMAL(5,2)
     );
     UPDATE Categories
     SET ${updates.join(', ')}
     OUTPUT INSERTED.CategoryID, INSERTED.Name, INSERTED.Type,
            INSERTED.Icon, INSERTED.Color, INSERTED.SortOrder, INSERTED.IsActive,
-           INSERTED.ParentCategoryID, INSERTED.DefaultShared
+           INSERTED.ParentCategoryID, INSERTED.DefaultShared,
+           INSERTED.DefaultVatPercent, INSERTED.DefaultDeductionPercent
     INTO @out
     WHERE CategoryID = @categoryId;
     SELECT * FROM @out;

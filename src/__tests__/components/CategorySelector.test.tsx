@@ -23,6 +23,8 @@ const mockHierarchicalCategories: Category[] = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [
       {
         categoryId: 10,
@@ -34,6 +36,8 @@ const mockHierarchicalCategories: Category[] = [
         isActive: true,
         parentCategoryId: 1,
         defaultShared: true,
+        defaultVatPercent: null,
+        defaultDeductionPercent: null,
       },
       {
         categoryId: 11,
@@ -45,6 +49,8 @@ const mockHierarchicalCategories: Category[] = [
         isActive: true,
         parentCategoryId: 1,
         defaultShared: false,
+        defaultVatPercent: null,
+        defaultDeductionPercent: null,
       },
     ],
   },
@@ -58,6 +64,8 @@ const mockHierarchicalCategories: Category[] = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [],
   },
 ];

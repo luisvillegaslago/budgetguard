@@ -16,6 +16,8 @@ const mockFlatCategories: Category[] = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
   {
     categoryId: 2,
@@ -27,6 +29,8 @@ const mockFlatCategories: Category[] = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
   {
     categoryId: 10,
@@ -38,6 +42,8 @@ const mockFlatCategories: Category[] = [
     isActive: true,
     parentCategoryId: 1,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
   {
     categoryId: 11,
@@ -49,6 +55,8 @@ const mockFlatCategories: Category[] = [
     isActive: true,
     parentCategoryId: 1,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
   {
     categoryId: 20,
@@ -60,6 +68,8 @@ const mockFlatCategories: Category[] = [
     isActive: true,
     parentCategoryId: 2,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
 ];
 

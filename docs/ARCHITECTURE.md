@@ -46,6 +46,8 @@ src/
 │   │   │   │   ├── route.ts           # POST trip expense
 │   │   │   │   └── [expenseId]/route.ts # PUT/DELETE trip expense
 │   │   │   └── categories/route.ts    # GET trip categories (Viajes subcategories)
+│   │   ├── fiscal/
+│   │   │   └── route.ts               # GET fiscal quarterly report
 │   │   ├── summary/
 │   │   │   ├── route.ts               # GET monthly balance
 │   │   │   └── subcategories/route.ts # GET subcategory drill-down
@@ -55,7 +57,8 @@ src/
 │   │   ├── categories/page.tsx        # Category management page
 │   │   ├── recurring-expenses/page.tsx # Recurring expenses page
 │   │   ├── trips/page.tsx             # Trips list page
-│   │   └── trips/[id]/page.tsx        # Trip detail page
+│   │   ├── trips/[id]/page.tsx        # Trip detail page
+│   │   └── fiscal/page.tsx            # Fiscal quarterly report page
 │   ├── layout.tsx                     # Root layout with providers
 │   ├── error.tsx                      # Error boundary
 │   ├── global-error.tsx               # Global error (full HTML)
@@ -90,6 +93,10 @@ src/
 │   │   ├── TripExpenseForm.tsx        # Trip expense create/edit modal
 │   │   ├── TripExpenseRow.tsx         # Individual expense row in trip detail
 │   │   └── CreateTripForm.tsx         # New trip creation form
+│   ├── fiscal/
+│   │   ├── FiscalReport.tsx           # Fiscal quarterly report display
+│   │   ├── Modelo303Card.tsx          # VAT summary card
+│   │   └── Modelo130Card.tsx          # Income tax summary card
 │   └── ui/
 │       ├── MonthPicker.tsx            # Month navigation
 │       ├── LoadingSpinner.tsx         # Loading indicator
@@ -108,6 +115,7 @@ src/
 │   ├── useTripExpenses.ts             # Trip expense CRUD mutations
 │   ├── useTripCategories.ts           # Trip-specific categories query
 │   ├── useMonthPrefetch.ts            # Adjacent months prefetch
+│   ├── useFiscalReport.ts            # Fiscal quarterly report query
 │   └── useTranslations.ts            # i18n hook
 │
 ├── stores/
@@ -120,7 +128,8 @@ src/
 │       ├── TransactionRepository.ts   # Transactions + groups DB operations
 │       ├── CategoryRepository.ts      # Categories DB operations (hierarchical)
 │       ├── RecurringExpenseRepository.ts # Recurring rules + occurrences DB operations
-│       └── TripRepository.ts          # Trip CRUD + trip categories DB operations
+│       ├── TripRepository.ts          # Trip CRUD + trip categories DB operations
+│       └── FiscalRepository.ts        # Fiscal quarterly report DB operations
 │
 ├── schemas/
 │   ├── transaction.ts                 # Transaction, Category, Group Zod schemas
@@ -142,6 +151,7 @@ src/
 │   ├── money.ts                       # Currency conversions
 │   ├── helpers.ts                     # Date/utility functions
 │   ├── recurring.ts                   # Occurrence date calculation
+│   ├── fiscal.ts                     # computeFiscalFields utility
 │   └── staticTranslations.ts         # i18n for error boundaries
 │
 └── messages/
@@ -184,6 +194,7 @@ database/
 │  - useTrips() → trip list with aggregates                    │
 │  - useTrip(id) → trip detail with expenses                   │
 │  - useTripCategories() → Viajes subcategories                │
+│  - useFiscalReport(year, quarter) → fiscal quarterly data    │
 │                                                              │
 │  Auto-invalidation on create/update/delete                   │
 └─────────────────────────────────────────────────────────────┘
@@ -208,6 +219,7 @@ database/
 │  - CategoryRepository (hierarchical categories)              │
 │  - RecurringExpenseRepository (rules + occurrences)          │
 │  - TripRepository (trips + trip expenses + trip categories)  │
+│  - FiscalRepository (quarterly fiscal reports)               │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -215,7 +227,8 @@ database/
 │                    SQL SERVER DATABASE                       │
 │  Tables:                                                     │
 │  - Categories (hierarchical via ParentCategoryID)            │
-│  - Transactions (SharedDivisor, OriginalAmountCents, TripID) │
+│  - Transactions (SharedDivisor, OriginalAmountCents, TripID, │
+│                  VatPercent, DeductionPercent, VendorName)    │
 │  - TransactionGroups (identity anchor)                       │
 │  - Trips (multi-day travel expense tracking)                 │
 │  - RecurringExpenses (rules with frequency scheduling)       │
@@ -225,6 +238,7 @@ database/
 │  - vw_MonthlySummary (aggregates under parent category)      │
 │  - vw_MonthlyBalance (income/expense/balance totals)         │
 │  - vw_SubcategorySummary (drill-down within parent)          │
+│  - vw_FiscalQuarterly (quarterly VAT/deduction aggregates)   │
 │                                                              │
 │  Triggers:                                                   │
 │  - Auto-update UpdatedAt timestamps                          │
@@ -543,6 +557,64 @@ Multi-day, multi-category travel expenses grouped under a named trip entity.
 | DELETE | `/api/trips/[id]/expenses/[expenseId]` | Delete trip expense |
 | GET | `/api/trips/categories` | Get Viajes subcategories |
 
+### 6. Fiscal Module (Spanish Tax Models)
+
+Quarterly fiscal reporting for Spanish tax obligations (Modelo 303 for VAT and Modelo 130 for income tax). Adds fiscal-specific fields to transactions and categories, with a dedicated repository and utility for computing derived values.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Fiscal Module Architecture                                   │
+│                                                               │
+│  Category (defaults)              Transaction (per-record)    │
+│  ├── DefaultVatPercent            ├── VatPercent              │
+│  └── DefaultDeductionPercent      ├── DeductionPercent        │
+│                                   ├── VendorName              │
+│                                   └── InvoiceNumber           │
+│                                                               │
+│  computeFiscalFields(transaction) → FiscalComputedFields      │
+│  ├── vatAmountCents                                           │
+│  ├── deductibleAmountCents                                    │
+│  └── netAmountCents                                           │
+│                                                               │
+│  FiscalRepository.getQuarterlyReport(year, quarter)           │
+│  └── Uses vw_FiscalQuarterly + transaction-level queries      │
+│      → FiscalReport (Modelo303, Modelo130, expenses, invoices)│
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Key files:**
+- `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalQuarterly` and individual transactions with fiscal fields
+- `src/utils/fiscal.ts`: Pure `computeFiscalFields()` function for deriving VAT/deduction amounts from a transaction
+- `src/hooks/useFiscalReport.ts`: TanStack Query hook for fetching fiscal data
+- `src/components/fiscal/`: UI components (FiscalReport, Modelo303Card, Modelo130Card)
+- `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector
+
+**SharedDivisor vs DeductionPercent:**
+These two fields serve distinct purposes and are independent:
+- `SharedDivisor` splits a transaction amount between people (e.g., couple splitting a bill). It affects `AmountCents` -- the stored amount is already halved.
+- `DeductionPercent` indicates what percentage of the transaction is tax-deductible. It does NOT affect `AmountCents` -- it is used only for fiscal report calculations.
+- Both can apply simultaneously: a shared expense can also be partially deductible. The deduction is calculated on the effective `AmountCents` (already halved), not the original amount.
+
+**API:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal?year=2025&quarter=1` | Quarterly fiscal report (Modelo 303, Modelo 130, expenses, invoices) |
+
+**Constants:**
+
+```typescript
+export const QUERY_KEY = {
+  // ... existing keys
+  FISCAL: 'fiscal',
+} as const;
+
+export const API_ENDPOINT = {
+  // ... existing endpoints
+  FISCAL: '/api/fiscal',
+} as const;
+```
+
 ---
 
 ## Money Handling
@@ -624,6 +696,10 @@ RecurringExpenseOccurrences
 SQL Views handle aggregation -- calculations happen in database, not JavaScript:
 
 ```sql
+-- vw_FiscalQuarterly: Quarterly VAT/deduction aggregates for fiscal reports
+-- Groups by year, quarter, and type. Only includes transactions with fiscal fields
+SELECT YEAR(TransactionDate), DATEPART(QUARTER, ...), SUM(VatCents), SUM(DeductibleCents)
+
 -- vw_MonthlySummary: Totals by PARENT category per month
 -- Subcategory transactions aggregate under their parent via COALESCE
 SELECT
@@ -690,14 +766,14 @@ QUERY_KEY = {
   CATEGORIES, TRANSACTIONS, SUMMARY,
   SUBCATEGORY_SUMMARY, RECURRING_EXPENSES,
   PENDING_OCCURRENCES, TRANSACTION_GROUPS,
-  TRIPS, TRIP_CATEGORIES,
+  TRIPS, TRIP_CATEGORIES, FISCAL,
 }
 
 // API endpoints
 API_ENDPOINT = {
   CATEGORIES, TRANSACTIONS, SUMMARY,
   SUBCATEGORY_SUMMARY, RECURRING_EXPENSES,
-  TRANSACTION_GROUPS, TRIPS,
+  TRANSACTION_GROUPS, TRIPS, FISCAL,
 }
 
 // Cache times
@@ -752,6 +828,9 @@ CreateTripSchema              // Trip name validation
 UpdateTripSchema              // Partial trip update
 CreateTripExpenseSchema       // Trip expense (always expense type)
 UpdateTripExpenseSchema       // Partial trip expense update
+
+// src/schemas/fiscal.ts
+FiscalQuerySchema             // Year + quarter validation
 
 // Shared validation helper
 validateRequest(schema, data)

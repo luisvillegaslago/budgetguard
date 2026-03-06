@@ -204,6 +204,8 @@ Create a new category. Supports subcategories via `parentCategoryId`.
 | `sortOrder` | number | No | `0` | Display order |
 | `parentCategoryId` | number \| null | No | `null` | Parent category ID (creates a subcategory) |
 | `defaultShared` | boolean | No | `false` | Whether transactions in this category default to shared |
+| `defaultVatPercent` | number \| null | No | `null` | Default VAT percentage for transactions in this category (0-100). Used by fiscal module |
+| `defaultDeductionPercent` | number \| null | No | `null` | Default tax deduction percentage for transactions in this category (0-100). Used by fiscal module |
 
 **Example Request:**
 ```json
@@ -258,6 +260,8 @@ Update an existing category. All fields are optional. Note: `type` and `parentCa
 | `sortOrder` | number | No | Display order |
 | `isActive` | boolean | No | Activate/deactivate the category |
 | `defaultShared` | boolean | No | Default shared status |
+| `defaultVatPercent` | number \| null | No | Default VAT percentage (0-100) |
+| `defaultDeductionPercent` | number \| null | No | Default tax deduction percentage (0-100) |
 
 **Example Request:**
 ```json
@@ -423,6 +427,10 @@ Create a new transaction.
 | `transactionDate` | string | Yes | - | Date in ISO format |
 | `type` | `income` \| `expense` | Yes | - | Transaction type |
 | `isShared` | boolean | No | `false` | If true, amount is halved (ceil) for storage |
+| `vatPercent` | number \| null | No | `null` | VAT percentage applied to this transaction (0-100). Used by fiscal module |
+| `deductionPercent` | number \| null | No | `null` | Tax deduction percentage for this transaction (0-100). Used by fiscal module |
+| `vendorName` | string \| null | No | `null` | Vendor/supplier name for fiscal tracking (max 255 chars) |
+| `invoiceNumber` | string \| null | No | `null` | Invoice or receipt reference number (max 100 chars) |
 
 **Example Request (personal):**
 ```json
@@ -554,6 +562,10 @@ Update an existing transaction. All fields are optional. Shared expense logic is
 | `transactionDate` | string | No | Date in ISO format |
 | `type` | `income` \| `expense` | No | Transaction type |
 | `isShared` | boolean | No | Shared flag (recalculates amount) |
+| `vatPercent` | number \| null | No | VAT percentage (0-100) |
+| `deductionPercent` | number \| null | No | Tax deduction percentage (0-100) |
+| `vendorName` | string \| null | No | Vendor/supplier name |
+| `invoiceNumber` | string \| null | No | Invoice or receipt reference |
 
 **Shared Update Behavior:**
 
@@ -1502,6 +1514,105 @@ GET /api/trips/categories
 
 ---
 
+### Fiscal
+
+Fiscal reports provide quarterly tax data for Spanish tax models (Modelo 303 for VAT and Modelo 130 for income tax). The endpoint aggregates transaction-level fiscal fields (`vatPercent`, `deductionPercent`, `vendorName`, `invoiceNumber`) into quarterly summaries.
+
+#### `GET /api/fiscal`
+
+Get fiscal report for a specific year and quarter. Returns Modelo 303 (VAT) summary, Modelo 130 (income tax) summary, deductible expenses, and invoiced transactions.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | Yes | - | Fiscal year (e.g., `2025`) |
+| `quarter` | number | Yes | - | Quarter number (1-4) |
+
+**Example Request:**
+```bash
+GET /api/fiscal?year=2025&quarter=1
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "year": 2025,
+    "quarter": 1,
+    "modelo303": {
+      "vatCollected": 152375,
+      "vatDeductible": 89200,
+      "vatBalance": 63175
+    },
+    "modelo130": {
+      "grossIncome": 297500,
+      "deductibleExpenses": 189200,
+      "netIncome": 108300,
+      "taxableBase": 108300,
+      "taxAmount": 21660
+    },
+    "expenses": [
+      {
+        "transactionId": 42,
+        "categoryId": 2,
+        "categoryName": "Supermercado",
+        "amountCents": 4550,
+        "vatPercent": 21,
+        "vatAmountCents": 955,
+        "deductionPercent": 100,
+        "deductibleAmountCents": 4550,
+        "vendorName": "Mercadona",
+        "invoiceNumber": "INV-2025-001",
+        "transactionDate": "2025-01-15"
+      }
+    ],
+    "invoices": [
+      {
+        "transactionId": 42,
+        "vendorName": "Mercadona",
+        "invoiceNumber": "INV-2025-001",
+        "amountCents": 4550,
+        "vatPercent": 21,
+        "transactionDate": "2025-01-15"
+      }
+    ]
+  }
+}
+```
+
+**Fiscal Report Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `year` | number | Fiscal year |
+| `quarter` | number | Quarter (1-4) |
+| `modelo303` | object | VAT summary (collected, deductible, balance in cents) |
+| `modelo130` | object | Income tax summary (gross, deductible, net, taxable base, tax amount in cents) |
+| `expenses` | array | Deductible expense transactions with computed fiscal fields |
+| `invoices` | array | Transactions that have an `invoiceNumber` set |
+
+**Modelo 303 Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `vatCollected` | number | Total VAT collected on income transactions (cents) |
+| `vatDeductible` | number | Total deductible VAT on expense transactions (cents) |
+| `vatBalance` | number | Net VAT position: collected - deductible (cents) |
+
+**Modelo 130 Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `grossIncome` | number | Total income for the quarter (cents) |
+| `deductibleExpenses` | number | Total deductible expenses (cents) |
+| `netIncome` | number | Gross income - deductible expenses (cents) |
+| `taxableBase` | number | Base for 20% tax calculation (cents) |
+| `taxAmount` | number | Estimated tax: 20% of taxable base (cents) |
+
+---
+
 ### Summary
 
 #### `GET /api/summary`
@@ -1664,11 +1775,11 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 
 | Schema | Purpose |
 |--------|---------|
-| `CreateTransactionSchema` | New transaction validation (amount, categoryId, date, type, isShared) |
+| `CreateTransactionSchema` | New transaction validation (amount, categoryId, date, type, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber) |
 | `UpdateTransactionSchema` | Extends CreateTransactionSchema.partial() with required transactionId |
 | `TransactionFiltersSchema` | Query parameter validation (month, type, categoryId) |
-| `CreateCategorySchema` | New category (name, type, icon, color, sortOrder, parentCategoryId, defaultShared) |
-| `UpdateCategorySchema` | Partial category updates (name, icon, color, sortOrder, isActive, defaultShared). Type and parentCategoryId are immutable |
+| `CreateCategorySchema` | New category (name, type, icon, color, sortOrder, parentCategoryId, defaultShared, defaultVatPercent, defaultDeductionPercent) |
+| `UpdateCategorySchema` | Partial category updates (name, icon, color, sortOrder, isActive, defaultShared, defaultVatPercent, defaultDeductionPercent). Type and parentCategoryId are immutable |
 | `CreateTransactionGroupSchema` | Group creation (description, date, type, isShared, parentCategoryId, items[]) |
 | `UpdateTransactionGroupSchema` | Group updates (description, transactionDate) |
 

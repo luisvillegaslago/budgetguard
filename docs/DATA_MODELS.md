@@ -23,6 +23,8 @@ CREATE TABLE Categories (
     IsActive BIT DEFAULT 1,
     ParentCategoryID INT NULL,        -- Self-referencing FK for subcategories (NULL = parent)
     DefaultShared BIT DEFAULT 0 NOT NULL, -- Auto-toggle shared checkbox in form
+    DefaultVatPercent DECIMAL(5,2) NULL,    -- Default VAT % for fiscal module (0-100)
+    DefaultDeductionPercent DECIMAL(5,2) NULL, -- Default deduction % for fiscal module (0-100)
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
     CONSTRAINT FK_Categories_Parent FOREIGN KEY (ParentCategoryID)
@@ -41,6 +43,8 @@ CREATE TABLE Categories (
 | `IsActive` | BIT | Soft delete flag |
 | `ParentCategoryID` | INT NULL | Self-referencing FK. `NULL` = top-level parent category. Non-null = subcategory pointing to its parent |
 | `DefaultShared` | BIT | When `1`, the shared expense checkbox is pre-checked in forms for this category |
+| `DefaultVatPercent` | DECIMAL(5,2) NULL | Default VAT percentage (0-100) applied to transactions in this category. Pre-fills the VAT field in transaction forms. Used by fiscal module |
+| `DefaultDeductionPercent` | DECIMAL(5,2) NULL | Default tax deduction percentage (0-100) for this category. Pre-fills the deduction field in transaction forms. Used by fiscal module |
 
 **Hierarchy rules:**
 - A category with `ParentCategoryID = NULL` is a top-level (parent) category.
@@ -112,6 +116,10 @@ CREATE TABLE Transactions (
     TransactionGroupID INT NULL,      -- FK to TransactionGroups (NULL if standalone)
     TripID INT NULL,                 -- FK to Trips (NULL if not a trip expense)
     RecurringExpenseID INT NULL,      -- FK to RecurringExpenses (NULL if not from recurring)
+    VatPercent DECIMAL(5,2) NULL,    -- VAT percentage for fiscal module (0-100)
+    DeductionPercent DECIMAL(5,2) NULL, -- Tax deduction percentage for fiscal module (0-100)
+    VendorName NVARCHAR(255) NULL,   -- Vendor/supplier name for fiscal tracking
+    InvoiceNumber NVARCHAR(100) NULL, -- Invoice or receipt reference number
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
     CONSTRAINT FK_Transactions_TransactionGroup
@@ -136,6 +144,10 @@ CREATE TABLE Transactions (
 | `TransactionGroupID` | INT NULL | FK to `TransactionGroups`. `NULL` for standalone transactions |
 | `TripID` | INT NULL | FK to `Trips`. `NULL` if not a trip expense |
 | `RecurringExpenseID` | INT NULL | FK to `RecurringExpenses`. `NULL` if not generated from a recurring rule |
+| `VatPercent` | DECIMAL(5,2) NULL | VAT percentage applied to this transaction (0-100). Used by fiscal module for Modelo 303 calculations |
+| `DeductionPercent` | DECIMAL(5,2) NULL | Tax deduction percentage (0-100). Used by fiscal module for Modelo 130 calculations |
+| `VendorName` | NVARCHAR(255) NULL | Vendor or supplier name. Used for fiscal invoice tracking |
+| `InvoiceNumber` | NVARCHAR(100) NULL | Invoice or receipt reference number. Used to identify invoiced transactions in fiscal reports |
 
 **Important**: `AmountCents` stores money as integers to avoid floating point precision errors. When a transaction is shared (`SharedDivisor = 2`), `AmountCents` contains the halved amount and `OriginalAmountCents` preserves the full original.
 
@@ -447,6 +459,48 @@ GROUP BY
 
 ---
 
+#### vw_FiscalQuarterly
+
+Quarterly fiscal aggregation for Spanish tax models (Modelo 303 and Modelo 130). Groups transactions by year and quarter, calculating VAT collected, VAT deductible, gross income, and deductible expenses.
+
+```sql
+CREATE VIEW vw_FiscalQuarterly AS
+SELECT
+    YEAR(t.TransactionDate) AS FiscalYear,
+    DATEPART(QUARTER, t.TransactionDate) AS FiscalQuarter,
+    t.Type,
+    SUM(t.AmountCents) AS TotalCents,
+    SUM(CASE
+        WHEN t.VatPercent IS NOT NULL
+        THEN CAST(t.AmountCents * t.VatPercent / 100.0 AS INT)
+        ELSE 0
+    END) AS VatCents,
+    SUM(CASE
+        WHEN t.DeductionPercent IS NOT NULL AND t.Type = 'expense'
+        THEN CAST(t.AmountCents * t.DeductionPercent / 100.0 AS INT)
+        ELSE 0
+    END) AS DeductibleCents,
+    COUNT(*) AS TransactionCount
+FROM Transactions t
+WHERE t.VatPercent IS NOT NULL OR t.DeductionPercent IS NOT NULL
+GROUP BY
+    YEAR(t.TransactionDate),
+    DATEPART(QUARTER, t.TransactionDate),
+    t.Type;
+```
+
+| Column | Description |
+|--------|-------------|
+| `FiscalYear` | Year (e.g., `2025`) |
+| `FiscalQuarter` | Quarter (1-4) |
+| `Type` | `'income'` or `'expense'` |
+| `TotalCents` | Sum of all transaction amounts for this type and quarter |
+| `VatCents` | Computed VAT amount based on each transaction's `VatPercent` |
+| `DeductibleCents` | Computed deductible amount for expenses based on `DeductionPercent` |
+| `TransactionCount` | Number of transactions with fiscal fields |
+
+---
+
 ### Triggers
 
 Auto-update `UpdatedAt` timestamps on all tables:
@@ -560,6 +614,8 @@ export interface Category {
   isActive: boolean;
   parentCategoryId: number | null;   // NULL = parent category
   defaultShared: boolean;            // Auto-toggle shared checkbox
+  defaultVatPercent: number | null;  // Default VAT % for fiscal module
+  defaultDeductionPercent: number | null; // Default deduction % for fiscal module
   subcategories?: Category[];        // Populated client-side for tree rendering
 }
 ```
@@ -582,6 +638,10 @@ export interface Transaction {
   transactionGroupId: number | null; // FK to TransactionGroups
   tripId: number | null;             // FK to Trips
   tripName: string | null;           // Trip name (joined from Trips table)
+  vatPercent: number | null;         // VAT percentage for fiscal module
+  deductionPercent: number | null;   // Tax deduction percentage for fiscal module
+  vendorName: string | null;         // Vendor/supplier name for fiscal tracking
+  invoiceNumber: string | null;      // Invoice or receipt reference number
   createdAt: string;                 // ISO datetime
   updatedAt: string;                 // ISO datetime
 }
@@ -734,6 +794,59 @@ export interface TransactionGroupInput {
 export interface TransactionGroupUpdateInput {
   description?: string;
   transactionDate?: Date;
+}
+```
+
+### Fiscal Types
+
+```typescript
+// Transaction with computed fiscal fields (used in fiscal report)
+export interface FiscalTransaction {
+  transactionId: number;
+  categoryId: number;
+  categoryName: string;
+  amountCents: number;
+  vatPercent: number | null;
+  vatAmountCents: number;           // Computed: amountCents * vatPercent / 100
+  deductionPercent: number | null;
+  deductibleAmountCents: number;    // Computed: amountCents * deductionPercent / 100
+  vendorName: string | null;
+  invoiceNumber: string | null;
+  transactionDate: string;
+  type: TransactionType;
+}
+
+// Modelo 303 (VAT) quarterly summary
+export interface Modelo303Summary {
+  vatCollected: number;             // Total VAT on income transactions (cents)
+  vatDeductible: number;            // Total deductible VAT on expenses (cents)
+  vatBalance: number;               // vatCollected - vatDeductible (cents)
+}
+
+// Modelo 130 (Income Tax) quarterly summary
+export interface Modelo130Summary {
+  grossIncome: number;              // Total income for quarter (cents)
+  deductibleExpenses: number;       // Total deductible expenses (cents)
+  netIncome: number;                // grossIncome - deductibleExpenses (cents)
+  taxableBase: number;              // Base for tax calculation (cents)
+  taxAmount: number;                // 20% of taxable base (cents)
+}
+
+// Full fiscal report for a quarter
+export interface FiscalReport {
+  year: number;
+  quarter: number;
+  modelo303: Modelo303Summary;
+  modelo130: Modelo130Summary;
+  expenses: FiscalTransaction[];    // Deductible expense transactions
+  invoices: FiscalTransaction[];    // Transactions with invoiceNumber set
+}
+
+// Computed fiscal fields (returned by computeFiscalFields utility)
+export interface FiscalComputedFields {
+  vatAmountCents: number;           // amountCents * vatPercent / 100
+  deductibleAmountCents: number;    // amountCents * deductionPercent / 100
+  netAmountCents: number;           // amountCents - vatAmountCents
 }
 ```
 
@@ -1301,3 +1414,5 @@ export function isValidCents(cents: number): boolean {
 | `database/seed.sql` | Initial category data |
 | `src/schemas/trip.ts` | Trip and trip expense Zod schemas |
 | `src/services/database/TripRepository.ts` | Trip CRUD and trip category database operations |
+| `src/services/database/FiscalRepository.ts` | Fiscal quarterly report database operations |
+| `src/utils/fiscal.ts` | `computeFiscalFields` utility for VAT/deduction calculations |

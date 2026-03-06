@@ -53,6 +53,8 @@ const mockTripDetail: TripDetail = {
         isActive: true,
         parentCategoryId: 5,
         defaultShared: false,
+        defaultVatPercent: null,
+        defaultDeductionPercent: null,
       },
       parentCategory: { categoryId: 5, name: 'Viajes' },
       amountCents: 12000,
@@ -65,6 +67,10 @@ const mockTripDetail: TripDetail = {
       transactionGroupId: null,
       tripId: 1,
       tripName: 'Sierra Nevada 2025',
+      vatPercent: null,
+      deductionPercent: null,
+      vendorName: null,
+      invoiceNumber: null,
       createdAt: '2025-10-15T10:00:00.000Z',
       updatedAt: '2025-10-15T10:00:00.000Z',
     },
@@ -94,6 +100,8 @@ const mockTripCategories = [
     isActive: true,
     parentCategoryId: 5,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
   {
     categoryId: 16,
@@ -105,6 +113,8 @@ const mockTripCategories = [
     isActive: true,
     parentCategoryId: 5,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
   },
 ];
 

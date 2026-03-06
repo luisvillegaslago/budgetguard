@@ -18,6 +18,8 @@ const mockCategories = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: true,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [],
   },
   {
@@ -30,6 +32,8 @@ const mockCategories = [
     isActive: true,
     parentCategoryId: null,
     defaultShared: false,
+    defaultVatPercent: null,
+    defaultDeductionPercent: null,
     subcategories: [],
   },
 ];
@@ -284,6 +288,8 @@ describe('RecurringExpenseForm — Edit mode', () => {
       isActive: true,
       parentCategoryId: null,
       defaultShared: true,
+      defaultVatPercent: null,
+      defaultDeductionPercent: null,
     },
     amountCents: 45000,
     description: 'Alquiler mensual',

@@ -57,6 +57,8 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
           color: editCategory.color,
           sortOrder: editCategory.sortOrder,
           defaultShared: editCategory.defaultShared,
+          defaultVatPercent: editCategory.defaultVatPercent,
+          defaultDeductionPercent: editCategory.defaultDeductionPercent,
         }
       : {
           type: parentCategory?.type ?? TRANSACTION_TYPE.EXPENSE,
@@ -65,6 +67,8 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
           parentCategoryId: parentCategory?.categoryId ?? null,
           icon: null,
           color: null,
+          defaultVatPercent: null,
+          defaultDeductionPercent: null,
         },
   });
 
@@ -81,6 +85,8 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
           color: data.color,
           sortOrder: data.sortOrder,
           defaultShared: data.defaultShared,
+          defaultVatPercent: data.defaultVatPercent,
+          defaultDeductionPercent: data.defaultDeductionPercent,
         };
         await updateCategory.mutateAsync({ id: editCategory.categoryId, data: updateData });
       } else {
@@ -274,6 +280,52 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
               {t('category-management.form.fields.shared')}
             </label>
           </div>
+
+          {/* Fiscal Defaults (only for expense categories) */}
+          {watchedType === TRANSACTION_TYPE.EXPENSE && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="defaultVatPercent" className="block text-sm font-medium text-foreground mb-1.5">
+                  {t('fiscal.category-defaults.vat-percent')}
+                </label>
+                <input
+                  id="defaultVatPercent"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  {...register('defaultVatPercent', { valueAsNumber: true })}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={cn(
+                    'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                    'transition-colors duration-200 ease-out-quart',
+                    'border-input',
+                  )}
+                />
+              </div>
+              <div>
+                <label htmlFor="defaultDeductionPercent" className="block text-sm font-medium text-foreground mb-1.5">
+                  {t('fiscal.category-defaults.deduction-percent')}
+                </label>
+                <input
+                  id="defaultDeductionPercent"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  {...register('defaultDeductionPercent', { valueAsNumber: true })}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={cn(
+                    'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                    'transition-colors duration-200 ease-out-quart',
+                    'border-input',
+                  )}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {mutationError && (
