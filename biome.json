@@ -21,7 +21,7 @@
     "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineEnding": "lf",
+    "lineEnding": "crlf",
     "lineWidth": 120
   },
   "linter": {
