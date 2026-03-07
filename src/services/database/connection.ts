@@ -1,10 +1,12 @@
 /**
  * BudgetGuard Database Connection
- * Serverless-safe PostgreSQL connection using @neondatabase/serverless
- * Works with both local PostgreSQL and Neon in production
+ * Uses @neondatabase/serverless for Neon (production) and pg for local PostgreSQL
  */
 
-import { Pool } from '@neondatabase/serverless';
+import { Pool as NeonPool } from '@neondatabase/serverless';
+import { Pool as PgPool } from 'pg';
+
+type PoolInstance = NeonPool | PgPool;
 
 function getDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
@@ -14,19 +16,26 @@ function getDatabaseUrl(): string {
   return url;
 }
 
+function isNeonUrl(url: string): boolean {
+  return url.includes('neon.tech');
+}
+
 // ============================================================
-// Connection Pool (single instance, serverless-safe)
+// Connection Pool (single instance)
 // ============================================================
 
-let pool: Pool | null = null;
+let pool: PoolInstance | null = null;
 
-export function getPool(): Pool {
+export function getPool(): PoolInstance {
   if (!pool) {
-    pool = new Pool({
-      connectionString: getDatabaseUrl(),
+    const url = getDatabaseUrl();
+    const config = {
+      connectionString: url,
       max: 10,
       idleTimeoutMillis: 30000,
-    });
+    };
+
+    pool = isNeonUrl(url) ? new NeonPool(config) : new PgPool(config);
 
     pool.on('error', (err: Error) => {
       // biome-ignore lint/suspicious/noConsole: Error logging needed for debugging
