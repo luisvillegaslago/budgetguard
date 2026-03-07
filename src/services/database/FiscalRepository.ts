@@ -10,7 +10,6 @@
  * All calculations happen in TypeScript (not SQL) for consistent rounding with the frontend.
  */
 
-import sql from 'mssql';
 import { IRPF_RATE, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
 import type {
   FiscalTransaction,
@@ -20,7 +19,7 @@ import type {
   Modelo390Summary,
 } from '@/types/finance';
 import { calcGastosDificilCents, computeFiscalFields } from '@/utils/fiscal';
-import { getConnection } from './connection';
+import { query } from './connection';
 
 interface FiscalViewRow {
   FiscalYear: number;
@@ -40,6 +39,14 @@ interface FiscalViewRow {
 }
 
 /**
+ * Convert a Date or ISO string to a YYYY-MM-DD date string
+ */
+function toDateString(val: Date | string): string {
+  if (typeof val === 'string') return val.split('T')[0] || val;
+  return val.toISOString().split('T')[0] || '';
+}
+
+/**
  * Transform a fiscal view row to FiscalTransaction with computed fields
  */
 function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
@@ -47,7 +54,7 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
 
   return {
     transactionId: row.TransactionID,
-    transactionDate: row.TransactionDate.toISOString().split('T')[0] || '',
+    transactionDate: toDateString(row.TransactionDate),
     categoryName: row.CategoryName,
     parentCategoryName: row.ParentCategoryName,
     vendorName: row.VendorName,
@@ -61,10 +68,10 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
   };
 }
 
-const FISCAL_VIEW_COLUMNS = `FiscalYear, FiscalQuarter, Type, TransactionID, CategoryID,
-           CategoryName, ParentCategoryName, TransactionDate,
-           VendorName, InvoiceNumber, Description,
-           FullAmountCents, VatPercent, DeductionPercent`;
+const FISCAL_VIEW_COLUMNS = `"FiscalYear", "FiscalQuarter", "Type", "TransactionID", "CategoryID",
+           "CategoryName", "ParentCategoryName", "TransactionDate",
+           "VendorName", "InvoiceNumber", "Description",
+           "FullAmountCents", "VatPercent", "DeductionPercent"`;
 
 /**
  * Only income from the "Facturas" category counts as professional income.
@@ -78,43 +85,33 @@ function isProfessionalIncome(row: FiscalViewRow): boolean {
  * Get fiscal expenses (type=expense) for a specific quarter
  */
 export async function getFiscalExpenses(year: number, quarter: number): Promise<FiscalTransaction[]> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const rows = await query<FiscalViewRow>(
+    `SELECT ${FISCAL_VIEW_COLUMNS}
+    FROM "vw_FiscalQuarterly"
+    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2
+      AND "Type" = $3
+    ORDER BY "TransactionDate" ASC`,
+    [year, quarter, TRANSACTION_TYPE.EXPENSE],
+  );
 
-  request.input('year', sql.Int, year);
-  request.input('quarter', sql.Int, quarter);
-
-  const result = await request.query<FiscalViewRow>(`
-    SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM vw_FiscalQuarterly
-    WHERE FiscalYear = @year AND FiscalQuarter = @quarter
-      AND Type = '${TRANSACTION_TYPE.EXPENSE}'
-    ORDER BY TransactionDate ASC
-  `);
-
-  return result.recordset.map(rowToFiscalTransaction);
+  return rows.map(rowToFiscalTransaction);
 }
 
 /**
  * Get fiscal invoices (type=income) for a specific quarter
  */
 export async function getFiscalInvoices(year: number, quarter: number): Promise<FiscalTransaction[]> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const rows = await query<FiscalViewRow>(
+    `SELECT ${FISCAL_VIEW_COLUMNS}
+    FROM "vw_FiscalQuarterly"
+    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2
+      AND "Type" = $3
+      AND COALESCE("ParentCategoryName", "CategoryName") = $4
+    ORDER BY "TransactionDate" ASC`,
+    [year, quarter, TRANSACTION_TYPE.INCOME, PROFESSIONAL_INCOME_CATEGORY],
+  );
 
-  request.input('year', sql.Int, year);
-  request.input('quarter', sql.Int, quarter);
-
-  const result = await request.query<FiscalViewRow>(`
-    SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM vw_FiscalQuarterly
-    WHERE FiscalYear = @year AND FiscalQuarter = @quarter
-      AND Type = '${TRANSACTION_TYPE.INCOME}'
-      AND COALESCE(ParentCategoryName, CategoryName) = '${PROFESSIONAL_INCOME_CATEGORY}'
-    ORDER BY TransactionDate ASC
-  `);
-
-  return result.recordset.map(rowToFiscalTransaction);
+  return rows.map(rowToFiscalTransaction);
 }
 
 /**
@@ -126,17 +123,12 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
  * IVA Deducible (casillas 28, 29, 45) = expense invoices with VAT > 0
  */
 export async function getModelo303Summary(year: number, quarter: number): Promise<Modelo303Summary> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('year', sql.Int, year);
-  request.input('quarter', sql.Int, quarter);
-
-  const result = await request.query<FiscalViewRow>(`
-    SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM vw_FiscalQuarterly
-    WHERE FiscalYear = @year AND FiscalQuarter = @quarter
-  `);
+  const rows = await query<FiscalViewRow>(
+    `SELECT ${FISCAL_VIEW_COLUMNS}
+    FROM "vw_FiscalQuarterly"
+    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2`,
+    [year, quarter],
+  );
 
   let casilla07 = 0;
   let casilla09 = 0;
@@ -144,7 +136,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
   let casilla28 = 0;
   let casilla29 = 0;
 
-  result.recordset.forEach((row) => {
+  rows.forEach((row) => {
     const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
       row.FullAmountCents,
       row.VatPercent,
@@ -196,19 +188,12 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
  * Single SQL query for all quarters up to the requested one, then iterate in TypeScript.
  */
 export async function getModelo130Summary(year: number, quarter: number): Promise<Modelo130Summary> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('year', sql.Int, year);
-  request.input('quarter', sql.Int, quarter);
-
-  const result = await request.query<FiscalViewRow>(`
-    SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM vw_FiscalQuarterly
-    WHERE FiscalYear = @year AND FiscalQuarter <= @quarter
-  `);
-
-  const rows = result.recordset;
+  const rows = await query<FiscalViewRow>(
+    `SELECT ${FISCAL_VIEW_COLUMNS}
+    FROM "vw_FiscalQuarterly"
+    WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2`,
+    [year, quarter],
+  );
 
   let ingresosAcum = 0;
   let gastosDocAcum = 0;
@@ -270,23 +255,19 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
  * Queries the full year's data and sums up the quarterly results.
  */
 export async function getModelo390Summary(year: number): Promise<Modelo390Summary> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('year', sql.Int, year);
-
-  const result = await request.query<FiscalViewRow>(`
-    SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM vw_FiscalQuarterly
-    WHERE FiscalYear = @year
-  `);
+  const rows = await query<FiscalViewRow>(
+    `SELECT ${FISCAL_VIEW_COLUMNS}
+    FROM "vw_FiscalQuarterly"
+    WHERE "FiscalYear" = $1`,
+    [year],
+  );
 
   let totalC09 = 0;
   let totalC28 = 0;
   let totalC29 = 0;
   let totalC60 = 0;
 
-  result.recordset.forEach((row) => {
+  rows.forEach((row) => {
     const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
       row.FullAmountCents,
       row.VatPercent,
@@ -336,21 +317,17 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
  * Only the professional activities section; the user completes the rest in Renta Web.
  */
 export async function getModelo100Summary(year: number): Promise<Modelo100Section> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('year', sql.Int, year);
-
-  const result = await request.query<FiscalViewRow>(`
-    SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM vw_FiscalQuarterly
-    WHERE FiscalYear = @year
-  `);
+  const rows = await query<FiscalViewRow>(
+    `SELECT ${FISCAL_VIEW_COLUMNS}
+    FROM "vw_FiscalQuarterly"
+    WHERE "FiscalYear" = $1`,
+    [year],
+  );
 
   let ingresosCents = 0;
   let gastosDeducCents = 0;
 
-  result.recordset.forEach((row) => {
+  rows.forEach((row) => {
     const { baseCents, baseDeducibleCents } = computeFiscalFields(
       row.FullAmountCents,
       row.VatPercent,

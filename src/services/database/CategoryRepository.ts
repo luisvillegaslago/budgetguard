@@ -3,9 +3,8 @@
  * Database operations for categories
  */
 
-import sql from 'mssql';
 import type { Category, TransactionType } from '@/types/finance';
-import { getConnection } from './connection';
+import { query } from './connection';
 
 interface CategoryRow {
   CategoryID: number;
@@ -62,53 +61,49 @@ function buildCategoryTree(categories: Category[]): Category[] {
  * @param includeInactive - If true, returns inactive categories too
  */
 export async function getCategories(type?: TransactionType, includeInactive = false): Promise<Category[]> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  let query = `
-    SELECT CategoryID, Name, Type, Icon, Color, SortOrder, IsActive,
-           ParentCategoryID, DefaultShared, DefaultVatPercent, DefaultDeductionPercent
-    FROM Categories
+  let sqlText = `
+    SELECT "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
+           "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"
+    FROM "Categories"
   `;
 
   const conditions: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = 1;
 
   if (!includeInactive) {
-    conditions.push('IsActive = 1');
+    conditions.push('"IsActive" = TRUE');
   }
 
   if (type) {
-    conditions.push('Type = @type');
-    request.input('type', sql.NVarChar(10), type);
+    conditions.push(`"Type" = $${paramIndex}`);
+    params.push(type);
+    paramIndex++;
   }
 
   if (conditions.length > 0) {
-    query += ` WHERE ${conditions.join(' AND ')}`;
+    sqlText += ` WHERE ${conditions.join(' AND ')}`;
   }
 
-  query += ' ORDER BY Type, SortOrder, Name';
+  sqlText += ' ORDER BY "Type", "SortOrder", "Name"';
 
-  const result = await request.query<CategoryRow>(query);
-  return result.recordset.map(rowToCategory);
+  const result = await query<CategoryRow>(sqlText, params);
+  return result.map(rowToCategory);
 }
 
 /**
  * Get a single category by ID
  */
 export async function getCategoryById(categoryId: number): Promise<Category | null> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const result = await query<CategoryRow>(
+    `SELECT "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
+            "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"
+     FROM "Categories"
+     WHERE "CategoryID" = $1`,
+    [categoryId],
+  );
 
-  request.input('categoryId', sql.Int, categoryId);
-
-  const result = await request.query<CategoryRow>(`
-    SELECT CategoryID, Name, Type, Icon, Color, SortOrder, IsActive,
-           ParentCategoryID, DefaultShared, DefaultVatPercent, DefaultDeductionPercent
-    FROM Categories
-    WHERE CategoryID = @categoryId
-  `);
-
-  const row = result.recordset[0];
+  const row = result[0];
   return row ? rowToCategory(row) : null;
 }
 
@@ -126,37 +121,25 @@ export async function createCategory(data: {
   defaultVatPercent?: number | null;
   defaultDeductionPercent?: number | null;
 }): Promise<Category> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const result = await query<CategoryRow>(
+    `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
+               "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"`,
+    [
+      data.name,
+      data.type,
+      data.icon ?? null,
+      data.color ?? null,
+      data.sortOrder ?? 0,
+      data.parentCategoryId ?? null,
+      data.defaultShared ?? false,
+      data.defaultVatPercent ?? null,
+      data.defaultDeductionPercent ?? null,
+    ],
+  );
 
-  request.input('name', sql.NVarChar(100), data.name);
-  request.input('type', sql.NVarChar(10), data.type);
-  request.input('icon', sql.NVarChar(50), data.icon ?? null);
-  request.input('color', sql.NVarChar(7), data.color ?? null);
-  request.input('sortOrder', sql.Int, data.sortOrder ?? 0);
-  request.input('parentCategoryId', sql.Int, data.parentCategoryId ?? null);
-  request.input('defaultShared', sql.Bit, data.defaultShared ?? false);
-  request.input('defaultVatPercent', sql.Decimal(5, 2), data.defaultVatPercent ?? null);
-  request.input('defaultDeductionPercent', sql.Decimal(5, 2), data.defaultDeductionPercent ?? null);
-
-  const result = await request.query<CategoryRow>(`
-    DECLARE @out TABLE (
-      CategoryID INT, Name NVARCHAR(100), Type NVARCHAR(10),
-      Icon NVARCHAR(50), Color NVARCHAR(7), SortOrder INT, IsActive BIT,
-      ParentCategoryID INT, DefaultShared BIT,
-      DefaultVatPercent DECIMAL(5,2), DefaultDeductionPercent DECIMAL(5,2)
-    );
-    INSERT INTO Categories (Name, Type, Icon, Color, SortOrder, ParentCategoryID, DefaultShared, DefaultVatPercent, DefaultDeductionPercent)
-    OUTPUT INSERTED.CategoryID, INSERTED.Name, INSERTED.Type,
-           INSERTED.Icon, INSERTED.Color, INSERTED.SortOrder, INSERTED.IsActive,
-           INSERTED.ParentCategoryID, INSERTED.DefaultShared,
-           INSERTED.DefaultVatPercent, INSERTED.DefaultDeductionPercent
-    INTO @out
-    VALUES (@name, @type, @icon, @color, @sortOrder, @parentCategoryId, @defaultShared, @defaultVatPercent, @defaultDeductionPercent);
-    SELECT * FROM @out;
-  `);
-
-  const row = result.recordset[0];
+  const row = result[0];
   if (!row) {
     throw new Error('Failed to create category');
   }
@@ -180,69 +163,57 @@ export async function updateCategory(
     defaultDeductionPercent: number | null;
   }>,
 ): Promise<Category | null> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('categoryId', sql.Int, categoryId);
-
   const updates: string[] = [];
+  const params: unknown[] = [categoryId];
+  let paramIndex = 2;
 
   if (data.name !== undefined) {
-    request.input('name', sql.NVarChar(100), data.name);
-    updates.push('Name = @name');
+    updates.push(`"Name" = $${paramIndex++}`);
+    params.push(data.name);
   }
   if (data.icon !== undefined) {
-    request.input('icon', sql.NVarChar(50), data.icon);
-    updates.push('Icon = @icon');
+    updates.push(`"Icon" = $${paramIndex++}`);
+    params.push(data.icon);
   }
   if (data.color !== undefined) {
-    request.input('color', sql.NVarChar(7), data.color);
-    updates.push('Color = @color');
+    updates.push(`"Color" = $${paramIndex++}`);
+    params.push(data.color);
   }
   if (data.sortOrder !== undefined) {
-    request.input('sortOrder', sql.Int, data.sortOrder);
-    updates.push('SortOrder = @sortOrder');
+    updates.push(`"SortOrder" = $${paramIndex++}`);
+    params.push(data.sortOrder);
   }
   if (data.isActive !== undefined) {
-    request.input('isActive', sql.Bit, data.isActive);
-    updates.push('IsActive = @isActive');
+    updates.push(`"IsActive" = $${paramIndex++}`);
+    params.push(data.isActive);
   }
   if (data.defaultShared !== undefined) {
-    request.input('defaultShared', sql.Bit, data.defaultShared);
-    updates.push('DefaultShared = @defaultShared');
+    updates.push(`"DefaultShared" = $${paramIndex++}`);
+    params.push(data.defaultShared);
   }
   if (data.defaultVatPercent !== undefined) {
-    request.input('defaultVatPercent', sql.Decimal(5, 2), data.defaultVatPercent);
-    updates.push('DefaultVatPercent = @defaultVatPercent');
+    updates.push(`"DefaultVatPercent" = $${paramIndex++}`);
+    params.push(data.defaultVatPercent);
   }
   if (data.defaultDeductionPercent !== undefined) {
-    request.input('defaultDeductionPercent', sql.Decimal(5, 2), data.defaultDeductionPercent);
-    updates.push('DefaultDeductionPercent = @defaultDeductionPercent');
+    updates.push(`"DefaultDeductionPercent" = $${paramIndex++}`);
+    params.push(data.defaultDeductionPercent);
   }
 
   if (updates.length === 0) {
     return getCategoryById(categoryId);
   }
 
-  const result = await request.query<CategoryRow>(`
-    DECLARE @out TABLE (
-      CategoryID INT, Name NVARCHAR(100), Type NVARCHAR(10),
-      Icon NVARCHAR(50), Color NVARCHAR(7), SortOrder INT, IsActive BIT,
-      ParentCategoryID INT, DefaultShared BIT,
-      DefaultVatPercent DECIMAL(5,2), DefaultDeductionPercent DECIMAL(5,2)
-    );
-    UPDATE Categories
-    SET ${updates.join(', ')}
-    OUTPUT INSERTED.CategoryID, INSERTED.Name, INSERTED.Type,
-           INSERTED.Icon, INSERTED.Color, INSERTED.SortOrder, INSERTED.IsActive,
-           INSERTED.ParentCategoryID, INSERTED.DefaultShared,
-           INSERTED.DefaultVatPercent, INSERTED.DefaultDeductionPercent
-    INTO @out
-    WHERE CategoryID = @categoryId;
-    SELECT * FROM @out;
-  `);
+  const result = await query<CategoryRow>(
+    `UPDATE "Categories"
+     SET ${updates.join(', ')}
+     WHERE "CategoryID" = $1
+     RETURNING "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
+               "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"`,
+    params,
+  );
 
-  const row = result.recordset[0];
+  const row = result[0];
   return row ? rowToCategory(row) : null;
 }
 
@@ -250,26 +221,24 @@ export async function updateCategory(
  * Get the number of transactions referencing a category
  */
 export async function getCategoryTransactionCount(categoryId: number): Promise<number> {
-  const pool = await getConnection();
-  const result = await pool
-    .request()
-    .input('categoryId', sql.Int, categoryId)
-    .query<{ count: number }>('SELECT COUNT(*) as count FROM Transactions WHERE CategoryID = @categoryId');
+  const result = await query<{ count: number }>(
+    'SELECT COUNT(*) as count FROM "Transactions" WHERE "CategoryID" = $1',
+    [categoryId],
+  );
 
-  return result.recordset[0]?.count ?? 0;
+  return result[0]?.count ?? 0;
 }
 
 /**
  * Get the number of child subcategories for a category
  */
 export async function getCategoryChildrenCount(categoryId: number): Promise<number> {
-  const pool = await getConnection();
-  const result = await pool
-    .request()
-    .input('categoryId', sql.Int, categoryId)
-    .query<{ count: number }>('SELECT COUNT(*) as count FROM Categories WHERE ParentCategoryID = @categoryId');
+  const result = await query<{ count: number }>(
+    'SELECT COUNT(*) as count FROM "Categories" WHERE "ParentCategoryID" = $1',
+    [categoryId],
+  );
 
-  return result.recordset[0]?.count ?? 0;
+  return result[0]?.count ?? 0;
 }
 
 /**
@@ -277,13 +246,12 @@ export async function getCategoryChildrenCount(categoryId: number): Promise<numb
  * Validation of references should be done in the API layer
  */
 export async function deleteCategory(categoryId: number): Promise<boolean> {
-  const pool = await getConnection();
-  const result = await pool
-    .request()
-    .input('categoryId', sql.Int, categoryId)
-    .query('DELETE FROM Categories WHERE CategoryID = @categoryId');
+  const result = await query<{ CategoryID: number }>(
+    'DELETE FROM "Categories" WHERE "CategoryID" = $1 RETURNING "CategoryID"',
+    [categoryId],
+  );
 
-  return (result.rowsAffected[0] ?? 0) > 0;
+  return result.length > 0;
 }
 
 /**

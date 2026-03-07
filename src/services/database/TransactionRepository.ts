@@ -1,9 +1,8 @@
 /**
  * BudgetGuard Transaction Repository
- * Database operations for transactions
+ * Database operations for transactions (PostgreSQL via @neondatabase/serverless)
  */
 
-import sql from 'mssql';
 import type {
   CategoryHistorySummary,
   CategorySummary,
@@ -12,7 +11,7 @@ import type {
   Transaction,
   TransactionType,
 } from '@/types/finance';
-import { getConnection } from './connection';
+import { getPool, query } from './connection';
 
 interface TransactionRow {
   TransactionID: number;
@@ -24,7 +23,7 @@ interface TransactionRow {
   ParentCategoryName: string | null;
   AmountCents: number;
   Description: string | null;
-  TransactionDate: Date;
+  TransactionDate: Date | string;
   Type: TransactionType;
   SharedDivisor: number;
   OriginalAmountCents: number | null;
@@ -36,8 +35,8 @@ interface TransactionRow {
   DeductionPercent: number | null;
   VendorName: string | null;
   InvoiceNumber: string | null;
-  CreatedAt: Date;
-  UpdatedAt: Date;
+  CreatedAt: Date | string;
+  UpdatedAt: Date | string;
 }
 
 interface SummaryRow {
@@ -71,6 +70,22 @@ interface BalanceRow {
 }
 
 /**
+ * Convert a Date or string value to a date-only string (YYYY-MM-DD)
+ */
+function toDateString(val: Date | string): string {
+  if (typeof val === 'string') return val.split('T')[0] || val;
+  return val.toISOString().split('T')[0] || '';
+}
+
+/**
+ * Convert a Date or string value to an ISO string
+ */
+function toISOString(val: Date | string): string {
+  if (typeof val === 'string') return val;
+  return val.toISOString();
+}
+
+/**
  * Transform database row to Transaction type
  */
 function rowToTransaction(row: TransactionRow): Transaction {
@@ -95,7 +110,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
       : null,
     amountCents: row.AmountCents,
     description: row.Description,
-    transactionDate: row.TransactionDate.toISOString().split('T')[0] || '',
+    transactionDate: toDateString(row.TransactionDate),
     type: row.Type,
     sharedDivisor: row.SharedDivisor,
     originalAmountCents: row.OriginalAmountCents,
@@ -107,8 +122,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
     deductionPercent: row.DeductionPercent,
     vendorName: row.VendorName,
     invoiceNumber: row.InvoiceNumber,
-    createdAt: row.CreatedAt.toISOString(),
-    updatedAt: row.UpdatedAt.toISOString(),
+    createdAt: toISOString(row.CreatedAt),
+    updatedAt: toISOString(row.UpdatedAt),
   };
 }
 
@@ -119,81 +134,79 @@ export async function getTransactionsByMonth(
   month: string,
   filters?: { type?: TransactionType; categoryId?: number },
 ): Promise<Transaction[]> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const params: unknown[] = [month];
+  let paramIndex = 2;
 
-  request.input('month', sql.NVarChar(7), month);
-
-  let query = `
+  let sql = `
     SELECT
-      t.TransactionID, t.CategoryID, c.Name AS CategoryName,
-      c.Icon AS CategoryIcon, c.Color AS CategoryColor,
-      c.ParentCategoryID, parent.Name AS ParentCategoryName,
-      t.AmountCents, t.Description, t.TransactionDate,
-      t.Type, t.SharedDivisor, t.OriginalAmountCents,
-      t.RecurringExpenseID, t.TransactionGroupID,
-      t.TripID, trip.Name AS TripName,
-      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
-      t.CreatedAt, t.UpdatedAt
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
-    LEFT JOIN Trips trip ON t.TripID = trip.TripID
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
     LEFT JOIN (
-      SELECT TripID, MIN(TransactionDate) AS TripStartDate
-      FROM Transactions WHERE TripID IS NOT NULL
-      GROUP BY TripID
-    ) tripAgg ON t.TripID = tripAgg.TripID
+      SELECT "TripID", MIN("TransactionDate") AS "TripStartDate"
+      FROM "Transactions" WHERE "TripID" IS NOT NULL
+      GROUP BY "TripID"
+    ) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
     WHERE (
-      (t.TripID IS NULL AND FORMAT(t.TransactionDate, 'yyyy-MM') = @month)
-      OR (t.TripID IS NOT NULL AND FORMAT(tripAgg.TripStartDate, 'yyyy-MM') = @month)
+      (t."TripID" IS NULL AND TO_CHAR(t."TransactionDate", 'YYYY-MM') = $1)
+      OR (t."TripID" IS NOT NULL AND TO_CHAR("tripAgg"."TripStartDate", 'YYYY-MM') = $1)
     )
   `;
 
   if (filters?.type) {
-    request.input('type', sql.NVarChar(10), filters.type);
-    query += ' AND t.Type = @type';
+    params.push(filters.type);
+    sql += ` AND t."Type" = $${paramIndex}`;
+    paramIndex++;
   }
 
   if (filters?.categoryId) {
-    request.input('categoryId', sql.Int, filters.categoryId);
-    query += ' AND t.CategoryID = @categoryId';
+    params.push(filters.categoryId);
+    sql += ` AND t."CategoryID" = $${paramIndex}`;
+    paramIndex++;
   }
 
-  query += ' ORDER BY t.TransactionDate DESC, t.CreatedAt DESC';
+  sql += ' ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC';
 
-  const result = await request.query<TransactionRow>(query);
-  return result.recordset.map(rowToTransaction);
+  const rows = await query<TransactionRow>(sql, params);
+  return rows.map(rowToTransaction);
 }
 
 /**
  * Get a single transaction by ID
  */
 export async function getTransactionById(transactionId: number): Promise<Transaction | null> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('transactionId', sql.Int, transactionId);
-
-  const result = await request.query<TransactionRow>(`
+  const rows = await query<TransactionRow>(
+    `
     SELECT
-      t.TransactionID, t.CategoryID, c.Name AS CategoryName,
-      c.Icon AS CategoryIcon, c.Color AS CategoryColor,
-      c.ParentCategoryID, parent.Name AS ParentCategoryName,
-      t.AmountCents, t.Description, t.TransactionDate,
-      t.Type, t.SharedDivisor, t.OriginalAmountCents,
-      t.RecurringExpenseID, t.TransactionGroupID,
-      t.TripID, trip.Name AS TripName,
-      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
-      t.CreatedAt, t.UpdatedAt
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
-    LEFT JOIN Trips trip ON t.TripID = trip.TripID
-    WHERE t.TransactionID = @transactionId
-  `);
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
+    WHERE t."TransactionID" = $1
+  `,
+    [transactionId],
+  );
 
-  const row = result.recordset[0];
+  const row = rows[0];
   return row ? rowToTransaction(row) : null;
 }
 
@@ -217,33 +230,36 @@ export async function createTransaction(data: {
   vendorName?: string | null;
   invoiceNumber?: string | null;
 }): Promise<Transaction> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const rows = await query<{ TransactionID: number }>(
+    `
+    INSERT INTO "Transactions" (
+      "CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
+      "SharedDivisor", "OriginalAmountCents", "RecurringExpenseID",
+      "TransactionGroupID", "TripID", "VatPercent", "DeductionPercent",
+      "VendorName", "InvoiceNumber"
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    RETURNING "TransactionID"
+  `,
+    [
+      data.categoryId,
+      data.amountCents,
+      data.description ?? null,
+      data.transactionDate,
+      data.type,
+      data.sharedDivisor ?? 1,
+      data.originalAmountCents ?? null,
+      data.recurringExpenseId ?? null,
+      data.transactionGroupId ?? null,
+      data.tripId ?? null,
+      data.vatPercent ?? null,
+      data.deductionPercent ?? null,
+      data.vendorName ?? null,
+      data.invoiceNumber ?? null,
+    ],
+  );
 
-  request.input('categoryId', sql.Int, data.categoryId);
-  request.input('amountCents', sql.Int, data.amountCents);
-  request.input('description', sql.NVarChar(255), data.description ?? null);
-  request.input('transactionDate', sql.Date, data.transactionDate);
-  request.input('type', sql.NVarChar(10), data.type);
-  request.input('sharedDivisor', sql.TinyInt, data.sharedDivisor ?? 1);
-  request.input('originalAmountCents', sql.Int, data.originalAmountCents ?? null);
-  request.input('recurringExpenseId', sql.Int, data.recurringExpenseId ?? null);
-  request.input('transactionGroupId', sql.Int, data.transactionGroupId ?? null);
-  request.input('tripId', sql.Int, data.tripId ?? null);
-  request.input('vatPercent', sql.Decimal(5, 2), data.vatPercent ?? null);
-  request.input('deductionPercent', sql.Decimal(5, 2), data.deductionPercent ?? null);
-  request.input('vendorName', sql.NVarChar(150), data.vendorName ?? null);
-  request.input('invoiceNumber', sql.NVarChar(50), data.invoiceNumber ?? null);
-
-  const result = await request.query<{ TransactionID: number }>(`
-    DECLARE @out TABLE (TransactionID INT);
-    INSERT INTO Transactions (CategoryID, AmountCents, Description, TransactionDate, Type, SharedDivisor, OriginalAmountCents, RecurringExpenseID, TransactionGroupID, TripID, VatPercent, DeductionPercent, VendorName, InvoiceNumber)
-    OUTPUT INSERTED.TransactionID INTO @out
-    VALUES (@categoryId, @amountCents, @description, @transactionDate, @type, @sharedDivisor, @originalAmountCents, @recurringExpenseId, @transactionGroupId, @tripId, @vatPercent, @deductionPercent, @vendorName, @invoiceNumber);
-    SELECT * FROM @out;
-  `);
-
-  const insertedId = result.recordset[0]?.TransactionID;
+  const insertedId = rows[0]?.TransactionID;
   if (!insertedId) {
     throw new Error('Failed to create transaction');
   }
@@ -275,67 +291,69 @@ export async function updateTransaction(
     invoiceNumber: string | null;
   }>,
 ): Promise<Transaction | null> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('transactionId', sql.Int, transactionId);
-
   const updates: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = 1;
 
   if (data.categoryId !== undefined) {
-    request.input('categoryId', sql.Int, data.categoryId);
-    updates.push('CategoryID = @categoryId');
+    updates.push(`"CategoryID" = $${paramIndex++}`);
+    params.push(data.categoryId);
   }
   if (data.amountCents !== undefined) {
-    request.input('amountCents', sql.Int, data.amountCents);
-    updates.push('AmountCents = @amountCents');
+    updates.push(`"AmountCents" = $${paramIndex++}`);
+    params.push(data.amountCents);
   }
   if (data.description !== undefined) {
-    request.input('description', sql.NVarChar(255), data.description);
-    updates.push('Description = @description');
+    updates.push(`"Description" = $${paramIndex++}`);
+    params.push(data.description);
   }
   if (data.transactionDate !== undefined) {
-    request.input('transactionDate', sql.Date, data.transactionDate);
-    updates.push('TransactionDate = @transactionDate');
+    updates.push(`"TransactionDate" = $${paramIndex++}`);
+    params.push(data.transactionDate);
   }
   if (data.type !== undefined) {
-    request.input('type', sql.NVarChar(10), data.type);
-    updates.push('Type = @type');
+    updates.push(`"Type" = $${paramIndex++}`);
+    params.push(data.type);
   }
   if (data.sharedDivisor !== undefined) {
-    request.input('sharedDivisor', sql.TinyInt, data.sharedDivisor);
-    updates.push('SharedDivisor = @sharedDivisor');
+    updates.push(`"SharedDivisor" = $${paramIndex++}`);
+    params.push(data.sharedDivisor);
   }
   if (data.originalAmountCents !== undefined) {
-    request.input('originalAmountCents', sql.Int, data.originalAmountCents);
-    updates.push('OriginalAmountCents = @originalAmountCents');
+    updates.push(`"OriginalAmountCents" = $${paramIndex++}`);
+    params.push(data.originalAmountCents);
   }
   if (data.vatPercent !== undefined) {
-    request.input('vatPercent', sql.Decimal(5, 2), data.vatPercent);
-    updates.push('VatPercent = @vatPercent');
+    updates.push(`"VatPercent" = $${paramIndex++}`);
+    params.push(data.vatPercent);
   }
   if (data.deductionPercent !== undefined) {
-    request.input('deductionPercent', sql.Decimal(5, 2), data.deductionPercent);
-    updates.push('DeductionPercent = @deductionPercent');
+    updates.push(`"DeductionPercent" = $${paramIndex++}`);
+    params.push(data.deductionPercent);
   }
   if (data.vendorName !== undefined) {
-    request.input('vendorName', sql.NVarChar(150), data.vendorName);
-    updates.push('VendorName = @vendorName');
+    updates.push(`"VendorName" = $${paramIndex++}`);
+    params.push(data.vendorName);
   }
   if (data.invoiceNumber !== undefined) {
-    request.input('invoiceNumber', sql.NVarChar(50), data.invoiceNumber);
-    updates.push('InvoiceNumber = @invoiceNumber');
+    updates.push(`"InvoiceNumber" = $${paramIndex++}`);
+    params.push(data.invoiceNumber);
   }
 
   if (updates.length === 0) {
     return getTransactionById(transactionId);
   }
 
-  await request.query(`
-    UPDATE Transactions
+  params.push(transactionId);
+
+  await query(
+    `
+    UPDATE "Transactions"
     SET ${updates.join(', ')}
-    WHERE TransactionID = @transactionId
-  `);
+    WHERE "TransactionID" = $${paramIndex}
+  `,
+    params,
+  );
 
   return getTransactionById(transactionId);
 }
@@ -344,17 +362,16 @@ export async function updateTransaction(
  * Delete a transaction
  */
 export async function deleteTransaction(transactionId: number): Promise<boolean> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const rows = await query<{ TransactionID: number }>(
+    `
+    DELETE FROM "Transactions"
+    WHERE "TransactionID" = $1
+    RETURNING "TransactionID"
+  `,
+    [transactionId],
+  );
 
-  request.input('transactionId', sql.Int, transactionId);
-
-  const result = await request.query(`
-    DELETE FROM Transactions
-    WHERE TransactionID = @transactionId
-  `);
-
-  return (result.rowsAffected[0] ?? 0) > 0;
+  return rows.length > 0;
 }
 
 /**
@@ -362,31 +379,30 @@ export async function deleteTransaction(transactionId: number): Promise<boolean>
  * All calculations are done in SQL, not in JavaScript
  */
 export async function getMonthlySummary(month: string): Promise<MonthlySummary> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('month', sql.NVarChar(7), month);
-
   // Get balance totals from view
-  const balanceResult = await request.query<BalanceRow>(`
-    SELECT Month, IncomeCents, ExpenseCents, BalanceCents
-    FROM vw_MonthlyBalance
-    WHERE Month = @month
-  `);
+  const balanceRows = await query<BalanceRow>(
+    `
+    SELECT "Month", "IncomeCents", "ExpenseCents", "BalanceCents"
+    FROM "vw_MonthlyBalance"
+    WHERE "Month" = $1
+  `,
+    [month],
+  );
 
   // Get category breakdown from view
-  const categoryResult = await pool
-    .request()
-    .input('month', sql.NVarChar(7), month)
-    .query<SummaryRow>(`
-    SELECT Month, Type, CategoryID, CategoryName, CategoryIcon, CategoryColor, TotalCents, TransactionCount
-    FROM vw_MonthlySummary
-    WHERE Month = @month
-    ORDER BY Type, TotalCents DESC
-  `);
+  const categoryRows = await query<SummaryRow>(
+    `
+    SELECT "Month", "Type", "CategoryID", "CategoryName", "CategoryIcon",
+           "CategoryColor", "TotalCents", "TransactionCount"
+    FROM "vw_MonthlySummary"
+    WHERE "Month" = $1
+    ORDER BY "Type", "TotalCents" DESC
+  `,
+    [month],
+  );
 
-  const balance = balanceResult.recordset[0];
-  const categories: CategorySummary[] = categoryResult.recordset.map((row) => ({
+  const balance = balanceRows[0];
+  const categories: CategorySummary[] = categoryRows.map((row) => ({
     categoryId: row.CategoryID,
     categoryName: row.CategoryName,
     categoryIcon: row.CategoryIcon,
@@ -410,22 +426,19 @@ export async function getMonthlySummary(month: string): Promise<MonthlySummary> 
  * Uses vw_SubcategorySummary view
  */
 export async function getSubcategorySummary(month: string, parentCategoryId: number): Promise<SubcategorySummary[]> {
-  const pool = await getConnection();
-  const request = pool.request();
+  const rows = await query<SubcategorySummaryRow>(
+    `
+    SELECT "Month", "ParentCategoryID", "SubcategoryID", "SubcategoryName",
+           "SubcategoryIcon", "SubcategoryColor", "IsSubcategory",
+           "TotalCents", "TransactionCount"
+    FROM "vw_SubcategorySummary"
+    WHERE "Month" = $1 AND "ParentCategoryID" = $2
+    ORDER BY "TotalCents" DESC
+  `,
+    [month, parentCategoryId],
+  );
 
-  request.input('month', sql.NVarChar(7), month);
-  request.input('parentCategoryId', sql.Int, parentCategoryId);
-
-  const result = await request.query<SubcategorySummaryRow>(`
-    SELECT Month, ParentCategoryID, SubcategoryID, SubcategoryName,
-           SubcategoryIcon, SubcategoryColor, IsSubcategory,
-           TotalCents, TransactionCount
-    FROM vw_SubcategorySummary
-    WHERE Month = @month AND ParentCategoryID = @parentCategoryId
-    ORDER BY TotalCents DESC
-  `);
-
-  return result.recordset.map((row) => ({
+  return rows.map((row) => ({
     parentCategoryId: row.ParentCategoryID,
     subcategoryId: row.SubcategoryID,
     subcategoryName: row.SubcategoryName,
@@ -450,30 +463,26 @@ export async function getCategoryHistorySummary(
   dateFrom: Date,
   dateTo: Date,
 ): Promise<CategoryHistorySummary> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('categoryId', sql.Int, categoryId);
-  request.input('dateFrom', sql.Date, dateFrom);
-  request.input('dateTo', sql.Date, dateTo);
-
-  const result = await request.query<{
+  const rows = await query<{
     TotalCents: number;
     TransactionCount: number;
     MonthCount: number;
-  }>(`
+  }>(
+    `
     SELECT
-      ISNULL(SUM(t.AmountCents), 0) AS TotalCents,
-      COUNT(t.TransactionID) AS TransactionCount,
-      COUNT(DISTINCT FORMAT(t.TransactionDate, 'yyyy-MM')) AS MonthCount
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    WHERE (t.CategoryID = @categoryId OR c.ParentCategoryID = @categoryId)
-      AND t.TransactionDate >= @dateFrom
-      AND t.TransactionDate <= @dateTo
-  `);
+      COALESCE(SUM(t."AmountCents"), 0) AS "TotalCents",
+      COUNT(t."TransactionID") AS "TransactionCount",
+      COUNT(DISTINCT TO_CHAR(t."TransactionDate", 'YYYY-MM')) AS "MonthCount"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    WHERE (t."CategoryID" = $1 OR c."ParentCategoryID" = $1)
+      AND t."TransactionDate" >= $2
+      AND t."TransactionDate" <= $3
+  `,
+    [categoryId, dateFrom, dateTo],
+  );
 
-  const row = result.recordset[0];
+  const row = rows[0];
   const totalCents = row?.TotalCents ?? 0;
   const transactionCount = row?.TransactionCount ?? 0;
   const monthCount = row?.MonthCount ?? 0;
@@ -495,35 +504,31 @@ export async function getCategoryHistoryTransactions(
   dateFrom: Date,
   dateTo: Date,
 ): Promise<Transaction[]> {
-  const pool = await getConnection();
-  const request = pool.request();
-
-  request.input('categoryId', sql.Int, categoryId);
-  request.input('dateFrom', sql.Date, dateFrom);
-  request.input('dateTo', sql.Date, dateTo);
-
-  const result = await request.query<TransactionRow>(`
+  const rows = await query<TransactionRow>(
+    `
     SELECT
-      t.TransactionID, t.CategoryID, c.Name AS CategoryName,
-      c.Icon AS CategoryIcon, c.Color AS CategoryColor,
-      c.ParentCategoryID, parent.Name AS ParentCategoryName,
-      t.AmountCents, t.Description, t.TransactionDate,
-      t.Type, t.SharedDivisor, t.OriginalAmountCents,
-      t.RecurringExpenseID, t.TransactionGroupID,
-      t.TripID, trip.Name AS TripName,
-      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
-      t.CreatedAt, t.UpdatedAt
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
-    LEFT JOIN Trips trip ON t.TripID = trip.TripID
-    WHERE (t.CategoryID = @categoryId OR c.ParentCategoryID = @categoryId)
-      AND t.TransactionDate >= @dateFrom
-      AND t.TransactionDate <= @dateTo
-    ORDER BY t.TransactionDate DESC, t.CreatedAt DESC
-  `);
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
+    WHERE (t."CategoryID" = $1 OR c."ParentCategoryID" = $1)
+      AND t."TransactionDate" >= $2
+      AND t."TransactionDate" <= $3
+    ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC
+  `,
+    [categoryId, dateFrom, dateTo],
+  );
 
-  return result.recordset.map(rowToTransaction);
+  return rows.map(rowToTransaction);
 }
 
 // ============================================================
@@ -538,8 +543,7 @@ interface TransactionGroupItem {
 
 /**
  * Create a transaction group with multiple linked transactions
- * Uses SQL transaction for atomicity. Sequential inserts (mssql doesn't support
- * concurrent requests on the same SQL transaction).
+ * Uses SQL transaction for atomicity via Pool client.
  */
 export async function createTransactionGroup(data: {
   description: string;
@@ -548,48 +552,55 @@ export async function createTransactionGroup(data: {
   sharedDivisor: number;
   items: TransactionGroupItem[];
 }): Promise<Transaction[]> {
-  const pool = await getConnection();
-  const transaction = new sql.Transaction(pool);
-
-  await transaction.begin();
+  const pool = getPool();
+  const client = await pool.connect();
 
   try {
+    await client.query('BEGIN');
+
     // Create the group row
-    const groupResult = await new sql.Request(transaction).query<{ TransactionGroupID: number }>(
-      'INSERT INTO TransactionGroups DEFAULT VALUES; SELECT SCOPE_IDENTITY() AS TransactionGroupID;',
+    const groupResult = await client.query<{ TransactionGroupID: number }>(
+      'INSERT INTO "TransactionGroups" DEFAULT VALUES RETURNING "TransactionGroupID"',
     );
 
-    const groupId = groupResult.recordset[0]?.TransactionGroupID;
+    const groupId = groupResult.rows[0]?.TransactionGroupID;
     if (!groupId) {
       throw new Error('Failed to create transaction group');
     }
 
     // Insert transactions sequentially using .reduce() pattern
-    await data.items.reduce(async (prev, item, index) => {
+    await data.items.reduce(async (prev, item) => {
       await prev;
-      const req = new sql.Request(transaction);
-      req.input(`categoryId_${index}`, sql.Int, item.categoryId);
-      req.input(`amountCents_${index}`, sql.Int, item.amountCents);
-      req.input(`originalAmountCents_${index}`, sql.Int, item.originalAmountCents);
-      req.input(`description_${index}`, sql.NVarChar(255), data.description);
-      req.input(`transactionDate_${index}`, sql.Date, data.transactionDate);
-      req.input(`type_${index}`, sql.NVarChar(10), data.type);
-      req.input(`sharedDivisor_${index}`, sql.TinyInt, data.sharedDivisor);
-      req.input(`groupId_${index}`, sql.Int, groupId);
-
-      await req.query(`
-        INSERT INTO Transactions (CategoryID, AmountCents, Description, TransactionDate, Type, SharedDivisor, OriginalAmountCents, TransactionGroupID)
-        VALUES (@categoryId_${index}, @amountCents_${index}, @description_${index}, @transactionDate_${index}, @type_${index}, @sharedDivisor_${index}, @originalAmountCents_${index}, @groupId_${index})
-      `);
+      await client.query(
+        `
+        INSERT INTO "Transactions" (
+          "CategoryID", "AmountCents", "Description", "TransactionDate",
+          "Type", "SharedDivisor", "OriginalAmountCents", "TransactionGroupID"
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+        [
+          item.categoryId,
+          item.amountCents,
+          data.description,
+          data.transactionDate,
+          data.type,
+          data.sharedDivisor,
+          item.originalAmountCents,
+          groupId,
+        ],
+      );
     }, Promise.resolve());
 
-    await transaction.commit();
+    await client.query('COMMIT');
 
     // Fetch the created transactions with full category info
     return getTransactionsByGroupId(groupId);
   } catch (error) {
-    await transaction.rollback();
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -597,58 +608,58 @@ export async function createTransactionGroup(data: {
  * Get all transactions belonging to a group
  */
 export async function getTransactionsByGroupId(groupId: number): Promise<Transaction[]> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('groupId', sql.Int, groupId);
-
-  const result = await request.query<TransactionRow>(`
+  const rows = await query<TransactionRow>(
+    `
     SELECT
-      t.TransactionID, t.CategoryID, c.Name AS CategoryName,
-      c.Icon AS CategoryIcon, c.Color AS CategoryColor,
-      c.ParentCategoryID, parent.Name AS ParentCategoryName,
-      t.AmountCents, t.Description, t.TransactionDate,
-      t.Type, t.SharedDivisor, t.OriginalAmountCents,
-      t.RecurringExpenseID, t.TransactionGroupID,
-      t.TripID, trip.Name AS TripName,
-      t.VatPercent, t.DeductionPercent, t.VendorName, t.InvoiceNumber,
-      t.CreatedAt, t.UpdatedAt
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
-    LEFT JOIN Trips trip ON t.TripID = trip.TripID
-    WHERE t.TransactionGroupID = @groupId
-    ORDER BY t.TransactionID
-  `);
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
+    WHERE t."TransactionGroupID" = $1
+    ORDER BY t."TransactionID"
+  `,
+    [groupId],
+  );
 
-  return result.recordset.map(rowToTransaction);
+  return rows.map(rowToTransaction);
 }
 
 /**
  * Delete an entire transaction group and all its transactions
  */
 export async function deleteTransactionGroup(groupId: number): Promise<boolean> {
-  const pool = await getConnection();
-  const transaction = new sql.Transaction(pool);
-
-  await transaction.begin();
+  const pool = getPool();
+  const client = await pool.connect();
 
   try {
+    await client.query('BEGIN');
+
     // Delete all transactions in the group
-    await new sql.Request(transaction)
-      .input('groupId', sql.Int, groupId)
-      .query('DELETE FROM Transactions WHERE TransactionGroupID = @groupId');
+    await client.query('DELETE FROM "Transactions" WHERE "TransactionGroupID" = $1', [groupId]);
 
     // Delete the group row
-    const result = await new sql.Request(transaction)
-      .input('groupId', sql.Int, groupId)
-      .query('DELETE FROM TransactionGroups WHERE TransactionGroupID = @groupId');
+    const result = await client.query<{ TransactionGroupID: number }>(
+      'DELETE FROM "TransactionGroups" WHERE "TransactionGroupID" = $1 RETURNING "TransactionGroupID"',
+      [groupId],
+    );
 
-    await transaction.commit();
+    await client.query('COMMIT');
 
-    return (result.rowsAffected[0] ?? 0) > 0;
+    return result.rows.length > 0;
   } catch (error) {
-    await transaction.rollback();
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -659,27 +670,29 @@ export async function updateTransactionGroup(
   groupId: number,
   data: { description?: string; transactionDate?: Date },
 ): Promise<Transaction[]> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('groupId', sql.Int, groupId);
-
   const updates: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = 1;
 
   if (data.description !== undefined) {
-    request.input('description', sql.NVarChar(255), data.description);
-    updates.push('Description = @description');
+    updates.push(`"Description" = $${paramIndex++}`);
+    params.push(data.description);
   }
   if (data.transactionDate !== undefined) {
-    request.input('transactionDate', sql.Date, data.transactionDate);
-    updates.push('TransactionDate = @transactionDate');
+    updates.push(`"TransactionDate" = $${paramIndex++}`);
+    params.push(data.transactionDate);
   }
 
   if (updates.length > 0) {
-    await request.query(`
-      UPDATE Transactions
+    params.push(groupId);
+    await query(
+      `
+      UPDATE "Transactions"
       SET ${updates.join(', ')}
-      WHERE TransactionGroupID = @groupId
-    `);
+      WHERE "TransactionGroupID" = $${paramIndex}
+    `,
+      params,
+    );
   }
 
   return getTransactionsByGroupId(groupId);
@@ -690,22 +703,16 @@ export async function updateTransactionGroup(
  * Called after deleting an individual transaction that belongs to a group
  */
 export async function cleanupOrphanedGroup(groupId: number): Promise<boolean> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('groupId', sql.Int, groupId);
-
   // Check if any transactions still reference this group
-  const countResult = await request.query<{ count: number }>(
-    'SELECT COUNT(*) AS count FROM Transactions WHERE TransactionGroupID = @groupId',
+  const countRows = await query<{ count: number }>(
+    'SELECT COUNT(*) AS "count" FROM "Transactions" WHERE "TransactionGroupID" = $1',
+    [groupId],
   );
 
-  const remaining = countResult.recordset[0]?.count ?? 0;
+  const remaining = countRows[0]?.count ?? 0;
 
   if (remaining === 0) {
-    await pool
-      .request()
-      .input('groupId', sql.Int, groupId)
-      .query('DELETE FROM TransactionGroups WHERE TransactionGroupID = @groupId');
+    await query('DELETE FROM "TransactionGroups" WHERE "TransactionGroupID" = $1', [groupId]);
     return true;
   }
 

@@ -3,10 +3,23 @@
  * Database operations for trips and trip expenses
  */
 
-import sql from 'mssql';
 import { TRANSACTION_TYPE } from '@/constants/finance';
 import type { Category, Transaction, Trip, TripCategorySummary, TripDetail, TripDisplay } from '@/types/finance';
-import { getConnection } from './connection';
+import { getPool, query } from './connection';
+
+// ============================================================
+// Date helpers
+// ============================================================
+
+function toDateString(val: Date | string): string {
+  if (typeof val === 'string') return val.split('T')[0] || val;
+  return val.toISOString().split('T')[0] || '';
+}
+
+function toISOString(val: Date | string): string {
+  if (typeof val === 'string') return val;
+  return val.toISOString();
+}
 
 // ============================================================
 // Row types
@@ -78,8 +91,8 @@ function rowToTrip(row: TripRow): Trip {
   return {
     tripId: row.TripID,
     name: row.Name,
-    createdAt: row.CreatedAt.toISOString(),
-    updatedAt: row.UpdatedAt.toISOString(),
+    createdAt: toISOString(row.CreatedAt),
+    updatedAt: toISOString(row.UpdatedAt),
   };
 }
 
@@ -105,7 +118,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
       : null,
     amountCents: row.AmountCents,
     description: row.Description,
-    transactionDate: row.TransactionDate.toISOString().split('T')[0] || '',
+    transactionDate: toDateString(row.TransactionDate),
     type: TRANSACTION_TYPE.EXPENSE,
     sharedDivisor: row.SharedDivisor,
     originalAmountCents: row.OriginalAmountCents,
@@ -117,8 +130,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
     deductionPercent: null,
     vendorName: null,
     invoiceNumber: null,
-    createdAt: row.CreatedAt.toISOString(),
-    updatedAt: row.UpdatedAt.toISOString(),
+    createdAt: toISOString(row.CreatedAt),
+    updatedAt: toISOString(row.UpdatedAt),
   };
 }
 
@@ -141,66 +154,64 @@ function rowToCategorySummary(row: TripCategorySummaryRow): TripCategorySummary 
  * Get all trips with aggregated data (expense count, total, date range, category summary)
  */
 export async function getAllTrips(): Promise<TripDisplay[]> {
-  const pool = await getConnection();
-
   // Query 1: Trips with aggregates
-  const tripsResult = await pool.request().query<TripAggregateRow>(`
+  const tripsResult = await query<TripAggregateRow>(`
     SELECT
-      tr.TripID, tr.Name, tr.CreatedAt, tr.UpdatedAt,
-      ISNULL(agg.ExpenseCount, 0) AS ExpenseCount,
-      ISNULL(agg.TotalCents, 0) AS TotalCents,
-      agg.StartDate, agg.EndDate
-    FROM Trips tr
+      tr."TripID", tr."Name", tr."CreatedAt", tr."UpdatedAt",
+      COALESCE(agg."ExpenseCount", 0) AS "ExpenseCount",
+      COALESCE(agg."TotalCents", 0) AS "TotalCents",
+      agg."StartDate", agg."EndDate"
+    FROM "Trips" tr
     LEFT JOIN (
-      SELECT TripID,
-        COUNT(*) AS ExpenseCount,
-        SUM(AmountCents) AS TotalCents,
-        MIN(TransactionDate) AS StartDate,
-        MAX(TransactionDate) AS EndDate
-      FROM Transactions
-      WHERE TripID IS NOT NULL
-      GROUP BY TripID
-    ) agg ON tr.TripID = agg.TripID
-    ORDER BY tr.CreatedAt DESC
+      SELECT "TripID",
+        COUNT(*) AS "ExpenseCount",
+        SUM("AmountCents") AS "TotalCents",
+        MIN("TransactionDate") AS "StartDate",
+        MAX("TransactionDate") AS "EndDate"
+      FROM "Transactions"
+      WHERE "TripID" IS NOT NULL
+      GROUP BY "TripID"
+    ) agg ON tr."TripID" = agg."TripID"
+    ORDER BY tr."CreatedAt" DESC
   `);
 
-  if (tripsResult.recordset.length === 0) return [];
+  if (tripsResult.length === 0) return [];
 
   // Query 2: Category summary per trip
-  const categoryResult = await pool.request().query<TripCategorySummaryRow>(`
+  const categoryResult = await query<TripCategorySummaryRow>(`
     SELECT
-      t.TripID,
-      t.CategoryID,
-      c.Name AS CategoryName,
-      c.Icon AS CategoryIcon,
-      c.Color AS CategoryColor,
-      SUM(t.AmountCents) AS TotalCents,
-      COUNT(*) AS Count
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    WHERE t.TripID IS NOT NULL
-    GROUP BY t.TripID, t.CategoryID, c.Name, c.Icon, c.Color
-    ORDER BY t.TripID, TotalCents DESC
+      t."TripID",
+      t."CategoryID",
+      c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon",
+      c."Color" AS "CategoryColor",
+      SUM(t."AmountCents") AS "TotalCents",
+      COUNT(*) AS "Count"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    WHERE t."TripID" IS NOT NULL
+    GROUP BY t."TripID", t."CategoryID", c."Name", c."Icon", c."Color"
+    ORDER BY t."TripID", "TotalCents" DESC
   `);
 
   // Build a Map of tripId → categorySummary[]
   const categoryMap = new Map<number, TripCategorySummary[]>();
-  categoryResult.recordset.forEach((row) => {
+  categoryResult.forEach((row) => {
     const existing = categoryMap.get(row.TripID) ?? [];
     existing.push(rowToCategorySummary(row));
     categoryMap.set(row.TripID, existing);
   });
 
-  return tripsResult.recordset.map(
+  return tripsResult.map(
     (row): TripDisplay => ({
       tripId: row.TripID,
       name: row.Name,
-      createdAt: row.CreatedAt.toISOString(),
-      updatedAt: row.UpdatedAt.toISOString(),
+      createdAt: toISOString(row.CreatedAt),
+      updatedAt: toISOString(row.UpdatedAt),
       expenseCount: row.ExpenseCount,
       totalCents: row.TotalCents,
-      startDate: row.StartDate ? row.StartDate.toISOString().split('T')[0] || null : null,
-      endDate: row.EndDate ? row.EndDate.toISOString().split('T')[0] || null : null,
+      startDate: row.StartDate ? toDateString(row.StartDate) : null,
+      endDate: row.EndDate ? toDateString(row.EndDate) : null,
       categorySummary: categoryMap.get(row.TripID) ?? [],
     }),
   );
@@ -210,64 +221,63 @@ export async function getAllTrips(): Promise<TripDisplay[]> {
  * Get a single trip with full expense details and category summary
  */
 export async function getTripById(tripId: number): Promise<TripDetail | null> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('tripId', sql.Int, tripId);
-
   // Get trip row
-  const tripResult = await request.query<TripRow>(`
-    SELECT TripID, Name, CreatedAt, UpdatedAt
-    FROM Trips
-    WHERE TripID = @tripId
-  `);
+  const tripResult = await query<TripRow>(
+    `
+    SELECT "TripID", "Name", "CreatedAt", "UpdatedAt"
+    FROM "Trips"
+    WHERE "TripID" = $1
+  `,
+    [tripId],
+  );
 
-  const tripRow = tripResult.recordset[0];
+  const tripRow = tripResult[0];
   if (!tripRow) return null;
 
   // Get all transactions for this trip
-  const txResult = await pool
-    .request()
-    .input('tripId', sql.Int, tripId)
-    .query<TransactionRow>(`
+  const txResult = await query<TransactionRow>(
+    `
     SELECT
-      t.TransactionID, t.CategoryID, c.Name AS CategoryName,
-      c.Icon AS CategoryIcon, c.Color AS CategoryColor,
-      c.ParentCategoryID, parent.Name AS ParentCategoryName,
-      t.AmountCents, t.Description, t.TransactionDate,
-      t.Type, t.SharedDivisor, t.OriginalAmountCents,
-      t.RecurringExpenseID, t.TransactionGroupID,
-      t.TripID, trip.Name AS TripName,
-      t.CreatedAt, t.UpdatedAt
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
-    LEFT JOIN Trips trip ON t.TripID = trip.TripID
-    WHERE t.TripID = @tripId
-    ORDER BY t.TransactionDate DESC, t.CreatedAt DESC
-  `);
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
+    WHERE t."TripID" = $1
+    ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC
+  `,
+    [tripId],
+  );
 
   // Get category summary
-  const catResult = await pool
-    .request()
-    .input('tripId', sql.Int, tripId)
-    .query<TripCategorySummaryRow>(`
+  const catResult = await query<TripCategorySummaryRow>(
+    `
     SELECT
-      t.TripID,
-      t.CategoryID,
-      c.Name AS CategoryName,
-      c.Icon AS CategoryIcon,
-      c.Color AS CategoryColor,
-      SUM(t.AmountCents) AS TotalCents,
-      COUNT(*) AS Count
-    FROM Transactions t
-    INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-    WHERE t.TripID = @tripId
-    GROUP BY t.TripID, t.CategoryID, c.Name, c.Icon, c.Color
-    ORDER BY TotalCents DESC
-  `);
+      t."TripID",
+      t."CategoryID",
+      c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon",
+      c."Color" AS "CategoryColor",
+      SUM(t."AmountCents") AS "TotalCents",
+      COUNT(*) AS "Count"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    WHERE t."TripID" = $1
+    GROUP BY t."TripID", t."CategoryID", c."Name", c."Icon", c."Color"
+    ORDER BY "TotalCents" DESC
+  `,
+    [tripId],
+  );
 
-  const expenses = txResult.recordset.map(rowToTransaction);
-  const categorySummary = catResult.recordset.map(rowToCategorySummary);
+  const expenses = txResult.map(rowToTransaction);
+  const categorySummary = catResult.map(rowToCategorySummary);
   const totalCents = expenses.reduce((sum, tx) => sum + tx.amountCents, 0);
 
   return {
@@ -283,19 +293,16 @@ export async function getTripById(tripId: number): Promise<TripDetail | null> {
  * Create a new trip
  */
 export async function createTrip(name: string): Promise<Trip> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('name', sql.NVarChar(100), name);
+  const result = await query<TripRow>(
+    `
+    INSERT INTO "Trips" ("Name")
+    VALUES ($1)
+    RETURNING "TripID", "Name", "CreatedAt", "UpdatedAt"
+  `,
+    [name],
+  );
 
-  const result = await request.query<TripRow>(`
-    DECLARE @out TABLE (TripID INT, Name NVARCHAR(100), CreatedAt DATETIME2, UpdatedAt DATETIME2);
-    INSERT INTO Trips (Name)
-    OUTPUT INSERTED.TripID, INSERTED.Name, INSERTED.CreatedAt, INSERTED.UpdatedAt INTO @out
-    VALUES (@name);
-    SELECT * FROM @out;
-  `);
-
-  const row = result.recordset[0];
+  const row = result[0];
   if (!row) throw new Error('Failed to create trip');
 
   return rowToTrip(row);
@@ -305,17 +312,16 @@ export async function createTrip(name: string): Promise<Trip> {
  * Update a trip name
  */
 export async function updateTrip(tripId: number, name: string): Promise<Trip | null> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('tripId', sql.Int, tripId);
-  request.input('name', sql.NVarChar(100), name);
+  const result = await query<TripRow>(
+    `
+    UPDATE "Trips" SET "Name" = $1
+    WHERE "TripID" = $2
+    RETURNING "TripID", "Name", "CreatedAt", "UpdatedAt"
+  `,
+    [name, tripId],
+  );
 
-  const result = await request.query<TripRow>(`
-    UPDATE Trips SET Name = @name WHERE TripID = @tripId;
-    SELECT TripID, Name, CreatedAt, UpdatedAt FROM Trips WHERE TripID = @tripId;
-  `);
-
-  const row = result.recordset[0];
+  const row = result[0];
   return row ? rowToTrip(row) : null;
 }
 
@@ -324,28 +330,26 @@ export async function updateTrip(tripId: number, name: string): Promise<Trip | n
  * Uses SQL transaction for atomicity (same pattern as deleteTransactionGroup)
  */
 export async function deleteTrip(tripId: number): Promise<boolean> {
-  const pool = await getConnection();
-  const transaction = new sql.Transaction(pool);
-
-  await transaction.begin();
+  const pool = getPool();
+  const client = await pool.connect();
 
   try {
+    await client.query('BEGIN');
+
     // Delete all transactions linked to this trip
-    await new sql.Request(transaction)
-      .input('tripId', sql.Int, tripId)
-      .query('DELETE FROM Transactions WHERE TripID = @tripId');
+    await client.query('DELETE FROM "Transactions" WHERE "TripID" = $1', [tripId]);
 
     // Delete the trip
-    const result = await new sql.Request(transaction)
-      .input('tripId', sql.Int, tripId)
-      .query('DELETE FROM Trips WHERE TripID = @tripId');
+    const result = await client.query('DELETE FROM "Trips" WHERE "TripID" = $1', [tripId]);
 
-    await transaction.commit();
+    await client.query('COMMIT');
 
-    return (result.rowsAffected[0] ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
-    await transaction.rollback();
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -354,21 +358,19 @@ export async function deleteTrip(tripId: number): Promise<boolean> {
  * Used to populate the trip expense form category selector
  */
 export async function getTripCategories(): Promise<Category[]> {
-  const pool = await getConnection();
-
-  const result = await pool.request().query<CategoryRow>(`
-    SELECT sub.CategoryID, sub.Name, sub.Type, sub.Icon, sub.Color,
-           sub.SortOrder, sub.IsActive, sub.ParentCategoryID, sub.DefaultShared
-    FROM Categories sub
-    INNER JOIN Categories parent ON sub.ParentCategoryID = parent.CategoryID
-    WHERE parent.Name = 'Viajes'
-      AND parent.Type = 'expense'
-      AND parent.ParentCategoryID IS NULL
-      AND sub.IsActive = 1
-    ORDER BY sub.SortOrder
+  const result = await query<CategoryRow>(`
+    SELECT sub."CategoryID", sub."Name", sub."Type", sub."Icon", sub."Color",
+           sub."SortOrder", sub."IsActive", sub."ParentCategoryID", sub."DefaultShared"
+    FROM "Categories" sub
+    INNER JOIN "Categories" parent ON sub."ParentCategoryID" = parent."CategoryID"
+    WHERE parent."Name" = 'Viajes'
+      AND parent."Type" = 'expense'
+      AND parent."ParentCategoryID" IS NULL
+      AND sub."IsActive" = 1
+    ORDER BY sub."SortOrder"
   `);
 
-  return result.recordset.map(
+  return result.map(
     (row): Category => ({
       categoryId: row.CategoryID,
       name: row.Name,
@@ -389,13 +391,9 @@ export async function getTripCategories(): Promise<Category[]> {
  * Get the count of transactions linked to a trip
  */
 export async function getTripExpenseCount(tripId: number): Promise<number> {
-  const pool = await getConnection();
-  const request = pool.request();
-  request.input('tripId', sql.Int, tripId);
+  const result = await query<{ count: number }>('SELECT COUNT(*) AS "count" FROM "Transactions" WHERE "TripID" = $1', [
+    tripId,
+  ]);
 
-  const result = await request.query<{ count: number }>(
-    'SELECT COUNT(*) AS count FROM Transactions WHERE TripID = @tripId',
-  );
-
-  return result.recordset[0]?.count ?? 0;
+  return result[0]?.count ?? 0;
 }

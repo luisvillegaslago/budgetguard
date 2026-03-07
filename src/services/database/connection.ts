@@ -1,65 +1,52 @@
 /**
  * BudgetGuard Database Connection
- * Serverless-safe connection pool for MSSQL
+ * Serverless-safe PostgreSQL connection using @neondatabase/serverless
+ * Works with both local PostgreSQL and Neon in production
  */
 
-import sql from 'mssql';
+import { Pool } from '@neondatabase/serverless';
 
-const config: sql.config = {
-  server: process.env.DB_SERVER || 'localhost',
-  database: process.env.DB_NAME || 'BudgetGuard',
-  user: process.env.DB_USER || 'sa',
-  password: process.env.DB_PASSWORD || '',
-  pool: {
-    max: 10, // Maximum connections
-    min: 0, // Minimum (0 for serverless - allows complete idle)
-    idleTimeoutMillis: 30000, // Close idle connections after 30s
-  },
-  options: {
-    encrypt: true,
-    trustServerCertificate: process.env.NODE_ENV === 'development',
-  },
-};
-
-let pool: sql.ConnectionPool | null = null;
-let poolPromise: Promise<sql.ConnectionPool> | null = null;
-
-/**
- * Get a connection pool instance
- * Reuses existing pool if available and connected
- */
-export async function getConnection(): Promise<sql.ConnectionPool> {
-  // Return existing connected pool
-  if (pool?.connected) {
-    return pool;
+function getDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error('DATABASE_URL environment variable is not set');
   }
+  return url;
+}
 
-  // Return pending connection if one is in progress
-  if (poolPromise) {
-    return poolPromise;
-  }
+// ============================================================
+// Connection Pool (single instance, serverless-safe)
+// ============================================================
 
-  // Create new connection
-  poolPromise = sql.connect(config).then((newPool) => {
-    pool = newPool;
+let pool: Pool | null = null;
 
-    // Clean up references on pool close
-    pool.on('close', () => {
-      pool = null;
-      poolPromise = null;
+export function getPool(): Pool {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: getDatabaseUrl(),
+      max: 10,
+      idleTimeoutMillis: 30000,
     });
 
-    pool.on('error', (err) => {
+    pool.on('error', (err: Error) => {
       // biome-ignore lint/suspicious/noConsole: Error logging needed for debugging
       console.error('Database pool error:', err);
       pool = null;
-      poolPromise = null;
     });
+  }
+  return pool;
+}
 
-    return newPool;
-  });
-
-  return poolPromise;
+/**
+ * Execute a parameterized SQL query
+ * @param text - SQL with $1, $2, ... positional parameters
+ * @param params - Array of parameter values in order
+ * @returns Array of rows
+ */
+export async function query<T>(text: string, params: unknown[] = []): Promise<T[]> {
+  const p = getPool();
+  const result = await p.query(text, params);
+  return result.rows as T[];
 }
 
 /**
@@ -68,32 +55,7 @@ export async function getConnection(): Promise<sql.ConnectionPool> {
  */
 export async function closeConnection(): Promise<void> {
   if (pool) {
-    await pool.close();
+    await pool.end();
     pool = null;
-    poolPromise = null;
   }
-}
-
-/**
- * Execute a query with automatic connection management
- * @param query - SQL query string
- * @param params - Query parameters as key-value pairs with optional type definition
- */
-export async function executeQuery<T>(query: string, params?: Record<string, unknown>): Promise<sql.IResult<T>> {
-  const connection = await getConnection();
-  const request = connection.request();
-
-  // Add parameters if provided
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (typeof value === 'object' && value !== null && 'type' in value && 'value' in value) {
-        const typedValue = value as { type: sql.ISqlTypeFactoryWithNoParams; value: unknown };
-        request.input(key, typedValue.type, typedValue.value);
-      } else {
-        request.input(key, value);
-      }
-    });
-  }
-
-  return request.query(query);
 }
