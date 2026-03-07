@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.1.0...v0.2.0) (2026-03-07)
+
+
+### Features
+
+* migrate database from MSSQL to PostgreSQL (Neon) ([194ba86](https://github.com/luisvillegaslago/budgetguard/commit/194ba86a35865d24a8447277954e5e9c597ee6d9))
+
 ## 0.1.0 (2026-03-07)
 
 
