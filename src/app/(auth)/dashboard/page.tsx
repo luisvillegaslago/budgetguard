@@ -5,7 +5,7 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { Beer, Calculator, LayoutGrid, LogOut, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
+import { Beer, Calculator, Database, LayoutGrid, LogOut, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
@@ -180,6 +180,16 @@ export default function DashboardPage() {
                       <Settings className="h-4 w-4 text-guard-muted" aria-hidden="true" />
                       {t('category-management.title')}
                     </Link>
+                    {process.env.NODE_ENV === 'development' && (
+                      <Link
+                        href="/settings"
+                        onClick={() => setShowNavMenu(false)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Database className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+                        {t('settings.title')}
+                      </Link>
+                    )}
                     <div className="border-t border-border" />
                     <div className="px-4 py-2 text-xs text-guard-muted truncate">{session?.user?.email}</div>
                     <button

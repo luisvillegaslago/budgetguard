@@ -67,6 +67,7 @@ export const QUERY_KEY = {
   FISCAL_REPORT: 'fiscal-report',
   FISCAL_ANNUAL: 'fiscal-annual',
   VERSION: 'version',
+  SYNC_COMPARE: 'sync-compare',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -91,6 +92,8 @@ export const API_ENDPOINT = {
   FISCAL: '/api/fiscal',
   FISCAL_ANNUAL: '/api/fiscal/annual',
   VERSION: '/api/version',
+  SYNC_COMPARE: '/api/sync/compare',
+  SYNC_EXECUTE: '/api/sync/execute',
 } as const;
 
 // Well-known Category References
@@ -143,6 +146,14 @@ export const GASTOS_DIFICIL = {
   RATE: 5, // 5% of net income
   MAX_CENTS: 200_000, // 2,000€ annual cap
 } as const;
+
+// Sync Direction
+export const SYNC_DIRECTION = {
+  PUSH: 'push',
+  PULL: 'pull',
+} as const;
+
+export type SyncDirection = (typeof SYNC_DIRECTION)[keyof typeof SYNC_DIRECTION];
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
