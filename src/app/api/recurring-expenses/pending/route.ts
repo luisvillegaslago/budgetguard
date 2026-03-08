@@ -3,24 +3,11 @@
  * GET /api/recurring-expenses/pending - Get all pending occurrences (retroactive)
  */
 
-import { NextResponse } from 'next/server';
-import { AuthError } from '@/libs/auth';
 import { getAllPendingOccurrences } from '@/services/database/RecurringExpenseRepository';
+import { withApiHandler } from '@/utils/apiHandler';
 
-export async function GET() {
-  try {
-    const summary = await getAllPendingOccurrences();
+export const GET = withApiHandler(async () => {
+  const summary = await getAllPendingOccurrences();
 
-    return NextResponse.json({
-      success: true,
-      data: summary,
-    });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('GET /api/recurring-expenses/pending error:', error);
-    return NextResponse.json({ success: false, error: 'Error al obtener ocurrencias pendientes' }, { status: 500 });
-  }
-}
+  return { data: summary };
+}, 'GET /api/recurring-expenses/pending');

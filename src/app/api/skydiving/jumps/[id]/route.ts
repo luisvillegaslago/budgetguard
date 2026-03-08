@@ -5,89 +5,43 @@
  * DELETE /api/skydiving/jumps/[id] - Delete jump
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { AuthError } from '@/libs/auth';
 import { UpdateJumpSchema } from '@/schemas/skydive';
 import { validateRequest } from '@/schemas/transaction';
 import { deleteJump, getJumpById, updateJump } from '@/services/database/SkydiveRepository';
+import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
+export const GET = withApiHandler(async (_request, { params }) => {
+  const { id } = await params;
+  const jumpId = parseIdParam(id);
+  if (typeof jumpId !== 'number') return jumpId;
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const jumpId = Number(id);
-    if (Number.isNaN(jumpId)) {
-      return NextResponse.json({ success: false, error: 'Invalid ID' }, { status: 400 });
-    }
+  const jump = await getJumpById(jumpId);
+  if (!jump) return notFound('Jump not found');
 
-    const jump = await getJumpById(jumpId);
-    if (!jump) {
-      return NextResponse.json({ success: false, error: 'Jump not found' }, { status: 404 });
-    }
+  return { data: jump };
+}, 'GET /api/skydiving/jumps/[id]');
 
-    return NextResponse.json({ success: true, data: jump });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('GET /api/skydiving/jumps/[id] error:', error);
-    return NextResponse.json({ success: false, error: 'Error loading jump' }, { status: 500 });
-  }
-}
+export const PUT = withApiHandler(async (request, { params }) => {
+  const { id } = await params;
+  const jumpId = parseIdParam(id);
+  if (typeof jumpId !== 'number') return jumpId;
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const jumpId = Number(id);
-    if (Number.isNaN(jumpId)) {
-      return NextResponse.json({ success: false, error: 'Invalid ID' }, { status: 400 });
-    }
+  const body = await request.json();
+  const validation = validateRequest(UpdateJumpSchema, body);
+  if (!validation.success) return validationError(validation.errors);
 
-    const body = await request.json();
-    const validation = validateRequest(UpdateJumpSchema, body);
+  const jump = await updateJump(jumpId, validation.data);
+  if (!jump) return notFound('Jump not found');
 
-    if (!validation.success) {
-      return NextResponse.json({ success: false, errors: validation.errors }, { status: 400 });
-    }
+  return { data: jump };
+}, 'PUT /api/skydiving/jumps/[id]');
 
-    const jump = await updateJump(jumpId, validation.data);
-    if (!jump) {
-      return NextResponse.json({ success: false, error: 'Jump not found' }, { status: 404 });
-    }
+export const DELETE = withApiHandler(async (_request, { params }) => {
+  const { id } = await params;
+  const jumpId = parseIdParam(id);
+  if (typeof jumpId !== 'number') return jumpId;
 
-    return NextResponse.json({ success: true, data: jump });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('PUT /api/skydiving/jumps/[id] error:', error);
-    return NextResponse.json({ success: false, error: 'Error updating jump' }, { status: 500 });
-  }
-}
+  await deleteJump(jumpId);
 
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const jumpId = Number(id);
-    if (Number.isNaN(jumpId)) {
-      return NextResponse.json({ success: false, error: 'Invalid ID' }, { status: 400 });
-    }
-
-    await deleteJump(jumpId);
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('DELETE /api/skydiving/jumps/[id] error:', error);
-    return NextResponse.json({ success: false, error: 'Error deleting jump' }, { status: 500 });
-  }
-}
+  return { data: { deleted: true } };
+}, 'DELETE /api/skydiving/jumps/[id]');

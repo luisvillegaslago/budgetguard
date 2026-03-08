@@ -131,7 +131,20 @@ function rowToTunnelSession(row: TunnelRow): TunnelSession {
 // Jump Queries (user-scoped)
 // ============================================================
 
-export async function getAllJumps(filters?: { year?: number; dropzone?: string }): Promise<SkydiveJump[]> {
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export async function getAllJumps(filters?: {
+  year?: number;
+  dropzone?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<SkydiveJump>> {
   const userId = await getUserIdOrThrow();
   const conditions = ['"UserID" = $1'];
   const params: unknown[] = [userId];
@@ -146,17 +159,40 @@ export async function getAllJumps(filters?: { year?: number; dropzone?: string }
     conditions.push(`"Dropzone" = $${params.length}`);
   }
 
+  const whereClause = conditions.join(' AND ');
+
+  // Count total matching rows
+  const countResult = await query<{ count: string }>(
+    `SELECT COUNT(*)::TEXT AS count FROM "SkydiveJumps" WHERE ${whereClause}`,
+    params,
+  );
+  const total = Number(countResult[0]?.count ?? 0);
+
+  // Apply pagination
+  const page = Math.max(1, filters?.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters?.limit ?? 50));
+  const offset = (page - 1) * limit;
+
+  params.push(limit, offset);
+
   const result = await query<JumpRow>(
     `SELECT "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
             "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
             "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"
      FROM "SkydiveJumps"
-     WHERE ${conditions.join(' AND ')}
-     ORDER BY "JumpNumber" DESC`,
+     WHERE ${whereClause}
+     ORDER BY "JumpNumber" DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
 
-  return result.map(rowToJump);
+  return {
+    items: result.map(rowToJump),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function getJumpById(jumpId: number): Promise<SkydiveJump | null> {
@@ -327,7 +363,12 @@ export async function bulkCreateJumps(rows: ImportJumpRow[]): Promise<ImportResu
 // Tunnel Session Queries (user-scoped)
 // ============================================================
 
-export async function getAllTunnelSessions(filters?: { year?: number; location?: string }): Promise<TunnelSession[]> {
+export async function getAllTunnelSessions(filters?: {
+  year?: number;
+  location?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<TunnelSession>> {
   const userId = await getUserIdOrThrow();
   const conditions = ['"UserID" = $1'];
   const params: unknown[] = [userId];
@@ -342,16 +383,37 @@ export async function getAllTunnelSessions(filters?: { year?: number; location?:
     conditions.push(`"Location" = $${params.length}`);
   }
 
+  const whereClause = conditions.join(' AND ');
+
+  const countResult = await query<{ count: string }>(
+    `SELECT COUNT(*)::TEXT AS count FROM "TunnelSessions" WHERE ${whereClause}`,
+    params,
+  );
+  const total = Number(countResult[0]?.count ?? 0);
+
+  const page = Math.max(1, filters?.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters?.limit ?? 50));
+  const offset = (page - 1) * limit;
+
+  params.push(limit, offset);
+
   const result = await query<TunnelRow>(
     `SELECT "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
             "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"
      FROM "TunnelSessions"
-     WHERE ${conditions.join(' AND ')}
-     ORDER BY "SessionDate" DESC`,
+     WHERE ${whereClause}
+     ORDER BY "SessionDate" DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
 
-  return result.map(rowToTunnelSession);
+  return {
+    items: result.map(rowToTunnelSession),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function createTunnelSession(data: {

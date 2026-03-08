@@ -4,48 +4,24 @@
  * Creates a real transaction and marks the occurrence as confirmed
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { AuthError } from '@/libs/auth';
 import { ConfirmOccurrenceSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import { confirmOccurrence } from '@/services/database/RecurringExpenseRepository';
+import { parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
 import { eurosToCents } from '@/utils/money';
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
+export const POST = withApiHandler(async (request, { params }) => {
+  const { id } = await params;
+  const occurrenceId = parseIdParam(id);
+  if (typeof occurrenceId !== 'number') return occurrenceId;
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const occurrenceId = Number(id);
+  const body = await request.json().catch(() => ({}));
+  const validation = validateRequest(ConfirmOccurrenceSchema, body);
+  if (!validation.success) return validationError(validation.errors);
 
-    if (Number.isNaN(occurrenceId) || occurrenceId <= 0) {
-      return NextResponse.json({ success: false, error: 'ID inválido' }, { status: 400 });
-    }
+  const modifiedAmountCents = validation.data.modifiedAmount ? eurosToCents(validation.data.modifiedAmount) : undefined;
 
-    const body = await request.json().catch(() => ({}));
-    const validation = validateRequest(ConfirmOccurrenceSchema, body);
+  const occurrence = await confirmOccurrence(occurrenceId, modifiedAmountCents);
 
-    if (!validation.success) {
-      return NextResponse.json({ success: false, errors: validation.errors }, { status: 400 });
-    }
-
-    const modifiedAmountCents = validation.data.modifiedAmount
-      ? eurosToCents(validation.data.modifiedAmount)
-      : undefined;
-
-    const occurrence = await confirmOccurrence(occurrenceId, modifiedAmountCents);
-
-    return NextResponse.json({ success: true, data: occurrence });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const message = error instanceof Error ? error.message : 'Error al confirmar ocurrencia';
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('POST /api/recurring-expenses/occurrences/[id]/confirm error:', error);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
-}
+  return { data: occurrence };
+}, 'POST /api/recurring-expenses/occurrences/[id]/confirm');

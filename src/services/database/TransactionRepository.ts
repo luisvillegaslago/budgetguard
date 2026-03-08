@@ -578,29 +578,34 @@ export async function createTransactionGroup(data: {
       throw new Error('Failed to create transaction group');
     }
 
-    await data.items.reduce(async (prev, item) => {
-      await prev;
-      await client.query(
-        `
-        INSERT INTO "Transactions" (
-          "CategoryID", "AmountCents", "Description", "TransactionDate",
-          "Type", "SharedDivisor", "OriginalAmountCents", "TransactionGroupID", "UserID"
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `,
-        [
-          item.categoryId,
-          item.amountCents,
-          data.description,
-          toDateString(data.transactionDate),
-          data.type,
-          data.sharedDivisor,
-          item.originalAmountCents,
-          groupId,
-          userId,
-        ],
-      );
-    }, Promise.resolve());
+    // Batch INSERT all items in a single query
+    const dateStr = toDateString(data.transactionDate);
+    const values = data.items
+      .map(
+        (_, i) =>
+          `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`,
+      )
+      .join(', ');
+
+    const params = data.items.flatMap((item) => [
+      item.categoryId,
+      item.amountCents,
+      data.description,
+      dateStr,
+      data.type,
+      data.sharedDivisor,
+      item.originalAmountCents,
+      groupId,
+      userId,
+    ]);
+
+    await client.query(
+      `INSERT INTO "Transactions" (
+        "CategoryID", "AmountCents", "Description", "TransactionDate",
+        "Type", "SharedDivisor", "OriginalAmountCents", "TransactionGroupID", "UserID"
+      ) VALUES ${values}`,
+      params,
+    );
 
     await client.query('COMMIT');
 

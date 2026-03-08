@@ -89,7 +89,7 @@ const mockCategories: Category[] = [
 
 // Mock the SkydiveRepository
 jest.mock('@/services/database/SkydiveRepository', () => ({
-  getAllJumps: jest.fn(async () => [mockJump]),
+  getAllJumps: jest.fn(async () => ({ items: [mockJump], total: 1, page: 1, limit: 50, totalPages: 1 })),
   getJumpById: jest.fn(async (id: number) => {
     if (id === 1) return mockJump;
     return null;
@@ -414,7 +414,7 @@ describe('POST /api/skydiving/jumps/import', () => {
 
     expect(response.status).toBe(400);
     expect(data.success).toBe(false);
-    expect(data.error).toBe('No rows provided');
+    expect(data.error).toBe('At least one row is required');
   });
 
   it('should return 400 when rows is missing', async () => {

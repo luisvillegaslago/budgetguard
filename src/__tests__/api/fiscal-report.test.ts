@@ -241,6 +241,6 @@ describe('GET /api/fiscal', () => {
 
     expect(response.status).toBe(500);
     expect(body.success).toBe(false);
-    expect(body.error).toBe('Error al obtener informe fiscal');
+    expect(body.error).toBe('Internal server error');
   });
 });

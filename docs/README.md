@@ -21,7 +21,7 @@ Complete documentation for the BudgetGuard family expense tracking system.
 ### ARCHITECTURE.md
 
 Covers the overall system design:
-- Tech stack overview (Next.js 16, React 19, SQL Server)
+- Tech stack overview (Next.js 16, React 19, PostgreSQL/Neon)
 - Project structure with all directories explained
 - Data flow from UI → Zustand → TanStack Query → API → Database
 - State management strategy (Zustand for UI, TanStack Query for server)
@@ -30,7 +30,9 @@ Covers the overall system design:
 - i18n system (standard and static translations)
 - Error handling strategy
 - Performance optimizations
-- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips
+- API route handler wrapper (`withApiHandler`) pattern
+- CI/CD pipeline (GitHub Actions)
+- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving
 
 ### API_REFERENCE.md
 
@@ -45,6 +47,10 @@ Complete API documentation:
   - `GET/POST /api/trips` + `GET/PATCH/DELETE /api/trips/:id`
   - `POST/PUT/DELETE /api/trips/:id/expenses`
   - `GET /api/trips/categories`
+  - `GET /api/fiscal?year=&quarter=`
+  - `GET/POST /api/skydiving/jumps` + `GET/PUT/DELETE /:id` + `POST /import`
+  - `GET/POST /api/skydiving/tunnel` + `PUT/DELETE /:id` + `POST /import`
+  - `GET /api/skydiving/stats` + `GET /api/skydiving/categories`
   - `GET /api/version`
 - Validation error formats
 - Money handling in API requests (euros in, cents stored)
@@ -54,12 +60,13 @@ Complete API documentation:
 ### DATA_MODELS.md
 
 Database and type definitions:
-- SQL Server table schemas:
+- PostgreSQL table schemas:
   - Categories (with hierarchical subcategories)
   - Transactions (with shared expenses, recurring, groups, trips)
   - TransactionGroups (grouping anchor)
   - Trips (multi-day travel expense tracking)
   - RecurringExpenses + RecurringExpenseOccurrences
+  - SkydiveJumps + TunnelSessions (skydiving module)
   - Users, Accounts, Sessions, VerificationTokens (NextAuth)
 - Database views (vw_MonthlySummary, vw_MonthlyBalance, vw_SubcategorySummary)
 - Indexes and triggers
@@ -141,6 +148,9 @@ Multi-day, multi-category travel expense tracking. Trips group transactions unde
 | Phase 1.5 | ✅ Complete | Hierarchical categories, shared expenses, category management |
 | Phase 2 | ✅ Complete | Recurring expenses, transaction groups (outings) |
 | Phase 2.5 | ✅ Complete | Trip tracking (multi-day, multi-category travel expenses) |
+| Phase 2.7 | ✅ Complete | Fiscal module (Modelo 303/130, VAT, deductions) |
+| Phase 2.8 | ✅ Complete | Skydiving module (jump log, tunnel, CSV import, stats) |
+| Phase 2.9 | ✅ Complete | Settings (DB sync), CI/CD, API handler wrapper |
 | Phase 3 | Planned | Charts, month-to-month comparison, Excel export |
 | Phase 4 | Planned | Budgets per category, alerts |
 | Phase 5 | Planned | Multi-user/family support, mobile PWA |
@@ -167,6 +177,8 @@ When asked about BudgetGuard, read the appropriate documentation:
 | "Transaction groups?" | ARCHITECTURE.md + API_REFERENCE.md |
 | "Trips?" | ARCHITECTURE.md + API_REFERENCE.md |
 | "Trip expenses?" | API_REFERENCE.md + DATA_MODELS.md |
+| "Skydiving?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "API handler wrapper?" | ARCHITECTURE.md (withApiHandler section) |
 
 ---
 

@@ -393,8 +393,9 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+  // Collect all dates to insert per rule, then batch INSERT with ON CONFLICT
   await Promise.all(
-    rules.map(async (rule) => {
+    rules.map((rule) => {
       const fromMonth = getMonthFromDate(rule.startDate);
       const toMonth = rule.endDate ? getMonthFromDate(rule.endDate) : currentMonth;
       const effectiveToMonth = toMonth < currentMonth ? toMonth : currentMonth;
@@ -412,14 +413,21 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
         effectiveToMonth,
       );
 
-      await Promise.all(
-        expectedDates.map(async (dateStr) => {
-          await query(
-            `INSERT INTO "RecurringExpenseOccurrences" ("RecurringExpenseID", "OccurrenceDate", "Status")
-                         VALUES ($1, $2, $3) ON CONFLICT ("RecurringExpenseID", "OccurrenceDate") DO NOTHING`,
-            [rule.recurringExpenseId, new Date(dateStr), OCCURRENCE_STATUS.PENDING],
-          );
-        }),
+      if (expectedDates.length === 0) return Promise.resolve();
+
+      // Batch INSERT all dates for this rule in a single query
+      const values = expectedDates.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(', ');
+
+      const params = expectedDates.flatMap((dateStr) => [
+        rule.recurringExpenseId,
+        new Date(dateStr),
+        OCCURRENCE_STATUS.PENDING,
+      ]);
+
+      return query(
+        `INSERT INTO "RecurringExpenseOccurrences" ("RecurringExpenseID", "OccurrenceDate", "Status")
+         VALUES ${values} ON CONFLICT ("RecurringExpenseID", "OccurrenceDate") DO NOTHING`,
+        params,
       );
     }),
   );

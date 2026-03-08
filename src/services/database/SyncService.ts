@@ -299,9 +299,9 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
       ),
     );
 
-    // Phase 1: Deletes (reverse FK order) — only if requested
+    // Phase 1: Deletes (reverse FK order, sequential to respect FK constraints)
     if (includeDeletes) {
-      const deletePromises = DELETE_ORDER.map(async (config) => {
+      await processTablesSequentially(DELETE_ORDER, async (config) => {
         const selectAll = `SELECT * FROM "${config.table}" ORDER BY "${config.pk}"`;
         const [sourceRows, targetRows] = await Promise.all([
           sourcePool.query(selectAll).then((r) => r.rows as RowRecord[]),
@@ -316,16 +316,11 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
           await targetClient.query(`DELETE FROM "${config.table}" WHERE "${config.pk}" = ANY($1::int[])`, [ids]);
         }
 
-        return { table: config.table, deleted: toDelete.length };
-      });
-
-      const deleteResults = await Promise.all(deletePromises);
-      deleteResults.forEach((dr) => {
-        const existing = tableResults.find((r) => r.table === dr.table);
+        const existing = tableResults.find((r) => r.table === config.table);
         if (existing) {
-          existing.deleted = dr.deleted;
+          existing.deleted = toDelete.length;
         } else {
-          tableResults.push({ table: dr.table, inserted: 0, updated: 0, deleted: dr.deleted });
+          tableResults.push({ table: config.table, inserted: 0, updated: 0, deleted: toDelete.length });
         }
       });
     }

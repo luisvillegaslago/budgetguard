@@ -44,7 +44,7 @@ jest.mock('@/services/database/connection', () => ({
 
 // Mock the SkydiveRepository
 jest.mock('@/services/database/SkydiveRepository', () => ({
-  getAllTunnelSessions: jest.fn(async () => [mockSession]),
+  getAllTunnelSessions: jest.fn(async () => ({ items: [mockSession], total: 1, page: 1, limit: 50, totalPages: 1 })),
   createTunnelSession: jest.fn(async (data: Record<string, unknown>) => {
     capturedCreateData = data;
     return { ...mockSession, ...data };
@@ -334,7 +334,7 @@ describe('POST /api/skydiving/tunnel/import', () => {
 
     expect(response.status).toBe(400);
     expect(data.success).toBe(false);
-    expect(data.error).toBe('No rows provided');
+    expect(data.error).toBe('At least one row is required');
   });
 
   it('should return 400 when rows is missing', async () => {

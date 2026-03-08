@@ -12,7 +12,7 @@ BudgetGuard is a family expense and income tracking system built with Next.js 16
 | **State Management** | Zustand 5.x | UI state only (month selection, filters, panel states) |
 | **Server State** | TanStack Query | Data fetching, caching, mutations |
 | **Validation** | Zod | Shared schemas (frontend + backend) |
-| **Database** | SQL Server | Transactions, Categories, Recurring Expenses, Groups, Trips |
+| **Database** | PostgreSQL (Neon) | Transactions, Categories, Recurring Expenses, Groups, Trips, Skydiving |
 | **i18n** | Custom provider | Spanish/English support |
 
 ---
@@ -48,6 +48,17 @@ src/
 │   │   │   └── categories/route.ts    # GET trip categories (Viajes subcategories)
 │   │   ├── fiscal/
 │   │   │   └── route.ts               # GET fiscal quarterly report
+│   │   ├── skydiving/
+│   │   │   ├── jumps/
+│   │   │   │   ├── route.ts           # GET/POST jumps (paginated)
+│   │   │   │   ├── [id]/route.ts      # GET/PUT/DELETE single jump
+│   │   │   │   └── import/route.ts    # POST bulk import jumps
+│   │   │   ├── tunnel/
+│   │   │   │   ├── route.ts           # GET/POST tunnel sessions (paginated)
+│   │   │   │   ├── [id]/route.ts      # PUT/DELETE single session
+│   │   │   │   └── import/route.ts    # POST bulk import sessions
+│   │   │   ├── stats/route.ts         # GET aggregated stats
+│   │   │   └── categories/route.ts    # GET Paracaidismo subcategories
 │   │   ├── summary/
 │   │   │   ├── route.ts               # GET monthly balance
 │   │   │   └── subcategories/route.ts # GET subcategory drill-down
@@ -58,7 +69,9 @@ src/
 │   │   ├── recurring-expenses/page.tsx # Recurring expenses page
 │   │   ├── trips/page.tsx             # Trips list page
 │   │   ├── trips/[id]/page.tsx        # Trip detail page
-│   │   └── fiscal/page.tsx            # Fiscal quarterly report page
+│   │   ├── fiscal/page.tsx             # Fiscal quarterly report page
+│   │   ├── skydiving/page.tsx         # Skydiving dashboard (jumps, tunnel, stats)
+│   │   └── settings/page.tsx          # Settings page (DB sync)
 │   ├── layout.tsx                     # Root layout with providers
 │   ├── error.tsx                      # Error boundary
 │   ├── global-error.tsx               # Global error (full HTML)
@@ -116,6 +129,10 @@ src/
 │   ├── useTripCategories.ts           # Trip-specific categories query
 │   ├── useMonthPrefetch.ts            # Adjacent months prefetch
 │   ├── useFiscalReport.ts            # Fiscal quarterly report query
+│   ├── useSkydiveJumps.ts            # Jump CRUD queries/mutations
+│   ├── useTunnelSessions.ts          # Tunnel session CRUD queries/mutations
+│   ├── useSkydiveStats.ts            # Skydiving stats query
+│   ├── useSkydiveCategories.ts       # Paracaidismo subcategories query
 │   └── useTranslations.ts            # i18n hook
 │
 ├── stores/
@@ -124,20 +141,25 @@ src/
 │
 ├── services/
 │   └── database/
-│       ├── connection.ts              # MSSQL connection pool
+│       ├── connection.ts              # PostgreSQL (Neon) connection pool
 │       ├── TransactionRepository.ts   # Transactions + groups DB operations
 │       ├── CategoryRepository.ts      # Categories DB operations (hierarchical)
 │       ├── RecurringExpenseRepository.ts # Recurring rules + occurrences DB operations
 │       ├── TripRepository.ts          # Trip CRUD + trip categories DB operations
-│       └── FiscalRepository.ts        # Fiscal quarterly report DB operations
+│       ├── FiscalRepository.ts        # Fiscal quarterly report DB operations
+│       ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats
+│       └── SyncService.ts            # Bidirectional database sync
 │
 ├── schemas/
 │   ├── transaction.ts                 # Transaction, Category, Group Zod schemas
 │   ├── recurring-expense.ts           # Recurring expense Zod schemas
-│   └── trip.ts                        # Trip and trip expense Zod schemas
+│   ├── trip.ts                        # Trip and trip expense Zod schemas
+│   ├── fiscal.ts                      # Fiscal query validation
+│   └── skydive.ts                     # Jump + tunnel session Zod schemas
 │
 ├── types/
-│   └── finance.ts                     # TypeScript interfaces
+│   ├── finance.ts                     # Financial TypeScript interfaces
+│   └── skydive.ts                     # Skydiving TypeScript interfaces
 │
 ├── constants/
 │   └── finance.ts                     # Type constants, query keys, API endpoints
@@ -152,6 +174,8 @@ src/
 │   ├── helpers.ts                     # Date/utility functions
 │   ├── recurring.ts                   # Occurrence date calculation
 │   ├── fiscal.ts                     # computeFiscalFields utility
+│   ├── apiHandler.ts                 # API route handler wrapper (withApiHandler)
+│   ├── skydive-csv-parsers.ts        # CSV parsing for jump/tunnel imports
 │   └── staticTranslations.ts         # i18n for error boundaries
 │
 └── messages/
@@ -202,29 +226,32 @@ database/
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    API ROUTES (Next.js)                      │
+│  - withApiHandler() wrapper for centralized error handling   │
 │  - Zod validation on all inputs                              │
 │  - Converts euros → cents before storage                     │
 │  - Shared expense halving (Math.ceil)                        │
 │  - Balanced rounding for groups                              │
-│  - Returns structured { success, data, error } responses     │
+│  - Returns structured { success, data, meta?, error }        │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  REPOSITORY LAYER (MSSQL)                    │
-│  - Connection pool (serverless-safe)                         │
-│  - Parameterized queries (SQL injection protection)          │
+│               REPOSITORY LAYER (PostgreSQL)                  │
+│  - Connection pool (serverless-safe, Neon)                   │
+│  - Parameterized queries ($1, $2 — SQL injection safe)       │
 │  - Row → TypeScript transformations                          │
 │  - TransactionRepository (transactions + groups)             │
 │  - CategoryRepository (hierarchical categories)              │
 │  - RecurringExpenseRepository (rules + occurrences)          │
 │  - TripRepository (trips + trip expenses + trip categories)  │
 │  - FiscalRepository (quarterly fiscal reports)               │
+│  - SkydiveRepository (jumps + tunnel + stats)                │
+│  - SyncService (bidirectional database sync)                 │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    SQL SERVER DATABASE                       │
+│                  POSTGRESQL DATABASE (Neon)                  │
 │  Tables:                                                     │
 │  - Categories (hierarchical via ParentCategoryID)            │
 │  - Transactions (SharedDivisor, OriginalAmountCents, TripID, │
@@ -233,12 +260,15 @@ database/
 │  - Trips (multi-day travel expense tracking)                 │
 │  - RecurringExpenses (rules with frequency scheduling)       │
 │  - RecurringExpenseOccurrences (pending/confirmed/skipped)   │
+│  - SkydiveJumps (jump log with freefall/canopy data)         │
+│  - TunnelSessions (wind tunnel sessions with duration)       │
 │                                                              │
 │  Views:                                                      │
 │  - vw_MonthlySummary (aggregates under parent category)      │
 │  - vw_MonthlyBalance (income/expense/balance totals)         │
 │  - vw_SubcategorySummary (drill-down within parent)          │
 │  - vw_FiscalQuarterly (quarterly VAT/deduction aggregates)   │
+│  - vw_SkydivingStats, vw_JumpsByType, vw_JumpsByYear         │
 │                                                              │
 │  Triggers:                                                   │
 │  - Auto-update UpdatedAt timestamps                          │
@@ -305,6 +335,13 @@ export const QUERY_KEY = {
   RECURRING_EXPENSES: 'recurring-expenses',
   PENDING_OCCURRENCES: 'pending-occurrences',
   TRANSACTION_GROUPS: 'transaction-groups',
+  TRIPS: 'trips',
+  TRIP_CATEGORIES: 'trip-categories',
+  FISCAL: 'fiscal',
+  SKYDIVE_JUMPS: 'skydive-jumps',
+  TUNNEL_SESSIONS: 'tunnel-sessions',
+  SKYDIVE_STATS: 'skydive-stats',
+  SKYDIVE_CATEGORIES: 'skydive-categories',
 } as const;
 
 // API Endpoints (src/constants/finance.ts)
@@ -315,6 +352,12 @@ export const API_ENDPOINT = {
   SUBCATEGORY_SUMMARY: '/api/summary/subcategories',
   RECURRING_EXPENSES: '/api/recurring-expenses',
   TRANSACTION_GROUPS: '/api/transaction-groups',
+  TRIPS: '/api/trips',
+  FISCAL: '/api/fiscal',
+  SKYDIVE_JUMPS: '/api/skydiving/jumps',
+  TUNNEL_SESSIONS: '/api/skydiving/tunnel',
+  SKYDIVE_STATS: '/api/skydiving/stats',
+  SKYDIVE_CATEGORIES: '/api/skydiving/categories',
 } as const;
 ```
 
@@ -615,6 +658,86 @@ export const API_ENDPOINT = {
 } as const;
 ```
 
+### 7. Skydiving Module (Jump Log & Tunnel Sessions)
+
+Tracks skydiving jump logs and wind tunnel training sessions, with CSV bulk import, aggregated statistics, and optional transaction linking.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Skydiving Module Architecture                                │
+│                                                               │
+│  SkydiveJumps (jump log)           TunnelSessions             │
+│  ├── JumpNumber (unique per user)  ├── SessionDate + Location │
+│  ├── JumpDate, Dropzone            ├── DurationSec            │
+│  ├── FreefallTimeSec, Aircraft     ├── PriceCents → linked tx │
+│  ├── ExitAltitudeFt, Canopy        └── SessionType            │
+│  └── PriceCents → linked tx                                   │
+│                                                               │
+│  SQL Views:                                                   │
+│  ├── vw_SkydivingStats (totals, cost, freefall time)          │
+│  ├── vw_JumpsByType (count + freefall per jump type)          │
+│  └── vw_JumpsByYear (count + freefall per year)               │
+│                                                               │
+│  Bulk Import:                                                 │
+│  ├── Jumps: ON CONFLICT (JumpNumber, UserID) DO NOTHING       │
+│  └── Tunnel: ON CONFLICT (SessionDate, Location, ...) upsert  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**API:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/skydiving/jumps?page=&limit=&year=&dropzone=` | List jumps (paginated) |
+| POST | `/api/skydiving/jumps` | Create jump |
+| GET | `/api/skydiving/jumps/[id]` | Get single jump |
+| PUT | `/api/skydiving/jumps/[id]` | Update jump |
+| DELETE | `/api/skydiving/jumps/[id]` | Delete jump |
+| POST | `/api/skydiving/jumps/import` | Bulk import jumps (CSV) |
+| GET | `/api/skydiving/tunnel?page=&limit=&year=&location=` | List tunnel sessions (paginated) |
+| POST | `/api/skydiving/tunnel` | Create tunnel session |
+| PUT | `/api/skydiving/tunnel/[id]` | Update tunnel session |
+| DELETE | `/api/skydiving/tunnel/[id]` | Delete tunnel session |
+| POST | `/api/skydiving/tunnel/import` | Bulk import tunnel sessions (CSV) |
+| GET | `/api/skydiving/stats` | Aggregated statistics |
+| GET | `/api/skydiving/categories` | Paracaidismo subcategories |
+
+### 8. API Route Handler Wrapper
+
+All API routes use `withApiHandler()` (`src/utils/apiHandler.ts`) to eliminate boilerplate:
+
+```typescript
+// Centralizes: try/catch, AuthError → 401, error logging, response shape
+export const GET = withApiHandler(async (request, { params }) => {
+  const { id } = await params;
+  const categoryId = parseIdParam(id);
+  if (typeof categoryId !== 'number') return categoryId; // 400 response
+
+  const category = await getCategoryById(categoryId);
+  if (!category) return notFound('Categoria no encontrada');
+
+  return { data: category }; // Wrapped as { success: true, data }
+}, 'GET /api/categories/[id]');
+```
+
+**Helpers:**
+- `parseIdParam(id)` → `number | NextResponse` (validates route param IDs)
+- `notFound(message)` → 404 response
+- `validationError(errors)` → 400 response
+- `conflict(error, extra?)` → 409 response
+
+---
+
+## CI/CD Pipeline
+
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on PRs and pushes to `main`:
+
+```
+PR → type-check → lint → test → build
+```
+
+Locally, pre-push hooks also run type-check and lint before pushing.
+
 ---
 
 ## Money Handling
@@ -664,6 +787,8 @@ formatCurrency(41928) // → "419,28 €"
 | `Trips` | Multi-day travel expense tracking (name + timestamps) |
 | `RecurringExpenses` | Recurring expense rules with frequency scheduling |
 | `RecurringExpenseOccurrences` | Individual occurrence instances (pending/confirmed/skipped) |
+| `SkydiveJumps` | Jump log with freefall time, canopy, aircraft, exit altitude |
+| `TunnelSessions` | Wind tunnel sessions with duration and optional price |
 | `Users` | User accounts with locale preference |
 | `Accounts` | OAuth provider accounts (NextAuth) |
 | `Sessions` | User sessions (NextAuth) |
@@ -689,6 +814,12 @@ RecurringExpenses
 
 RecurringExpenseOccurrences
   └── TransactionID → Transactions (SET NULL on delete)
+
+SkydiveJumps
+  └── TransactionID → Transactions (SET NULL on delete)
+
+TunnelSessions
+  └── TransactionID → Transactions (SET NULL on delete)
 ```
 
 ### Pre-calculated Views
@@ -698,19 +829,19 @@ SQL Views handle aggregation -- calculations happen in database, not JavaScript:
 ```sql
 -- vw_FiscalQuarterly: Quarterly VAT/deduction aggregates for fiscal reports
 -- Groups by year, quarter, and type. Only includes transactions with fiscal fields
-SELECT YEAR(TransactionDate), DATEPART(QUARTER, ...), SUM(VatCents), SUM(DeductibleCents)
+SELECT EXTRACT(YEAR FROM "TransactionDate"), EXTRACT(QUARTER FROM ...), SUM(...)
 
 -- vw_MonthlySummary: Totals by PARENT category per month
 -- Subcategory transactions aggregate under their parent via COALESCE
 SELECT
-    FORMAT(t.TransactionDate, 'yyyy-MM') AS Month,
-    COALESCE(c.ParentCategoryID, c.CategoryID) AS CategoryID,
-    COALESCE(parent.Name, c.Name) AS CategoryName,
-    SUM(t.AmountCents) AS TotalCents,
-    COUNT(*) AS TransactionCount
-FROM Transactions t
-INNER JOIN Categories c ON t.CategoryID = c.CategoryID
-LEFT JOIN Categories parent ON c.ParentCategoryID = parent.CategoryID
+    TO_CHAR(t."TransactionDate", 'YYYY-MM') AS "Month",
+    COALESCE(c."ParentCategoryID", c."CategoryID") AS "CategoryID",
+    COALESCE(parent."Name", c."Name") AS "CategoryName",
+    SUM(t."AmountCents") AS "TotalCents",
+    COUNT(*) AS "TransactionCount"
+FROM "Transactions" t
+INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
 GROUP BY ...
 
 -- vw_MonthlyBalance: Income/Expense/Balance per month
@@ -727,12 +858,12 @@ The `schema.sql` file drops all objects before creating them, ensuring safe re-e
 
 ```sql
 -- Order matters for FK dependencies
-IF OBJECT_ID('TR_Accounts_UpdatedAt', 'TR') IS NOT NULL DROP TRIGGER ...
-IF OBJECT_ID('vw_MonthlyBalance', 'V') IS NOT NULL DROP VIEW ...
-DROP TABLE IF EXISTS Sessions;
-DROP TABLE IF EXISTS Accounts;
-DROP TABLE IF EXISTS Transactions;
-DROP TABLE IF EXISTS Categories;
+DROP TRIGGER IF EXISTS ... ON "Accounts";
+DROP VIEW IF EXISTS "vw_MonthlyBalance";
+DROP TABLE IF EXISTS "Sessions";
+DROP TABLE IF EXISTS "Accounts";
+DROP TABLE IF EXISTS "Transactions";
+DROP TABLE IF EXISTS "Categories";
 -- Then CREATE all objects...
 ```
 
@@ -970,21 +1101,18 @@ SELECT SUM(AmountCents) AS TotalCents FROM Transactions
 
 ### Connection Pool
 
-Serverless-safe configuration prevents connection leaks:
+Uses `@neondatabase/serverless` for serverless-safe PostgreSQL connections:
 
 ```typescript
-pool: {
-  max: 10,              // Maximum connections
-  min: 0,               // Zero minimum for serverless
-  idleTimeoutMillis: 30000,
-}
+import { neon } from '@neondatabase/serverless';
+// Neon serverless driver — no persistent pool needed
 ```
 
 ---
 
 ## Security Considerations
 
-1. **Parameterized Queries**: All SQL uses `request.input()` to prevent injection
+1. **Parameterized Queries**: All SQL uses `$1, $2, ...` placeholders to prevent injection
 2. **Zod Validation**: All API inputs validated before processing
 3. **NextAuth Integration**: User authentication (planned)
 4. **Cookie Security**: Uses `js-cookie` library for proper handling
@@ -1003,32 +1131,48 @@ Tests use Jest + Testing Library following the Hybrid Testing Approach:
 
 ```
 src/__tests__/
-├── api/
-│   ├── version.test.ts                   # Version endpoint
-│   ├── categories-crud.test.ts           # Category CRUD operations
-│   ├── categories-hierarchical.test.ts   # Hierarchical category queries
-│   ├── transactions-shared.test.ts       # Shared expense API logic
-│   ├── subcategory-summary.test.ts       # Subcategory drill-down API
-│   ├── recurring-expenses-crud.test.ts   # Recurring expense CRUD
-│   └── recurring-occurrences.test.ts     # Occurrence confirm/skip API
-├── components/
+├── api/                                    # Integration tests (13 files)
+│   ├── version.test.ts                    # Version endpoint
+│   ├── auth-protection.test.ts            # Auth middleware tests
+│   ├── categories-crud.test.ts            # Category CRUD operations
+│   ├── categories-hierarchical.test.ts    # Hierarchical category queries
+│   ├── transactions-shared.test.ts        # Shared expense API logic
+│   ├── subcategory-summary.test.ts        # Subcategory drill-down API
+│   ├── recurring-expenses-crud.test.ts    # Recurring expense CRUD
+│   ├── recurring-occurrences.test.ts      # Occurrence confirm/skip API
+│   ├── fiscal-report.test.ts             # Fiscal quarterly report API
+│   ├── trips-crud.test.ts                # Trip CRUD + categories API
+│   ├── trip-expenses.test.ts             # Trip expense API
+│   ├── skydive-jumps-crud.test.ts        # Skydive jump CRUD + import API
+│   └── skydive-tunnel-crud.test.ts       # Tunnel session CRUD + import API
+├── components/                             # Component tests (11 files)
 │   ├── ErrorPage.test.tsx
 │   ├── GlobalError.test.tsx
 │   ├── NotFoundPage.test.tsx
-│   ├── CategorySelector.test.tsx         # Hierarchical dropdown
-│   ├── CategoryTree.test.tsx             # Tree view interactions
-│   ├── RecurringExpenseForm.test.tsx      # Recurring form validation
-│   ├── RecurringPendingPanel.test.tsx     # Pending panel interactions
-│   └── TransactionList-shared.test.tsx   # Shared expense display
+│   ├── LoginPage.test.tsx
+│   ├── BalanceCards-filter.test.tsx        # Filter type interactions
+│   ├── CategorySelector.test.tsx          # Hierarchical dropdown
+│   ├── CategoryTree.test.tsx              # Tree view interactions
+│   ├── RecurringExpenseForm.test.tsx       # Recurring form validation
+│   ├── RecurringPendingPanel.test.tsx      # Pending panel interactions
+│   ├── TransactionList-shared.test.tsx    # Shared expense display
+│   └── TripGroupRow.test.tsx             # Trip group collapsible row
 ├── providers/
 │   └── SessionProvider.test.tsx
-└── utils/
+└── utils/                                  # Unit tests (13 files)
+    ├── auth.test.ts                       # Auth utilities
     ├── staticTranslations.test.ts
-    ├── category-tree.test.ts             # Tree building utilities
-    ├── shared-expense-logic.test.ts      # Halving/rounding logic
-    ├── update-category-schema.test.ts    # Category schema validation
-    ├── recurring-expense-schema.test.ts  # Recurring schema validation
-    └── recurring-occurrences.test.ts     # Date calculation utilities
+    ├── category-tree.test.ts              # Tree building utilities
+    ├── shared-expense-logic.test.ts       # Halving/rounding logic
+    ├── update-category-schema.test.ts     # Category schema validation
+    ├── recurring-expense-schema.test.ts   # Recurring schema validation
+    ├── recurring-occurrences.test.ts      # Date calculation utilities
+    ├── fiscal.test.ts                     # Fiscal computation utilities
+    ├── trip-schema.test.ts               # Trip Zod schemas
+    ├── skydive-schema.test.ts            # Skydive Zod schemas
+    ├── skydive-csv-parsers.test.ts       # CSV parser utilities
+    ├── toDateString.test.ts              # Date string utility
+    └── middleware-config.test.ts          # Middleware configuration
 ```
 
 ---

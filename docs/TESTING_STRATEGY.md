@@ -133,21 +133,27 @@ describe('BalanceCard', () => {
 
 ```
 src/__tests__/
-├── api/                                    # Integration tests (API → Service → DB)
+├── api/                                    # Integration tests (13 files)
 │   ├── version.test.ts                    # Build info endpoint
+│   ├── auth-protection.test.ts            # Auth middleware tests
 │   ├── transactions-shared.test.ts        # Shared expense API (÷2 halving)
 │   ├── categories-crud.test.ts            # Category CRUD operations
 │   ├── categories-hierarchical.test.ts    # Hierarchical category tree
 │   ├── subcategory-summary.test.ts        # Subcategory drill-down view
 │   ├── recurring-expenses-crud.test.ts    # Recurring expense CRUD
 │   ├── recurring-occurrences.test.ts      # Occurrence confirm/skip flows
+│   ├── fiscal-report.test.ts             # Fiscal quarterly report API
 │   ├── trips-crud.test.ts                # Trip CRUD + categories API
-│   └── trip-expenses.test.ts             # Trip expense API (shared halving)
+│   ├── trip-expenses.test.ts             # Trip expense API (shared halving)
+│   ├── skydive-jumps-crud.test.ts        # Skydive jump CRUD + import API
+│   └── skydive-tunnel-crud.test.ts       # Tunnel session CRUD + import API
 │
-├── components/                             # Component tests (UI logic)
+├── components/                             # Component tests (11 files)
 │   ├── ErrorPage.test.tsx                 # Error boundary rendering
 │   ├── GlobalError.test.tsx               # Global error page
 │   ├── NotFoundPage.test.tsx              # 404 page
+│   ├── LoginPage.test.tsx                 # Login page rendering
+│   ├── BalanceCards-filter.test.tsx        # Filter type interactions
 │   ├── CategorySelector.test.tsx          # Hierarchical category selector
 │   ├── CategoryTree.test.tsx              # Category management tree
 │   ├── RecurringExpenseForm.test.tsx       # Recurring expense form
@@ -158,14 +164,20 @@ src/__tests__/
 ├── providers/                              # Provider tests
 │   └── SessionProvider.test.tsx           # NextAuth session wrapper
 │
-└── utils/                                  # Unit tests (pure functions)
+└── utils/                                  # Unit tests (13 files)
+    ├── auth.test.ts                       # Auth utilities
     ├── staticTranslations.test.ts         # i18n error boundary fallback
     ├── category-tree.test.ts              # Category tree building logic
     ├── shared-expense-logic.test.ts       # SharedDivisor + Math.ceil halving
     ├── update-category-schema.test.ts     # Zod schema for category updates
     ├── recurring-expense-schema.test.ts   # Zod schema for recurring expenses
     ├── recurring-occurrences.test.ts      # Occurrence date generation
-    └── trip-schema.test.ts               # Zod schemas for trips + trip expenses
+    ├── fiscal.test.ts                     # Fiscal computation utilities
+    ├── trip-schema.test.ts               # Zod schemas for trips + trip expenses
+    ├── skydive-schema.test.ts            # Skydive Zod schemas
+    ├── skydive-csv-parsers.test.ts       # CSV parser utilities
+    ├── toDateString.test.ts              # Date string utility
+    └── middleware-config.test.ts          # Middleware configuration
 ```
 
 ---

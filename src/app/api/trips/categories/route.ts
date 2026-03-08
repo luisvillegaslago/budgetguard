@@ -3,24 +3,11 @@
  * GET /api/trips/categories - Get subcategories under "Viajes" parent
  */
 
-import { NextResponse } from 'next/server';
-import { AuthError } from '@/libs/auth';
 import { getTripCategories } from '@/services/database/TripRepository';
+import { withApiHandler } from '@/utils/apiHandler';
 
-export async function GET() {
-  try {
-    const categories = await getTripCategories();
+export const GET = withApiHandler(async () => {
+  const categories = await getTripCategories();
 
-    return NextResponse.json({
-      success: true,
-      data: categories,
-    });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('GET /api/trips/categories error:', error);
-    return NextResponse.json({ success: false, error: 'Error al obtener categorias de viaje' }, { status: 500 });
-  }
-}
+  return { data: categories };
+}, 'GET /api/trips/categories');

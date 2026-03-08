@@ -175,7 +175,7 @@ describe('POST /api/recurring-expenses/occurrences/[id]/confirm', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Occurrence not found');
+    expect(data.error).toBe('Internal server error');
   });
 
   it('should return 500 when occurrence is not pending', async () => {
@@ -184,7 +184,7 @@ describe('POST /api/recurring-expenses/occurrences/[id]/confirm', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Occurrence is not pending');
+    expect(data.error).toBe('Internal server error');
   });
 
   it('should return 400 for invalid modifiedAmount', async () => {

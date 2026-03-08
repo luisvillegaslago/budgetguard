@@ -4,37 +4,16 @@
  * Marks an occurrence as skipped (no transaction created)
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { AuthError } from '@/libs/auth';
 import { skipOccurrence } from '@/services/database/RecurringExpenseRepository';
+import { notFound, parseIdParam, withApiHandler } from '@/utils/apiHandler';
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
+export const POST = withApiHandler(async (_request, { params }) => {
+  const { id } = await params;
+  const occurrenceId = parseIdParam(id);
+  if (typeof occurrenceId !== 'number') return occurrenceId;
 
-export async function POST(_request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const occurrenceId = Number(id);
+  const skipped = await skipOccurrence(occurrenceId);
+  if (!skipped) return notFound('Ocurrencia no encontrada o ya procesada');
 
-    if (Number.isNaN(occurrenceId) || occurrenceId <= 0) {
-      return NextResponse.json({ success: false, error: 'ID inválido' }, { status: 400 });
-    }
-
-    const skipped = await skipOccurrence(occurrenceId);
-
-    if (!skipped) {
-      return NextResponse.json({ success: false, error: 'Ocurrencia no encontrada o ya procesada' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('POST /api/recurring-expenses/occurrences/[id]/skip error:', error);
-    return NextResponse.json({ success: false, error: 'Error al omitir ocurrencia' }, { status: 500 });
-  }
-}
+  return { data: { skipped: true } };
+}, 'POST /api/recurring-expenses/occurrences/[id]/skip');
