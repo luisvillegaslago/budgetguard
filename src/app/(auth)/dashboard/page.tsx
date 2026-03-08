@@ -18,6 +18,7 @@ import { TransactionGroupForm } from '@/components/transactions/TransactionGroup
 import { TransactionList } from '@/components/transactions/TransactionList';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { GOING_OUT_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import { useAppVersion } from '@/hooks/useAppVersion';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useFinanceStore } from '@/stores/useFinanceStore';
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const goToCurrentMonth = useFinanceStore((s) => s.goToCurrentMonth);
+  const version = useAppVersion();
   const navMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -239,7 +241,7 @@ export default function DashboardPage() {
       {/* Footer */}
       <footer className="border-t border-border mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <p className="text-sm text-guard-muted text-center">{t('dashboard.footer')}</p>
+          <p className="text-sm text-guard-muted text-center">{t('dashboard.footer', { version: version ?? '...' })}</p>
         </div>
       </footer>
 

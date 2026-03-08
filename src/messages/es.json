@@ -44,7 +44,7 @@
   },
   "dashboard": {
     "title": "Panel",
-    "footer": "BudgetGuard - Control de gastos familiar",
+    "footer": "BudgetGuard - Control de gastos familiar — v{version}",
     "balance-cards": {
       "income": "Ingresos",
       "expenses": "Gastos",

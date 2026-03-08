@@ -44,7 +44,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "footer": "BudgetGuard - Family expense tracker",
+    "footer": "BudgetGuard - Family expense tracker — v{version}",
     "balance-cards": {
       "income": "Income",
       "expenses": "Expenses",

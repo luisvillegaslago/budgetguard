@@ -66,6 +66,7 @@ export const QUERY_KEY = {
   CATEGORY_HISTORY: 'category-history',
   FISCAL_REPORT: 'fiscal-report',
   FISCAL_ANNUAL: 'fiscal-annual',
+  VERSION: 'version',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -89,6 +90,7 @@ export const API_ENDPOINT = {
   CATEGORY_HISTORY: '/api/categories',
   FISCAL: '/api/fiscal',
   FISCAL_ANNUAL: '/api/fiscal/annual',
+  VERSION: '/api/version',
 } as const;
 
 // Well-known Category References

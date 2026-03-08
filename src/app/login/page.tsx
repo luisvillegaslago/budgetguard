@@ -2,10 +2,12 @@
 
 import { Shield } from 'lucide-react';
 import { signIn } from 'next-auth/react';
+import { useAppVersion } from '@/hooks/useAppVersion';
 import { useTranslate } from '@/hooks/useTranslations';
 
 export default function LoginPage() {
   const { t } = useTranslate();
+  const version = useAppVersion();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-guard-dark">
@@ -43,6 +45,7 @@ export default function LoginPage() {
           </svg>
           {t('auth.sign-in-google')}
         </button>
+        {version && <p className="text-center text-xs text-guard-muted/60">v{version}</p>}
       </div>
     </div>
   );

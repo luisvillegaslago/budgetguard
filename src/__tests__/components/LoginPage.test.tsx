@@ -11,6 +11,11 @@ jest.mock('next-auth/react', () => ({
   signIn: jest.fn(),
 }));
 
+// Mock version hook
+jest.mock('@/hooks/useAppVersion', () => ({
+  useAppVersion: () => '0.3.0',
+}));
+
 // Mock i18n hook
 jest.mock('@/hooks/useTranslations', () => ({
   useTranslate: () => ({
