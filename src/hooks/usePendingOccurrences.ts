@@ -6,9 +6,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse, PendingOccurrencesSummary, RecurringOccurrence } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchPendingOccurrences(): Promise<PendingOccurrencesSummary> {
-  const response = await fetch(`${API_ENDPOINT.RECURRING_EXPENSES}/pending`);
+  const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/pending`);
 
   if (!response.ok) {
     throw new Error('Error al cargar ocurrencias pendientes');
@@ -27,7 +28,7 @@ async function confirmOccurrenceRequest(params: {
   occurrenceId: number;
   modifiedAmount?: number;
 }): Promise<RecurringOccurrence> {
-  const response = await fetch(`${API_ENDPOINT.RECURRING_EXPENSES}/occurrences/${params.occurrenceId}/confirm`, {
+  const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/occurrences/${params.occurrenceId}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params.modifiedAmount ? { modifiedAmount: params.modifiedAmount } : {}),
@@ -48,7 +49,7 @@ async function confirmOccurrenceRequest(params: {
 }
 
 async function skipOccurrenceRequest(occurrenceId: number): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.RECURRING_EXPENSES}/occurrences/${occurrenceId}/skip`, {
+  const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/occurrences/${occurrenceId}/skip`, {
     method: 'POST',
   });
 

@@ -7,9 +7,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
 import type { CreateTransactionGroupInput, UpdateTransactionGroupInput } from '@/schemas/transaction';
 import type { ApiResponse, Transaction } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function createTransactionGroupRequest(input: CreateTransactionGroupInput): Promise<Transaction[]> {
-  const response = await fetch(API_ENDPOINT.TRANSACTION_GROUPS, {
+  const response = await fetchApi(API_ENDPOINT.TRANSACTION_GROUPS, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -30,7 +31,7 @@ async function createTransactionGroupRequest(input: CreateTransactionGroupInput)
 }
 
 async function deleteTransactionGroupRequest(groupId: number): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.TRANSACTION_GROUPS}/${groupId}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRANSACTION_GROUPS}/${groupId}`, {
     method: 'DELETE',
   });
 
@@ -44,7 +45,7 @@ async function updateTransactionGroupRequest(params: {
   groupId: number;
   data: UpdateTransactionGroupInput;
 }): Promise<Transaction[]> {
-  const response = await fetch(`${API_ENDPOINT.TRANSACTION_GROUPS}/${params.groupId}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRANSACTION_GROUPS}/${params.groupId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params.data),

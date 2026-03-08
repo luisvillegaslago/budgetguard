@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, FILTER_TYPE, QUERY_KEY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { CreateCategoryInput, UpdateCategoryInput } from '@/schemas/transaction';
 import type { ApiResponse, Category, TransactionType } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchCategories(type?: TransactionType, hierarchical = false): Promise<Category[]> {
   const params = new URLSearchParams();
@@ -14,7 +15,7 @@ async function fetchCategories(type?: TransactionType, hierarchical = false): Pr
   if (hierarchical) params.append('hierarchical', 'true');
 
   const url = params.toString() ? `${API_ENDPOINT.CATEGORIES}?${params.toString()}` : API_ENDPOINT.CATEGORIES;
-  const response = await fetch(url);
+  const response = await fetchApi(url);
 
   if (!response.ok) {
     throw new Error('Error al cargar categorias');
@@ -36,7 +37,7 @@ async function fetchAllCategories(type?: TransactionType, hierarchical = false):
   if (hierarchical) params.append('hierarchical', 'true');
 
   const url = `${API_ENDPOINT.CATEGORIES}?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetchApi(url);
 
   if (!response.ok) {
     throw new Error('Error al cargar categorias');
@@ -52,7 +53,7 @@ async function fetchAllCategories(type?: TransactionType, hierarchical = false):
 }
 
 async function createCategoryRequest(input: CreateCategoryInput): Promise<Category> {
-  const response = await fetch(API_ENDPOINT.CATEGORIES, {
+  const response = await fetchApi(API_ENDPOINT.CATEGORIES, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -73,7 +74,7 @@ async function createCategoryRequest(input: CreateCategoryInput): Promise<Catego
 }
 
 async function updateCategoryRequest(id: number, input: UpdateCategoryInput): Promise<Category> {
-  const response = await fetch(`${API_ENDPOINT.CATEGORIES}/${id}`, {
+  const response = await fetchApi(`${API_ENDPOINT.CATEGORIES}/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -99,7 +100,7 @@ interface DeleteCategoryError {
 }
 
 async function deleteCategoryRequest(id: number): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.CATEGORIES}/${id}`, {
+  const response = await fetchApi(`${API_ENDPOINT.CATEGORIES}/${id}`, {
     method: 'DELETE',
   });
 

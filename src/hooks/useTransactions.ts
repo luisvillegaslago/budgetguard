@@ -14,6 +14,7 @@ import type {
   TransactionType,
   TripGroupDisplay,
 } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 interface TransactionsResponse {
   data: Transaction[];
@@ -31,7 +32,7 @@ async function fetchTransactions(month: string, filters?: TransactionFilters): P
   if (filters?.type) params.append('type', filters.type);
   if (filters?.categoryId) params.append('categoryId', String(filters.categoryId));
 
-  const response = await fetch(`${API_ENDPOINT.TRANSACTIONS}?${params.toString()}`);
+  const response = await fetchApi(`${API_ENDPOINT.TRANSACTIONS}?${params.toString()}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar transacciones');
@@ -50,7 +51,7 @@ async function fetchTransactions(month: string, filters?: TransactionFilters): P
 }
 
 async function createTransactionRequest(input: CreateTransactionInput): Promise<Transaction> {
-  const response = await fetch(API_ENDPOINT.TRANSACTIONS, {
+  const response = await fetchApi(API_ENDPOINT.TRANSACTIONS, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -71,7 +72,7 @@ async function createTransactionRequest(input: CreateTransactionInput): Promise<
 }
 
 async function updateTransactionRequest(id: number, input: Partial<CreateTransactionInput>): Promise<Transaction> {
-  const response = await fetch(`${API_ENDPOINT.TRANSACTIONS}/${id}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRANSACTIONS}/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -92,7 +93,7 @@ async function updateTransactionRequest(id: number, input: Partial<CreateTransac
 }
 
 async function deleteTransactionRequest(id: number): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.TRANSACTIONS}/${id}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRANSACTIONS}/${id}`, {
     method: 'DELETE',
   });
 

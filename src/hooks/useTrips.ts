@@ -7,9 +7,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { CreateTripInput, UpdateTripInput } from '@/schemas/trip';
 import type { ApiResponse, Trip, TripDetail, TripDisplay } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchTrips(): Promise<TripDisplay[]> {
-  const response = await fetch(API_ENDPOINT.TRIPS);
+  const response = await fetchApi(API_ENDPOINT.TRIPS);
 
   if (!response.ok) {
     throw new Error('Error al cargar viajes');
@@ -25,7 +26,7 @@ async function fetchTrips(): Promise<TripDisplay[]> {
 }
 
 async function fetchTrip(tripId: number): Promise<TripDetail> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/${tripId}`);
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${tripId}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar viaje');
@@ -41,7 +42,7 @@ async function fetchTrip(tripId: number): Promise<TripDetail> {
 }
 
 async function createTripRequest(input: CreateTripInput): Promise<Trip> {
-  const response = await fetch(API_ENDPOINT.TRIPS, {
+  const response = await fetchApi(API_ENDPOINT.TRIPS, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -62,7 +63,7 @@ async function createTripRequest(input: CreateTripInput): Promise<Trip> {
 }
 
 async function updateTripRequest(params: { tripId: number; data: UpdateTripInput }): Promise<Trip> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/${params.tripId}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${params.tripId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params.data),
@@ -83,7 +84,7 @@ async function updateTripRequest(params: { tripId: number; data: UpdateTripInput
 }
 
 async function deleteTripRequest(tripId: number): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/${tripId}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${tripId}`, {
     method: 'DELETE',
   });
 

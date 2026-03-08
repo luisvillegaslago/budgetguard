@@ -7,12 +7,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
 import type { CreateTripExpenseInput, UpdateTripExpenseInput } from '@/schemas/trip';
 import type { ApiResponse, Transaction } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function createTripExpenseRequest(params: {
   tripId: number;
   data: CreateTripExpenseInput;
 }): Promise<Transaction> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/${params.tripId}/expenses`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${params.tripId}/expenses`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params.data),
@@ -37,7 +38,7 @@ async function updateTripExpenseRequest(params: {
   expenseId: number;
   data: UpdateTripExpenseInput;
 }): Promise<Transaction> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/${params.tripId}/expenses/${params.expenseId}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${params.tripId}/expenses/${params.expenseId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params.data),
@@ -58,7 +59,7 @@ async function updateTripExpenseRequest(params: {
 }
 
 async function deleteTripExpenseRequest(params: { tripId: number; expenseId: number }): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/${params.tripId}/expenses/${params.expenseId}`, {
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${params.tripId}/expenses/${params.expenseId}`, {
     method: 'DELETE',
   });
 

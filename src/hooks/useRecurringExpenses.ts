@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { CreateRecurringExpenseInput, UpdateRecurringExpenseInput } from '@/schemas/recurring-expense';
 import type { ApiResponse, RecurringExpense } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 interface RecurringExpensesResponse {
   data: RecurringExpense[];
@@ -14,7 +15,7 @@ interface RecurringExpensesResponse {
 }
 
 async function fetchRecurringExpenses(): Promise<RecurringExpensesResponse> {
-  const response = await fetch(API_ENDPOINT.RECURRING_EXPENSES);
+  const response = await fetchApi(API_ENDPOINT.RECURRING_EXPENSES);
 
   if (!response.ok) {
     throw new Error('Error al cargar gastos recurrentes');
@@ -33,7 +34,7 @@ async function fetchRecurringExpenses(): Promise<RecurringExpensesResponse> {
 }
 
 async function createRecurringExpenseRequest(input: CreateRecurringExpenseInput): Promise<RecurringExpense> {
-  const response = await fetch(API_ENDPOINT.RECURRING_EXPENSES, {
+  const response = await fetchApi(API_ENDPOINT.RECURRING_EXPENSES, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -57,7 +58,7 @@ async function updateRecurringExpenseRequest(
   id: number,
   input: UpdateRecurringExpenseInput,
 ): Promise<RecurringExpense> {
-  const response = await fetch(`${API_ENDPOINT.RECURRING_EXPENSES}/${id}`, {
+  const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -78,7 +79,7 @@ async function updateRecurringExpenseRequest(
 }
 
 async function deleteRecurringExpenseRequest(id: number): Promise<void> {
-  const response = await fetch(`${API_ENDPOINT.RECURRING_EXPENSES}/${id}`, {
+  const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/${id}`, {
     method: 'DELETE',
   });
 

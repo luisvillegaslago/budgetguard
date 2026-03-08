@@ -7,9 +7,10 @@ import { useQuery } from '@tanstack/react-query';
 import type { DateRangePreset } from '@/constants/finance';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse, CategoryHistoryResponse } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchCategoryHistory(categoryId: number, range: DateRangePreset): Promise<CategoryHistoryResponse> {
-  const response = await fetch(`${API_ENDPOINT.CATEGORY_HISTORY}/${categoryId}/history?range=${range}`);
+  const response = await fetchApi(`${API_ENDPOINT.CATEGORY_HISTORY}/${categoryId}/history?range=${range}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar historial de categoría');

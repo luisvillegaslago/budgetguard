@@ -6,9 +6,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse, MonthlySummary } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchMonthlySummary(month: string): Promise<MonthlySummary> {
-  const response = await fetch(`${API_ENDPOINT.SUMMARY}?month=${month}`);
+  const response = await fetchApi(`${API_ENDPOINT.SUMMARY}?month=${month}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar resumen mensual');

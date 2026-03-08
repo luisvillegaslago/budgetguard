@@ -6,9 +6,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse, Category } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchTripCategories(): Promise<Category[]> {
-  const response = await fetch(`${API_ENDPOINT.TRIPS}/categories`);
+  const response = await fetchApi(`${API_ENDPOINT.TRIPS}/categories`);
 
   if (!response.ok) {
     throw new Error('Error al cargar categorias de viaje');

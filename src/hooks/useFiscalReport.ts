@@ -8,10 +8,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { AnnualFiscalReport, ApiResponse, FiscalReport } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchFiscalReport(year: number, quarter: number): Promise<FiscalReport> {
   const params = new URLSearchParams({ year: String(year), quarter: String(quarter) });
-  const response = await fetch(`${API_ENDPOINT.FISCAL}?${params.toString()}`);
+  const response = await fetchApi(`${API_ENDPOINT.FISCAL}?${params.toString()}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar informe fiscal');
@@ -28,7 +29,7 @@ async function fetchFiscalReport(year: number, quarter: number): Promise<FiscalR
 
 async function fetchAnnualFiscalReport(year: number): Promise<AnnualFiscalReport> {
   const params = new URLSearchParams({ year: String(year) });
-  const response = await fetch(`${API_ENDPOINT.FISCAL_ANNUAL}?${params.toString()}`);
+  const response = await fetchApi(`${API_ENDPOINT.FISCAL_ANNUAL}?${params.toString()}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar informe fiscal anual');

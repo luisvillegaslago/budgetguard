@@ -7,6 +7,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse, SubcategorySummary } from '@/types/finance';
+import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchSubcategorySummary(month: string, parentCategoryId: number): Promise<SubcategorySummary[]> {
   const params = new URLSearchParams({
@@ -14,7 +15,7 @@ async function fetchSubcategorySummary(month: string, parentCategoryId: number):
     categoryId: String(parentCategoryId),
   });
 
-  const response = await fetch(`${API_ENDPOINT.SUBCATEGORY_SUMMARY}?${params.toString()}`);
+  const response = await fetchApi(`${API_ENDPOINT.SUBCATEGORY_SUMMARY}?${params.toString()}`);
 
   if (!response.ok) {
     throw new Error('Error al cargar resumen de subcategorias');
