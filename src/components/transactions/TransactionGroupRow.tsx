@@ -5,12 +5,11 @@
  * Collapsible row showing a group of linked transactions with expandable breakdown
  */
 
-import { ArrowUpRight, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { DeleteButton } from '@/components/ui/DeleteButton';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
-import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction, TransactionGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -33,7 +32,6 @@ export function TransactionGroupRow({
 }: TransactionGroupRowProps) {
   const { t } = useTranslate();
   const [isExpanded, setIsExpanded] = useState(false);
-  const { showConfirm, handleConfirm: handleDelete } = useConfirmTimeout(() => onDelete(group.transactionGroupId));
   const isIncome = group.type === TRANSACTION_TYPE.INCOME;
   const iconColor = group.parentCategoryColor ?? (isIncome ? '#10B981' : '#EF4444');
 
@@ -112,34 +110,12 @@ export function TransactionGroupRow({
           )}
         </button>
 
-        {/* Delete Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDelete();
-          }}
-          disabled={isDeleting}
-          className={cn(
-            'p-2 rounded-lg transition-all duration-200 ease-out-quart',
-            showConfirm
-              ? 'bg-guard-danger text-white'
-              : 'text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
-          )}
-          aria-label={
-            showConfirm
-              ? t('transactions.groups.delete.confirm', { count: group.transactions.length })
-              : t('transactions.groups.delete.button')
-          }
-        >
-          {isDeleting ? (
-            <LoadingSpinner size="sm" />
-          ) : showConfirm ? (
-            <span className="text-xs font-bold">?</span>
-          ) : (
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          )}
-        </button>
+        <DeleteButton
+          onDelete={() => onDelete(group.transactionGroupId)}
+          isDeleting={isDeleting}
+          confirmLabel={t('transactions.groups.delete.confirm', { count: group.transactions.length })}
+          defaultLabel={t('transactions.groups.delete.button')}
+        />
       </div>
 
       {/* Expanded Breakdown */}

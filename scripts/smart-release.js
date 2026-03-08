@@ -74,7 +74,7 @@ function run() {
 
   try {
     execSync(command, { stdio: 'inherit' });
-  } catch (error) {
+  } catch (_error) {
     process.exit(1);
   }
 }

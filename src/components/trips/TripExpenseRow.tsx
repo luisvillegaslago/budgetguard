@@ -5,14 +5,13 @@
  * Individual expense row within a trip detail view
  */
 
-import { ArrowUpRight, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Pencil } from 'lucide-react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { DeleteButton } from '@/components/ui/DeleteButton';
 import { SHARED_EXPENSE, TRIP_COLOR } from '@/constants/finance';
-import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction } from '@/types/finance';
-import { cn, formatDate } from '@/utils/helpers';
+import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
 interface TripExpenseRowProps {
@@ -25,14 +24,8 @@ interface TripExpenseRowProps {
 
 export function TripExpenseRow({ transaction, onEdit, onDelete, isDeleting, index }: TripExpenseRowProps) {
   const { t } = useTranslate();
-  const { showConfirm, handleConfirm } = useConfirmTimeout(() => onDelete(transaction.transactionId));
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
   const iconColor = transaction.category?.color ?? TRIP_COLOR;
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    handleConfirm();
-  };
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: Edit button provides keyboard access
@@ -87,27 +80,7 @@ export function TripExpenseRow({ transaction, onEdit, onDelete, isDeleting, inde
         <Pencil className="h-4 w-4" aria-hidden="true" />
       </button>
 
-      {/* Delete Button */}
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={isDeleting}
-        className={cn(
-          'p-2 rounded-lg transition-all duration-200 ease-out-quart',
-          showConfirm
-            ? 'bg-guard-danger text-white'
-            : 'text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
-        )}
-        aria-label={showConfirm ? t('transactions.delete.confirm') : t('transactions.delete.button')}
-      >
-        {isDeleting ? (
-          <LoadingSpinner size="sm" />
-        ) : showConfirm ? (
-          <span className="text-xs font-bold">?</span>
-        ) : (
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-        )}
-      </button>
+      <DeleteButton onDelete={() => onDelete(transaction.transactionId)} isDeleting={isDeleting} />
     </div>
   );
 }

@@ -5,7 +5,19 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { Beer, Calculator, Database, LayoutGrid, LogOut, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
+import {
+  Beer,
+  Calculator,
+  Cloud,
+  Database,
+  LayoutGrid,
+  LogOut,
+  Plane,
+  Plus,
+  Repeat,
+  Settings,
+  Shield,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
@@ -155,6 +167,14 @@ export default function DashboardPage() {
                     >
                       <Plane className="h-4 w-4 text-guard-muted" aria-hidden="true" />
                       {t('trips.title')}
+                    </Link>
+                    <Link
+                      href="/skydiving"
+                      onClick={() => setShowNavMenu(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Cloud className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+                      {t('skydiving.title')}
                     </Link>
                     <Link
                       href="/fiscal"

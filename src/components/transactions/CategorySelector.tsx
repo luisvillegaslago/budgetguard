@@ -120,18 +120,18 @@ function SearchableSelect({
         break;
       }
       case 'Tab': {
-        if (e.shiftKey) {
-          // Shift+Tab: close dropdown, let browser handle backward focus
-          setIsOpen(false);
-          setSearch('');
-          setHighlightIndex(-1);
-          break;
+        // Close dropdown and let browser handle focus naturally.
+        // Only select if user explicitly highlighted an option.
+        setIsOpen(false);
+        setSearch('');
+        if (highlightIndex >= 0) {
+          const tabSelected = filtered[highlightIndex];
+          if (tabSelected) {
+            onChange(tabSelected.id);
+            if (onSelected) onSelected();
+          }
         }
-        const tabSelected = highlightIndex >= 0 ? filtered[highlightIndex] : filtered[0];
-        if (tabSelected) {
-          e.preventDefault();
-          handleSelect(tabSelected);
-        }
+        setHighlightIndex(-1);
         break;
       }
       case 'Escape':

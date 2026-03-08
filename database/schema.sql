@@ -16,17 +16,24 @@ DROP TRIGGER IF EXISTS "TR_Users_UpdatedAt" ON "Users";
 DROP TRIGGER IF EXISTS "TR_Accounts_UpdatedAt" ON "Accounts";
 DROP TRIGGER IF EXISTS "TR_Trips_UpdatedAt" ON "Trips";
 DROP TRIGGER IF EXISTS "TR_RecurringExpenses_UpdatedAt" ON "RecurringExpenses";
+DROP TRIGGER IF EXISTS "TR_SkydiveJumps_UpdatedAt" ON "SkydiveJumps";
+DROP TRIGGER IF EXISTS "TR_TunnelSessions_UpdatedAt" ON "TunnelSessions";
 
 -- Drop trigger function
 DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- Drop views
+DROP VIEW IF EXISTS "vw_JumpsByYear";
+DROP VIEW IF EXISTS "vw_JumpsByType";
+DROP VIEW IF EXISTS "vw_SkydivingStats";
 DROP VIEW IF EXISTS "vw_FiscalQuarterly";
 DROP VIEW IF EXISTS "vw_MonthlyBalance";
 DROP VIEW IF EXISTS "vw_SubcategorySummary";
 DROP VIEW IF EXISTS "vw_MonthlySummary";
 
 -- Drop tables with foreign keys first
+DROP TABLE IF EXISTS "TunnelSessions";
+DROP TABLE IF EXISTS "SkydiveJumps";
 DROP TABLE IF EXISTS "VerificationTokens";
 DROP TABLE IF EXISTS "Sessions";
 DROP TABLE IF EXISTS "Accounts";
@@ -199,6 +206,57 @@ ADD CONSTRAINT "FK_Transactions_RecurringExpense"
     FOREIGN KEY ("RecurringExpenseID") REFERENCES "RecurringExpenses"("RecurringExpenseID");
 
 -- ============================================================
+-- SKYDIVING TABLES
+-- ============================================================
+
+CREATE TABLE "SkydiveJumps" (
+    "JumpID" SERIAL PRIMARY KEY,
+    "JumpNumber" INT NOT NULL,
+    "Title" VARCHAR(255) NULL,
+    "JumpDate" DATE NOT NULL,
+    "Dropzone" VARCHAR(150) NULL,
+    "Canopy" VARCHAR(100) NULL,
+    "Wingsuit" VARCHAR(100) NULL,
+    "FreefallTimeSec" INT NULL,
+    "JumpType" VARCHAR(100) NULL,
+    "Aircraft" VARCHAR(150) NULL,
+    "ExitAltitudeFt" INT NULL,
+    "LandingDistanceM" INT NULL,
+    "Comment" TEXT NULL,
+    "PriceCents" INT NULL,
+    "TransactionID" INT NULL,
+    "UserID" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_SkydiveJumps_Transaction"
+        FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX "UQ_SkydiveJumps_Number_User" ON "SkydiveJumps"("JumpNumber", "UserID");
+CREATE INDEX "IX_SkydiveJumps_UserID" ON "SkydiveJumps"("UserID");
+CREATE INDEX "IX_SkydiveJumps_JumpDate" ON "SkydiveJumps"("JumpDate");
+
+CREATE TABLE "TunnelSessions" (
+    "SessionID" SERIAL PRIMARY KEY,
+    "SessionDate" DATE NOT NULL,
+    "Location" VARCHAR(150) NULL,
+    "SessionType" VARCHAR(100) NULL,
+    "DurationSec" INT NOT NULL,
+    "Notes" TEXT NULL,
+    "PriceCents" INT NULL,
+    "TransactionID" INT NULL,
+    "UserID" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_TunnelSessions_Transaction"
+        FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX "UQ_TunnelSessions_Dedup" ON "TunnelSessions"("SessionDate", "Location", "DurationSec", "UserID");
+CREATE INDEX "IX_TunnelSessions_UserID" ON "TunnelSessions"("UserID");
+CREATE INDEX "IX_TunnelSessions_SessionDate" ON "TunnelSessions"("SessionDate");
+
+-- ============================================================
 -- VIEWS (Pre-calculated aggregations)
 -- ============================================================
 
@@ -308,6 +366,54 @@ LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
 WHERE t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
     OR t."InvoiceNumber" IS NOT NULL;
 
+-- View: Skydiving statistics (user-scoped)
+CREATE VIEW "vw_SkydivingStats" AS
+SELECT
+  u."UserID",
+  COALESCE(j."TotalJumps", 0) AS "TotalJumps",
+  COALESCE(j."TotalFreefallSec", 0) AS "TotalFreefallSec",
+  COALESCE(j."UniqueDropzones", 0) AS "UniqueDropzones",
+  j."LastJumpDate",
+  COALESCE(t."TotalTunnelSec", 0) AS "TotalTunnelSec",
+  COALESCE(t."TotalTunnelSessions", 0) AS "TotalTunnelSessions"
+FROM "Users" u
+LEFT JOIN (
+  SELECT "UserID",
+    COUNT("JumpID") AS "TotalJumps",
+    COALESCE(SUM("FreefallTimeSec"), 0) AS "TotalFreefallSec",
+    COUNT(DISTINCT "Dropzone") AS "UniqueDropzones",
+    MAX("JumpDate") AS "LastJumpDate"
+  FROM "SkydiveJumps"
+  GROUP BY "UserID"
+) j ON j."UserID" = u."UserID"
+LEFT JOIN (
+  SELECT "UserID",
+    COALESCE(SUM("DurationSec"), 0) AS "TotalTunnelSec",
+    COUNT("SessionID") AS "TotalTunnelSessions"
+  FROM "TunnelSessions"
+  GROUP BY "UserID"
+) t ON t."UserID" = u."UserID";
+
+-- View: Jumps grouped by type (user-scoped)
+CREATE VIEW "vw_JumpsByType" AS
+SELECT
+  "UserID",
+  COALESCE("JumpType", 'Unknown') AS "JumpType",
+  COUNT(*) AS "Count",
+  COALESCE(SUM("FreefallTimeSec"), 0) AS "TotalFreefallSec"
+FROM "SkydiveJumps"
+GROUP BY "UserID", COALESCE("JumpType", 'Unknown');
+
+-- View: Jumps grouped by year (user-scoped)
+CREATE VIEW "vw_JumpsByYear" AS
+SELECT
+  "UserID",
+  EXTRACT(YEAR FROM "JumpDate")::INT AS "Year",
+  COUNT(*) AS "Count",
+  COALESCE(SUM("FreefallTimeSec"), 0) AS "TotalFreefallSec"
+FROM "SkydiveJumps"
+GROUP BY "UserID", EXTRACT(YEAR FROM "JumpDate")::INT;
+
 -- ============================================================
 -- USER AUTHENTICATION TABLES (NextAuth compatible)
 -- ============================================================
@@ -380,6 +486,10 @@ ALTER TABLE "Transactions" ADD CONSTRAINT "FK_Transactions_User"
     FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
 ALTER TABLE "RecurringExpenses" ADD CONSTRAINT "FK_RecurringExpenses_User"
     FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "SkydiveJumps" ADD CONSTRAINT "FK_SkydiveJumps_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "TunnelSessions" ADD CONSTRAINT "FK_TunnelSessions_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
 
 CREATE INDEX "IX_TransactionGroups_UserID" ON "TransactionGroups"("UserID");
 CREATE INDEX "IX_Trips_UserID" ON "Trips"("UserID");
@@ -419,6 +529,14 @@ CREATE TRIGGER "TR_Trips_UpdatedAt"
 
 CREATE TRIGGER "TR_RecurringExpenses_UpdatedAt"
     BEFORE UPDATE ON "RecurringExpenses"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER "TR_SkydiveJumps_UpdatedAt"
+    BEFORE UPDATE ON "SkydiveJumps"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER "TR_TunnelSessions_UpdatedAt"
+    BEFORE UPDATE ON "TunnelSessions"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================

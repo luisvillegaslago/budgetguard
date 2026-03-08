@@ -68,6 +68,10 @@ export const QUERY_KEY = {
   FISCAL_ANNUAL: 'fiscal-annual',
   VERSION: 'version',
   SYNC_COMPARE: 'sync-compare',
+  SKYDIVE_JUMPS: 'skydive-jumps',
+  TUNNEL_SESSIONS: 'tunnel-sessions',
+  SKYDIVE_STATS: 'skydive-stats',
+  SKYDIVE_CATEGORIES: 'skydive-categories',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -94,6 +98,10 @@ export const API_ENDPOINT = {
   VERSION: '/api/version',
   SYNC_COMPARE: '/api/sync/compare',
   SYNC_EXECUTE: '/api/sync/execute',
+  SKYDIVE_JUMPS: '/api/skydiving/jumps',
+  TUNNEL_SESSIONS: '/api/skydiving/tunnel',
+  SKYDIVE_STATS: '/api/skydiving/stats',
+  SKYDIVE_CATEGORIES: '/api/skydiving/categories',
 } as const;
 
 // Well-known Category References
@@ -104,6 +112,13 @@ export const GOING_OUT_CATEGORY = {
 
 // Trip default color (matches guard-trip in Tailwind config)
 export const TRIP_COLOR = '#8B5CF6' as const;
+
+// Well-known Skydiving Category Reference
+export const SKYDIVE_CATEGORY = {
+  NAME: 'Paracaidismo',
+  ICON: 'cloud',
+  COLOR: '#84CC16',
+} as const;
 
 // Date Range Presets (for category history)
 export const DATE_RANGE_PRESET = {

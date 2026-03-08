@@ -644,6 +644,162 @@
       "pk": "ID"
     }
   },
+  "skydiving": {
+    "title": "Paracaidismo",
+    "subtitle": "Log de saltos, sesiones de túnel y tracking de gastos",
+    "back": "Volver al Dashboard",
+    "tabs": {
+      "summary": "Resumen",
+      "jumps": "Saltos",
+      "tunnel": "Túnel de Viento"
+    },
+    "stats": {
+      "total-jumps": "Total Saltos",
+      "freefall-time": "Tiempo Caída Libre",
+      "tunnel-time": "Tiempo Túnel",
+      "dropzones": "Dropzones",
+      "last-jump": "Último Salto",
+      "tunnel-sessions": "Sesiones Túnel",
+      "total-cost": "Coste Total",
+      "section-skydive": "Paracaidismo",
+      "section-tunnel": "Túnel de Viento"
+    },
+    "jumps": {
+      "title": "Log de Saltos",
+      "new": "Nuevo Salto",
+      "import": "Importar CSV",
+      "empty": {
+        "title": "No hay saltos registrados",
+        "subtitle": "Añade tu primer salto o importa desde CSV"
+      },
+      "columns": {
+        "number": "#",
+        "date": "Fecha",
+        "dropzone": "Dropzone",
+        "type": "Tipo",
+        "freefall": "Caída libre",
+        "altitude": "Altitud",
+        "aircraft": "Avión",
+        "canopy": "Paracaídas"
+      },
+      "form": {
+        "title-create": "Nuevo Salto",
+        "title-edit": "Editar Salto",
+        "fields": {
+          "jump-number": "Salto #",
+          "date": "Fecha",
+          "dropzone": "Dropzone",
+          "dropzone-placeholder": "Ej: Skydive Madrid",
+          "jump-type": "Tipo",
+          "type-placeholder": "Ej: Belly, Freefly",
+          "freefall-time": "Caída libre (seg)",
+          "altitude": "Altitud de salida (m)",
+          "aircraft": "Avión",
+          "aircraft-placeholder": "Ej: Cessna 208",
+          "canopy": "Paracaídas",
+          "canopy-placeholder": "Ej: Sabre3 170",
+          "wingsuit": "Wingsuit",
+          "wingsuit-placeholder": "Ej: Squirrel Colugo 3",
+          "landing-distance": "Distancia de aterrizaje (m)",
+          "comment": "Comentario",
+          "price": "Precio (€)"
+        },
+        "submit-create": "Crear Salto",
+        "submit-edit": "Guardar Salto",
+        "saving": "Guardando...",
+        "errors": {
+          "create": "Error al crear el salto. Intenta de nuevo.",
+          "update": "Error al actualizar el salto. Intenta de nuevo."
+        }
+      },
+      "delete": {
+        "button": "Eliminar salto",
+        "confirm": "¿Eliminar este salto?"
+      },
+      "search-placeholder": "Buscar por dropzone, tipo, avión...",
+      "search-empty": "No se encontraron saltos",
+      "prior-jump": "Salto previo"
+    },
+    "tunnel": {
+      "title": "Túnel de Viento",
+      "new": "Nueva Sesión",
+      "import": "Importar CSV",
+      "search-placeholder": "Buscar por lugar, tipo...",
+      "search-empty": "No se encontraron sesiones",
+      "empty": {
+        "title": "No hay sesiones de túnel registradas",
+        "subtitle": "Añade tu primera sesión o importa desde CSV"
+      },
+      "columns": {
+        "date": "Fecha",
+        "location": "Lugar",
+        "type": "Tipo",
+        "duration": "Duración",
+        "price": "Precio",
+        "expense": "Gasto"
+      },
+      "form": {
+        "title-create": "Nueva Sesión de Túnel",
+        "title-edit": "Editar Sesión de Túnel",
+        "fields": {
+          "date": "Fecha",
+          "location": "Lugar",
+          "location-placeholder": "Ej: Madrid Fly",
+          "type": "Tipo",
+          "type-placeholder": "Ej: Freefly, Flat",
+          "duration": "Duración (min)",
+          "price": "Precio (€)",
+          "price-placeholder": "Ej: 45,00",
+          "notes": "Notas"
+        },
+        "submit-create": "Crear Sesión",
+        "submit-edit": "Guardar Sesión",
+        "saving": "Guardando...",
+        "errors": {
+          "create": "Error al crear la sesión. Intenta de nuevo.",
+          "update": "Error al actualizar la sesión. Intenta de nuevo."
+        }
+      },
+      "delete": {
+        "button": "Eliminar sesión",
+        "confirm": "¿Eliminar esta sesión?"
+      }
+    },
+    "import": {
+      "title": "Importar CSV",
+      "select-file": "Seleccionar archivo CSV",
+      "preview": "Vista previa ({count} filas)",
+      "confirm": "Importar",
+      "importing": "Importando...",
+      "result": "{inserted} importados, {skipped} omitidos",
+      "result-with-updated": "{inserted} importados, {updated} actualizados, {skipped} omitidos",
+      "errors": {
+        "invalid-file": "Formato de archivo inválido",
+        "no-valid-rows": "No se encontraron filas válidas ({total} filas leídas). Columnas detectadas: {headers}",
+        "import-failed": "Error en la importación. Intenta de nuevo."
+      }
+    },
+    "format": {
+      "seconds-short": "{value}s",
+      "minutes-short": "{min}m {sec}s",
+      "feet-short": "{value} ft"
+    },
+    "by-type": "Por Tipo",
+    "by-year": "Por Año",
+    "pagination": {
+      "showing": "{from}–{to} de {total}",
+      "first": "Primera página",
+      "previous": "Página anterior",
+      "next": "Página siguiente",
+      "last": "Última página",
+      "page-input": "Ir a página"
+    },
+    "errors": {
+      "load-jumps": "Error al cargar saltos",
+      "load-tunnel": "Error al cargar sesiones de túnel",
+      "load-stats": "Error al cargar estadísticas"
+    }
+  },
   "validation": {
     "category-required": "Selecciona una categoría",
     "amount-positive": "El monto debe ser mayor a 0",

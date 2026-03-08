@@ -5,14 +5,13 @@
  * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import { ArrowDownLeft, ArrowUpRight, Pencil, Plane, Plus, Receipt, Repeat, Search, Trash2, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Pencil, Plane, Plus, Receipt, Repeat, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { DeleteButton } from '@/components/ui/DeleteButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { FILTER_TYPE, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
-import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useDeleteTransaction, useGroupedTransactions } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -33,7 +32,6 @@ interface TransactionRowProps {
 
 function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: TransactionRowProps) {
   const { t } = useTranslate();
-  const { showConfirm, handleConfirm: handleDelete } = useConfirmTimeout(() => onDelete(transaction.transactionId));
   const isIncome = transaction.type === TRANSACTION_TYPE.INCOME;
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
   const iconColor = transaction.category?.color ?? (isIncome ? '#10B981' : '#EF4444');
@@ -130,30 +128,7 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
         <Pencil className="h-4 w-4" aria-hidden="true" />
       </button>
 
-      {/* Delete Button */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleDelete();
-        }}
-        disabled={isDeleting}
-        className={cn(
-          'p-2 rounded-lg transition-all duration-200 ease-out-quart',
-          showConfirm
-            ? 'bg-guard-danger text-white'
-            : 'text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
-        )}
-        aria-label={showConfirm ? t('transactions.delete.confirm') : t('transactions.delete.button')}
-      >
-        {isDeleting ? (
-          <LoadingSpinner size="sm" />
-        ) : showConfirm ? (
-          <span className="text-xs font-bold">?</span>
-        ) : (
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-        )}
-      </button>
+      <DeleteButton onDelete={() => onDelete(transaction.transactionId)} isDeleting={isDeleting} />
     </div>
   );
 }

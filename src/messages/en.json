@@ -644,6 +644,162 @@
       "pk": "ID"
     }
   },
+  "skydiving": {
+    "title": "Skydiving",
+    "subtitle": "Jump log, tunnel sessions, and expense tracking",
+    "back": "Back to Dashboard",
+    "tabs": {
+      "summary": "Summary",
+      "jumps": "Jumps",
+      "tunnel": "Wind Tunnel"
+    },
+    "stats": {
+      "total-jumps": "Total Jumps",
+      "freefall-time": "Freefall Time",
+      "tunnel-time": "Tunnel Time",
+      "dropzones": "Dropzones",
+      "last-jump": "Last Jump",
+      "tunnel-sessions": "Tunnel Sessions",
+      "total-cost": "Total Cost",
+      "section-skydive": "Skydiving",
+      "section-tunnel": "Wind Tunnel"
+    },
+    "jumps": {
+      "title": "Jump Log",
+      "new": "New Jump",
+      "import": "Import CSV",
+      "empty": {
+        "title": "No jumps recorded",
+        "subtitle": "Add your first jump or import from CSV"
+      },
+      "columns": {
+        "number": "#",
+        "date": "Date",
+        "dropzone": "Dropzone",
+        "type": "Type",
+        "freefall": "Freefall",
+        "altitude": "Altitude",
+        "aircraft": "Aircraft",
+        "canopy": "Canopy"
+      },
+      "form": {
+        "title-create": "New Jump",
+        "title-edit": "Edit Jump",
+        "fields": {
+          "jump-number": "Jump #",
+          "date": "Date",
+          "dropzone": "Dropzone",
+          "dropzone-placeholder": "e.g., Skydive Madrid",
+          "jump-type": "Type",
+          "type-placeholder": "e.g., Belly, Freefly",
+          "freefall-time": "Freefall (sec)",
+          "altitude": "Exit altitude (m)",
+          "aircraft": "Aircraft",
+          "aircraft-placeholder": "e.g., Cessna 208",
+          "canopy": "Canopy",
+          "canopy-placeholder": "e.g., Sabre3 170",
+          "wingsuit": "Wingsuit",
+          "wingsuit-placeholder": "e.g., Squirrel Colugo 3",
+          "landing-distance": "Landing distance (m)",
+          "comment": "Comment",
+          "price": "Price (€)"
+        },
+        "submit-create": "Create Jump",
+        "submit-edit": "Save Jump",
+        "saving": "Saving...",
+        "errors": {
+          "create": "Error creating jump. Please try again.",
+          "update": "Error updating jump. Please try again."
+        }
+      },
+      "delete": {
+        "button": "Delete jump",
+        "confirm": "Delete this jump?"
+      },
+      "search-placeholder": "Search by dropzone, type, aircraft...",
+      "search-empty": "No jumps found",
+      "prior-jump": "Prior jump"
+    },
+    "tunnel": {
+      "title": "Wind Tunnel",
+      "new": "New Session",
+      "import": "Import CSV",
+      "search-placeholder": "Search by location, type...",
+      "search-empty": "No sessions found",
+      "empty": {
+        "title": "No tunnel sessions recorded",
+        "subtitle": "Add your first session or import from CSV"
+      },
+      "columns": {
+        "date": "Date",
+        "location": "Location",
+        "type": "Type",
+        "duration": "Duration",
+        "price": "Price",
+        "expense": "Expense"
+      },
+      "form": {
+        "title-create": "New Tunnel Session",
+        "title-edit": "Edit Tunnel Session",
+        "fields": {
+          "date": "Date",
+          "location": "Location",
+          "location-placeholder": "e.g., Madrid Fly",
+          "type": "Type",
+          "type-placeholder": "e.g., Freefly, Flat",
+          "duration": "Duration (min)",
+          "price": "Price (€)",
+          "price-placeholder": "e.g., 45.00",
+          "notes": "Notes"
+        },
+        "submit-create": "Create Session",
+        "submit-edit": "Save Session",
+        "saving": "Saving...",
+        "errors": {
+          "create": "Error creating session. Please try again.",
+          "update": "Error updating session. Please try again."
+        }
+      },
+      "delete": {
+        "button": "Delete session",
+        "confirm": "Delete this session?"
+      }
+    },
+    "import": {
+      "title": "Import CSV",
+      "select-file": "Select CSV file",
+      "preview": "Preview ({count} rows)",
+      "confirm": "Import",
+      "importing": "Importing...",
+      "result": "{inserted} imported, {skipped} skipped",
+      "result-with-updated": "{inserted} imported, {updated} updated, {skipped} skipped",
+      "errors": {
+        "invalid-file": "Invalid file format",
+        "no-valid-rows": "No valid rows found ({total} rows read). Detected columns: {headers}",
+        "import-failed": "Import failed. Please try again."
+      }
+    },
+    "format": {
+      "seconds-short": "{value}s",
+      "minutes-short": "{min}m {sec}s",
+      "feet-short": "{value} ft"
+    },
+    "by-type": "By Type",
+    "by-year": "By Year",
+    "pagination": {
+      "showing": "{from}–{to} of {total}",
+      "first": "First page",
+      "previous": "Previous page",
+      "next": "Next page",
+      "last": "Last page",
+      "page-input": "Go to page"
+    },
+    "errors": {
+      "load-jumps": "Error loading jumps",
+      "load-tunnel": "Error loading tunnel sessions",
+      "load-stats": "Error loading statistics"
+    }
+  },
   "validation": {
     "category-required": "Please select a category",
     "amount-positive": "Amount must be greater than 0",

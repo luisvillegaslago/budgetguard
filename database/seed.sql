@@ -25,6 +25,24 @@ INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "Default
 ('Anuales', 'expense', 'calendar', '#A855F7', 13, FALSE);
 
 -- ============================================================
+-- Subcategories for Paracaidismo
+-- ============================================================
+DO $$
+DECLARE
+  v_id INT;
+BEGIN
+  SELECT "CategoryID" INTO v_id FROM "Categories" WHERE "Name" = 'Paracaidismo' AND "ParentCategoryID" IS NULL;
+
+  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared") VALUES
+  ('Túnel de viento', 'expense', 'wind', '#84CC16', 1, v_id, FALSE),
+  ('Saltos', 'expense', 'cloud', '#84CC16', 2, v_id, FALSE),
+  ('Seguro', 'expense', 'shield', '#84CC16', 3, v_id, FALSE),
+  ('Material', 'expense', 'backpack', '#84CC16', 4, v_id, FALSE),
+  ('Eventos', 'expense', 'calendar', '#84CC16', 5, v_id, FALSE),
+  ('General', 'expense', 'alert-circle', '#84CC16', 6, v_id, FALSE);
+END $$;
+
+-- ============================================================
 -- Subcategories for Vivienda (shared by default)
 -- ============================================================
 DO $$

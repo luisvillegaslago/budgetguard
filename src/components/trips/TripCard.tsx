@@ -5,11 +5,10 @@
  * Card component showing trip summary with category color bar
  */
 
-import { Calendar, MapPin, Trash2 } from 'lucide-react';
+import { Calendar, MapPin } from 'lucide-react';
 import Link from 'next/link';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { DeleteButton } from '@/components/ui/DeleteButton';
 import { TRIP_COLOR } from '@/constants/finance';
-import { useConfirmTimeout } from '@/hooks/useConfirmTimeout';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { TripDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -24,13 +23,6 @@ interface TripCardProps {
 
 export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardProps) {
   const { t } = useTranslate();
-  const { showConfirm, handleConfirm } = useConfirmTimeout(() => onDelete(trip.tripId));
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    handleConfirm();
-  };
 
   // Category color bar: horizontal stacked bar proportional to totals
   const totalForBar = trip.categorySummary.reduce((sum, cat) => sum + cat.totalCents, 0);
@@ -100,27 +92,13 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardPro
           </div>
         </div>
 
-        {/* Delete button */}
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={isDeleting}
-          className={cn(
-            'p-2 rounded-lg transition-all duration-200 ease-out-quart flex-shrink-0',
-            showConfirm
-              ? 'bg-guard-danger text-white'
-              : 'text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
-          )}
-          aria-label={showConfirm ? t('trips.delete.confirm', { count: trip.expenseCount }) : t('trips.delete.button')}
-        >
-          {isDeleting ? (
-            <LoadingSpinner size="sm" />
-          ) : showConfirm ? (
-            <span className="text-xs font-bold">?</span>
-          ) : (
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          )}
-        </button>
+        <DeleteButton
+          onDelete={() => onDelete(trip.tripId)}
+          isDeleting={isDeleting}
+          confirmLabel={t('trips.delete.confirm', { count: trip.expenseCount })}
+          defaultLabel={t('trips.delete.button')}
+          className="flex-shrink-0"
+        />
       </div>
     </Link>
   );

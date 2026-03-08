@@ -18,17 +18,19 @@ export function formatDate(date: string | Date, format: 'short' | 'long' | 'mont
 
   switch (format) {
     case 'month':
-      return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(d);
+      return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
     case 'long':
       return new Intl.DateTimeFormat('es-ES', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
+        timeZone: 'UTC',
       }).format(d);
     default:
       return new Intl.DateTimeFormat('es-ES', {
         day: 'numeric',
         month: 'short',
+        timeZone: 'UTC',
       }).format(d);
   }
 }

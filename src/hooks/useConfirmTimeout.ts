@@ -4,11 +4,12 @@ const CONFIRM_TIMEOUT_MS = 5000;
 
 /**
  * Hook for two-click delete confirmations with auto-dismiss timeout.
- * Returns showConfirm state, a handleConfirm function, and a reset function.
+ * Attach buttonRef to the delete button so clicking outside dismisses the confirm state.
  */
 export function useConfirmTimeout(onConfirm: () => void) {
   const [showConfirm, setShowConfirm] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const clearTimer = useCallback(() => {
     if (timeoutRef.current) {
@@ -36,9 +37,23 @@ export function useConfirmTimeout(onConfirm: () => void) {
     setShowConfirm(false);
   }, [clearTimer]);
 
+  // Dismiss on click outside the button
+  useEffect(() => {
+    if (!showConfirm) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+        reset();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showConfirm, reset]);
+
   useEffect(() => {
     return clearTimer;
   }, [clearTimer]);
 
-  return { showConfirm, handleConfirm, reset };
+  return { showConfirm, handleConfirm, reset, buttonRef };
 }

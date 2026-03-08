@@ -356,6 +356,17 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
       ],
     },
     {
+      parent: 'Paracaidismo',
+      entries: [
+        ['Túnel de viento', 'wind', '#84CC16', 1, false],
+        ['Saltos', 'cloud', '#84CC16', 2, false],
+        ['Seguro', 'shield', '#84CC16', 3, false],
+        ['Material', 'backpack', '#84CC16', 4, false],
+        ['Eventos', 'calendar', '#84CC16', 5, false],
+        ['General', 'alert-circle', '#84CC16', 6, false],
+      ],
+    },
+    {
       parent: 'Viajes',
       entries: [
         ['Alojamiento', 'bed', '#8B5CF6', 1, false],
