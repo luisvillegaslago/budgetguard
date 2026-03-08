@@ -287,9 +287,17 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
 
   const targetClient = await targetPool.connect();
   const tableResults: SyncExecutionResult['tables'] = [];
+  const tablesWithTriggers = SYNCABLE_TABLES.filter((c) => c.hasUpdatedAt);
 
   try {
     await targetClient.query('BEGIN');
+
+    // Disable UpdatedAt triggers so sync preserves original timestamps
+    await Promise.all(
+      tablesWithTriggers.map((c) =>
+        targetClient.query(`ALTER TABLE "${c.table}" DISABLE TRIGGER "TR_${c.table}_UpdatedAt"`),
+      ),
+    );
 
     // Phase 1: Deletes (reverse FK order) — only if requested
     if (includeDeletes) {
@@ -402,8 +410,21 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
       }
     });
 
+    // Re-enable UpdatedAt triggers before committing
+    await Promise.all(
+      tablesWithTriggers.map((c) =>
+        targetClient.query(`ALTER TABLE "${c.table}" ENABLE TRIGGER "TR_${c.table}_UpdatedAt"`),
+      ),
+    );
+
     await targetClient.query('COMMIT');
   } catch (error) {
+    // Re-enable triggers even on rollback to leave DB in clean state
+    await Promise.all(
+      tablesWithTriggers.map((c) =>
+        targetClient.query(`ALTER TABLE "${c.table}" ENABLE TRIGGER "TR_${c.table}_UpdatedAt"`).catch(() => {}),
+      ),
+    );
     await targetClient.query('ROLLBACK');
     throw error;
   } finally {

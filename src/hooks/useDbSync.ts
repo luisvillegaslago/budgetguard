@@ -66,8 +66,8 @@ export function useSyncExecute() {
   return useMutation({
     mutationFn: executeSyncRequest,
     onSuccess: () => {
-      // Invalidate compare results so next compare shows fresh data
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SYNC_COMPARE] });
+      // Refetch compare results to show updated diff after sync
+      queryClient.refetchQueries({ queryKey: [QUERY_KEY.SYNC_COMPARE] });
     },
   });
 }
