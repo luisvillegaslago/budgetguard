@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.3.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.2.0...v0.3.0) (2026-03-08)
+
+
+### Features
+
+* add multi-user support with Google OAuth authentication ([d8d4183](https://github.com/luisvillegaslago/budgetguard/commit/d8d418322261123c6473b49a3d57c2587d327e90))
+* add support for local PostgreSQL with `pg` package ([f4ac539](https://github.com/luisvillegaslago/budgetguard/commit/f4ac5394c137b38b96feb8a89f4b2f74f60d16f9))
+
 ## [0.2.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.1.0...v0.2.0) (2026-03-07)
 
 
