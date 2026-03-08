@@ -20,6 +20,7 @@ import type {
   Modelo390Summary,
 } from '@/types/finance';
 import { calcGastosDificilCents, computeFiscalFields } from '@/utils/fiscal';
+import { toDateString } from '@/utils/helpers';
 import { query } from './connection';
 
 interface FiscalViewRow {
@@ -37,11 +38,6 @@ interface FiscalViewRow {
   FullAmountCents: number;
   VatPercent: number;
   DeductionPercent: number;
-}
-
-function toDateString(val: Date | string): string {
-  if (typeof val === 'string') return val.split('T')[0] || val;
-  return val.toISOString().split('T')[0] || '';
 }
 
 function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {

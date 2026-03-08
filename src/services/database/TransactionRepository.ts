@@ -12,6 +12,7 @@ import type {
   Transaction,
   TransactionType,
 } from '@/types/finance';
+import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
 
 interface TransactionRow {
@@ -68,14 +69,6 @@ interface BalanceRow {
   IncomeCents: number;
   ExpenseCents: number;
   BalanceCents: number;
-}
-
-/**
- * Convert a Date or string value to a date-only string (YYYY-MM-DD)
- */
-function toDateString(val: Date | string): string {
-  if (typeof val === 'string') return val.split('T')[0] || val;
-  return val.toISOString().split('T')[0] || '';
 }
 
 /**
@@ -252,7 +245,7 @@ export async function createTransaction(data: {
       data.categoryId,
       data.amountCents,
       data.description ?? null,
-      data.transactionDate,
+      toDateString(data.transactionDate),
       data.type,
       data.sharedDivisor ?? 1,
       data.originalAmountCents ?? null,
@@ -319,7 +312,7 @@ export async function updateTransaction(
   }
   if (data.transactionDate !== undefined) {
     updates.push(`"TransactionDate" = $${paramIndex++}`);
-    params.push(data.transactionDate);
+    params.push(toDateString(data.transactionDate));
   }
   if (data.type !== undefined) {
     updates.push(`"Type" = $${paramIndex++}`);
@@ -599,7 +592,7 @@ export async function createTransactionGroup(data: {
           item.categoryId,
           item.amountCents,
           data.description,
-          data.transactionDate,
+          toDateString(data.transactionDate),
           data.type,
           data.sharedDivisor,
           item.originalAmountCents,
@@ -702,7 +695,7 @@ export async function updateTransactionGroup(
   }
   if (data.transactionDate !== undefined) {
     updates.push(`"TransactionDate" = $${paramIndex++}`);
-    params.push(data.transactionDate);
+    params.push(toDateString(data.transactionDate));
   }
 
   if (updates.length > 0) {

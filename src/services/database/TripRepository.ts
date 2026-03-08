@@ -6,16 +6,8 @@
 import { TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { Category, Transaction, Trip, TripCategorySummary, TripDetail, TripDisplay } from '@/types/finance';
+import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
-
-// ============================================================
-// Date helpers
-// ============================================================
-
-function toDateString(val: Date | string): string {
-  if (typeof val === 'string') return val.split('T')[0] || val;
-  return val.toISOString().split('T')[0] || '';
-}
 
 function toISOString(val: Date | string): string {
   if (typeof val === 'string') return val;

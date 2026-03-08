@@ -81,6 +81,19 @@ export function addMonths(month: string, offset: number): string {
 }
 
 /**
+ * Convert a Date or string to a date-only string (YYYY-MM-DD).
+ * Uses local time methods to avoid UTC timezone shift that causes
+ * off-by-one errors when the pg driver returns DATE columns as Date objects.
+ */
+export function toDateString(val: Date | string): string {
+  if (typeof val === 'string') return val.split('T')[0] || val;
+  const year = val.getFullYear();
+  const month = String(val.getMonth() + 1).padStart(2, '0');
+  const day = String(val.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Debounce function for input handlers
  */
 export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(

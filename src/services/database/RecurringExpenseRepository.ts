@@ -13,18 +13,10 @@ import type {
   RecurringFrequency,
   RecurringOccurrence,
 } from '@/types/finance';
+import { toDateString } from '@/utils/helpers';
 import { calculateAllPendingDates, getMonthFromDate } from '@/utils/recurring';
 import { query } from './connection';
 import { createTransaction } from './TransactionRepository';
-
-// ============================================================
-// Date Helpers (neon HTTP mode returns dates as strings)
-// ============================================================
-
-function toDateString(val: Date | string): string {
-  if (typeof val === 'string') return val.split('T')[0] || val;
-  return val.toISOString().split('T')[0] || '';
-}
 
 function toISOString(val: Date | string): string {
   if (typeof val === 'string') return val;
@@ -243,13 +235,10 @@ export async function createRecurringExpense(data: {
   const userId = await getUserIdOrThrow();
 
   const rows = await query<{ RecurringExpenseID: number }>(
-    `INSERT INTO "RecurringExpenses" (
-      "CategoryID", "AmountCents", "Description", "Frequency",
-      "DayOfWeek", "DayOfMonth", "MonthOfYear",
-      "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents", "UserID"
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    RETURNING "RecurringExpenseID"`,
+    `INSERT INTO "RecurringExpenses" ("CategoryID", "AmountCents", "Description", "Frequency",
+                                          "DayOfWeek", "DayOfMonth", "MonthOfYear",
+                                          "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents", "UserID")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING "RecurringExpenseID"`,
     [
       data.categoryId,
       data.amountCents,
@@ -258,8 +247,8 @@ export async function createRecurringExpense(data: {
       data.dayOfWeek ?? null,
       data.dayOfMonth ?? null,
       data.monthOfYear ?? null,
-      data.startDate,
-      data.endDate ?? null,
+      toDateString(data.startDate),
+      data.endDate ? toDateString(data.endDate) : null,
       data.sharedDivisor ?? 1,
       data.originalAmountCents ?? null,
       userId,
@@ -335,11 +324,11 @@ export async function updateRecurringExpense(
   }
   if (data.startDate !== undefined) {
     updates.push(`"StartDate" = $${paramIndex++}`);
-    params.push(data.startDate);
+    params.push(toDateString(data.startDate));
   }
   if (data.endDate !== undefined) {
     updates.push(`"EndDate" = $${paramIndex++}`);
-    params.push(data.endDate);
+    params.push(data.endDate ? toDateString(data.endDate) : null);
   }
   if (data.isActive !== undefined) {
     updates.push(`"IsActive" = $${paramIndex++}`);
@@ -363,8 +352,9 @@ export async function updateRecurringExpense(
 
   await query(
     `UPDATE "RecurringExpenses"
-    SET ${updates.join(', ')}
-    WHERE "RecurringExpenseID" = $${paramIndex} AND "UserID" = $${paramIndex + 1}`,
+         SET ${updates.join(', ')}
+         WHERE "RecurringExpenseID" = $${paramIndex}
+           AND "UserID" = $${paramIndex + 1}`,
     params,
   );
 
@@ -379,9 +369,9 @@ export async function deleteRecurringExpense(id: number): Promise<boolean> {
 
   const rows = await query<{ RecurringExpenseID: number }>(
     `UPDATE "RecurringExpenses"
-    SET "IsActive" = false
-    WHERE "RecurringExpenseID" = $1 AND "UserID" = $2
-    RETURNING "RecurringExpenseID"`,
+         SET "IsActive" = false
+         WHERE "RecurringExpenseID" = $1
+           AND "UserID" = $2 RETURNING "RecurringExpenseID"`,
     [id, userId],
   );
 
@@ -426,8 +416,7 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
         expectedDates.map(async (dateStr) => {
           await query(
             `INSERT INTO "RecurringExpenseOccurrences" ("RecurringExpenseID", "OccurrenceDate", "Status")
-            VALUES ($1, $2, $3)
-            ON CONFLICT ("RecurringExpenseID", "OccurrenceDate") DO NOTHING`,
+                         VALUES ($1, $2, $3) ON CONFLICT ("RecurringExpenseID", "OccurrenceDate") DO NOTHING`,
             [rule.recurringExpenseId, new Date(dateStr), OCCURRENCE_STATUS.PENDING],
           );
         }),
@@ -436,34 +425,38 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
   );
 
   const rows = await query<OccurrenceRow>(
-    `SELECT
-      o."OccurrenceID", o."RecurringExpenseID", o."OccurrenceDate",
-      o."Status", o."TransactionID", o."ModifiedAmountCents", o."ProcessedAt",
-      re."CategoryID" AS "RE_CategoryID",
-      c."Name" AS "RE_CategoryName",
-      c."Icon" AS "RE_CategoryIcon",
-      c."Color" AS "RE_CategoryColor",
-      c."ParentCategoryID" AS "RE_ParentCategoryID",
-      re."AmountCents" AS "RE_AmountCents",
-      re."Description" AS "RE_Description",
-      re."Frequency" AS "RE_Frequency",
-      re."DayOfWeek" AS "RE_DayOfWeek",
-      re."DayOfMonth" AS "RE_DayOfMonth",
-      re."MonthOfYear" AS "RE_MonthOfYear",
-      re."StartDate" AS "RE_StartDate",
-      re."EndDate" AS "RE_EndDate",
-      re."IsActive" AS "RE_IsActive",
-      re."SharedDivisor" AS "RE_SharedDivisor",
-      re."OriginalAmountCents" AS "RE_OriginalAmountCents",
-      re."CreatedAt" AS "RE_CreatedAt",
-      re."UpdatedAt" AS "RE_UpdatedAt"
-    FROM "RecurringExpenseOccurrences" o
-    INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
-    INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
-    WHERE o."Status" = 'pending'
-      AND re."IsActive" = true
-      AND re."UserID" = $1
-    ORDER BY o."OccurrenceDate" ASC`,
+    `SELECT o."OccurrenceID",
+                o."RecurringExpenseID",
+                o."OccurrenceDate",
+                o."Status",
+                o."TransactionID",
+                o."ModifiedAmountCents",
+                o."ProcessedAt",
+                re."CategoryID"          AS "RE_CategoryID",
+                c."Name"                 AS "RE_CategoryName",
+                c."Icon"                 AS "RE_CategoryIcon",
+                c."Color"                AS "RE_CategoryColor",
+                c."ParentCategoryID"     AS "RE_ParentCategoryID",
+                re."AmountCents"         AS "RE_AmountCents",
+                re."Description"         AS "RE_Description",
+                re."Frequency"           AS "RE_Frequency",
+                re."DayOfWeek"           AS "RE_DayOfWeek",
+                re."DayOfMonth"          AS "RE_DayOfMonth",
+                re."MonthOfYear"         AS "RE_MonthOfYear",
+                re."StartDate"           AS "RE_StartDate",
+                re."EndDate"             AS "RE_EndDate",
+                re."IsActive"            AS "RE_IsActive",
+                re."SharedDivisor"       AS "RE_SharedDivisor",
+                re."OriginalAmountCents" AS "RE_OriginalAmountCents",
+                re."CreatedAt"           AS "RE_CreatedAt",
+                re."UpdatedAt"           AS "RE_UpdatedAt"
+         FROM "RecurringExpenseOccurrences" o
+                  INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
+                  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
+         WHERE o."Status" = 'pending'
+           AND re."IsActive" = true
+           AND re."UserID" = $1
+         ORDER BY o."OccurrenceDate" ASC`,
     [userId],
   );
 
@@ -502,31 +495,36 @@ export async function confirmOccurrence(
   const userId = await getUserIdOrThrow();
 
   const rows = await query<OccurrenceRow>(
-    `SELECT
-      o."OccurrenceID", o."RecurringExpenseID", o."OccurrenceDate",
-      o."Status", o."TransactionID", o."ModifiedAmountCents", o."ProcessedAt",
-      re."CategoryID" AS "RE_CategoryID",
-      c."Name" AS "RE_CategoryName",
-      c."Icon" AS "RE_CategoryIcon",
-      c."Color" AS "RE_CategoryColor",
-      c."ParentCategoryID" AS "RE_ParentCategoryID",
-      re."AmountCents" AS "RE_AmountCents",
-      re."Description" AS "RE_Description",
-      re."Frequency" AS "RE_Frequency",
-      re."DayOfWeek" AS "RE_DayOfWeek",
-      re."DayOfMonth" AS "RE_DayOfMonth",
-      re."MonthOfYear" AS "RE_MonthOfYear",
-      re."StartDate" AS "RE_StartDate",
-      re."EndDate" AS "RE_EndDate",
-      re."IsActive" AS "RE_IsActive",
-      re."SharedDivisor" AS "RE_SharedDivisor",
-      re."OriginalAmountCents" AS "RE_OriginalAmountCents",
-      re."CreatedAt" AS "RE_CreatedAt",
-      re."UpdatedAt" AS "RE_UpdatedAt"
-    FROM "RecurringExpenseOccurrences" o
-    INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
-    INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
-    WHERE o."OccurrenceID" = $1 AND re."UserID" = $2`,
+    `SELECT o."OccurrenceID",
+                o."RecurringExpenseID",
+                o."OccurrenceDate",
+                o."Status",
+                o."TransactionID",
+                o."ModifiedAmountCents",
+                o."ProcessedAt",
+                re."CategoryID"          AS "RE_CategoryID",
+                c."Name"                 AS "RE_CategoryName",
+                c."Icon"                 AS "RE_CategoryIcon",
+                c."Color"                AS "RE_CategoryColor",
+                c."ParentCategoryID"     AS "RE_ParentCategoryID",
+                re."AmountCents"         AS "RE_AmountCents",
+                re."Description"         AS "RE_Description",
+                re."Frequency"           AS "RE_Frequency",
+                re."DayOfWeek"           AS "RE_DayOfWeek",
+                re."DayOfMonth"          AS "RE_DayOfMonth",
+                re."MonthOfYear"         AS "RE_MonthOfYear",
+                re."StartDate"           AS "RE_StartDate",
+                re."EndDate"             AS "RE_EndDate",
+                re."IsActive"            AS "RE_IsActive",
+                re."SharedDivisor"       AS "RE_SharedDivisor",
+                re."OriginalAmountCents" AS "RE_OriginalAmountCents",
+                re."CreatedAt"           AS "RE_CreatedAt",
+                re."UpdatedAt"           AS "RE_UpdatedAt"
+         FROM "RecurringExpenseOccurrences" o
+                  INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
+                  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
+         WHERE o."OccurrenceID" = $1
+           AND re."UserID" = $2`,
     [occurrenceId, userId],
   );
 
@@ -554,11 +552,11 @@ export async function confirmOccurrence(
 
   await query(
     `UPDATE "RecurringExpenseOccurrences"
-    SET "Status" = $1,
-        "TransactionID" = $2,
-        "ModifiedAmountCents" = $3,
-        "ProcessedAt" = $4
-    WHERE "OccurrenceID" = $5`,
+         SET "Status"              = $1,
+             "TransactionID"       = $2,
+             "ModifiedAmountCents" = $3,
+             "ProcessedAt"         = $4
+         WHERE "OccurrenceID" = $5`,
     [OCCURRENCE_STATUS.CONFIRMED, transaction.transactionId, modifiedAmountCents ?? null, new Date(), occurrenceId],
   );
 
@@ -573,12 +571,14 @@ export async function skipOccurrence(occurrenceId: number): Promise<boolean> {
 
   const rows = await query<{ OccurrenceID: number }>(
     `UPDATE "RecurringExpenseOccurrences"
-    SET "Status" = $1, "ProcessedAt" = $2
-    WHERE "OccurrenceID" = $3 AND "Status" = 'pending'
-      AND "RecurringExpenseID" IN (
-        SELECT "RecurringExpenseID" FROM "RecurringExpenses" WHERE "UserID" = $4
-      )
-    RETURNING "OccurrenceID"`,
+         SET "Status" = $1,
+             "ProcessedAt" = $2
+         WHERE "OccurrenceID" = $3
+           AND "Status" = 'pending'
+           AND "RecurringExpenseID" IN (SELECT "RecurringExpenseID"
+                                        FROM "RecurringExpenses"
+                                        WHERE "UserID" = $4)
+             RETURNING "OccurrenceID"`,
     [OCCURRENCE_STATUS.SKIPPED, new Date(), occurrenceId, userId],
   );
 
