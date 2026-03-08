@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.4.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.3.0...v0.4.0) (2026-03-08)
+
+
+### Features
+
+* add settings page with bidirectional database sync ([0fde832](https://github.com/luisvillegaslago/budgetguard/commit/0fde8329e1c656fb78a7ceebf6f5df4b7cf03b9a))
+* add skydiving module with jump log, tunnel sessions, and CSV import ([033c15a](https://github.com/luisvillegaslago/budgetguard/commit/033c15a2146d09805f102ec616af74142888764f))
+* display app version in footer and login page ([92d796a](https://github.com/luisvillegaslago/budgetguard/commit/92d796a9280da9c1472f988e31b586228befe547))
+* introduce fetchApi wrapper and replace fetch across hooks ([451acfc](https://github.com/luisvillegaslago/budgetguard/commit/451acfc21b243ea853f2bc8428cc3b4ed16afc2e))
+
+
+### Bug Fixes
+
+* disable UpdatedAt triggers during database sync to preserve timestamps ([b4bd5e4](https://github.com/luisvillegaslago/budgetguard/commit/b4bd5e4edf310de8c6cce1f59fefa027fc833510))
+* resolve timezone off-by-one error in date handling ([e6a5d7f](https://github.com/luisvillegaslago/budgetguard/commit/e6a5d7fe21465ecd440e56b2e5fa8171c0497686))
+* skip search_path startup param for Neon pooler connections ([d4afbcf](https://github.com/luisvillegaslago/budgetguard/commit/d4afbcf73f687e602c9365458573129087e78d40))
+
 ## [0.3.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.2.0...v0.3.0) (2026-03-08)
 
 
