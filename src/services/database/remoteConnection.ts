@@ -21,6 +21,10 @@ function isNeonUrl(url: string): boolean {
   return url.includes('neon.tech');
 }
 
+function isNeonPoolerUrl(url: string): boolean {
+  return url.includes('-pooler.');
+}
+
 // ============================================================
 // Remote Connection Pool (single instance)
 // ============================================================
@@ -34,7 +38,8 @@ export function getRemotePool(): PoolInstance {
       connectionString: url,
       max: 5,
       idleTimeoutMillis: 30000,
-      ...(isNeonUrl(url) && { options: '-c search_path=public' }),
+      // Neon pooler does not support search_path in startup params — only set for unpooled
+      ...(isNeonUrl(url) && !isNeonPoolerUrl(url) && { options: '-c search_path=public' }),
     };
 
     remotePool = isNeonUrl(url) ? new NeonPool(config) : new PgPool(config);
