@@ -597,6 +597,12 @@
       "load": "Error loading fiscal report"
     }
   },
+  "auth": {
+    "sign-in-google": "Sign in with Google",
+    "login-subtitle": "Sign in to manage your family finances",
+    "sign-out": "Sign out",
+    "unauthorized": "You need to sign in to access this page"
+  },
   "validation": {
     "category-required": "Please select a category",
     "amount-positive": "Amount must be greater than 0",

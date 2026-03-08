@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { getAllPendingOccurrences } from '@/services/database/RecurringExpenseRepository';
 
 export async function GET() {
@@ -15,6 +16,9 @@ export async function GET() {
       data: summary,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/recurring-expenses/pending error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener ocurrencias pendientes' }, { status: 500 });

@@ -7,6 +7,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { UpdateCategorySchema, validateRequest } from '@/schemas/transaction';
 import {
   deleteCategory,
@@ -37,6 +38,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: category });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/categories/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener categoria' }, { status: 500 });
@@ -67,6 +71,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: category });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('PUT /api/categories/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al actualizar categoria' }, { status: 500 });
@@ -116,6 +123,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('DELETE /api/categories/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al eliminar categoria' }, { status: 500 });

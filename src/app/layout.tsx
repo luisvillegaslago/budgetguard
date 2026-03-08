@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 import { DEFAULT_LOCALE, isValidLocale, type Locale } from '@/libs/i18n';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { SessionProvider } from '@/providers/SessionProvider';
 import { TranslationProvider } from '@/providers/TranslationProvider';
 import '@/styles/global.css';
 import '@fontsource/inter/latin.css';
@@ -31,11 +32,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang={locale} className="dark" suppressHydrationWarning>
       <body className={cn('min-h-screen bg-background font-sans text-foreground antialiased')} suppressHydrationWarning>
-        <QueryProvider>
-          <TranslationProvider>
-            <div className="relative min-h-screen">{children}</div>
-          </TranslationProvider>
-        </QueryProvider>
+        <SessionProvider>
+          <QueryProvider>
+            <TranslationProvider>
+              <div className="relative min-h-screen">{children}</div>
+            </TranslationProvider>
+          </QueryProvider>
+        </SessionProvider>
       </body>
     </html>
   );

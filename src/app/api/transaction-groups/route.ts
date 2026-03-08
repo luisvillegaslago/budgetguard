@@ -6,6 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { CreateTransactionGroupSchema, validateRequest } from '@/schemas/transaction';
 import { createTransactionGroup } from '@/services/database/TransactionRepository';
 import { eurosToCents } from '@/utils/money';
@@ -64,6 +65,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: transactions }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/transaction-groups error:', error);
     return NextResponse.json({ success: false, error: 'Error al crear grupo de transacciones' }, { status: 500 });

@@ -8,6 +8,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { CreateTransactionSchema, validateRequest } from '@/schemas/transaction';
 import {
   cleanupOrphanedGroup,
@@ -38,6 +39,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: transaction });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/transactions/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener transaccion' }, { status: 500 });
@@ -103,6 +107,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: transaction });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('PUT /api/transactions/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al actualizar transaccion' }, { status: 500 });
@@ -137,6 +144,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('DELETE /api/transactions/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al eliminar transaccion' }, { status: 500 });

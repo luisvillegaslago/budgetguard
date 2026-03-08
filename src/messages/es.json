@@ -597,6 +597,12 @@
       "load": "Error al cargar el informe fiscal"
     }
   },
+  "auth": {
+    "sign-in-google": "Iniciar sesión con Google",
+    "login-subtitle": "Inicia sesión para gestionar tus finanzas familiares",
+    "sign-out": "Cerrar sesión",
+    "unauthorized": "Necesitas iniciar sesión para acceder a esta página"
+  },
   "validation": {
     "category-required": "Selecciona una categoría",
     "amount-positive": "El monto debe ser mayor a 0",

@@ -7,6 +7,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { CreateTransactionSchema, TransactionFiltersSchema, validateRequest } from '@/schemas/transaction';
 import { createTransaction, getTransactionsByMonth } from '@/services/database/TransactionRepository';
 import { getCurrentMonth } from '@/utils/helpers';
@@ -39,6 +40,9 @@ export async function GET(request: NextRequest) {
       meta: { month, count: transactions.length },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/transactions error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener transacciones' }, { status: 500 });
@@ -77,6 +81,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: transaction }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/transactions error:', error);
     return NextResponse.json({ success: false, error: 'Error al crear transaccion' }, { status: 500 });

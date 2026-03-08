@@ -7,6 +7,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import type { DateRangePreset } from '@/constants/finance';
 import { DATE_RANGE_PRESET } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { CategoryHistoryFiltersSchema, validateRequest } from '@/schemas/transaction';
 import { getCategoryById } from '@/services/database/CategoryRepository';
 import { getCategoryHistorySummary, getCategoryHistoryTransactions } from '@/services/database/TransactionRepository';
@@ -108,6 +109,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/categories/[id]/history error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener historial de categoria' }, { status: 500 });

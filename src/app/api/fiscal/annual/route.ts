@@ -5,6 +5,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { AnnualFiscalFiltersSchema } from '@/schemas/fiscal';
 import { validateRequest } from '@/schemas/transaction';
 import { getModelo100Summary, getModelo390Summary } from '@/services/database/FiscalRepository';
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: report });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/fiscal/annual error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener informe fiscal anual' }, { status: 500 });

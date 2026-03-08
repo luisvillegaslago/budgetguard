@@ -6,6 +6,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { ConfirmOccurrenceSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import { confirmOccurrence } from '@/services/database/RecurringExpenseRepository';
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: occurrence });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const message = error instanceof Error ? error.message : 'Error al confirmar ocurrencia';
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/recurring-expenses/occurrences/[id]/confirm error:', error);

@@ -6,6 +6,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { UpdateTransactionGroupSchema, validateRequest } from '@/schemas/transaction';
 import {
   deleteTransactionGroup,
@@ -34,6 +35,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('DELETE /api/transaction-groups/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al eliminar grupo' }, { status: 500 });
@@ -66,6 +70,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: transactions });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('PATCH /api/transaction-groups/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al actualizar grupo' }, { status: 500 });

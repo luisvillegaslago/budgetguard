@@ -1,9 +1,10 @@
 /**
  * BudgetGuard Recurring Expense Repository
- * Database operations for recurring expense rules and occurrences
+ * Database operations for recurring expense rules and occurrences (user-scoped)
  */
 
 import { OCCURRENCE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   OccurrenceStatus,
   PendingOccurrenceMonth,
@@ -64,7 +65,6 @@ interface OccurrenceRow {
   TransactionID: number | null;
   ModifiedAmountCents: number | null;
   ProcessedAt: Date | null;
-  // Joined fields from RecurringExpenses + Categories
   RE_CategoryID: number;
   RE_CategoryName: string;
   RE_CategoryIcon: string | null;
@@ -185,19 +185,20 @@ const RECURRING_EXPENSE_JOIN = `
 `;
 
 // ============================================================
-// CRUD Operations
+// CRUD Operations (user-scoped)
 // ============================================================
 
 /**
- * Get all recurring expenses, optionally filtered
+ * Get all recurring expenses for the current user
  */
 export async function getRecurringExpenses(filters?: { isActive?: boolean }): Promise<RecurringExpense[]> {
-  const params: unknown[] = [];
-  let sql = `SELECT ${RECURRING_EXPENSE_SELECT} ${RECURRING_EXPENSE_JOIN}`;
+  const userId = await getUserIdOrThrow();
+  const params: unknown[] = [userId];
+  let sql = `SELECT ${RECURRING_EXPENSE_SELECT} ${RECURRING_EXPENSE_JOIN} WHERE re."UserID" = $1`;
 
   if (filters?.isActive !== undefined) {
     params.push(filters.isActive);
-    sql += ` WHERE re."IsActive" = $1`;
+    sql += ` AND re."IsActive" = $2`;
   }
 
   sql += ` ORDER BY re."CreatedAt" DESC`;
@@ -207,14 +208,16 @@ export async function getRecurringExpenses(filters?: { isActive?: boolean }): Pr
 }
 
 /**
- * Get a single recurring expense by ID
+ * Get a single recurring expense by ID (verifies ownership)
  */
 export async function getRecurringExpenseById(id: number): Promise<RecurringExpense | null> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<RecurringExpenseRow>(
     `SELECT ${RECURRING_EXPENSE_SELECT}
     ${RECURRING_EXPENSE_JOIN}
-    WHERE re."RecurringExpenseID" = $1`,
-    [id],
+    WHERE re."RecurringExpenseID" = $1 AND re."UserID" = $2`,
+    [id, userId],
   );
 
   const row = rows[0];
@@ -222,8 +225,7 @@ export async function getRecurringExpenseById(id: number): Promise<RecurringExpe
 }
 
 /**
- * Create a new recurring expense
- * @param data - amountCents already in cents
+ * Create a new recurring expense (user-scoped)
  */
 export async function createRecurringExpense(data: {
   categoryId: number;
@@ -238,13 +240,15 @@ export async function createRecurringExpense(data: {
   sharedDivisor?: number;
   originalAmountCents?: number | null;
 }): Promise<RecurringExpense> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<{ RecurringExpenseID: number }>(
     `INSERT INTO "RecurringExpenses" (
       "CategoryID", "AmountCents", "Description", "Frequency",
       "DayOfWeek", "DayOfMonth", "MonthOfYear",
-      "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents"
+      "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents", "UserID"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING "RecurringExpenseID"`,
     [
       data.categoryId,
@@ -258,6 +262,7 @@ export async function createRecurringExpense(data: {
       data.endDate ?? null,
       data.sharedDivisor ?? 1,
       data.originalAmountCents ?? null,
+      userId,
     ],
   );
 
@@ -275,7 +280,7 @@ export async function createRecurringExpense(data: {
 }
 
 /**
- * Update an existing recurring expense
+ * Update an existing recurring expense (verifies ownership)
  */
 export async function updateRecurringExpense(
   id: number,
@@ -294,6 +299,8 @@ export async function updateRecurringExpense(
     originalAmountCents: number | null;
   }>,
 ): Promise<RecurringExpense | null> {
+  const userId = await getUserIdOrThrow();
+
   const updates: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
@@ -351,13 +358,13 @@ export async function updateRecurringExpense(
     return getRecurringExpenseById(id);
   }
 
-  // Add id as the last parameter
   params.push(id);
+  params.push(userId);
 
   await query(
     `UPDATE "RecurringExpenses"
     SET ${updates.join(', ')}
-    WHERE "RecurringExpenseID" = $${paramIndex}`,
+    WHERE "RecurringExpenseID" = $${paramIndex} AND "UserID" = $${paramIndex + 1}`,
     params,
   );
 
@@ -365,40 +372,37 @@ export async function updateRecurringExpense(
 }
 
 /**
- * Soft-delete a recurring expense (set IsActive = false)
+ * Soft-delete a recurring expense (verifies ownership)
  */
 export async function deleteRecurringExpense(id: number): Promise<boolean> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<{ RecurringExpenseID: number }>(
     `UPDATE "RecurringExpenses"
     SET "IsActive" = false
-    WHERE "RecurringExpenseID" = $1
+    WHERE "RecurringExpenseID" = $1 AND "UserID" = $2
     RETURNING "RecurringExpenseID"`,
-    [id],
+    [id, userId],
   );
 
   return rows.length > 0;
 }
 
 // ============================================================
-// Occurrence Operations
+// Occurrence Operations (user-scoped)
 // ============================================================
 
 /**
- * Get all pending occurrences retroactively.
- * 1. Gets all active rules
- * 2. Calculates expected dates from each rule's startDate to current month
- * 3. Creates 'pending' records for dates without existing occurrences
- * 4. Returns all 'pending' occurrences grouped by month
+ * Get all pending occurrences for the current user
  */
 export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSummary> {
-  // Get all active recurring expenses
+  const userId = await getUserIdOrThrow();
+
   const rules = await getRecurringExpenses({ isActive: true });
 
-  // Current month
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  // Generate missing occurrences for each rule
   await Promise.all(
     rules.map(async (rule) => {
       const fromMonth = getMonthFromDate(rule.startDate);
@@ -418,7 +422,6 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
         effectiveToMonth,
       );
 
-      // Insert missing occurrences (ignore duplicates via unique constraint)
       await Promise.all(
         expectedDates.map(async (dateStr) => {
           await query(
@@ -432,7 +435,6 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
     }),
   );
 
-  // Fetch all pending occurrences
   const rows = await query<OccurrenceRow>(
     `SELECT
       o."OccurrenceID", o."RecurringExpenseID", o."OccurrenceDate",
@@ -460,12 +462,13 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
     INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
     WHERE o."Status" = 'pending'
       AND re."IsActive" = true
+      AND re."UserID" = $1
     ORDER BY o."OccurrenceDate" ASC`,
+    [userId],
   );
 
   const occurrences = rows.map(rowToOccurrence);
 
-  // Group by month
   const monthMap = new Map<string, RecurringOccurrence[]>();
   occurrences.forEach((occ) => {
     const month = getMonthFromDate(occ.occurrenceDate);
@@ -490,13 +493,14 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
 }
 
 /**
- * Confirm an occurrence: creates a real transaction and marks it as confirmed
+ * Confirm an occurrence (verifies ownership via recurring expense)
  */
 export async function confirmOccurrence(
   occurrenceId: number,
   modifiedAmountCents?: number,
 ): Promise<RecurringOccurrence> {
-  // Get the occurrence with its recurring expense details
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<OccurrenceRow>(
     `SELECT
       o."OccurrenceID", o."RecurringExpenseID", o."OccurrenceDate",
@@ -522,8 +526,8 @@ export async function confirmOccurrence(
     FROM "RecurringExpenseOccurrences" o
     INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
     INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
-    WHERE o."OccurrenceID" = $1`,
-    [occurrenceId],
+    WHERE o."OccurrenceID" = $1 AND re."UserID" = $2`,
+    [occurrenceId, userId],
   );
 
   const row = rows[0];
@@ -537,7 +541,6 @@ export async function confirmOccurrence(
 
   const amountCents = modifiedAmountCents ?? row.RE_AmountCents;
 
-  // Create the real transaction
   const transaction = await createTransaction({
     categoryId: row.RE_CategoryID,
     amountCents,
@@ -549,7 +552,6 @@ export async function confirmOccurrence(
     recurringExpenseId: row.RecurringExpenseID,
   });
 
-  // Update occurrence status
   await query(
     `UPDATE "RecurringExpenseOccurrences"
     SET "Status" = $1,
@@ -564,15 +566,20 @@ export async function confirmOccurrence(
 }
 
 /**
- * Skip an occurrence
+ * Skip an occurrence (verifies ownership via recurring expense)
  */
 export async function skipOccurrence(occurrenceId: number): Promise<boolean> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<{ OccurrenceID: number }>(
     `UPDATE "RecurringExpenseOccurrences"
     SET "Status" = $1, "ProcessedAt" = $2
     WHERE "OccurrenceID" = $3 AND "Status" = 'pending'
+      AND "RecurringExpenseID" IN (
+        SELECT "RecurringExpenseID" FROM "RecurringExpenses" WHERE "UserID" = $4
+      )
     RETURNING "OccurrenceID"`,
-    [OCCURRENCE_STATUS.SKIPPED, new Date(), occurrenceId],
+    [OCCURRENCE_STATUS.SKIPPED, new Date(), occurrenceId, userId],
   );
 
   return rows.length > 0;

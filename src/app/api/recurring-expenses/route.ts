@@ -7,6 +7,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { CreateRecurringExpenseSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import { createRecurringExpense, getRecurringExpenses } from '@/services/database/RecurringExpenseRepository';
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
       meta: { count: expenses.length },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/recurring-expenses error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener gastos recurrentes' }, { status: 500 });
@@ -58,6 +62,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: expense }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/recurring-expenses error:', error);
     return NextResponse.json({ success: false, error: 'Error al crear gasto recurrente' }, { status: 500 });

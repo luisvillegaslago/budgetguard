@@ -5,8 +5,10 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { Beer, Calculator, LayoutGrid, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
+import { Beer, Calculator, LayoutGrid, LogOut, Plane, Plus, Repeat, Settings, Shield } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { signOut, useSession } from 'next-auth/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
@@ -23,12 +25,15 @@ import type { Transaction } from '@/types/finance';
 
 export default function DashboardPage() {
   const { t } = useTranslate();
+  const { data: session } = useSession();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showNavMenu, setShowNavMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const goToCurrentMonth = useFinanceStore((s) => s.goToCurrentMonth);
   const navMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Resolve "Salir" category ID for the going-out shortcut
   const { data: expenseCategories } = useCategoriesHierarchical(TRANSACTION_TYPE.EXPENSE);
@@ -37,11 +42,14 @@ export default function DashboardPage() {
     [expenseCategories],
   );
 
-  // Close nav menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (navMenuRef.current && !navMenuRef.current.contains(e.target as Node)) {
         setShowNavMenu(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -60,12 +68,51 @@ export default function DashboardPage() {
       <header className="bg-card border-b border-border sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-guard-primary rounded-lg">
-                <Shield className="h-5 w-5 text-white" aria-hidden="true" />
+            {/* Logo + User */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-guard-primary rounded-lg">
+                  <Shield className="h-5 w-5 text-white" aria-hidden="true" />
+                </div>
+                <span className="text-xl font-bold text-foreground">{t('common.app-name')}</span>
               </div>
-              <span className="text-xl font-bold text-foreground">{t('common.app-name')}</span>
+              {session?.user?.image && (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="rounded-full focus:outline-none focus:ring-2 focus:ring-guard-primary focus:ring-offset-2 focus:ring-offset-card"
+                    aria-label={session.user.name ?? 'User menu'}
+                    aria-expanded={showUserMenu}
+                    aria-haspopup="true"
+                  >
+                    <Image
+                      src={session.user.image}
+                      alt={session.user.name ?? ''}
+                      width={32}
+                      height={32}
+                      className="h-8 w-8 rounded-full border border-border transition-opacity hover:opacity-80"
+                      referrerPolicy="no-referrer"
+                    />
+                  </button>
+                  {showUserMenu && (
+                    <div className="absolute left-0 mt-2 w-48 rounded-lg border border-border bg-card shadow-md z-50 animate-fade-in overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-border">
+                        <p className="text-sm font-medium text-foreground truncate">{session.user.name}</p>
+                        <p className="text-xs text-guard-muted truncate">{session.user.email}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => signOut({ callbackUrl: '/login' })}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-guard-danger hover:bg-muted transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" aria-hidden="true" />
+                        {t('auth.sign-out')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Month Picker */}
@@ -131,6 +178,16 @@ export default function DashboardPage() {
                       <Settings className="h-4 w-4 text-guard-muted" aria-hidden="true" />
                       {t('category-management.title')}
                     </Link>
+                    <div className="border-t border-border" />
+                    <div className="px-4 py-2 text-xs text-guard-muted truncate">{session?.user?.email}</div>
+                    <button
+                      type="button"
+                      onClick={() => signOut({ callbackUrl: '/login' })}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-guard-danger hover:bg-muted transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
+                      {t('auth.sign-out')}
+                    </button>
                   </div>
                 )}
               </div>

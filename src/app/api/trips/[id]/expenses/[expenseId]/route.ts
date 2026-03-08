@@ -7,6 +7,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { validateRequest } from '@/schemas/transaction';
 import { UpdateTripExpenseSchema } from '@/schemas/trip';
 import { deleteTransaction, getTransactionById, updateTransaction } from '@/services/database/TransactionRepository';
@@ -67,6 +68,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: transaction });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('PUT /api/trips/[id]/expenses/[expenseId] error:', error);
     return NextResponse.json({ success: false, error: 'Error al actualizar gasto' }, { status: 500 });
@@ -90,6 +94,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('DELETE /api/trips/[id]/expenses/[expenseId] error:', error);
     return NextResponse.json({ success: false, error: 'Error al eliminar gasto' }, { status: 500 });

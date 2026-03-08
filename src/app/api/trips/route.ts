@@ -6,6 +6,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { validateRequest } from '@/schemas/transaction';
 import { CreateTripSchema } from '@/schemas/trip';
 import { createTrip, getAllTrips } from '@/services/database/TripRepository';
@@ -20,6 +21,9 @@ export async function GET() {
       meta: { count: trips.length },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/trips error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener viajes' }, { status: 500 });
@@ -39,6 +43,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: trip }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/trips error:', error);
     return NextResponse.json({ success: false, error: 'Error al crear viaje' }, { status: 500 });

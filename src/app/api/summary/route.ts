@@ -6,6 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { MONTH_FORMAT_REGEX } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { getMonthlySummary } from '@/services/database/TransactionRepository';
 import { getCurrentMonth } from '@/utils/helpers';
 
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
       data: summary,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/summary error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener resumen' }, { status: 500 });

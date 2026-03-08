@@ -37,7 +37,7 @@ describe('SessionProvider', () => {
 
   it('should accept optional session prop', () => {
     const mockSession = {
-      user: { name: 'Test User', email: 'test@example.com' },
+      user: { userId: 1, name: 'Test User', email: 'test@example.com' },
       expires: '2025-01-01',
     };
 

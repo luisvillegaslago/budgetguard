@@ -1,6 +1,6 @@
 /**
  * BudgetGuard Fiscal Repository
- * Database operations for fiscal reports:
+ * Database operations for fiscal reports (user-scoped):
  * - Modelo 303 (IVA trimestral)
  * - Modelo 130 (IRPF trimestral)
  * - Modelo 390 (IVA anual)
@@ -11,6 +11,7 @@
  */
 
 import { IRPF_RATE, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   FiscalTransaction,
   Modelo100Section,
@@ -38,17 +39,11 @@ interface FiscalViewRow {
   DeductionPercent: number;
 }
 
-/**
- * Convert a Date or ISO string to a YYYY-MM-DD date string
- */
 function toDateString(val: Date | string): string {
   if (typeof val === 'string') return val.split('T')[0] || val;
   return val.toISOString().split('T')[0] || '';
 }
 
-/**
- * Transform a fiscal view row to FiscalTransaction with computed fields
- */
 function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
   const computed = computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent);
 
@@ -73,61 +68,59 @@ const FISCAL_VIEW_COLUMNS = `"FiscalYear", "FiscalQuarter", "Type", "Transaction
            "VendorName", "InvoiceNumber", "Description",
            "FullAmountCents", "VatPercent", "DeductionPercent"`;
 
-/**
- * Only income from the "Facturas" category counts as professional income.
- * Personal income (SS pensions, personal sales, gifts) is excluded from fiscal models.
- */
 function isProfessionalIncome(row: FiscalViewRow): boolean {
   return row.Type === TRANSACTION_TYPE.INCOME && row.ParentCategoryName === PROFESSIONAL_INCOME_CATEGORY;
 }
 
 /**
- * Get fiscal expenses (type=expense) for a specific quarter
+ * Get fiscal expenses for a specific quarter (user-scoped)
  */
 export async function getFiscalExpenses(year: number, quarter: number): Promise<FiscalTransaction[]> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
     FROM "vw_FiscalQuarterly"
     WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2
-      AND "Type" = $3
+      AND "Type" = $3 AND "UserID" = $4
     ORDER BY "TransactionDate" ASC`,
-    [year, quarter, TRANSACTION_TYPE.EXPENSE],
+    [year, quarter, TRANSACTION_TYPE.EXPENSE, userId],
   );
 
   return rows.map(rowToFiscalTransaction);
 }
 
 /**
- * Get fiscal invoices (type=income) for a specific quarter
+ * Get fiscal invoices for a specific quarter (user-scoped)
  */
 export async function getFiscalInvoices(year: number, quarter: number): Promise<FiscalTransaction[]> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
     FROM "vw_FiscalQuarterly"
     WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2
       AND "Type" = $3
       AND COALESCE("ParentCategoryName", "CategoryName") = $4
+      AND "UserID" = $5
     ORDER BY "TransactionDate" ASC`,
-    [year, quarter, TRANSACTION_TYPE.INCOME, PROFESSIONAL_INCOME_CATEGORY],
+    [year, quarter, TRANSACTION_TYPE.INCOME, PROFESSIONAL_INCOME_CATEGORY, userId],
   );
 
   return rows.map(rowToFiscalTransaction);
 }
 
 /**
- * Compute Modelo 303 summary for a single quarter
- *
- * IVA Devengado:
- *   - C07/C09 = income invoices WITH VatPercent > 0 (operaciones interiores sujetas)
- *   - C60 = income invoices WITH VatPercent = 0 (exportaciones/exentas con derecho a deducción)
- * IVA Deducible (casillas 28, 29, 45) = expense invoices with VAT > 0
+ * Compute Modelo 303 summary for a single quarter (user-scoped)
  */
 export async function getModelo303Summary(year: number, quarter: number): Promise<Modelo303Summary> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
     FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2`,
-    [year, quarter],
+    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2 AND "UserID" = $3`,
+    [year, quarter, userId],
   );
 
   let casilla07 = 0;
@@ -145,22 +138,19 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
 
     if (isProfessionalIncome(row)) {
       if (row.VatPercent > 0) {
-        // Operaciones interiores sujetas al tipo impositivo
         casilla07 += baseCents;
         casilla09 += ivaCents;
       } else {
-        // Exportaciones / operaciones exentas con derecho a deducción
         casilla60 += baseCents;
       }
     } else if (row.Type === TRANSACTION_TYPE.EXPENSE && row.VatPercent > 0) {
-      // IVA Deducible — expenses with VAT
       casilla28 += baseDeducibleCents;
       casilla29 += ivaDeducibleCents;
     }
   });
 
-  const casilla27 = casilla09; // Total IVA devengado
-  const casilla45 = casilla29; // Total IVA deducible
+  const casilla27 = casilla09;
+  const casilla45 = casilla29;
   const resultCents = casilla27 - casilla45;
 
   return {
@@ -178,21 +168,16 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
 }
 
 /**
- * Compute Modelo 130 summary using iterative "snowball" approach
- *
- * Casilla 05 accumulates actual payments (Casilla 07) from previous quarters,
- * NOT just 20% of previous profits. If a quarter had losses, nothing accumulates.
- *
- * Casilla 02 = documented expenses + 5% gastos de difícil justificación (capped at 2000€/year).
- *
- * Single SQL query for all quarters up to the requested one, then iterate in TypeScript.
+ * Compute Modelo 130 summary (user-scoped)
  */
 export async function getModelo130Summary(year: number, quarter: number): Promise<Modelo130Summary> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
     FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2`,
-    [year, quarter],
+    WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2 AND "UserID" = $3`,
+    [year, quarter, userId],
   );
 
   let ingresosAcum = 0;
@@ -200,7 +185,6 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
   let pagosAnteriores = 0;
   let currentSummary: Modelo130Summary | null = null;
 
-  // Sequential iteration Q1 → Q_current (using indexed for loop, not for...of)
   for (let q = 1; q <= quarter; q++) {
     const qRows = rows.filter((r) => r.FiscalQuarter === q);
 
@@ -219,7 +203,6 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
       }
     });
 
-    // 5% gastos de difícil justificación (cumulative, capped at 2000€/year)
     const rendimientoPre = ingresosAcum - gastosDocAcum;
     const gastosDificil = calcGastosDificilCents(rendimientoPre);
     const gastosTotal = gastosDocAcum + gastosDificil;
@@ -246,20 +229,20 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
     pagosAnteriores += aIngresar;
   }
 
-  // Safety: should never be null since quarter >= 1
   return currentSummary!;
 }
 
 /**
- * Compute Modelo 390 summary (annual VAT — sum of 4 quarterly 303s)
- * Queries the full year's data and sums up the quarterly results.
+ * Compute Modelo 390 summary (user-scoped)
  */
 export async function getModelo390Summary(year: number): Promise<Modelo390Summary> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
     FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1`,
-    [year],
+    WHERE "FiscalYear" = $1 AND "UserID" = $2`,
+    [year, userId],
   );
 
   let totalC09 = 0;
@@ -286,42 +269,43 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
     }
   });
 
-  const casilla47 = totalC09; // Total cuotas devengadas
-  const casilla48 = totalC28; // Total bases deducibles
-  const casilla49 = totalC29; // Total cuotas deducibles
-  const casilla64 = casilla49; // Total deducciones
-  const casilla65 = casilla47 - casilla64; // Resultado
-  const casilla84 = casilla65; // Suma resultados
-  const casilla86 = casilla84; // Resultado liquidación
-  const casilla97 = casilla86 < 0 ? Math.abs(casilla86) : 0; // A compensar
+  const casilla47 = totalC09;
+  const casilla48 = totalC28;
+  const casilla49 = totalC29;
+  const casilla64 = casilla49;
+  const casilla65 = casilla47 - casilla64;
+  const casilla84 = casilla65;
+  const casilla86 = casilla84;
+  const casilla97 = casilla86 < 0 ? Math.abs(casilla86) : 0;
 
   return {
     fiscalYear: year,
     casilla47Cents: casilla47,
     casilla48Cents: casilla48,
     casilla49Cents: casilla49,
-    casilla605Cents: totalC28, // Base IVA deducible operaciones interiores 21%
-    casilla606Cents: totalC29, // Cuota IVA deducible 21%
+    casilla605Cents: totalC28,
+    casilla606Cents: totalC29,
     casilla64Cents: casilla64,
     casilla65Cents: casilla65,
     casilla84Cents: casilla84,
     casilla86Cents: casilla86,
     casilla97Cents: casilla97,
-    casilla104Cents: totalC60, // Exportaciones/exentas con deducción
-    casilla108Cents: totalC60, // Total volumen operaciones
+    casilla104Cents: totalC60,
+    casilla108Cents: totalC60,
   };
 }
 
 /**
- * Compute Modelo 100 summary — Economic activities section (Estimación Directa Simplificada)
- * Only the professional activities section; the user completes the rest in Renta Web.
+ * Compute Modelo 100 summary (user-scoped)
  */
 export async function getModelo100Summary(year: number): Promise<Modelo100Section> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
     FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1`,
-    [year],
+    WHERE "FiscalYear" = $1 AND "UserID" = $2`,
+    [year, userId],
   );
 
   let ingresosCents = 0;

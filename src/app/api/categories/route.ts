@@ -6,6 +6,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { CreateCategorySchema, validateRequest } from '@/schemas/transaction';
 import { createCategory, getCategories, getCategoriesHierarchical } from '@/services/database/CategoryRepository';
 import type { TransactionType } from '@/types/finance';
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
       data: categories,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/categories error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener categorias' }, { status: 500 });
@@ -45,6 +49,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: category }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/categories error:', error);
     return NextResponse.json({ success: false, error: 'Error al crear categoria' }, { status: 500 });

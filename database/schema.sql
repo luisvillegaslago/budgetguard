@@ -46,6 +46,7 @@ DROP TABLE IF EXISTS "Categories";
 
 -- Categories table for organizing transactions
 -- Supports hierarchical subcategories via self-referencing ParentCategoryID
+-- UserID scopes categories per user (each user has their own categories)
 CREATE TABLE "Categories" (
     "CategoryID" SERIAL PRIMARY KEY,
     "Name" VARCHAR(100) NOT NULL,
@@ -58,6 +59,7 @@ CREATE TABLE "Categories" (
     "DefaultShared" BOOLEAN DEFAULT FALSE NOT NULL,
     "DefaultVatPercent" NUMERIC(5,2) NULL,
     "DefaultDeductionPercent" NUMERIC(5,2) NULL,
+    "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FK_Categories_Parent" FOREIGN KEY ("ParentCategoryID")
@@ -68,11 +70,13 @@ CREATE TABLE "Categories" (
 CREATE INDEX "IX_Categories_Type" ON "Categories"("Type");
 CREATE INDEX "IX_Categories_Active" ON "Categories"("IsActive");
 CREATE INDEX "IX_Categories_Parent" ON "Categories"("ParentCategoryID");
+CREATE INDEX "IX_Categories_UserID" ON "Categories"("UserID");
 
 -- Trips for multi-day, multi-category travel expense tracking
 CREATE TABLE "Trips" (
     "TripID" SERIAL PRIMARY KEY,
     "Name" VARCHAR(100) NOT NULL,
+    "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -80,6 +84,7 @@ CREATE TABLE "Trips" (
 -- Transaction Groups for linking related transactions (e.g., outings)
 CREATE TABLE "TransactionGroups" (
     "TransactionGroupID" SERIAL PRIMARY KEY,
+    "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -101,6 +106,7 @@ CREATE TABLE "Transactions" (
     "DeductionPercent" NUMERIC(5,2) NULL,
     "VendorName" VARCHAR(150) NULL,
     "InvoiceNumber" VARCHAR(50) NULL,
+    "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FK_Transactions_TransactionGroup"
@@ -122,6 +128,7 @@ CREATE INDEX "IX_Transactions_Fiscal" ON "Transactions"("VatPercent", "Deduction
     WHERE "VatPercent" IS NOT NULL;
 CREATE INDEX "IX_Transactions_InvoiceNumber" ON "Transactions"("InvoiceNumber")
     WHERE "InvoiceNumber" IS NOT NULL;
+CREATE INDEX "IX_Transactions_UserID" ON "Transactions"("UserID");
 
 -- ============================================================
 -- RECURRING EXPENSES
@@ -141,6 +148,7 @@ CREATE TABLE "RecurringExpenses" (
     "IsActive" BOOLEAN DEFAULT TRUE NOT NULL,
     "SharedDivisor" SMALLINT DEFAULT 1 NOT NULL,
     "OriginalAmountCents" INT NULL,
+    "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
@@ -160,6 +168,7 @@ CREATE TABLE "RecurringExpenses" (
 
 CREATE INDEX "IX_RecurringExpenses_Active" ON "RecurringExpenses"("IsActive");
 CREATE INDEX "IX_RecurringExpenses_Category" ON "RecurringExpenses"("CategoryID");
+CREATE INDEX "IX_RecurringExpenses_UserID" ON "RecurringExpenses"("UserID");
 
 CREATE TABLE "RecurringExpenseOccurrences" (
     "OccurrenceID" SERIAL PRIMARY KEY,
@@ -193,9 +202,10 @@ ADD CONSTRAINT "FK_Transactions_RecurringExpense"
 -- VIEWS (Pre-calculated aggregations)
 -- ============================================================
 
--- View: Monthly summary grouped by PARENT category
+-- View: Monthly summary grouped by PARENT category (user-scoped)
 CREATE VIEW "vw_MonthlySummary" AS
 SELECT
+    t."UserID",
     TO_CHAR(
       CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
@@ -216,6 +226,7 @@ LEFT JOIN (
     GROUP BY "TripID"
 ) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
 GROUP BY
+    t."UserID",
     TO_CHAR(
       CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
@@ -226,19 +237,21 @@ GROUP BY
     COALESCE(parent."Icon", c."Icon"),
     COALESCE(parent."Color", c."Color");
 
--- View: Monthly balance totals
+-- View: Monthly balance totals (user-scoped)
 CREATE VIEW "vw_MonthlyBalance" AS
 SELECT
+    "UserID",
     "Month",
     SUM(CASE WHEN "Type" = 'income' THEN "TotalCents" ELSE 0 END) AS "IncomeCents",
     SUM(CASE WHEN "Type" = 'expense' THEN "TotalCents" ELSE 0 END) AS "ExpenseCents",
     SUM(CASE WHEN "Type" = 'income' THEN "TotalCents" ELSE -"TotalCents" END) AS "BalanceCents"
 FROM "vw_MonthlySummary"
-GROUP BY "Month";
+GROUP BY "UserID", "Month";
 
--- View: Subcategory drill-down within a parent category
+-- View: Subcategory drill-down within a parent category (user-scoped)
 CREATE VIEW "vw_SubcategorySummary" AS
 SELECT
+    t."UserID",
     TO_CHAR(
       CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
@@ -259,6 +272,7 @@ LEFT JOIN (
     GROUP BY "TripID"
 ) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
 GROUP BY
+    t."UserID",
     TO_CHAR(
       CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
@@ -270,9 +284,10 @@ GROUP BY
     c."Color",
     c."ParentCategoryID";
 
--- View: Fiscal quarterly data
+-- View: Fiscal quarterly data (user-scoped)
 CREATE VIEW "vw_FiscalQuarterly" AS
 SELECT
+    t."UserID",
     EXTRACT(YEAR FROM t."TransactionDate")::INT AS "FiscalYear",
     EXTRACT(QUARTER FROM t."TransactionDate")::INT AS "FiscalQuarter",
     t."Type",
@@ -350,6 +365,24 @@ CREATE TABLE "VerificationTokens" (
     "Expires" TIMESTAMPTZ NOT NULL,
     PRIMARY KEY ("Identifier", "Token")
 );
+
+-- ============================================================
+-- FOREIGN KEYS: UserID references (added after Users table exists)
+-- ============================================================
+
+ALTER TABLE "Categories" ADD CONSTRAINT "FK_Categories_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "Trips" ADD CONSTRAINT "FK_Trips_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "TransactionGroups" ADD CONSTRAINT "FK_TransactionGroups_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "Transactions" ADD CONSTRAINT "FK_Transactions_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "RecurringExpenses" ADD CONSTRAINT "FK_RecurringExpenses_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+
+CREATE INDEX "IX_TransactionGroups_UserID" ON "TransactionGroups"("UserID");
+CREATE INDEX "IX_Trips_UserID" ON "Trips"("UserID");
 
 -- ============================================================
 -- TRIGGERS (Auto-update UpdatedAt timestamps)

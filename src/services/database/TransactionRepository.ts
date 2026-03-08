@@ -1,8 +1,9 @@
 /**
  * BudgetGuard Transaction Repository
- * Database operations for transactions (PostgreSQL via @neondatabase/serverless)
+ * Database operations for transactions (PostgreSQL, user-scoped)
  */
 
+import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   CategoryHistorySummary,
   CategorySummary,
@@ -128,14 +129,15 @@ function rowToTransaction(row: TransactionRow): Transaction {
 }
 
 /**
- * Get transactions for a specific month
+ * Get transactions for a specific month (user-scoped)
  */
 export async function getTransactionsByMonth(
   month: string,
   filters?: { type?: TransactionType; categoryId?: number },
 ): Promise<Transaction[]> {
-  const params: unknown[] = [month];
-  let paramIndex = 2;
+  const userId = await getUserIdOrThrow();
+  const params: unknown[] = [month, userId];
+  let paramIndex = 3;
 
   let sql = `
     SELECT
@@ -157,10 +159,11 @@ export async function getTransactionsByMonth(
       FROM "Transactions" WHERE "TripID" IS NOT NULL
       GROUP BY "TripID"
     ) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
-    WHERE (
-      (t."TripID" IS NULL AND TO_CHAR(t."TransactionDate", 'YYYY-MM') = $1)
-      OR (t."TripID" IS NOT NULL AND TO_CHAR("tripAgg"."TripStartDate", 'YYYY-MM') = $1)
-    )
+    WHERE t."UserID" = $2
+      AND (
+        (t."TripID" IS NULL AND TO_CHAR(t."TransactionDate", 'YYYY-MM') = $1)
+        OR (t."TripID" IS NOT NULL AND TO_CHAR("tripAgg"."TripStartDate", 'YYYY-MM') = $1)
+      )
   `;
 
   if (filters?.type) {
@@ -182,9 +185,11 @@ export async function getTransactionsByMonth(
 }
 
 /**
- * Get a single transaction by ID
+ * Get a single transaction by ID (verifies ownership)
  */
 export async function getTransactionById(transactionId: number): Promise<Transaction | null> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<TransactionRow>(
     `
     SELECT
@@ -201,9 +206,9 @@ export async function getTransactionById(transactionId: number): Promise<Transac
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
     LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
-    WHERE t."TransactionID" = $1
+    WHERE t."TransactionID" = $1 AND t."UserID" = $2
   `,
-    [transactionId],
+    [transactionId, userId],
   );
 
   const row = rows[0];
@@ -211,7 +216,7 @@ export async function getTransactionById(transactionId: number): Promise<Transac
 }
 
 /**
- * Create a new transaction
+ * Create a new transaction (user-scoped)
  * @param data - Transaction data (amount in cents)
  */
 export async function createTransaction(data: {
@@ -230,15 +235,17 @@ export async function createTransaction(data: {
   vendorName?: string | null;
   invoiceNumber?: string | null;
 }): Promise<Transaction> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<{ TransactionID: number }>(
     `
     INSERT INTO "Transactions" (
       "CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
       "SharedDivisor", "OriginalAmountCents", "RecurringExpenseID",
       "TransactionGroupID", "TripID", "VatPercent", "DeductionPercent",
-      "VendorName", "InvoiceNumber"
+      "VendorName", "InvoiceNumber", "UserID"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     RETURNING "TransactionID"
   `,
     [
@@ -256,6 +263,7 @@ export async function createTransaction(data: {
       data.deductionPercent ?? null,
       data.vendorName ?? null,
       data.invoiceNumber ?? null,
+      userId,
     ],
   );
 
@@ -273,7 +281,7 @@ export async function createTransaction(data: {
 }
 
 /**
- * Update an existing transaction
+ * Update an existing transaction (verifies ownership)
  */
 export async function updateTransaction(
   transactionId: number,
@@ -291,6 +299,8 @@ export async function updateTransaction(
     invoiceNumber: string | null;
   }>,
 ): Promise<Transaction | null> {
+  const userId = await getUserIdOrThrow();
+
   const updates: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
@@ -345,12 +355,13 @@ export async function updateTransaction(
   }
 
   params.push(transactionId);
+  params.push(userId);
 
   await query(
     `
     UPDATE "Transactions"
     SET ${updates.join(', ')}
-    WHERE "TransactionID" = $${paramIndex}
+    WHERE "TransactionID" = $${paramIndex} AND "UserID" = $${paramIndex + 1}
   `,
     params,
   );
@@ -359,46 +370,47 @@ export async function updateTransaction(
 }
 
 /**
- * Delete a transaction
+ * Delete a transaction (verifies ownership)
  */
 export async function deleteTransaction(transactionId: number): Promise<boolean> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<{ TransactionID: number }>(
     `
     DELETE FROM "Transactions"
-    WHERE "TransactionID" = $1
+    WHERE "TransactionID" = $1 AND "UserID" = $2
     RETURNING "TransactionID"
   `,
-    [transactionId],
+    [transactionId, userId],
   );
 
   return rows.length > 0;
 }
 
 /**
- * Get monthly summary using database views
- * All calculations are done in SQL, not in JavaScript
+ * Get monthly summary using database views (user-scoped)
  */
 export async function getMonthlySummary(month: string): Promise<MonthlySummary> {
-  // Get balance totals from view
+  const userId = await getUserIdOrThrow();
+
   const balanceRows = await query<BalanceRow>(
     `
     SELECT "Month", "IncomeCents", "ExpenseCents", "BalanceCents"
     FROM "vw_MonthlyBalance"
-    WHERE "Month" = $1
+    WHERE "Month" = $1 AND "UserID" = $2
   `,
-    [month],
+    [month, userId],
   );
 
-  // Get category breakdown from view
   const categoryRows = await query<SummaryRow>(
     `
     SELECT "Month", "Type", "CategoryID", "CategoryName", "CategoryIcon",
            "CategoryColor", "TotalCents", "TransactionCount"
     FROM "vw_MonthlySummary"
-    WHERE "Month" = $1
+    WHERE "Month" = $1 AND "UserID" = $2
     ORDER BY "Type", "TotalCents" DESC
   `,
-    [month],
+    [month, userId],
   );
 
   const balance = balanceRows[0];
@@ -422,20 +434,21 @@ export async function getMonthlySummary(month: string): Promise<MonthlySummary> 
 }
 
 /**
- * Get subcategory drill-down for a parent category in a given month
- * Uses vw_SubcategorySummary view
+ * Get subcategory drill-down (user-scoped)
  */
 export async function getSubcategorySummary(month: string, parentCategoryId: number): Promise<SubcategorySummary[]> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<SubcategorySummaryRow>(
     `
     SELECT "Month", "ParentCategoryID", "SubcategoryID", "SubcategoryName",
            "SubcategoryIcon", "SubcategoryColor", "IsSubcategory",
            "TotalCents", "TransactionCount"
     FROM "vw_SubcategorySummary"
-    WHERE "Month" = $1 AND "ParentCategoryID" = $2
+    WHERE "Month" = $1 AND "ParentCategoryID" = $2 AND "UserID" = $3
     ORDER BY "TotalCents" DESC
   `,
-    [month, parentCategoryId],
+    [month, parentCategoryId, userId],
   );
 
   return rows.map((row) => ({
@@ -455,14 +468,15 @@ export async function getSubcategorySummary(month: string, parentCategoryId: num
 // ============================================================
 
 /**
- * Get aggregated summary for a category across a date range
- * All calculations done in SQL — AmountCents already reflects shared divisor
+ * Get aggregated summary for a category across a date range (user-scoped)
  */
 export async function getCategoryHistorySummary(
   categoryId: number,
   dateFrom: Date,
   dateTo: Date,
 ): Promise<CategoryHistorySummary> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<{
     TotalCents: number;
     TransactionCount: number;
@@ -478,8 +492,9 @@ export async function getCategoryHistorySummary(
     WHERE (t."CategoryID" = $1 OR c."ParentCategoryID" = $1)
       AND t."TransactionDate" >= $2
       AND t."TransactionDate" <= $3
+      AND t."UserID" = $4
   `,
-    [categoryId, dateFrom, dateTo],
+    [categoryId, dateFrom, dateTo, userId],
   );
 
   const row = rows[0];
@@ -496,14 +511,15 @@ export async function getCategoryHistorySummary(
 }
 
 /**
- * Get transactions for a category across a date range
- * Reuses rowToTransaction for consistent mapping
+ * Get transactions for a category across a date range (user-scoped)
  */
 export async function getCategoryHistoryTransactions(
   categoryId: number,
   dateFrom: Date,
   dateTo: Date,
 ): Promise<Transaction[]> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<TransactionRow>(
     `
     SELECT
@@ -523,9 +539,10 @@ export async function getCategoryHistoryTransactions(
     WHERE (t."CategoryID" = $1 OR c."ParentCategoryID" = $1)
       AND t."TransactionDate" >= $2
       AND t."TransactionDate" <= $3
+      AND t."UserID" = $4
     ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC
   `,
-    [categoryId, dateFrom, dateTo],
+    [categoryId, dateFrom, dateTo, userId],
   );
 
   return rows.map(rowToTransaction);
@@ -542,8 +559,7 @@ interface TransactionGroupItem {
 }
 
 /**
- * Create a transaction group with multiple linked transactions
- * Uses SQL transaction for atomicity via Pool client.
+ * Create a transaction group with multiple linked transactions (user-scoped)
  */
 export async function createTransactionGroup(data: {
   description: string;
@@ -552,15 +568,16 @@ export async function createTransactionGroup(data: {
   sharedDivisor: number;
   items: TransactionGroupItem[];
 }): Promise<Transaction[]> {
+  const userId = await getUserIdOrThrow();
   const pool = getPool();
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Create the group row
     const groupResult = await client.query<{ TransactionGroupID: number }>(
-      'INSERT INTO "TransactionGroups" DEFAULT VALUES RETURNING "TransactionGroupID"',
+      'INSERT INTO "TransactionGroups" ("UserID") VALUES ($1) RETURNING "TransactionGroupID"',
+      [userId],
     );
 
     const groupId = groupResult.rows[0]?.TransactionGroupID;
@@ -568,16 +585,15 @@ export async function createTransactionGroup(data: {
       throw new Error('Failed to create transaction group');
     }
 
-    // Insert transactions sequentially using .reduce() pattern
     await data.items.reduce(async (prev, item) => {
       await prev;
       await client.query(
         `
         INSERT INTO "Transactions" (
           "CategoryID", "AmountCents", "Description", "TransactionDate",
-          "Type", "SharedDivisor", "OriginalAmountCents", "TransactionGroupID"
+          "Type", "SharedDivisor", "OriginalAmountCents", "TransactionGroupID", "UserID"
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
         [
           item.categoryId,
@@ -588,13 +604,13 @@ export async function createTransactionGroup(data: {
           data.sharedDivisor,
           item.originalAmountCents,
           groupId,
+          userId,
         ],
       );
     }, Promise.resolve());
 
     await client.query('COMMIT');
 
-    // Fetch the created transactions with full category info
     return getTransactionsByGroupId(groupId);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -605,9 +621,11 @@ export async function createTransactionGroup(data: {
 }
 
 /**
- * Get all transactions belonging to a group
+ * Get all transactions belonging to a group (user-scoped)
  */
 export async function getTransactionsByGroupId(groupId: number): Promise<Transaction[]> {
+  const userId = await getUserIdOrThrow();
+
   const rows = await query<TransactionRow>(
     `
     SELECT
@@ -624,32 +642,34 @@ export async function getTransactionsByGroupId(groupId: number): Promise<Transac
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
     LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
-    WHERE t."TransactionGroupID" = $1
+    WHERE t."TransactionGroupID" = $1 AND t."UserID" = $2
     ORDER BY t."TransactionID"
   `,
-    [groupId],
+    [groupId, userId],
   );
 
   return rows.map(rowToTransaction);
 }
 
 /**
- * Delete an entire transaction group and all its transactions
+ * Delete an entire transaction group and all its transactions (verifies ownership)
  */
 export async function deleteTransactionGroup(groupId: number): Promise<boolean> {
+  const userId = await getUserIdOrThrow();
   const pool = getPool();
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Delete all transactions in the group
-    await client.query('DELETE FROM "Transactions" WHERE "TransactionGroupID" = $1', [groupId]);
+    await client.query('DELETE FROM "Transactions" WHERE "TransactionGroupID" = $1 AND "UserID" = $2', [
+      groupId,
+      userId,
+    ]);
 
-    // Delete the group row
     const result = await client.query<{ TransactionGroupID: number }>(
-      'DELETE FROM "TransactionGroups" WHERE "TransactionGroupID" = $1 RETURNING "TransactionGroupID"',
-      [groupId],
+      'DELETE FROM "TransactionGroups" WHERE "TransactionGroupID" = $1 AND "UserID" = $2 RETURNING "TransactionGroupID"',
+      [groupId, userId],
     );
 
     await client.query('COMMIT');
@@ -664,12 +684,14 @@ export async function deleteTransactionGroup(groupId: number): Promise<boolean> 
 }
 
 /**
- * Update a transaction group's description and/or date (propagates to all transactions)
+ * Update a transaction group's description and/or date (verifies ownership)
  */
 export async function updateTransactionGroup(
   groupId: number,
   data: { description?: string; transactionDate?: Date },
 ): Promise<Transaction[]> {
+  const userId = await getUserIdOrThrow();
+
   const updates: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
@@ -685,11 +707,12 @@ export async function updateTransactionGroup(
 
   if (updates.length > 0) {
     params.push(groupId);
+    params.push(userId);
     await query(
       `
       UPDATE "Transactions"
       SET ${updates.join(', ')}
-      WHERE "TransactionGroupID" = $${paramIndex}
+      WHERE "TransactionGroupID" = $${paramIndex} AND "UserID" = $${paramIndex + 1}
     `,
       params,
     );
@@ -699,11 +722,9 @@ export async function updateTransactionGroup(
 }
 
 /**
- * Clean up orphaned transaction groups (groups with no remaining transactions)
- * Called after deleting an individual transaction that belongs to a group
+ * Clean up orphaned transaction groups
  */
 export async function cleanupOrphanedGroup(groupId: number): Promise<boolean> {
-  // Check if any transactions still reference this group
   const countRows = await query<{ count: number }>(
     'SELECT COUNT(*) AS "count" FROM "Transactions" WHERE "TransactionGroupID" = $1',
     [groupId],

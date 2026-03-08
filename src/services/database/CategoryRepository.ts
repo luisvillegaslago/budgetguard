@@ -1,8 +1,9 @@
 /**
  * BudgetGuard Category Repository
- * Database operations for categories
+ * Database operations for categories (user-scoped)
  */
 
+import { getUserIdOrThrow } from '@/libs/auth';
 import type { Category, TransactionType } from '@/types/finance';
 import { query } from './connection';
 
@@ -56,33 +57,31 @@ function buildCategoryTree(categories: Category[]): Category[] {
 }
 
 /**
- * Get all categories
+ * Get all categories for the current user
  * @param type - Optional filter by type (income/expense)
  * @param includeInactive - If true, returns inactive categories too
  */
 export async function getCategories(type?: TransactionType, includeInactive = false): Promise<Category[]> {
+  const userId = await getUserIdOrThrow();
+
   let sqlText = `
     SELECT "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
            "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"
     FROM "Categories"
+    WHERE "UserID" = $1
   `;
 
-  const conditions: string[] = [];
-  const params: unknown[] = [];
-  let paramIndex = 1;
+  const params: unknown[] = [userId];
+  let paramIndex = 2;
 
   if (!includeInactive) {
-    conditions.push('"IsActive" = TRUE');
+    sqlText += ' AND "IsActive" = TRUE';
   }
 
   if (type) {
-    conditions.push(`"Type" = $${paramIndex}`);
+    sqlText += ` AND "Type" = $${paramIndex}`;
     params.push(type);
     paramIndex++;
-  }
-
-  if (conditions.length > 0) {
-    sqlText += ` WHERE ${conditions.join(' AND ')}`;
   }
 
   sqlText += ' ORDER BY "Type", "SortOrder", "Name"';
@@ -92,15 +91,17 @@ export async function getCategories(type?: TransactionType, includeInactive = fa
 }
 
 /**
- * Get a single category by ID
+ * Get a single category by ID (verifies ownership)
  */
 export async function getCategoryById(categoryId: number): Promise<Category | null> {
+  const userId = await getUserIdOrThrow();
+
   const result = await query<CategoryRow>(
     `SELECT "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
             "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"
      FROM "Categories"
-     WHERE "CategoryID" = $1`,
-    [categoryId],
+     WHERE "CategoryID" = $1 AND "UserID" = $2`,
+    [categoryId, userId],
   );
 
   const row = result[0];
@@ -108,7 +109,7 @@ export async function getCategoryById(categoryId: number): Promise<Category | nu
 }
 
 /**
- * Create a new category
+ * Create a new category for the current user
  */
 export async function createCategory(data: {
   name: string;
@@ -121,9 +122,11 @@ export async function createCategory(data: {
   defaultVatPercent?: number | null;
   defaultDeductionPercent?: number | null;
 }): Promise<Category> {
+  const userId = await getUserIdOrThrow();
+
   const result = await query<CategoryRow>(
-    `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "UserID")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
                "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"`,
     [
@@ -136,6 +139,7 @@ export async function createCategory(data: {
       data.defaultShared ?? false,
       data.defaultVatPercent ?? null,
       data.defaultDeductionPercent ?? null,
+      userId,
     ],
   );
 
@@ -148,7 +152,7 @@ export async function createCategory(data: {
 }
 
 /**
- * Update a category
+ * Update a category (verifies ownership)
  */
 export async function updateCategory(
   categoryId: number,
@@ -163,9 +167,11 @@ export async function updateCategory(
     defaultDeductionPercent: number | null;
   }>,
 ): Promise<Category | null> {
+  const userId = await getUserIdOrThrow();
+
   const updates: string[] = [];
-  const params: unknown[] = [categoryId];
-  let paramIndex = 2;
+  const params: unknown[] = [categoryId, userId];
+  let paramIndex = 3;
 
   if (data.name !== undefined) {
     updates.push(`"Name" = $${paramIndex++}`);
@@ -207,7 +213,7 @@ export async function updateCategory(
   const result = await query<CategoryRow>(
     `UPDATE "Categories"
      SET ${updates.join(', ')}
-     WHERE "CategoryID" = $1
+     WHERE "CategoryID" = $1 AND "UserID" = $2
      RETURNING "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
                "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"`,
     params,
@@ -218,37 +224,43 @@ export async function updateCategory(
 }
 
 /**
- * Get the number of transactions referencing a category
+ * Get the number of transactions referencing a category (user-scoped)
  */
 export async function getCategoryTransactionCount(categoryId: number): Promise<number> {
+  const userId = await getUserIdOrThrow();
+
   const result = await query<{ count: number }>(
-    'SELECT COUNT(*) as count FROM "Transactions" WHERE "CategoryID" = $1',
-    [categoryId],
+    'SELECT COUNT(*) as count FROM "Transactions" WHERE "CategoryID" = $1 AND "UserID" = $2',
+    [categoryId, userId],
   );
 
   return result[0]?.count ?? 0;
 }
 
 /**
- * Get the number of child subcategories for a category
+ * Get the number of child subcategories for a category (user-scoped)
  */
 export async function getCategoryChildrenCount(categoryId: number): Promise<number> {
+  const userId = await getUserIdOrThrow();
+
   const result = await query<{ count: number }>(
-    'SELECT COUNT(*) as count FROM "Categories" WHERE "ParentCategoryID" = $1',
-    [categoryId],
+    'SELECT COUNT(*) as count FROM "Categories" WHERE "ParentCategoryID" = $1 AND "UserID" = $2',
+    [categoryId, userId],
   );
 
   return result[0]?.count ?? 0;
 }
 
 /**
- * Delete a category (hard delete)
+ * Delete a category (hard delete, verifies ownership)
  * Validation of references should be done in the API layer
  */
 export async function deleteCategory(categoryId: number): Promise<boolean> {
+  const userId = await getUserIdOrThrow();
+
   const result = await query<{ CategoryID: number }>(
-    'DELETE FROM "Categories" WHERE "CategoryID" = $1 RETURNING "CategoryID"',
-    [categoryId],
+    'DELETE FROM "Categories" WHERE "CategoryID" = $1 AND "UserID" = $2 RETURNING "CategoryID"',
+    [categoryId, userId],
   );
 
   return result.length > 0;

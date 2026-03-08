@@ -6,6 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { validateRequest } from '@/schemas/transaction';
 import { CreateTripExpenseSchema } from '@/schemas/trip';
 import { createTransaction } from '@/services/database/TransactionRepository';
@@ -57,6 +58,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: transaction }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/trips/[id]/expenses error:', error);
     return NextResponse.json({ success: false, error: 'Error al crear gasto de viaje' }, { status: 500 });

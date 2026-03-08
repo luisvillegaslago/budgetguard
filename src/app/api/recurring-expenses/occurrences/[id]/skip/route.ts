@@ -6,6 +6,7 @@
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { AuthError } from '@/libs/auth';
 import { skipOccurrence } from '@/services/database/RecurringExpenseRepository';
 
 interface RouteParams {
@@ -29,6 +30,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('POST /api/recurring-expenses/occurrences/[id]/skip error:', error);
     return NextResponse.json({ success: false, error: 'Error al omitir ocurrencia' }, { status: 500 });

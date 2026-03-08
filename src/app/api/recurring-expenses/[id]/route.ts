@@ -8,6 +8,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { SHARED_EXPENSE } from '@/constants/finance';
+import { AuthError } from '@/libs/auth';
 import { UpdateRecurringExpenseSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import {
@@ -38,6 +39,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: expense });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('GET /api/recurring-expenses/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al obtener gasto recurrente' }, { status: 500 });
@@ -83,6 +87,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, data: expense });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('PUT /api/recurring-expenses/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al actualizar gasto recurrente' }, { status: 500 });
@@ -106,6 +113,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // biome-ignore lint/suspicious/noConsole: Error logging for debugging
     console.error('DELETE /api/recurring-expenses/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Error al eliminar gasto recurrente' }, { status: 500 });
