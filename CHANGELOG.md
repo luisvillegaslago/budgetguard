@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.5.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.4.1...v0.5.0) (2026-03-09)
+
+
+### Features
+
+* add persistent navigation, movements page, and UI improvements ([f2ba7ef](https://github.com/luisvillegaslago/budgetguard/commit/f2ba7ef46dbba17c57dd0aa72acd968e634e642d))
+
 ## [0.4.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.4.0...v0.4.1) (2026-03-09)
 
 
