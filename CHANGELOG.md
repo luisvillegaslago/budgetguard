@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.7.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.6.0...v0.7.0) (2026-03-09)
+
+
+### Features
+
+* add Companies entity with sync triggers, SSE sync progress, and skydiving sync ([c9d0795](https://github.com/luisvillegaslago/budgetguard/commit/c9d07956a8ed54dfe5c0b1ee827652d3239b562c))
+
 ## [0.6.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.5.0...v0.6.0) (2026-03-09)
 
 
