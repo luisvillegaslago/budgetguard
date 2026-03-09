@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.7.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.7.0...v0.7.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* resolve trip color bar invisible segments and assign unique category colors ([30b39a1](https://github.com/luisvillegaslago/budgetguard/commit/30b39a15aebcd820a46e1b3e9ccc42abfe89f8c5))
+
 ## [0.7.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.6.0...v0.7.0) (2026-03-09)
 
 
