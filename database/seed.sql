@@ -139,12 +139,12 @@ BEGIN
 
   INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared") VALUES
   ('Alojamiento', 'expense', 'bed', '#8B5CF6', 1, v_id, FALSE),
-  ('Transporte', 'expense', 'car', '#8B5CF6', 2, v_id, FALSE),
-  ('Comida', 'expense', 'utensils', '#8B5CF6', 3, v_id, FALSE),
-  ('Restaurante', 'expense', 'chef-hat', '#8B5CF6', 4, v_id, FALSE),
-  ('Actividades', 'expense', 'ticket', '#8B5CF6', 5, v_id, FALSE),
-  ('Esquí', 'expense', 'mountain-snow', '#8B5CF6', 6, v_id, FALSE),
-  ('Otros', 'expense', 'ellipsis', '#8B5CF6', 7, v_id, FALSE),
-  ('Skydive', 'expense', 'cloud', '#8B5CF6', 8, v_id, FALSE),
-  ('Copas', 'expense', 'wine', '#8B5CF6', 9, v_id, FALSE);
+  ('Transporte', 'expense', 'car', '#EF4444', 2, v_id, FALSE),
+  ('Comida', 'expense', 'utensils', '#F59E0B', 3, v_id, FALSE),
+  ('Restaurante', 'expense', 'chef-hat', '#06B6D4', 4, v_id, FALSE),
+  ('Actividades', 'expense', 'ticket', '#10B981', 5, v_id, FALSE),
+  ('Esquí', 'expense', 'mountain-snow', '#3B82F6', 6, v_id, FALSE),
+  ('Otros', 'expense', 'ellipsis', '#64748B', 7, v_id, FALSE),
+  ('Skydive', 'expense', 'cloud', '#14B8A6', 8, v_id, FALSE),
+  ('Copas', 'expense', 'wine', '#EC4899', 9, v_id, FALSE);
 END $$;

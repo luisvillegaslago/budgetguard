@@ -135,8 +135,8 @@ function rowToCategorySummary(row: TripCategorySummaryRow): TripCategorySummary 
     categoryName: row.CategoryName,
     categoryIcon: row.CategoryIcon,
     categoryColor: row.CategoryColor,
-    totalCents: row.TotalCents,
-    count: row.Count,
+    totalCents: Number(row.TotalCents),
+    count: Number(row.Count),
   };
 }
 
@@ -205,8 +205,8 @@ export async function getAllTrips(): Promise<TripDisplay[]> {
       name: row.Name,
       createdAt: toISOString(row.CreatedAt),
       updatedAt: toISOString(row.UpdatedAt),
-      expenseCount: row.ExpenseCount,
-      totalCents: row.TotalCents,
+      expenseCount: Number(row.ExpenseCount),
+      totalCents: Number(row.TotalCents),
       startDate: row.StartDate ? toDateString(row.StartDate) : null,
       endDate: row.EndDate ? toDateString(row.EndDate) : null,
       categorySummary: categoryMap.get(row.TripID) ?? [],
@@ -389,5 +389,5 @@ export async function getTripExpenseCount(tripId: number): Promise<number> {
     [tripId, userId],
   );
 
-  return result[0]?.count ?? 0;
+  return Number(result[0]?.count ?? 0);
 }

@@ -242,5 +242,5 @@ export async function getCompanyUsageCount(id: number): Promise<number> {
     [id, userId],
   );
 
-  return rows[0]?.count ?? 0;
+  return Number(rows[0]?.count ?? 0);
 }

@@ -234,7 +234,7 @@ export async function getCategoryTransactionCount(categoryId: number): Promise<n
     [categoryId, userId],
   );
 
-  return result[0]?.count ?? 0;
+  return Number(result[0]?.count ?? 0);
 }
 
 /**
@@ -248,7 +248,7 @@ export async function getCategoryChildrenCount(categoryId: number): Promise<numb
     [categoryId, userId],
   );
 
-  return result[0]?.count ?? 0;
+  return Number(result[0]?.count ?? 0);
 }
 
 /**

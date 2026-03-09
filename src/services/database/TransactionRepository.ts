@@ -500,9 +500,9 @@ export async function getCategoryHistorySummary(
   );
 
   const row = rows[0];
-  const totalCents = row?.TotalCents ?? 0;
-  const transactionCount = row?.TransactionCount ?? 0;
-  const monthCount = row?.MonthCount ?? 0;
+  const totalCents = Number(row?.TotalCents ?? 0);
+  const transactionCount = Number(row?.TransactionCount ?? 0);
+  const monthCount = Number(row?.MonthCount ?? 0);
 
   return {
     totalCents,
