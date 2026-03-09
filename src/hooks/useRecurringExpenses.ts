@@ -89,6 +89,17 @@ async function deleteRecurringExpenseRequest(id: number): Promise<void> {
   }
 }
 
+async function hardDeleteRecurringExpenseRequest(id: number): Promise<void> {
+  const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/${id}?permanent=true`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const errorData: ApiResponse<never> = await response.json();
+    throw new Error(errorData.error ?? 'Error al eliminar gasto recurrente');
+  }
+}
+
 /**
  * Hook to fetch all recurring expenses
  */
@@ -139,6 +150,21 @@ export function useDeleteRecurringExpense() {
 
   return useMutation({
     mutationFn: deleteRecurringExpenseRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
+    },
+  });
+}
+
+/**
+ * Hook to permanently delete a recurring expense
+ */
+export function useHardDeleteRecurringExpense() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: hardDeleteRecurringExpenseRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });

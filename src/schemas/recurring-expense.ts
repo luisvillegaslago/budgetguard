@@ -28,6 +28,9 @@ export const CreateRecurringExpenseSchema = z
     startDate: z.coerce.date({ message: 'Invalid date' }),
     endDate: z.coerce.date().nullable().optional().default(null),
     isShared: z.boolean().optional().default(false),
+    vatPercent: z.number().min(0).max(100).nullable().optional().default(null),
+    deductionPercent: z.number().min(0).max(100).nullable().optional().default(null),
+    vendorName: z.string().max(150).nullable().optional().default(null),
   })
   .refine(
     (data) => {
@@ -74,6 +77,9 @@ export const UpdateRecurringExpenseSchema = z.object({
   endDate: z.coerce.date().nullable().optional(),
   isShared: z.boolean().optional(),
   isActive: z.boolean().optional(),
+  vatPercent: z.number().min(0).max(100).nullable().optional(),
+  deductionPercent: z.number().min(0).max(100).nullable().optional(),
+  vendorName: z.string().max(150).nullable().optional(),
 });
 
 export type UpdateRecurringExpenseInput = z.infer<typeof UpdateRecurringExpenseSchema>;

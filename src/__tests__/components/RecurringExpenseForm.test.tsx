@@ -56,6 +56,10 @@ jest.mock('@/hooks/useRecurringExpenses', () => ({
 }));
 
 jest.mock('@/hooks/useCategories', () => ({
+  useCategories: () => ({
+    data: mockCategories,
+    isLoading: false,
+  }),
   useCategoriesHierarchical: () => ({
     data: mockCategories,
     isLoading: false,
@@ -107,6 +111,11 @@ jest.mock('@/hooks/useTranslations', () => ({
         'transactions.form.fields.shared-hint': 'Total: {total}, tu parte: {half}',
         'common.buttons.close': 'Cerrar',
         'common.labels.optional': 'opcional',
+        'fiscal.form.section-title': 'Datos fiscales',
+        'fiscal.form.vat-percent': 'IVA %',
+        'fiscal.form.deduction-percent': 'Deducción %',
+        'fiscal.form.vendor-name': 'Proveedor',
+        'fiscal.form.vendor-placeholder': 'Nombre del proveedor',
       };
       return translations[key] ?? key;
     },
@@ -303,6 +312,9 @@ describe('RecurringExpenseForm — Edit mode', () => {
     isActive: true,
     sharedDivisor: 1,
     originalAmountCents: null,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   };

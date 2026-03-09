@@ -45,6 +45,9 @@ interface RecurringExpenseRow {
   IsActive: boolean;
   SharedDivisor: number;
   OriginalAmountCents: number | null;
+  VatPercent: number | null;
+  DeductionPercent: number | null;
+  VendorName: string | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -73,6 +76,9 @@ interface OccurrenceRow {
   RE_IsActive: boolean;
   RE_SharedDivisor: number;
   RE_OriginalAmountCents: number | null;
+  RE_VatPercent: number | null;
+  RE_DeductionPercent: number | null;
+  RE_VendorName: string | null;
   RE_CreatedAt: Date;
   RE_UpdatedAt: Date;
 }
@@ -109,6 +115,9 @@ function rowToRecurringExpense(row: RecurringExpenseRow): RecurringExpense {
     isActive: row.IsActive,
     sharedDivisor: row.SharedDivisor,
     originalAmountCents: row.OriginalAmountCents,
+    vatPercent: row.VatPercent,
+    deductionPercent: row.DeductionPercent,
+    vendorName: row.VendorName,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -150,6 +159,9 @@ function rowToOccurrence(row: OccurrenceRow): RecurringOccurrence {
       isActive: row.RE_IsActive,
       sharedDivisor: row.RE_SharedDivisor,
       originalAmountCents: row.RE_OriginalAmountCents,
+      vatPercent: row.RE_VatPercent,
+      deductionPercent: row.RE_DeductionPercent,
+      vendorName: row.RE_VendorName,
       createdAt: toISOString(row.RE_CreatedAt),
       updatedAt: toISOString(row.RE_UpdatedAt),
     },
@@ -168,6 +180,7 @@ const RECURRING_EXPENSE_SELECT = `
   re."DayOfWeek", re."DayOfMonth", re."MonthOfYear",
   re."StartDate", re."EndDate", re."IsActive",
   re."SharedDivisor", re."OriginalAmountCents",
+  re."VatPercent", re."DeductionPercent", re."VendorName",
   re."CreatedAt", re."UpdatedAt"
 `;
 
@@ -231,14 +244,18 @@ export async function createRecurringExpense(data: {
   endDate?: Date | null;
   sharedDivisor?: number;
   originalAmountCents?: number | null;
+  vatPercent?: number | null;
+  deductionPercent?: number | null;
+  vendorName?: string | null;
 }): Promise<RecurringExpense> {
   const userId = await getUserIdOrThrow();
 
   const rows = await query<{ RecurringExpenseID: number }>(
     `INSERT INTO "RecurringExpenses" ("CategoryID", "AmountCents", "Description", "Frequency",
                                           "DayOfWeek", "DayOfMonth", "MonthOfYear",
-                                          "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents", "UserID")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING "RecurringExpenseID"`,
+                                          "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents",
+                                          "VatPercent", "DeductionPercent", "VendorName", "UserID")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING "RecurringExpenseID"`,
     [
       data.categoryId,
       data.amountCents,
@@ -251,6 +268,9 @@ export async function createRecurringExpense(data: {
       data.endDate ? toDateString(data.endDate) : null,
       data.sharedDivisor ?? 1,
       data.originalAmountCents ?? null,
+      data.vatPercent ?? null,
+      data.deductionPercent ?? null,
+      data.vendorName ?? null,
       userId,
     ],
   );
@@ -286,6 +306,9 @@ export async function updateRecurringExpense(
     isActive: boolean;
     sharedDivisor: number;
     originalAmountCents: number | null;
+    vatPercent: number | null;
+    deductionPercent: number | null;
+    vendorName: string | null;
   }>,
 ): Promise<RecurringExpense | null> {
   const userId = await getUserIdOrThrow();
@@ -342,6 +365,18 @@ export async function updateRecurringExpense(
     updates.push(`"OriginalAmountCents" = $${paramIndex++}`);
     params.push(data.originalAmountCents);
   }
+  if (data.vatPercent !== undefined) {
+    updates.push(`"VatPercent" = $${paramIndex++}`);
+    params.push(data.vatPercent);
+  }
+  if (data.deductionPercent !== undefined) {
+    updates.push(`"DeductionPercent" = $${paramIndex++}`);
+    params.push(data.deductionPercent);
+  }
+  if (data.vendorName !== undefined) {
+    updates.push(`"VendorName" = $${paramIndex++}`);
+    params.push(data.vendorName);
+  }
 
   if (updates.length === 0) {
     return getRecurringExpenseById(id);
@@ -372,6 +407,33 @@ export async function deleteRecurringExpense(id: number): Promise<boolean> {
          SET "IsActive" = false
          WHERE "RecurringExpenseID" = $1
            AND "UserID" = $2 RETURNING "RecurringExpenseID"`,
+    [id, userId],
+  );
+
+  return rows.length > 0;
+}
+
+/**
+ * Hard-delete a recurring expense and its occurrences (verifies ownership).
+ * Unlinks associated transactions (sets RecurringExpenseID to NULL) so they remain in history.
+ * Occurrences are cascade-deleted by the FK constraint.
+ */
+export async function hardDeleteRecurringExpense(id: number): Promise<boolean> {
+  const userId = await getUserIdOrThrow();
+
+  // Verify ownership before proceeding
+  const existing = await getRecurringExpenseById(id);
+  if (!existing) return false;
+
+  // Unlink transactions so the FK constraint doesn't block deletion
+  await query(`UPDATE "Transactions" SET "RecurringExpenseID" = NULL WHERE "RecurringExpenseID" = $1`, [id]);
+
+  // Delete the rule (occurrences cascade-delete via FK)
+  const rows = await query<{ RecurringExpenseID: number }>(
+    `DELETE FROM "RecurringExpenses"
+         WHERE "RecurringExpenseID" = $1
+           AND "UserID" = $2
+         RETURNING "RecurringExpenseID"`,
     [id, userId],
   );
 
@@ -456,6 +518,9 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
                 re."IsActive"            AS "RE_IsActive",
                 re."SharedDivisor"       AS "RE_SharedDivisor",
                 re."OriginalAmountCents" AS "RE_OriginalAmountCents",
+                re."VatPercent"          AS "RE_VatPercent",
+                re."DeductionPercent"    AS "RE_DeductionPercent",
+                re."VendorName"          AS "RE_VendorName",
                 re."CreatedAt"           AS "RE_CreatedAt",
                 re."UpdatedAt"           AS "RE_UpdatedAt"
          FROM "RecurringExpenseOccurrences" o
@@ -527,6 +592,9 @@ export async function confirmOccurrence(
                 re."IsActive"            AS "RE_IsActive",
                 re."SharedDivisor"       AS "RE_SharedDivisor",
                 re."OriginalAmountCents" AS "RE_OriginalAmountCents",
+                re."VatPercent"          AS "RE_VatPercent",
+                re."DeductionPercent"    AS "RE_DeductionPercent",
+                re."VendorName"          AS "RE_VendorName",
                 re."CreatedAt"           AS "RE_CreatedAt",
                 re."UpdatedAt"           AS "RE_UpdatedAt"
          FROM "RecurringExpenseOccurrences" o
@@ -557,6 +625,9 @@ export async function confirmOccurrence(
     sharedDivisor: row.RE_SharedDivisor,
     originalAmountCents: row.RE_OriginalAmountCents,
     recurringExpenseId: row.RecurringExpenseID,
+    vatPercent: row.RE_VatPercent ?? null,
+    deductionPercent: row.RE_DeductionPercent ?? null,
+    vendorName: row.RE_VendorName ?? null,
   });
 
   await query(

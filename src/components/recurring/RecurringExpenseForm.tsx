@@ -7,13 +7,14 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Users, X } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, ChevronUp, Users, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { type Resolver, useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateRecurringExpense, useUpdateRecurringExpense } from '@/hooks/useRecurringExpenses';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateRecurringExpenseInput, CreateRecurringExpenseSchema } from '@/schemas/recurring-expense';
@@ -32,6 +33,9 @@ interface RecurringExpenseFormValues {
   startDate: string;
   endDate: string | null;
   isShared: boolean;
+  vatPercent: number | null;
+  deductionPercent: number | null;
+  vendorName: string | null;
 }
 
 interface RecurringExpenseFormProps {
@@ -56,6 +60,10 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
   const updateMutation = useUpdateRecurringExpense();
 
   const [frequency, setFrequency] = useState<RecurringFrequency>(expense?.frequency ?? RECURRING_FREQUENCY.MONTHLY);
+  const [showFiscal, setShowFiscal] = useState(
+    () => isEditing && (expense.vatPercent !== null || expense.deductionPercent !== null),
+  );
+  const fiscalDirtyRef = useRef(isEditing);
 
   const {
     register,
@@ -77,12 +85,29 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
       startDate: expense?.startDate ?? new Date().toISOString().split('T')[0],
       endDate: expense?.endDate ?? null,
       isShared: expense ? expense.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR : false,
+      vatPercent: expense?.vatPercent ?? null,
+      deductionPercent: expense?.deductionPercent ?? null,
+      vendorName: expense?.vendorName ?? null,
     },
   });
 
   const watchedAmount = useWatch({ control, name: 'amount' });
   const watchedIsShared = useWatch({ control, name: 'isShared' });
   const watchedDayOfWeek = useWatch({ control, name: 'dayOfWeek' });
+  const watchedCategoryId = useWatch({ control, name: 'categoryId' });
+
+  // Auto-fill fiscal defaults from category
+  const fiscalDefaults = useFiscalDefaults(watchedCategoryId ?? null);
+
+  useEffect(() => {
+    if (fiscalDefaults && !fiscalDirtyRef.current) {
+      setValue('vatPercent', fiscalDefaults.vatPercent);
+      setValue('deductionPercent', fiscalDefaults.deductionPercent);
+      setShowFiscal(true);
+    } else if (!fiscalDefaults && !fiscalDirtyRef.current) {
+      setShowFiscal(false);
+    }
+  }, [fiscalDefaults, setValue]);
 
   const showSharedHint = watchedIsShared && watchedAmount > 0;
   const sharedHintTotal = showSharedHint ? formatCurrency(eurosToCents(watchedAmount)) : '';
@@ -382,6 +407,85 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                 errors.description ? 'border-guard-danger' : 'border-input',
               )}
             />
+          </div>
+
+          {/* Fiscal Data Section (collapsible) */}
+          <div className="border border-border rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowFiscal(!showFiscal)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <span>{t('fiscal.form.section-title')}</span>
+              {showFiscal ? (
+                <ChevronUp className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-guard-muted" aria-hidden="true" />
+              )}
+            </button>
+
+            {showFiscal && (
+              <div className="px-4 pb-4 space-y-3 border-t border-border animate-fade-in">
+                <div className="grid grid-cols-2 gap-3 pt-3">
+                  {/* VAT % */}
+                  <div>
+                    <label htmlFor="re-vatPercent" className="block text-xs font-medium text-foreground mb-1">
+                      {t('fiscal.form.vat-percent')}
+                    </label>
+                    <input
+                      id="re-vatPercent"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      {...register('vatPercent', { valueAsNumber: true })}
+                      onChange={(e) => {
+                        fiscalDirtyRef.current = true;
+                        register('vatPercent', { valueAsNumber: true }).onChange(e);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Deduction % */}
+                  <div>
+                    <label htmlFor="re-deductionPercent" className="block text-xs font-medium text-foreground mb-1">
+                      {t('fiscal.form.deduction-percent')}
+                    </label>
+                    <input
+                      id="re-deductionPercent"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      {...register('deductionPercent', { valueAsNumber: true })}
+                      onChange={(e) => {
+                        fiscalDirtyRef.current = true;
+                        register('deductionPercent', { valueAsNumber: true }).onChange(e);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Vendor */}
+                <div>
+                  <label htmlFor="re-vendorName" className="block text-xs font-medium text-foreground mb-1">
+                    {t('fiscal.form.vendor-name')}
+                  </label>
+                  <input
+                    id="re-vendorName"
+                    type="text"
+                    autoComplete="off"
+                    placeholder={t('fiscal.form.vendor-placeholder')}
+                    {...register('vendorName')}
+                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error */}

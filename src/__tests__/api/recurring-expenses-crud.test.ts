@@ -34,6 +34,9 @@ const mockExpense: RecurringExpense = {
   isActive: true,
   sharedDivisor: 1,
   originalAmountCents: null,
+  vatPercent: null,
+  deductionPercent: null,
+  vendorName: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };

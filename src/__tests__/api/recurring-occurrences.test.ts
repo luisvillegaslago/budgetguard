@@ -43,6 +43,9 @@ const mockOccurrence: RecurringOccurrence = {
     isActive: true,
     sharedDivisor: 1,
     originalAmountCents: null,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
@@ -171,21 +174,25 @@ describe('POST /api/recurring-expenses/occurrences/[id]/confirm', () => {
   });
 
   it('should return 500 when occurrence not found', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses/occurrences/999/confirm');
     const response = await CONFIRM(request as never, createMockParams('999'));
     const data = await response.json();
 
     expect(response.status).toBe(500);
     expect(data.error).toBe('Internal server error');
+    consoleSpy.mockRestore();
   });
 
   it('should return 500 when occurrence is not pending', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses/occurrences/888/confirm');
     const response = await CONFIRM(request as never, createMockParams('888'));
     const data = await response.json();
 
     expect(response.status).toBe(500);
     expect(data.error).toBe('Internal server error');
+    consoleSpy.mockRestore();
   });
 
   it('should return 400 for invalid modifiedAmount', async () => {

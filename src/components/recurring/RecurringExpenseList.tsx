@@ -5,7 +5,7 @@
  * Displays all recurring expense rules with management actions
  */
 
-import { Pencil, Power, Repeat } from 'lucide-react';
+import { Pencil, Power, Repeat, Trash2 } from 'lucide-react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE } from '@/constants/finance';
 import {
   useDeleteRecurringExpense,
+  useHardDeleteRecurringExpense,
   useRecurringExpenses,
   useUpdateRecurringExpense,
 } from '@/hooks/useRecurringExpenses';
@@ -29,6 +30,7 @@ interface RecurringExpenseItemProps {
 function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
   const { t } = useTranslate();
   const deleteMutation = useDeleteRecurringExpense();
+  const hardDeleteMutation = useHardDeleteRecurringExpense();
   const updateMutation = useUpdateRecurringExpense();
   const iconColor = expense.category?.color ?? '#EF4444';
   const isShared = expense.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
@@ -59,7 +61,13 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
     }
   };
 
-  const isProcessing = deleteMutation.isPending || updateMutation.isPending;
+  const handleHardDelete = () => {
+    if (window.confirm(t('recurring.management.actions.confirm-delete'))) {
+      hardDeleteMutation.mutate(expense.recurringExpenseId);
+    }
+  };
+
+  const isProcessing = deleteMutation.isPending || updateMutation.isPending || hardDeleteMutation.isPending;
 
   return (
     <div
@@ -137,6 +145,15 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
           }
         >
           {isProcessing ? <LoadingSpinner size="sm" /> : <Power className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          onClick={handleHardDelete}
+          disabled={isProcessing}
+          className="p-1.5 rounded-md text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 transition-colors"
+          aria-label={t('recurring.management.actions.delete')}
+        >
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
     </div>

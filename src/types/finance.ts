@@ -78,6 +78,9 @@ export interface RecurringExpense {
   isActive: boolean;
   sharedDivisor: number;
   originalAmountCents: number | null;
+  vatPercent: number | null;
+  deductionPercent: number | null;
+  vendorName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,6 +99,9 @@ export interface RecurringExpenseInput {
   startDate: Date;
   endDate?: Date | null;
   isShared?: boolean;
+  vatPercent?: number | null;
+  deductionPercent?: number | null;
+  vendorName?: string | null;
 }
 
 /**

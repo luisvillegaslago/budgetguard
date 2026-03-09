@@ -233,6 +233,7 @@ describe('GET /api/fiscal', () => {
   // ── Error handling ──
 
   it('should return 500 when repository throws an error', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     mockGetModelo303Summary.mockRejectedValue(new Error('Database connection failed'));
 
     const request = createMockRequest('http://localhost:3000/api/fiscal?year=2025&quarter=1');
@@ -242,5 +243,6 @@ describe('GET /api/fiscal', () => {
     expect(response.status).toBe(500);
     expect(body.success).toBe(false);
     expect(body.error).toBe('Internal server error');
+    consoleSpy.mockRestore();
   });
 });

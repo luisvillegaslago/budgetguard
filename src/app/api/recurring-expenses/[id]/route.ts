@@ -11,6 +11,7 @@ import { validateRequest } from '@/schemas/transaction';
 import {
   deleteRecurringExpense,
   getRecurringExpenseById,
+  hardDeleteRecurringExpense,
   updateRecurringExpense,
 } from '@/services/database/RecurringExpenseRepository';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
@@ -56,12 +57,18 @@ export const PUT = withApiHandler(async (request, { params }) => {
   return { data: expense };
 }, 'PUT /api/recurring-expenses/[id]');
 
-export const DELETE = withApiHandler(async (_request, { params }) => {
+export const DELETE = withApiHandler(async (request, { params }) => {
   const { id } = await params;
   const recurringExpenseId = parseIdParam(id);
   if (typeof recurringExpenseId !== 'number') return recurringExpenseId;
 
-  const deleted = await deleteRecurringExpense(recurringExpenseId);
+  const { searchParams } = new URL(request.url);
+  const permanent = searchParams.get('permanent') === 'true';
+
+  const deleted = permanent
+    ? await hardDeleteRecurringExpense(recurringExpenseId)
+    : await deleteRecurringExpense(recurringExpenseId);
+
   if (!deleted) return notFound('Gasto recurrente no encontrado');
 
   return { data: { deleted: true } };
