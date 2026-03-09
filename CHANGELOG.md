@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.5.0...v0.6.0) (2026-03-09)
+
+
+### Features
+
+* add fiscal fields and permanent delete for recurring expenses ([f270dbc](https://github.com/luisvillegaslago/budgetguard/commit/f270dbcf76aceb421fe1bb244be680fe3c5a1186))
+
+
+### Bug Fixes
+
+* improve login UX with error feedback and loading state ([2fac87b](https://github.com/luisvillegaslago/budgetguard/commit/2fac87bf3fbfb6bfec236ad9535571ea3af272c6))
+
 ## [0.5.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.4.1...v0.5.0) (2026-03-09)
 
 
