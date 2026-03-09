@@ -3,6 +3,7 @@
  * Tests partial update validation — type and parentCategoryId are immutable
  */
 
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import { UpdateCategorySchema } from '@/schemas/transaction';
 
 describe('UpdateCategorySchema', () => {
@@ -141,7 +142,7 @@ describe('UpdateCategorySchema', () => {
   it('should strip unknown fields (type is immutable)', () => {
     const result = UpdateCategorySchema.safeParse({
       name: 'Updated',
-      type: 'income',
+      type: TRANSACTION_TYPE.INCOME,
     });
 
     expect(result.success).toBe(true);

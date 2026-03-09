@@ -4,7 +4,7 @@
  */
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
+import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse } from '@/types/finance';
 import type { SyncCompareResult, SyncExecuteInput, SyncExecutionResult } from '@/types/sync';
 import { fetchApi } from '@/utils/fetchApi';
@@ -54,7 +54,7 @@ export function useSyncCompare() {
     queryKey: [QUERY_KEY.SYNC_COMPARE],
     queryFn: fetchSyncCompare,
     enabled: false, // Only fetch on manual trigger
-    gcTime: 0, // Don't cache — always start fresh on mount
+    gcTime: CACHE_TIME.NO_CACHE, // Don't cache — always start fresh on mount
   });
 }
 

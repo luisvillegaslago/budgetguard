@@ -7,6 +7,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import type { Category } from '@/types/finance';
 
 // jsdom does not implement scrollIntoView
@@ -16,7 +17,7 @@ const mockHierarchicalCategories: Category[] = [
   {
     categoryId: 1,
     name: 'Vivienda',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'home',
     color: '#EF4444',
     sortOrder: 1,
@@ -29,7 +30,7 @@ const mockHierarchicalCategories: Category[] = [
       {
         categoryId: 10,
         name: 'Internet',
-        type: 'expense',
+        type: TRANSACTION_TYPE.EXPENSE,
         icon: 'wifi',
         color: '#EF4444',
         sortOrder: 1,
@@ -42,7 +43,7 @@ const mockHierarchicalCategories: Category[] = [
       {
         categoryId: 11,
         name: 'Luz',
-        type: 'expense',
+        type: TRANSACTION_TYPE.EXPENSE,
         icon: 'zap',
         color: '#EF4444',
         sortOrder: 2,
@@ -57,7 +58,7 @@ const mockHierarchicalCategories: Category[] = [
   {
     categoryId: 2,
     name: 'Transporte',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'car',
     color: '#14B8A6',
     sortOrder: 2,
@@ -105,7 +106,7 @@ describe('CategorySelector', () => {
   const mockOnSharedDefaultChange = jest.fn();
 
   const defaultProps = {
-    type: 'expense' as const,
+    type: TRANSACTION_TYPE.EXPENSE,
     onCategoryChange: mockOnCategoryChange,
     onSharedDefaultChange: mockOnSharedDefaultChange,
   };

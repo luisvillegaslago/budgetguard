@@ -3,13 +3,14 @@
  * Tests GET /api/categories?hierarchical=true
  */
 
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import type { Category } from '@/types/finance';
 
 const mockFlatCategories: Category[] = [
   {
     categoryId: 1,
     name: 'Vivienda',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'home',
     color: '#EF4444',
     sortOrder: 1,
@@ -22,7 +23,7 @@ const mockFlatCategories: Category[] = [
   {
     categoryId: 2,
     name: 'Salir',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'beer',
     color: '#3B82F6',
     sortOrder: 2,
@@ -35,7 +36,7 @@ const mockFlatCategories: Category[] = [
   {
     categoryId: 10,
     name: 'Internet',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'wifi',
     color: '#EF4444',
     sortOrder: 1,
@@ -48,7 +49,7 @@ const mockFlatCategories: Category[] = [
   {
     categoryId: 11,
     name: 'Luz',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'zap',
     color: '#EF4444',
     sortOrder: 2,
@@ -61,7 +62,7 @@ const mockFlatCategories: Category[] = [
   {
     categoryId: 20,
     name: 'Comida',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'utensils',
     color: '#3B82F6',
     sortOrder: 1,
@@ -155,7 +156,7 @@ describe('GET /api/categories', () => {
     expect(response.status).toBe(200);
 
     const { getCategoriesHierarchical } = require('@/services/database/CategoryRepository');
-    expect(getCategoriesHierarchical).toHaveBeenCalledWith('expense', false);
+    expect(getCategoriesHierarchical).toHaveBeenCalledWith(TRANSACTION_TYPE.EXPENSE, false);
   });
 
   it('should not return hierarchical when param is absent', async () => {
@@ -165,7 +166,7 @@ describe('GET /api/categories', () => {
     expect(response.status).toBe(200);
 
     const { getCategories } = require('@/services/database/CategoryRepository');
-    expect(getCategories).toHaveBeenCalledWith('expense', false);
+    expect(getCategories).toHaveBeenCalledWith(TRANSACTION_TYPE.EXPENSE, false);
   });
 });
 
@@ -173,7 +174,7 @@ describe('POST /api/categories — Subcategory Creation', () => {
   it('should create a subcategory with parentCategoryId', async () => {
     const request = createMockRequest('http://localhost:3000/api/categories', {
       name: 'Garaje',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'warehouse',
       color: '#EF4444',
       parentCategoryId: 1,
@@ -191,7 +192,7 @@ describe('POST /api/categories — Subcategory Creation', () => {
   it('should create a parent category without parentCategoryId', async () => {
     const request = createMockRequest('http://localhost:3000/api/categories', {
       name: 'Suscripciones',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
     });
     const response = await POST(request as any);
     const data = await response.json();

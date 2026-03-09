@@ -4,12 +4,13 @@
  * Tests includeInactive support on GET /api/categories
  */
 
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import type { Category } from '@/types/finance';
 
 const mockCategory: Category = {
   categoryId: 1,
   name: 'Vivienda',
-  type: 'expense',
+  type: TRANSACTION_TYPE.EXPENSE,
   icon: 'home',
   color: '#EF4444',
   sortOrder: 1,
@@ -301,6 +302,6 @@ describe('GET /api/categories — includeInactive support', () => {
     await GET_LIST(request as never);
 
     const { getCategories } = require('@/services/database/CategoryRepository');
-    expect(getCategories).toHaveBeenCalledWith('expense', true);
+    expect(getCategories).toHaveBeenCalledWith(TRANSACTION_TYPE.EXPENSE, true);
   });
 });

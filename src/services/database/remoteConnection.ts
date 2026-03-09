@@ -6,6 +6,7 @@
 
 import { Pool as NeonPool } from '@neondatabase/serverless';
 import { Pool as PgPool } from 'pg';
+import { DB_POOL } from '@/constants/finance';
 
 type PoolInstance = NeonPool | PgPool;
 
@@ -36,8 +37,8 @@ export function getRemotePool(): PoolInstance {
     const url = getRemoteDatabaseUrl();
     const config = {
       connectionString: url,
-      max: 5,
-      idleTimeoutMillis: 30000,
+      max: DB_POOL.MAX_CONNECTIONS_REMOTE,
+      idleTimeoutMillis: DB_POOL.IDLE_TIMEOUT_MS,
       // Neon pooler does not support search_path in startup params — only set for unpooled
       ...(isNeonUrl(url) && !isNeonPoolerUrl(url) && { options: '-c search_path=public' }),
     };

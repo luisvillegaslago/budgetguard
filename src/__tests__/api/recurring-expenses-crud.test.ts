@@ -4,6 +4,7 @@
  * Tests GET/PUT/DELETE /api/recurring-expenses/[id]
  */
 
+import { RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { RecurringExpense } from '@/types/finance';
 
 const mockExpense: RecurringExpense = {
@@ -12,7 +13,7 @@ const mockExpense: RecurringExpense = {
   category: {
     categoryId: 1,
     name: 'Vivienda',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'home',
     color: '#EF4444',
     sortOrder: 1,
@@ -24,7 +25,7 @@ const mockExpense: RecurringExpense = {
   },
   amountCents: 45000,
   description: 'Alquiler mensual',
-  frequency: 'monthly',
+  frequency: RECURRING_FREQUENCY.MONTHLY,
   dayOfWeek: null,
   dayOfMonth: 1,
   monthOfYear: null,
@@ -120,7 +121,7 @@ describe('POST /api/recurring-expenses', () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 450,
-      frequency: 'monthly',
+      frequency: RECURRING_FREQUENCY.MONTHLY,
       dayOfMonth: 1,
       startDate: '2026-01-01',
     });
@@ -138,7 +139,7 @@ describe('POST /api/recurring-expenses', () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 450,
-      frequency: 'monthly',
+      frequency: RECURRING_FREQUENCY.MONTHLY,
       dayOfMonth: 1,
       startDate: '2026-01-01',
       isShared: true,
@@ -165,7 +166,7 @@ describe('POST /api/recurring-expenses', () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 100,
-      frequency: 'monthly',
+      frequency: RECURRING_FREQUENCY.MONTHLY,
       startDate: '2026-01-01',
       // missing dayOfMonth
     });
@@ -178,7 +179,7 @@ describe('POST /api/recurring-expenses', () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 50,
-      frequency: 'weekly',
+      frequency: RECURRING_FREQUENCY.WEEKLY,
       startDate: '2026-01-01',
       // missing dayOfWeek
     });
@@ -191,7 +192,7 @@ describe('POST /api/recurring-expenses', () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 200,
-      frequency: 'yearly',
+      frequency: RECURRING_FREQUENCY.YEARLY,
       dayOfMonth: 15,
       startDate: '2026-01-01',
       // missing monthOfYear
@@ -205,7 +206,7 @@ describe('POST /api/recurring-expenses', () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 25,
-      frequency: 'weekly',
+      frequency: RECURRING_FREQUENCY.WEEKLY,
       dayOfWeek: 1,
       startDate: '2026-01-01',
     });
@@ -285,12 +286,12 @@ describe('PUT /api/recurring-expenses/[id]', () => {
 
   it('should update frequency', async () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses/1', {
-      frequency: 'weekly',
+      frequency: RECURRING_FREQUENCY.WEEKLY,
     });
     const response = await PUT(request as never, createMockParams('1'));
 
     expect(response.status).toBe(200);
-    expect(capturedUpdateData!.data.frequency).toBe('weekly');
+    expect(capturedUpdateData!.data.frequency).toBe(RECURRING_FREQUENCY.WEEKLY);
   });
 
   it('should return 404 for non-existent expense', async () => {

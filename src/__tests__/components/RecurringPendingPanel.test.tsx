@@ -5,13 +5,14 @@
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { OCCURRENCE_STATUS, RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { PendingOccurrencesSummary, RecurringOccurrence } from '@/types/finance';
 
 const mockOccurrence: RecurringOccurrence = {
   occurrenceId: 1,
   recurringExpenseId: 10,
   occurrenceDate: '2026-03-01',
-  status: 'pending',
+  status: OCCURRENCE_STATUS.PENDING,
   transactionId: null,
   modifiedAmountCents: null,
   processedAt: null,
@@ -21,7 +22,7 @@ const mockOccurrence: RecurringOccurrence = {
     category: {
       categoryId: 1,
       name: 'Vivienda',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'home',
       color: '#EF4444',
       sortOrder: 0,
@@ -33,7 +34,7 @@ const mockOccurrence: RecurringOccurrence = {
     },
     amountCents: 45000,
     description: 'Alquiler',
-    frequency: 'monthly',
+    frequency: RECURRING_FREQUENCY.MONTHLY,
     dayOfWeek: null,
     dayOfMonth: 1,
     monthOfYear: null,
@@ -58,7 +59,7 @@ const mockOccurrence2: RecurringOccurrence = {
     category: {
       categoryId: 2,
       name: 'Suscripciones',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'tv',
       color: '#8B5CF6',
       sortOrder: 2,

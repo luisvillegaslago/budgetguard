@@ -76,11 +76,20 @@ export const QUERY_KEY = {
 
 // Cache Times (in milliseconds)
 export const CACHE_TIME = {
+  NO_CACHE: 0,
   ONE_MINUTE: 1 * 60 * 1000,
   TWO_MINUTES: 2 * 60 * 1000,
   FIVE_MINUTES: 5 * 60 * 1000,
   TEN_MINUTES: 10 * 60 * 1000,
   THIRTY_MINUTES: 30 * 60 * 1000,
+  FOREVER: Infinity,
+} as const;
+
+// Database Pool Configuration
+export const DB_POOL = {
+  MAX_CONNECTIONS: 10,
+  MAX_CONNECTIONS_REMOTE: 5,
+  IDLE_TIMEOUT_MS: 30_000,
 } as const;
 
 // API Endpoints

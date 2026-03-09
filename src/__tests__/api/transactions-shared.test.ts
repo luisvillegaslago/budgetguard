@@ -4,7 +4,7 @@
  * shared expense halving behavior (Math.ceil rounding)
  */
 
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 
 // Track what was passed to createTransaction/updateTransaction
 let capturedCreateData: Record<string, unknown> | null = null;
@@ -97,7 +97,7 @@ describe('POST /api/transactions — Shared Expense Halving', () => {
       categoryId: 1,
       amount: 100,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: false,
     });
     const response = await POST(request as any);
@@ -116,7 +116,7 @@ describe('POST /api/transactions — Shared Expense Halving', () => {
       categoryId: 1,
       amount: 100,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: true,
     });
     const response = await POST(request as any);
@@ -132,7 +132,7 @@ describe('POST /api/transactions — Shared Expense Halving', () => {
       categoryId: 1,
       amount: 5.01,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: true,
     });
     const response = await POST(request as any);
@@ -148,7 +148,7 @@ describe('POST /api/transactions — Shared Expense Halving', () => {
       categoryId: 1,
       amount: 0.01,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: true,
     });
     const response = await POST(request as any);
@@ -164,7 +164,7 @@ describe('POST /api/transactions — Shared Expense Halving', () => {
       categoryId: 1,
       amount: 1234.57,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: true,
     });
     const response = await POST(request as any);
@@ -180,7 +180,7 @@ describe('POST /api/transactions — Shared Expense Halving', () => {
       categoryId: 1,
       amount: 50,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
     });
     const response = await POST(request as any);
 
@@ -202,7 +202,7 @@ describe('PUT /api/transactions/[id] — Shared Expense Updates', () => {
       amountCents: 10000,
       description: null,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       sharedDivisor: 1,
       originalAmountCents: null,
       createdAt: '2025-01-15T00:00:00.000Z',
@@ -210,7 +210,7 @@ describe('PUT /api/transactions/[id] — Shared Expense Updates', () => {
       category: {
         categoryId: 1,
         name: 'Test',
-        type: 'expense',
+        type: TRANSACTION_TYPE.EXPENSE,
         icon: null,
         color: null,
         sortOrder: 0,

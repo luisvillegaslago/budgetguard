@@ -7,13 +7,14 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import type { Category } from '@/types/finance';
 
 const mockCategories: Category[] = [
   {
     categoryId: 1,
     name: 'Vivienda',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'home',
     color: '#EF4444',
     sortOrder: 1,
@@ -26,7 +27,7 @@ const mockCategories: Category[] = [
       {
         categoryId: 10,
         name: 'Internet',
-        type: 'expense',
+        type: TRANSACTION_TYPE.EXPENSE,
         icon: 'wifi',
         color: '#EF4444',
         sortOrder: 1,
@@ -39,7 +40,7 @@ const mockCategories: Category[] = [
       {
         categoryId: 11,
         name: 'Luz',
-        type: 'expense',
+        type: TRANSACTION_TYPE.EXPENSE,
         icon: 'zap',
         color: '#EF4444',
         sortOrder: 2,
@@ -54,7 +55,7 @@ const mockCategories: Category[] = [
   {
     categoryId: 2,
     name: 'Nomina',
-    type: 'income',
+    type: TRANSACTION_TYPE.INCOME,
     icon: 'banknote',
     color: '#10B981',
     sortOrder: 1,
@@ -68,7 +69,7 @@ const mockCategories: Category[] = [
   {
     categoryId: 3,
     name: 'Obsoleta',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: null,
     color: null,
     sortOrder: 3,

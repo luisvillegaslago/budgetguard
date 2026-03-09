@@ -5,6 +5,7 @@
 
 import { Pool as NeonPool } from '@neondatabase/serverless';
 import { Pool as PgPool } from 'pg';
+import { DB_POOL } from '@/constants/finance';
 
 type PoolInstance = NeonPool | PgPool;
 
@@ -31,8 +32,8 @@ export function getPool(): PoolInstance {
     const url = getDatabaseUrl();
     const config = {
       connectionString: url,
-      max: 10,
-      idleTimeoutMillis: 30000,
+      max: DB_POOL.MAX_CONNECTIONS,
+      idleTimeoutMillis: DB_POOL.IDLE_TIMEOUT_MS,
     };
 
     pool = isNeonUrl(url) ? new NeonPool(config) : new PgPool(config);

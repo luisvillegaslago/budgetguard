@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
+import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 
 interface VersionInfo {
   version: string;
@@ -13,7 +13,7 @@ export function useAppVersion() {
       if (!res.ok) throw new Error('Failed to fetch version');
       return res.json();
     },
-    staleTime: Infinity,
+    staleTime: CACHE_TIME.FOREVER,
   });
 
   return data?.version ?? null;

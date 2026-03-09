@@ -5,13 +5,14 @@
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { RecurringExpense } from '@/types/finance';
 
 const mockCategories = [
   {
     categoryId: 1,
     name: 'Vivienda',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'home',
     color: '#EF4444',
     sortOrder: 1,
@@ -25,7 +26,7 @@ const mockCategories = [
   {
     categoryId: 2,
     name: 'Suscripciones',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     icon: 'tv',
     color: '#8B5CF6',
     sortOrder: 2,
@@ -281,7 +282,7 @@ describe('RecurringExpenseForm — Edit mode', () => {
     category: {
       categoryId: 1,
       name: 'Vivienda',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'home',
       color: '#EF4444',
       sortOrder: 1,
@@ -293,7 +294,7 @@ describe('RecurringExpenseForm — Edit mode', () => {
     },
     amountCents: 45000,
     description: 'Alquiler mensual',
-    frequency: 'monthly',
+    frequency: RECURRING_FREQUENCY.MONTHLY,
     dayOfWeek: null,
     dayOfMonth: 1,
     monthOfYear: null,

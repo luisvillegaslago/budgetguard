@@ -5,13 +5,14 @@
  * Tests POST /api/recurring-expenses/occurrences/[id]/skip
  */
 
+import { OCCURRENCE_STATUS, RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { PendingOccurrencesSummary, RecurringOccurrence } from '@/types/finance';
 
 const mockOccurrence: RecurringOccurrence = {
   occurrenceId: 10,
   recurringExpenseId: 1,
   occurrenceDate: '2026-03-01',
-  status: 'confirmed',
+  status: OCCURRENCE_STATUS.CONFIRMED,
   transactionId: 100,
   modifiedAmountCents: null,
   processedAt: '2026-03-03T10:00:00Z',
@@ -21,7 +22,7 @@ const mockOccurrence: RecurringOccurrence = {
     category: {
       categoryId: 1,
       name: 'Vivienda',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'home',
       color: '#EF4444',
       sortOrder: 0,
@@ -33,7 +34,7 @@ const mockOccurrence: RecurringOccurrence = {
     },
     amountCents: 45000,
     description: 'Alquiler',
-    frequency: 'monthly',
+    frequency: RECURRING_FREQUENCY.MONTHLY,
     dayOfWeek: null,
     dayOfMonth: 1,
     monthOfYear: null,
@@ -51,7 +52,7 @@ const mockPendingSummary: PendingOccurrencesSummary = {
   months: [
     {
       month: '2026-03',
-      occurrences: [{ ...mockOccurrence, status: 'pending', transactionId: null, processedAt: null }],
+      occurrences: [{ ...mockOccurrence, status: OCCURRENCE_STATUS.PENDING, transactionId: null, processedAt: null }],
       totalPendingCents: 45000,
       count: 1,
     },

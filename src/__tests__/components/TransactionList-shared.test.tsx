@@ -5,6 +5,7 @@
 
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import type { Transaction } from '@/types/finance';
 
 // Build mock transactions
@@ -15,7 +16,7 @@ const mockTransactions: Transaction[] = [
     category: {
       categoryId: 10,
       name: 'Internet',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'wifi',
       color: '#EF4444',
       sortOrder: 1,
@@ -29,7 +30,7 @@ const mockTransactions: Transaction[] = [
     amountCents: 2500,
     description: 'Fibra optica',
     transactionDate: '2025-01-15',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     sharedDivisor: 2,
     originalAmountCents: 5000,
     recurringExpenseId: null,
@@ -49,7 +50,7 @@ const mockTransactions: Transaction[] = [
     category: {
       categoryId: 7,
       name: 'Transporte',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       icon: 'car',
       color: '#14B8A6',
       sortOrder: 7,
@@ -63,7 +64,7 @@ const mockTransactions: Transaction[] = [
     amountCents: 4500,
     description: 'Gasolina',
     transactionDate: '2025-01-14',
-    type: 'expense',
+    type: TRANSACTION_TYPE.EXPENSE,
     sharedDivisor: 1,
     originalAmountCents: null,
     recurringExpenseId: null,

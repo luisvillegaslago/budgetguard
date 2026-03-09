@@ -3,6 +3,7 @@
  * Tests buildCategoryTree logic and CreateCategorySchema with new fields
  */
 
+import { TRANSACTION_TYPE } from '@/constants/finance';
 import { CreateCategorySchema } from '@/schemas/transaction';
 import type { Category } from '@/types/finance';
 
@@ -23,7 +24,7 @@ function buildCategoryTree(categories: Category[]): Category[] {
 }
 
 const makeCategory = (overrides: Partial<Category> & Pick<Category, 'categoryId' | 'name'>): Category => ({
-  type: 'expense',
+  type: TRANSACTION_TYPE.EXPENSE,
   icon: null,
   color: null,
   sortOrder: 0,
@@ -133,7 +134,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should accept parentCategoryId', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Internet',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       parentCategoryId: 1,
     });
 
@@ -146,7 +147,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should accept null parentCategoryId', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Vivienda',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       parentCategoryId: null,
     });
 
@@ -159,7 +160,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should default parentCategoryId to undefined when not provided', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Vivienda',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
     });
 
     expect(result.success).toBe(true);
@@ -171,7 +172,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should accept defaultShared: true', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Internet',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       defaultShared: true,
     });
 
@@ -184,7 +185,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should default defaultShared to false when not provided', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Transporte',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
     });
 
     expect(result.success).toBe(true);
@@ -196,7 +197,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should reject negative parentCategoryId', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Test',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       parentCategoryId: -1,
     });
 
@@ -206,7 +207,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should reject zero parentCategoryId', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Test',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       parentCategoryId: 0,
     });
 
@@ -216,7 +217,7 @@ describe('CreateCategorySchema — New Fields', () => {
   it('should reject non-integer parentCategoryId', () => {
     const result = CreateCategorySchema.safeParse({
       name: 'Test',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       parentCategoryId: 1.5,
     });
 

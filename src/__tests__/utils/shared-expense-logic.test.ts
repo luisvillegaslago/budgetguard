@@ -4,7 +4,7 @@
  * and Zod schema validation with isShared field
  */
 
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { CreateTransactionSchema } from '@/schemas/transaction';
 import { eurosToCents } from '@/utils/money';
 
@@ -125,7 +125,7 @@ describe('Zod Schema — isShared field', () => {
       categoryId: 1,
       amount: 100,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: true,
     });
 
@@ -140,7 +140,7 @@ describe('Zod Schema — isShared field', () => {
       categoryId: 1,
       amount: 100,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
       isShared: false,
     });
 
@@ -155,7 +155,7 @@ describe('Zod Schema — isShared field', () => {
       categoryId: 1,
       amount: 100,
       transactionDate: '2025-01-15',
-      type: 'expense',
+      type: TRANSACTION_TYPE.EXPENSE,
     });
 
     expect(result.success).toBe(true);
