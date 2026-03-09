@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.4.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.4.0...v0.4.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* filter recurring expenses by occurrence date ([3be4288](https://github.com/luisvillegaslago/budgetguard/commit/3be4288b40967c1e933c2f2718e0af953c98f2a4))
+* remove unused search_path param for Neon pool connections ([de5ee38](https://github.com/luisvillegaslago/budgetguard/commit/de5ee382d58c7d345648528a960835b2c54b0c0b))
+
+
+### Performance Improvements
+
+* add category search functionality ([115b2f7](https://github.com/luisvillegaslago/budgetguard/commit/115b2f7d531cfddb2b929d90b6df97554ba54f87))
+* improve DbSyncPanel UX and ensure fresh compare data on load ([ce352af](https://github.com/luisvillegaslago/budgetguard/commit/ce352afbac871ca433c60b52a0cd289facfa8463))
+
 ## [0.4.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.3.0...v0.4.0) (2026-03-08)
 
 
