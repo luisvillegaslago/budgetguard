@@ -355,7 +355,9 @@
       "actions": {
         "edit": "Editar",
         "deactivate": "Desactivar",
-        "activate": "Activar"
+        "activate": "Activar",
+        "delete": "Eliminar permanentemente",
+        "confirm-delete": "Esto eliminará permanentemente este gasto recurrente y todas sus ocurrencias. Esta acción no se puede deshacer. ¿Continuar?"
       }
     },
     "form": {
@@ -631,9 +633,11 @@
   },
   "auth": {
     "sign-in-google": "Iniciar sesión con Google",
+    "signing-in": "Conectando...",
     "login-subtitle": "Inicia sesión para gestionar tus finanzas familiares",
     "sign-out": "Cerrar sesión",
-    "unauthorized": "Necesitas iniciar sesión para acceder a esta página"
+    "unauthorized": "Necesitas iniciar sesión para acceder a esta página",
+    "error": "No se pudo iniciar sesión. Por favor, inténtalo de nuevo."
   },
   "settings": {
     "title": "Ajustes",

@@ -4,7 +4,12 @@
  */
 
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+
+// Mock next/navigation — useSearchParams returns a URLSearchParams instance
+jest.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 // Mock next-auth/react — use inline fn to avoid hoisting issues
 jest.mock('next-auth/react', () => ({
@@ -59,7 +64,7 @@ describe('LoginPage', () => {
   it('should call signIn with google provider on button click', () => {
     render(<LoginPage />);
     const button = screen.getByRole('button');
-    button.click();
+    fireEvent.click(button);
 
     expect(signIn).toHaveBeenCalledWith('google', { callbackUrl: '/dashboard' });
   });

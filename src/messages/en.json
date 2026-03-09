@@ -355,7 +355,9 @@
       "actions": {
         "edit": "Edit",
         "deactivate": "Deactivate",
-        "activate": "Activate"
+        "activate": "Activate",
+        "delete": "Delete permanently",
+        "confirm-delete": "This will permanently delete this recurring expense and all its occurrences. This action cannot be undone. Continue?"
       }
     },
     "form": {
@@ -631,9 +633,11 @@
   },
   "auth": {
     "sign-in-google": "Sign in with Google",
+    "signing-in": "Connecting...",
     "login-subtitle": "Sign in to manage your family finances",
     "sign-out": "Sign out",
-    "unauthorized": "You need to sign in to access this page"
+    "unauthorized": "You need to sign in to access this page",
+    "error": "Unable to sign in. Please try again."
   },
   "settings": {
     "title": "Settings",
