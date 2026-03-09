@@ -648,6 +648,12 @@
       "companies": "Companies",
       "database": "Database"
     },
+    "theme": {
+      "title": "Theme",
+      "description": "Choose the appearance of the interface",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "language": {
       "title": "Language",
       "description": "Choose the language for the interface"

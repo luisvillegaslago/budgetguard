@@ -11,6 +11,7 @@ import { CategoryManagementPanel } from '@/components/categories/CategoryManagem
 import { CompanyManagementPanel } from '@/components/settings/CompanyManagementPanel';
 import { DbSyncPanel } from '@/components/settings/DbSyncPanel';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
+import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
 
@@ -68,7 +69,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Section Content */}
-      {activeSection === 'general' && <LanguageSelector />}
+      {activeSection === 'general' && (
+        <div className="space-y-6">
+          <ThemeSelector />
+          <LanguageSelector />
+        </div>
+      )}
 
       {activeSection === 'categories' && <CategoryManagementPanel />}
 

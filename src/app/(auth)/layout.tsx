@@ -8,11 +8,13 @@
 import type { ReactNode } from 'react';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { AppTopBar } from '@/components/navigation/AppTopBar';
+import { useThemeSync } from '@/stores/themeStore';
 import { useSidebarOpen } from '@/stores/useFinanceStore';
 import { cn } from '@/utils/helpers';
 
 export default function AuthLayout({ children }: Readonly<{ children: ReactNode }>) {
   const isSidebarOpen = useSidebarOpen();
+  useThemeSync();
 
   return (
     <div className="min-h-screen bg-guard-light dark:bg-guard-dark">
