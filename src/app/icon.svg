@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Shield shape -->
+  <path d="M16 2 L28 7 L28 15 C28 22.5 22.5 28.5 16 30 C9.5 28.5 4 22.5 4 15 L4 7 Z" fill="#4F46E5"/>
+  <!-- Inner shield highlight -->
+  <path d="M16 4.5 L26 8.5 L26 15 C26 21.5 21.5 26.8 16 28.2 C10.5 26.8 6 21.5 6 15 L6 8.5 Z" fill="#3730A3"/>
+  <!-- Euro symbol -->
+  <text x="16" y="21.5" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#E0E7FF">€</text>
+</svg>

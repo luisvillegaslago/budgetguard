@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: 'BudgetGuard - Control de Gastos Familiar',
   description: 'Sistema de control de gastos e ingresos familiares. Gestiona tu economia de forma simple y efectiva.',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.svg',
   },
 };
 
