@@ -6,6 +6,7 @@
  * Shows diff by table with expandable row details.
  */
 
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -19,9 +20,9 @@ import {
   Plus,
   RefreshCw,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SyncDirection } from '@/constants/finance';
-import { SYNC_DIRECTION } from '@/constants/finance';
+import { QUERY_KEY, SYNC_DIRECTION } from '@/constants/finance';
 import { useSyncCompare, useSyncExecute } from '@/hooks/useDbSync';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { SyncExecutionResult, TableDiffSummary } from '@/types/sync';
@@ -29,14 +30,21 @@ import { cn } from '@/utils/helpers';
 
 export function DbSyncPanel() {
   const { t } = useTranslate();
+  const queryClient = useQueryClient();
   const { data: compareResult, refetch, isFetching: isComparing } = useSyncCompare();
   const syncMutation = useSyncExecute();
+
+  // Clear cached compare data on mount so the page always starts fresh
+  useEffect(() => {
+    queryClient.removeQueries({ queryKey: [QUERY_KEY.SYNC_COMPARE] });
+  }, [queryClient]);
 
   const [direction, setDirection] = useState<SyncDirection>(SYNC_DIRECTION.PUSH);
   const [includeDeletes, setIncludeDeletes] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [lastResult, setLastResult] = useState<SyncExecutionResult | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleCompare = () => {
     setLastResult(null);
@@ -45,11 +53,18 @@ export function DbSyncPanel() {
 
   const handleExecute = () => {
     setShowConfirm(false);
+    setLastResult(null);
+    setIsSyncing(true);
     syncMutation.mutate(
       { direction, includeDeletes },
       {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
           setLastResult(result);
+          await refetch();
+          setIsSyncing(false);
+        },
+        onError: () => {
+          setIsSyncing(false);
         },
       },
     );
@@ -108,8 +123,16 @@ export function DbSyncPanel() {
         {isComparing ? t('settings.sync.comparing') : t('settings.sync.compare')}
       </button>
 
+      {/* Syncing overlay */}
+      {isSyncing && (
+        <div className="border border-border rounded-lg p-12 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-guard-primary" aria-hidden="true" />
+          <span className="text-sm text-guard-muted">{t('settings.sync.executing')}</span>
+        </div>
+      )}
+
       {/* Diff Table */}
-      {compareResult && (
+      {compareResult && !isSyncing && (
         <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -150,7 +173,7 @@ export function DbSyncPanel() {
       )}
 
       {/* Sync Controls */}
-      {compareResult && hasDifferences && (
+      {compareResult && hasDifferences && !isSyncing && (
         <div className="space-y-4 pt-2">
           {/* Direction */}
           <div>
@@ -186,12 +209,12 @@ export function DbSyncPanel() {
           </div>
 
           {/* Include Deletes */}
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={includeDeletes}
               onChange={(e) => setIncludeDeletes(e.target.checked)}
-              className="mt-0.5 rounded border-border text-guard-primary focus:ring-guard-primary"
+              className="rounded border-border text-guard-primary focus:ring-guard-primary"
             />
             <div>
               <span className="text-sm font-medium text-foreground">{t('settings.sync.include-deletes')}</span>
@@ -200,18 +223,9 @@ export function DbSyncPanel() {
           </label>
 
           {/* Execute Button */}
-          <button
-            type="button"
-            onClick={() => setShowConfirm(true)}
-            disabled={syncMutation.isPending}
-            className="btn-primary flex items-center gap-2"
-          >
-            {syncMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Database className="h-4 w-4" aria-hidden="true" />
-            )}
-            {syncMutation.isPending ? t('settings.sync.executing') : t('settings.sync.execute')}
+          <button type="button" onClick={() => setShowConfirm(true)} className="btn-primary flex items-center gap-2">
+            <Database className="h-4 w-4" aria-hidden="true" />
+            {t('settings.sync.execute')}
           </button>
         </div>
       )}

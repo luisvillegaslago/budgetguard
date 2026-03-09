@@ -3,7 +3,7 @@
  * TanStack Query hooks for comparing and syncing local ↔ remote databases
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse } from '@/types/finance';
 import type { SyncCompareResult, SyncExecuteInput, SyncExecutionResult } from '@/types/sync';
@@ -54,6 +54,7 @@ export function useSyncCompare() {
     queryKey: [QUERY_KEY.SYNC_COMPARE],
     queryFn: fetchSyncCompare,
     enabled: false, // Only fetch on manual trigger
+    gcTime: 0, // Don't cache — always start fresh on mount
   });
 }
 
@@ -61,13 +62,7 @@ export function useSyncCompare() {
  * Hook to execute a sync operation (push or pull)
  */
 export function useSyncExecute() {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: executeSyncRequest,
-    onSuccess: () => {
-      // Refetch compare results to show updated diff after sync
-      queryClient.refetchQueries({ queryKey: [QUERY_KEY.SYNC_COMPARE] });
-    },
   });
 }
