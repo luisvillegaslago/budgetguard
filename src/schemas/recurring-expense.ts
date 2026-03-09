@@ -31,6 +31,7 @@ export const CreateRecurringExpenseSchema = z
     vatPercent: z.number().min(0).max(100).nullable().optional().default(null),
     deductionPercent: z.number().min(0).max(100).nullable().optional().default(null),
     vendorName: z.string().max(150).nullable().optional().default(null),
+    companyId: z.number().int().positive().nullable().optional().default(null),
   })
   .refine(
     (data) => {
@@ -80,6 +81,7 @@ export const UpdateRecurringExpenseSchema = z.object({
   vatPercent: z.number().min(0).max(100).nullable().optional(),
   deductionPercent: z.number().min(0).max(100).nullable().optional(),
   vendorName: z.string().max(150).nullable().optional(),
+  companyId: z.number().int().positive().nullable().optional(),
 });
 
 export type UpdateRecurringExpenseInput = z.infer<typeof UpdateRecurringExpenseSchema>;

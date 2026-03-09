@@ -18,6 +18,14 @@ DROP TRIGGER IF EXISTS "TR_Trips_UpdatedAt" ON "Trips";
 DROP TRIGGER IF EXISTS "TR_RecurringExpenses_UpdatedAt" ON "RecurringExpenses";
 DROP TRIGGER IF EXISTS "TR_SkydiveJumps_UpdatedAt" ON "SkydiveJumps";
 DROP TRIGGER IF EXISTS "TR_TunnelSessions_UpdatedAt" ON "TunnelSessions";
+DROP TRIGGER IF EXISTS "TR_Companies_UpdatedAt" ON "Companies";
+DROP TRIGGER IF EXISTS "TR_Transactions_SyncVendorName" ON "Transactions";
+DROP TRIGGER IF EXISTS "TR_RecurringExpenses_SyncVendorName" ON "RecurringExpenses";
+DROP TRIGGER IF EXISTS "TR_Companies_PropagateNameChange" ON "Companies";
+
+-- Drop sync trigger functions
+DROP FUNCTION IF EXISTS sync_vendor_name_from_company();
+DROP FUNCTION IF EXISTS propagate_company_name_change();
 
 -- Drop trigger function
 DROP FUNCTION IF EXISTS update_updated_at_column();
@@ -42,6 +50,7 @@ DROP TABLE IF EXISTS "Transactions";
 DROP TABLE IF EXISTS "RecurringExpenses";
 DROP TABLE IF EXISTS "TransactionGroups";
 DROP TABLE IF EXISTS "Trips";
+DROP TABLE IF EXISTS "Companies";
 
 -- Drop base tables
 DROP TABLE IF EXISTS "Users";
@@ -79,6 +88,26 @@ CREATE INDEX "IX_Categories_Active" ON "Categories"("IsActive");
 CREATE INDEX "IX_Categories_Parent" ON "Categories"("ParentCategoryID");
 CREATE INDEX "IX_Categories_UserID" ON "Categories"("UserID");
 
+-- Companies/Providers for normalized vendor data and fiscal billing details
+CREATE TABLE "Companies" (
+    "CompanyID" SERIAL PRIMARY KEY,
+    "Name" VARCHAR(150) NOT NULL,
+    "TradingName" VARCHAR(150) NULL,
+    "TaxId" VARCHAR(30) NULL,
+    "Address" VARCHAR(250) NULL,
+    "City" VARCHAR(100) NULL,
+    "PostalCode" VARCHAR(20) NULL,
+    "Country" VARCHAR(100) NULL,
+    "UserID" INT NULL,
+    "IsActive" BOOLEAN DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UQ_Company_Name_User" UNIQUE("Name", "UserID")
+);
+
+CREATE INDEX "IX_Companies_UserID" ON "Companies"("UserID");
+CREATE INDEX "IX_Companies_Active" ON "Companies"("IsActive");
+
 -- Trips for multi-day, multi-category travel expense tracking
 CREATE TABLE "Trips" (
     "TripID" SERIAL PRIMARY KEY,
@@ -113,13 +142,16 @@ CREATE TABLE "Transactions" (
     "DeductionPercent" NUMERIC(5,2) NULL,
     "VendorName" VARCHAR(150) NULL,
     "InvoiceNumber" VARCHAR(50) NULL,
+    "CompanyID" INT NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FK_Transactions_TransactionGroup"
         FOREIGN KEY ("TransactionGroupID") REFERENCES "TransactionGroups"("TransactionGroupID"),
     CONSTRAINT "FK_Transactions_Trip"
-        FOREIGN KEY ("TripID") REFERENCES "Trips"("TripID")
+        FOREIGN KEY ("TripID") REFERENCES "Trips"("TripID"),
+    CONSTRAINT "FK_Transactions_Company"
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL
 );
 
 -- Indexes for efficient querying
@@ -136,6 +168,7 @@ CREATE INDEX "IX_Transactions_Fiscal" ON "Transactions"("VatPercent", "Deduction
 CREATE INDEX "IX_Transactions_InvoiceNumber" ON "Transactions"("InvoiceNumber")
     WHERE "InvoiceNumber" IS NOT NULL;
 CREATE INDEX "IX_Transactions_UserID" ON "Transactions"("UserID");
+CREATE INDEX "IX_Transactions_CompanyID" ON "Transactions"("CompanyID");
 
 -- ============================================================
 -- RECURRING EXPENSES
@@ -158,10 +191,13 @@ CREATE TABLE "RecurringExpenses" (
     "VatPercent" NUMERIC(5,2) NULL,
     "DeductionPercent" NUMERIC(5,2) NULL,
     "VendorName" VARCHAR(150) NULL,
+    "CompanyID" INT NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT "FK_RecurringExpenses_Company"
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
     CONSTRAINT "CK_RecurringExpenses_Weekly"
         CHECK ("Frequency" != 'weekly' OR "DayOfWeek" IS NOT NULL),
     CONSTRAINT "CK_RecurringExpenses_Monthly"
@@ -179,6 +215,7 @@ CREATE TABLE "RecurringExpenses" (
 CREATE INDEX "IX_RecurringExpenses_Active" ON "RecurringExpenses"("IsActive");
 CREATE INDEX "IX_RecurringExpenses_Category" ON "RecurringExpenses"("CategoryID");
 CREATE INDEX "IX_RecurringExpenses_UserID" ON "RecurringExpenses"("UserID");
+CREATE INDEX "IX_RecurringExpenses_CompanyID" ON "RecurringExpenses"("CompanyID");
 
 CREATE TABLE "RecurringExpenseOccurrences" (
     "OccurrenceID" SERIAL PRIMARY KEY,
@@ -481,6 +518,8 @@ CREATE TABLE "VerificationTokens" (
 
 ALTER TABLE "Categories" ADD CONSTRAINT "FK_Categories_User"
     FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "Companies" ADD CONSTRAINT "FK_Companies_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
 ALTER TABLE "Trips" ADD CONSTRAINT "FK_Trips_User"
     FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
 ALTER TABLE "TransactionGroups" ADD CONSTRAINT "FK_TransactionGroups_User"
@@ -541,6 +580,49 @@ CREATE TRIGGER "TR_SkydiveJumps_UpdatedAt"
 CREATE TRIGGER "TR_TunnelSessions_UpdatedAt"
     BEFORE UPDATE ON "TunnelSessions"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER "TR_Companies_UpdatedAt"
+    BEFORE UPDATE ON "Companies"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- VENDOR NAME SYNC TRIGGERS (Company → Transactions/RecurringExpenses)
+-- ============================================================
+
+-- Sync VendorName from Companies on INSERT/UPDATE of CompanyID
+CREATE OR REPLACE FUNCTION sync_vendor_name_from_company()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW."CompanyID" IS NOT NULL THEN
+        SELECT "Name" INTO NEW."VendorName" FROM "Companies" WHERE "CompanyID" = NEW."CompanyID";
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "TR_Transactions_SyncVendorName"
+    BEFORE INSERT OR UPDATE OF "CompanyID" ON "Transactions"
+    FOR EACH ROW EXECUTE FUNCTION sync_vendor_name_from_company();
+
+CREATE TRIGGER "TR_RecurringExpenses_SyncVendorName"
+    BEFORE INSERT OR UPDATE OF "CompanyID" ON "RecurringExpenses"
+    FOR EACH ROW EXECUTE FUNCTION sync_vendor_name_from_company();
+
+-- Propagate company name changes to all linked rows
+CREATE OR REPLACE FUNCTION propagate_company_name_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW."Name" <> OLD."Name" THEN
+        UPDATE "Transactions" SET "VendorName" = NEW."Name" WHERE "CompanyID" = NEW."CompanyID";
+        UPDATE "RecurringExpenses" SET "VendorName" = NEW."Name" WHERE "CompanyID" = NEW."CompanyID";
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "TR_Companies_PropagateNameChange"
+    AFTER UPDATE OF "Name" ON "Companies"
+    FOR EACH ROW EXECUTE FUNCTION propagate_company_name_change();
 
 -- ============================================================
 -- SCHEMA COMPLETE

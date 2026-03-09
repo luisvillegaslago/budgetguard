@@ -645,6 +645,7 @@
     "sections": {
       "general": "General",
       "categories": "Categories",
+      "companies": "Companies",
       "database": "Database"
     },
     "language": {
@@ -672,6 +673,9 @@
       "include-deletes-hint": "Remove rows from target that don't exist in source",
       "execute": "Execute Sync",
       "executing": "Syncing...",
+      "progress-setup": "Preparing sync...",
+      "progress-deleting": "Deleting rows...",
+      "progress-syncing": "Syncing tables...",
       "confirm-title": "Confirm Sync",
       "confirm-push": "Push all changes from local to remote database?",
       "confirm-pull": "Pull all changes from remote to local database?",
@@ -687,6 +691,54 @@
       "only-in-local": "Only in local",
       "only-in-remote": "Only in remote",
       "pk": "ID"
+    }
+  },
+  "companies": {
+    "title": "Companies / Providers",
+    "subtitle": "Manage your companies and billing details",
+    "add": "Add Company",
+    "search-placeholder": "Search company...",
+    "inactive": "Inactive",
+    "empty": {
+      "title": "No companies yet",
+      "subtitle": "Add your first company to link it to transactions",
+      "cta": "Add First Company"
+    },
+    "form": {
+      "title-create": "New Company",
+      "title-edit": "Edit Company",
+      "fields": {
+        "name": "Name",
+        "name-placeholder": "e.g., Vodafone España",
+        "trading-name": "Trading name",
+        "tax-id": "CIF / NIF / Tax ID",
+        "tax-id-placeholder": "e.g., B12345678",
+        "address": "Address",
+        "city": "City",
+        "postal-code": "Postal code",
+        "country": "Country"
+      },
+      "submit-create": "Create Company",
+      "submit-edit": "Save Changes",
+      "saving": "Saving...",
+      "errors": {
+        "create": "Error creating company. Please try again.",
+        "update": "Error updating company. Please try again."
+      }
+    },
+    "actions": {
+      "edit": "Edit",
+      "deactivate": "Deactivate",
+      "activate": "Activate"
+    },
+    "selector": {
+      "placeholder": "Select company...",
+      "search": "Search company...",
+      "create": "Create",
+      "empty": "No companies found"
+    },
+    "errors": {
+      "load": "Error loading companies"
     }
   },
   "skydiving": {

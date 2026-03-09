@@ -16,6 +16,23 @@ export type {
 } from '@/constants/finance';
 
 /**
+ * Company/Provider for normalized vendor data and fiscal billing details
+ */
+export interface Company {
+  companyId: number;
+  name: string;
+  tradingName: string | null;
+  taxId: string | null;
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Category for organizing transactions
  */
 export interface Category {
@@ -56,6 +73,7 @@ export interface Transaction {
   deductionPercent: number | null;
   vendorName: string | null;
   invoiceNumber: string | null;
+  companyId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -81,6 +99,7 @@ export interface RecurringExpense {
   vatPercent: number | null;
   deductionPercent: number | null;
   vendorName: string | null;
+  companyId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +121,7 @@ export interface RecurringExpenseInput {
   vatPercent?: number | null;
   deductionPercent?: number | null;
   vendorName?: string | null;
+  companyId?: number | null;
 }
 
 /**
@@ -384,6 +404,7 @@ export interface FiscalTransaction extends FiscalComputedFields {
   parentCategoryName: string;
   vendorName: string | null;
   invoiceNumber: string | null;
+  companyTaxId: string | null;
   description: string | null;
   type: TransactionType;
   fullAmountCents: number;

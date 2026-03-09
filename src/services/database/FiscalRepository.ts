@@ -38,6 +38,7 @@ interface FiscalViewRow {
   FullAmountCents: number;
   VatPercent: number;
   DeductionPercent: number;
+  CompanyTaxId: string | null;
 }
 
 function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
@@ -50,6 +51,7 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
     parentCategoryName: row.ParentCategoryName,
     vendorName: row.VendorName,
     invoiceNumber: row.InvoiceNumber,
+    companyTaxId: row.CompanyTaxId,
     description: row.Description,
     type: row.Type as FiscalTransaction['type'],
     fullAmountCents: row.FullAmountCents,
@@ -59,7 +61,17 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
   };
 }
 
-const FISCAL_VIEW_COLUMNS = `"FiscalYear", "FiscalQuarter", "Type", "TransactionID", "CategoryID",
+const FISCAL_VIEW_COLUMNS = `v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
+           v."CategoryName", v."ParentCategoryName", v."TransactionDate",
+           v."VendorName", v."InvoiceNumber", v."Description",
+           v."FullAmountCents", v."VatPercent", v."DeductionPercent",
+           co."TaxId" AS "CompanyTaxId"`;
+
+const FISCAL_FROM = `FROM "vw_FiscalQuarterly" v
+    LEFT JOIN "Transactions" t2 ON v."TransactionID" = t2."TransactionID"
+    LEFT JOIN "Companies" co ON t2."CompanyID" = co."CompanyID"`;
+
+const FISCAL_VIEW_COLUMNS_SIMPLE = `"FiscalYear", "FiscalQuarter", "Type", "TransactionID", "CategoryID",
            "CategoryName", "ParentCategoryName", "TransactionDate",
            "VendorName", "InvoiceNumber", "Description",
            "FullAmountCents", "VatPercent", "DeductionPercent"`;
@@ -76,10 +88,10 @@ export async function getFiscalExpenses(year: number, quarter: number): Promise<
 
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2
-      AND "Type" = $3 AND "UserID" = $4
-    ORDER BY "TransactionDate" ASC`,
+    ${FISCAL_FROM}
+    WHERE v."FiscalYear" = $1 AND v."FiscalQuarter" = $2
+      AND v."Type" = $3 AND v."UserID" = $4
+    ORDER BY v."TransactionDate" ASC`,
     [year, quarter, TRANSACTION_TYPE.EXPENSE, userId],
   );
 
@@ -94,12 +106,12 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
 
   const rows = await query<FiscalViewRow>(
     `SELECT ${FISCAL_VIEW_COLUMNS}
-    FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2
-      AND "Type" = $3
-      AND COALESCE("ParentCategoryName", "CategoryName") = $4
-      AND "UserID" = $5
-    ORDER BY "TransactionDate" ASC`,
+    ${FISCAL_FROM}
+    WHERE v."FiscalYear" = $1 AND v."FiscalQuarter" = $2
+      AND v."Type" = $3
+      AND COALESCE(v."ParentCategoryName", v."CategoryName") = $4
+      AND v."UserID" = $5
+    ORDER BY v."TransactionDate" ASC`,
     [year, quarter, TRANSACTION_TYPE.INCOME, PROFESSIONAL_INCOME_CATEGORY, userId],
   );
 
@@ -113,7 +125,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
   const userId = await getUserIdOrThrow();
 
   const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS}
+    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
     FROM "vw_FiscalQuarterly"
     WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2 AND "UserID" = $3`,
     [year, quarter, userId],
@@ -170,7 +182,7 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
   const userId = await getUserIdOrThrow();
 
   const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS}
+    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
     FROM "vw_FiscalQuarterly"
     WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2 AND "UserID" = $3`,
     [year, quarter, userId],
@@ -235,7 +247,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   const userId = await getUserIdOrThrow();
 
   const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS}
+    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
     FROM "vw_FiscalQuarterly"
     WHERE "FiscalYear" = $1 AND "UserID" = $2`,
     [year, userId],
@@ -298,7 +310,7 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
   const userId = await getUserIdOrThrow();
 
   const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS}
+    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
     FROM "vw_FiscalQuarterly"
     WHERE "FiscalYear" = $1 AND "UserID" = $2`,
     [year, userId],

@@ -26,6 +26,7 @@ export const CreateTransactionSchema = z.object({
   deductionPercent: z.number().min(0).max(100).optional().nullable(),
   vendorName: z.string().max(150).optional().nullable(),
   invoiceNumber: z.string().max(50).optional().nullable(),
+  companyId: z.number().int().positive().optional().nullable(),
 });
 
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;

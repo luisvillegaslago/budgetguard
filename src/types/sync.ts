@@ -60,3 +60,17 @@ export interface SyncExecuteInput {
   direction: SyncDirection;
   includeDeletes: boolean;
 }
+
+/**
+ * Progress event emitted during sync execution
+ */
+export interface SyncProgressEvent {
+  phase: 'setup' | 'delete' | 'sync' | 'done' | 'error';
+  table?: string;
+  inserted?: number;
+  updated?: number;
+  deleted?: number;
+  tableIndex?: number;
+  tableCount?: number;
+  message?: string;
+}

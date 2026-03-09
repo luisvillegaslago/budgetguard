@@ -11,6 +11,7 @@ import { ChevronDown, ChevronUp, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
+import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
@@ -70,6 +71,7 @@ export function TransactionForm({
           deductionPercent: transaction.deductionPercent,
           vendorName: transaction.vendorName,
           invoiceNumber: transaction.invoiceNumber,
+          companyId: transaction.companyId,
         }
       : {
           type: defaultType,
@@ -82,6 +84,7 @@ export function TransactionForm({
           deductionPercent: null,
           vendorName: null,
           invoiceNumber: null,
+          companyId: null,
         },
   });
 
@@ -89,6 +92,7 @@ export function TransactionForm({
   const watchedAmount = useWatch({ control, name: 'amount' });
   const watchedIsShared = useWatch({ control, name: 'isShared' });
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
+  const watchedCompanyId = useWatch({ control, name: 'companyId' });
 
   // Auto-fill fiscal defaults from category
   const fiscalDefaults = useFiscalDefaults(watchedCategoryId ?? null);
@@ -385,19 +389,17 @@ export function TransactionForm({
                   </div>
                 </div>
 
-                {/* Vendor */}
+                {/* Company/Vendor */}
                 <div>
-                  <label htmlFor="vendorName" className="block text-xs font-medium text-foreground mb-1">
+                  <label htmlFor="companyId" className="block text-xs font-medium text-foreground mb-1">
                     {t('fiscal.form.vendor-name')}
                   </label>
-                  <input
-                    id="vendorName"
-                    type="text"
-                    autoComplete="off"
-                    placeholder={t('fiscal.form.vendor-placeholder')}
-                    {...register('vendorName')}
-                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                  <CompanySelector
+                    value={watchedCompanyId ?? null}
+                    onChange={(companyId) => setValue('companyId', companyId, { shouldValidate: true })}
+                    disabled={isSubmitting}
                   />
+                  <input type="hidden" {...register('companyId', { valueAsNumber: true })} />
                 </div>
 
                 {/* Invoice Number */}

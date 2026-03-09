@@ -62,8 +62,9 @@ export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
                 <td className="px-4 py-2 tabular-nums text-guard-muted whitespace-nowrap">
                   {formatDate(invoice.transactionDate)}
                 </td>
-                <td className="px-4 py-2 text-foreground truncate max-w-[150px]">
-                  {invoice.vendorName ?? invoice.parentCategoryName}
+                <td className="px-4 py-2 text-foreground max-w-[200px]">
+                  <div className="truncate">{invoice.vendorName ?? invoice.parentCategoryName}</div>
+                  {invoice.companyTaxId && <span className="text-xs text-guard-muted">{invoice.companyTaxId}</span>}
                 </td>
                 <td className="px-4 py-2 text-foreground/80 truncate max-w-[200px]">{invoice.description ?? '—'}</td>
                 <td className="px-4 py-2 text-right tabular-nums font-medium">{formatCurrency(invoice.baseCents)}</td>

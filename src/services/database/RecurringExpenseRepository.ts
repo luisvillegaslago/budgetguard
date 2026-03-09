@@ -48,6 +48,7 @@ interface RecurringExpenseRow {
   VatPercent: number | null;
   DeductionPercent: number | null;
   VendorName: string | null;
+  CompanyID: number | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -79,6 +80,7 @@ interface OccurrenceRow {
   RE_VatPercent: number | null;
   RE_DeductionPercent: number | null;
   RE_VendorName: string | null;
+  RE_CompanyID: number | null;
   RE_CreatedAt: Date;
   RE_UpdatedAt: Date;
 }
@@ -118,6 +120,7 @@ function rowToRecurringExpense(row: RecurringExpenseRow): RecurringExpense {
     vatPercent: row.VatPercent,
     deductionPercent: row.DeductionPercent,
     vendorName: row.VendorName,
+    companyId: row.CompanyID,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -162,6 +165,7 @@ function rowToOccurrence(row: OccurrenceRow): RecurringOccurrence {
       vatPercent: row.RE_VatPercent,
       deductionPercent: row.RE_DeductionPercent,
       vendorName: row.RE_VendorName,
+      companyId: row.RE_CompanyID,
       createdAt: toISOString(row.RE_CreatedAt),
       updatedAt: toISOString(row.RE_UpdatedAt),
     },
@@ -181,7 +185,7 @@ const RECURRING_EXPENSE_SELECT = `
   re."StartDate", re."EndDate", re."IsActive",
   re."SharedDivisor", re."OriginalAmountCents",
   re."VatPercent", re."DeductionPercent", re."VendorName",
-  re."CreatedAt", re."UpdatedAt"
+  re."CompanyID", re."CreatedAt", re."UpdatedAt"
 `;
 
 const RECURRING_EXPENSE_JOIN = `
@@ -247,6 +251,7 @@ export async function createRecurringExpense(data: {
   vatPercent?: number | null;
   deductionPercent?: number | null;
   vendorName?: string | null;
+  companyId?: number | null;
 }): Promise<RecurringExpense> {
   const userId = await getUserIdOrThrow();
 
@@ -254,8 +259,8 @@ export async function createRecurringExpense(data: {
     `INSERT INTO "RecurringExpenses" ("CategoryID", "AmountCents", "Description", "Frequency",
                                           "DayOfWeek", "DayOfMonth", "MonthOfYear",
                                           "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents",
-                                          "VatPercent", "DeductionPercent", "VendorName", "UserID")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING "RecurringExpenseID"`,
+                                          "VatPercent", "DeductionPercent", "VendorName", "CompanyID", "UserID")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING "RecurringExpenseID"`,
     [
       data.categoryId,
       data.amountCents,
@@ -271,6 +276,7 @@ export async function createRecurringExpense(data: {
       data.vatPercent ?? null,
       data.deductionPercent ?? null,
       data.vendorName ?? null,
+      data.companyId ?? null,
       userId,
     ],
   );
@@ -309,6 +315,7 @@ export async function updateRecurringExpense(
     vatPercent: number | null;
     deductionPercent: number | null;
     vendorName: string | null;
+    companyId: number | null;
   }>,
 ): Promise<RecurringExpense | null> {
   const userId = await getUserIdOrThrow();
@@ -376,6 +383,10 @@ export async function updateRecurringExpense(
   if (data.vendorName !== undefined) {
     updates.push(`"VendorName" = $${paramIndex++}`);
     params.push(data.vendorName);
+  }
+  if (data.companyId !== undefined) {
+    updates.push(`"CompanyID" = $${paramIndex++}`);
+    params.push(data.companyId);
   }
 
   if (updates.length === 0) {
@@ -521,6 +532,7 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
                 re."VatPercent"          AS "RE_VatPercent",
                 re."DeductionPercent"    AS "RE_DeductionPercent",
                 re."VendorName"          AS "RE_VendorName",
+                re."CompanyID"           AS "RE_CompanyID",
                 re."CreatedAt"           AS "RE_CreatedAt",
                 re."UpdatedAt"           AS "RE_UpdatedAt"
          FROM "RecurringExpenseOccurrences" o
@@ -595,6 +607,7 @@ export async function confirmOccurrence(
                 re."VatPercent"          AS "RE_VatPercent",
                 re."DeductionPercent"    AS "RE_DeductionPercent",
                 re."VendorName"          AS "RE_VendorName",
+                re."CompanyID"           AS "RE_CompanyID",
                 re."CreatedAt"           AS "RE_CreatedAt",
                 re."UpdatedAt"           AS "RE_UpdatedAt"
          FROM "RecurringExpenseOccurrences" o
@@ -628,6 +641,7 @@ export async function confirmOccurrence(
     vatPercent: row.RE_VatPercent ?? null,
     deductionPercent: row.RE_DeductionPercent ?? null,
     vendorName: row.RE_VendorName ?? null,
+    companyId: row.RE_CompanyID ?? null,
   });
 
   await query(

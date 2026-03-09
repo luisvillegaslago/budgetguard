@@ -72,6 +72,7 @@ export const QUERY_KEY = {
   TUNNEL_SESSIONS: 'tunnel-sessions',
   SKYDIVE_STATS: 'skydive-stats',
   SKYDIVE_CATEGORIES: 'skydive-categories',
+  COMPANIES: 'companies',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -111,6 +112,7 @@ export const API_ENDPOINT = {
   TUNNEL_SESSIONS: '/api/skydiving/tunnel',
   SKYDIVE_STATS: '/api/skydiving/stats',
   SKYDIVE_CATEGORIES: '/api/skydiving/categories',
+  COMPANIES: '/api/companies',
 } as const;
 
 // Well-known Category References

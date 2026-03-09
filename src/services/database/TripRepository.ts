@@ -123,6 +123,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     deductionPercent: null,
     vendorName: null,
     invoiceNumber: null,
+    companyId: null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };

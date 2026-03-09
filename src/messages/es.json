@@ -645,6 +645,7 @@
     "sections": {
       "general": "General",
       "categories": "Categorías",
+      "companies": "Empresas",
       "database": "Base de Datos"
     },
     "language": {
@@ -672,6 +673,9 @@
       "include-deletes-hint": "Eliminar filas del destino que no existen en el origen",
       "execute": "Ejecutar Sincronizaci\u00f3n",
       "executing": "Sincronizando...",
+      "progress-setup": "Preparando sincronización...",
+      "progress-deleting": "Eliminando filas...",
+      "progress-syncing": "Sincronizando tablas...",
       "confirm-title": "Confirmar Sincronizaci\u00f3n",
       "confirm-push": "\u00bfEnviar todos los cambios de local a remoto?",
       "confirm-pull": "\u00bfTraer todos los cambios de remoto a local?",
@@ -687,6 +691,54 @@
       "only-in-local": "Solo en local",
       "only-in-remote": "Solo en remoto",
       "pk": "ID"
+    }
+  },
+  "companies": {
+    "title": "Empresas / Proveedores",
+    "subtitle": "Gestiona tus empresas y datos de facturación",
+    "add": "Añadir Empresa",
+    "search-placeholder": "Buscar empresa...",
+    "inactive": "Inactiva",
+    "empty": {
+      "title": "No hay empresas aún",
+      "subtitle": "Añade tu primera empresa para vincularla a transacciones",
+      "cta": "Añadir Primera Empresa"
+    },
+    "form": {
+      "title-create": "Nueva Empresa",
+      "title-edit": "Editar Empresa",
+      "fields": {
+        "name": "Nombre",
+        "name-placeholder": "Ej: Vodafone España",
+        "trading-name": "Nombre comercial",
+        "tax-id": "CIF / NIF",
+        "tax-id-placeholder": "Ej: B12345678",
+        "address": "Dirección",
+        "city": "Ciudad",
+        "postal-code": "Código postal",
+        "country": "País"
+      },
+      "submit-create": "Crear Empresa",
+      "submit-edit": "Guardar Cambios",
+      "saving": "Guardando...",
+      "errors": {
+        "create": "Error al crear la empresa. Intenta de nuevo.",
+        "update": "Error al actualizar la empresa. Intenta de nuevo."
+      }
+    },
+    "actions": {
+      "edit": "Editar",
+      "deactivate": "Desactivar",
+      "activate": "Activar"
+    },
+    "selector": {
+      "placeholder": "Seleccionar empresa...",
+      "search": "Buscar empresa...",
+      "create": "Crear",
+      "empty": "No se encontraron empresas"
+    },
+    "errors": {
+      "load": "Error al cargar empresas"
     }
   },
   "skydiving": {

@@ -69,8 +69,9 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
                 <td className="px-4 py-2 tabular-nums text-guard-muted whitespace-nowrap">
                   {formatDate(expense.transactionDate)}
                 </td>
-                <td className="px-4 py-2 text-foreground truncate max-w-[150px]">
-                  {expense.vendorName ?? expense.parentCategoryName}
+                <td className="px-4 py-2 text-foreground max-w-[200px]">
+                  <div className="truncate">{expense.vendorName ?? expense.parentCategoryName}</div>
+                  {expense.companyTaxId && <span className="text-xs text-guard-muted">{expense.companyTaxId}</span>}
                 </td>
                 <td className="px-4 py-2 text-foreground/80 truncate max-w-[180px]">{expense.description ?? '—'}</td>
                 <td className="px-4 py-2 text-right tabular-nums font-medium">

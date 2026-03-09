@@ -172,6 +172,11 @@
   background-color: hsl(var(--muted-foreground) / 0.5);
 }
 
+/* Fix dark calendar/date picker icon */
+.dark ::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
 /* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

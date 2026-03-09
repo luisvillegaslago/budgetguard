@@ -71,6 +71,7 @@ const mockTripDetail: TripDetail = {
       deductionPercent: null,
       vendorName: null,
       invoiceNumber: null,
+      companyId: null,
       createdAt: '2025-10-15T10:00:00.000Z',
       updatedAt: '2025-10-15T10:00:00.000Z',
     },

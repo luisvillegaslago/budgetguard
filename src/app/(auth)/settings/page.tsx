@@ -5,15 +5,16 @@
  * Sections: General (language), Categories, Database (dev-only)
  */
 
-import { Database, Globe, Settings, Tag } from 'lucide-react';
+import { Building2, Database, Globe, Settings, Tag } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryManagementPanel } from '@/components/categories/CategoryManagementPanel';
+import { CompanyManagementPanel } from '@/components/settings/CompanyManagementPanel';
 import { DbSyncPanel } from '@/components/settings/DbSyncPanel';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
 
-type SettingsSection = 'general' | 'categories' | 'database';
+type SettingsSection = 'general' | 'categories' | 'companies' | 'database';
 
 interface SectionConfig {
   id: SettingsSection;
@@ -25,6 +26,7 @@ interface SectionConfig {
 const SECTIONS: SectionConfig[] = [
   { id: 'general', i18nKey: 'settings.sections.general', icon: Globe },
   { id: 'categories', i18nKey: 'settings.sections.categories', icon: Tag },
+  { id: 'companies', i18nKey: 'settings.sections.companies', icon: Building2 },
   { id: 'database', i18nKey: 'settings.sections.database', icon: Database, devOnly: true },
 ];
 
@@ -69,6 +71,8 @@ export default function SettingsPage() {
       {activeSection === 'general' && <LanguageSelector />}
 
       {activeSection === 'categories' && <CategoryManagementPanel />}
+
+      {activeSection === 'companies' && <CompanyManagementPanel />}
 
       {activeSection === 'database' && <DbSyncPanel />}
     </div>

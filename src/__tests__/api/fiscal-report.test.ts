@@ -52,6 +52,7 @@ const mockExpenses: FiscalTransaction[] = [
     ivaCents: 840,
     baseDeducibleCents: 4000,
     ivaDeducibleCents: 840,
+    companyTaxId: null,
   },
   {
     transactionId: 102,
@@ -69,6 +70,7 @@ const mockExpenses: FiscalTransaction[] = [
     ivaCents: 2520,
     baseDeducibleCents: 6000,
     ivaDeducibleCents: 1260,
+    companyTaxId: null,
   },
 ];
 
@@ -89,6 +91,7 @@ const mockInvoices: FiscalTransaction[] = [
     ivaCents: 63000,
     baseDeducibleCents: 300000,
     ivaDeducibleCents: 63000,
+    companyTaxId: null,
   },
   {
     transactionId: 202,
@@ -106,6 +109,7 @@ const mockInvoices: FiscalTransaction[] = [
     ivaCents: 31500,
     baseDeducibleCents: 150000,
     ivaDeducibleCents: 31500,
+    companyTaxId: null,
   },
 ];
 

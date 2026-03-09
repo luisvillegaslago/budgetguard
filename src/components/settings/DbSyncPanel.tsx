@@ -25,14 +25,21 @@ import type { SyncDirection } from '@/constants/finance';
 import { QUERY_KEY, SYNC_DIRECTION } from '@/constants/finance';
 import { useSyncCompare, useSyncExecute } from '@/hooks/useDbSync';
 import { useTranslate } from '@/hooks/useTranslations';
-import type { SyncExecutionResult, TableDiffSummary } from '@/types/sync';
+import type { SyncProgressEvent, TableDiffSummary } from '@/types/sync';
 import { cn } from '@/utils/helpers';
 
 export function DbSyncPanel() {
   const { t } = useTranslate();
   const queryClient = useQueryClient();
   const { data: compareResult, refetch, isFetching: isComparing } = useSyncCompare();
-  const syncMutation = useSyncExecute();
+  const {
+    isExecuting: isSyncing,
+    progress,
+    result: lastResult,
+    error: syncError,
+    execute: executeSync,
+    reset: resetSync,
+  } = useSyncExecute();
 
   // Clear cached compare data on mount so the page always starts fresh
   useEffect(() => {
@@ -43,31 +50,16 @@ export function DbSyncPanel() {
   const [includeDeletes, setIncludeDeletes] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
-  const [lastResult, setLastResult] = useState<SyncExecutionResult | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleCompare = () => {
-    setLastResult(null);
+    resetSync();
     refetch();
   };
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
     setShowConfirm(false);
-    setLastResult(null);
-    setIsSyncing(true);
-    syncMutation.mutate(
-      { direction, includeDeletes },
-      {
-        onSuccess: async (result) => {
-          setLastResult(result);
-          await refetch();
-          setIsSyncing(false);
-        },
-        onError: () => {
-          setIsSyncing(false);
-        },
-      },
-    );
+    await executeSync({ direction, includeDeletes });
+    refetch();
   };
 
   const toggleTable = (table: string) => {
@@ -88,47 +80,46 @@ export function DbSyncPanel() {
 
   return (
     <div className="card space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-guard-primary/10 rounded-lg">
-          <Database className="h-5 w-5 text-guard-primary" aria-hidden="true" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('settings.sync.title')}</h2>
-          {compareResult && (
-            <div className="flex items-center gap-4 text-xs text-guard-muted mt-1">
-              <span>
-                {t('settings.sync.local-label')}: {compareResult.localUrl}
-              </span>
-              <span>
-                {t('settings.sync.remote-label')}: {compareResult.remoteUrl}
-              </span>
+      {/* Syncing progress — replaces header when active */}
+      {isSyncing ? (
+        <SyncProgress progress={progress} />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-guard-primary/10 rounded-lg">
+              <Database className="h-5 w-5 text-guard-primary" aria-hidden="true" />
             </div>
-          )}
-        </div>
-      </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{t('settings.sync.title')}</h2>
+              {compareResult && (
+                <div className="flex items-center gap-4 text-xs text-guard-muted mt-1">
+                  <span>
+                    {t('settings.sync.local-label')}: {compareResult.localUrl}
+                  </span>
+                  <span>
+                    {t('settings.sync.remote-label')}: {compareResult.remoteUrl}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
-      {/* Compare Button */}
-      <button
-        type="button"
-        onClick={handleCompare}
-        disabled={isComparing}
-        className="btn-primary flex items-center gap-2"
-      >
-        {isComparing ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-        )}
-        {isComparing ? t('settings.sync.comparing') : t('settings.sync.compare')}
-      </button>
-
-      {/* Syncing overlay */}
-      {isSyncing && (
-        <div className="border border-border rounded-lg p-12 flex flex-col items-center justify-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-guard-primary" aria-hidden="true" />
-          <span className="text-sm text-guard-muted">{t('settings.sync.executing')}</span>
-        </div>
+          {/* Compare Button */}
+          <button
+            type="button"
+            onClick={handleCompare}
+            disabled={isComparing}
+            className="btn-primary flex items-center gap-2"
+          >
+            {isComparing ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            )}
+            {isComparing ? t('settings.sync.comparing') : t('settings.sync.compare')}
+          </button>
+        </>
       )}
 
       {/* Diff Table */}
@@ -265,12 +256,12 @@ export function DbSyncPanel() {
       )}
 
       {/* Error */}
-      {syncMutation.isError && (
+      {syncError && (
         <div className="rounded-lg border border-guard-danger/30 bg-guard-danger/5 p-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-guard-danger" aria-hidden="true" />
             <span className="text-sm text-guard-danger">
-              {t('settings.sync.error')}: {syncMutation.error?.message}
+              {t('settings.sync.error')}: {syncError}
             </span>
           </div>
         </div>
@@ -412,6 +403,55 @@ function TableRow({
         </tr>
       )}
     </>
+  );
+}
+
+// ============================================================
+// Sync Progress
+// ============================================================
+
+function SyncProgress({ progress }: { progress: SyncProgressEvent | null }) {
+  const { t } = useTranslate();
+
+  const phaseLabel =
+    progress?.phase === 'setup'
+      ? t('settings.sync.progress-setup')
+      : progress?.phase === 'delete'
+        ? t('settings.sync.progress-deleting')
+        : t('settings.sync.progress-syncing');
+
+  const percentage =
+    progress?.tableIndex && progress?.tableCount ? Math.round((progress.tableIndex / progress.tableCount) * 100) : 0;
+
+  return (
+    <div className="border border-border rounded-lg p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-guard-primary shrink-0" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-medium text-foreground">{phaseLabel}</span>
+            {progress?.table && <span className="text-xs text-guard-muted tabular-nums">{percentage}%</span>}
+          </div>
+          {progress?.table && (
+            <p className="text-xs text-guard-muted">
+              {progress.table}
+              {progress.inserted != null && ` — ${progress.inserted} inserted, ${progress.updated ?? 0} updated`}
+              {progress.deleted != null && ` — ${progress.deleted} deleted`}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {progress?.tableCount && (
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full rounded-full bg-guard-primary transition-all duration-300 ease-out"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

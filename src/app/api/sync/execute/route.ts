@@ -1,34 +1,56 @@
 /**
  * BudgetGuard Sync Execute API
- * POST /api/sync/execute - Execute database sync (push or pull)
+ * POST /api/sync/execute - Execute database sync with SSE progress streaming
  * Dev-only: Returns 403 in production
  */
 
-import { NextResponse } from 'next/server';
 import { SyncExecuteSchema } from '@/schemas/sync';
 import { executeSync } from '@/services/database/SyncService';
+import type { SyncProgressEvent } from '@/types/sync';
 
 export async function POST(request: Request) {
   if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
+    return new Response(JSON.stringify({ error: 'Not available in production' }), { status: 403 });
   }
 
-  try {
-    const body: unknown = await request.json();
-    const parsed = SyncExecuteSchema.safeParse(body);
+  const body: unknown = await request.json();
+  const parsed = SyncExecuteSchema.safeParse(body);
 
-    if (!parsed.success) {
-      return NextResponse.json({ success: false, errors: parsed.error.flatten().fieldErrors }, { status: 400 });
-    }
-
-    const { direction, includeDeletes } = parsed.data;
-    const result = await executeSync(direction, includeDeletes);
-
-    return NextResponse.json({ success: true, data: result });
-  } catch (error) {
-    // biome-ignore lint/suspicious/noConsole: Error logging for debugging
-    console.error('POST /api/sync/execute error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ success: false, errors: parsed.error.flatten().fieldErrors }), {
+      status: 400,
+    });
   }
+
+  const { direction, includeDeletes } = parsed.data;
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      const send = (event: SyncProgressEvent) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      };
+
+      executeSync(direction, includeDeletes, send)
+        .then((result) => {
+          send({ phase: 'done', message: JSON.stringify(result) });
+          controller.close();
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          // biome-ignore lint/suspicious/noConsole: Error logging for debugging
+          console.error('POST /api/sync/execute error:', error);
+          send({ phase: 'error', message });
+          controller.close();
+        });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }

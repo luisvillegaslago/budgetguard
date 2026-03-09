@@ -37,6 +37,7 @@ interface TransactionRow {
   DeductionPercent: number | null;
   VendorName: string | null;
   InvoiceNumber: string | null;
+  CompanyID: number | null;
   CreatedAt: Date | string;
   UpdatedAt: Date | string;
 }
@@ -116,6 +117,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     deductionPercent: row.DeductionPercent,
     vendorName: row.VendorName,
     invoiceNumber: row.InvoiceNumber,
+    companyId: row.CompanyID,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -142,7 +144,7 @@ export async function getTransactionsByMonth(
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CreatedAt", t."UpdatedAt"
+      t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -194,7 +196,7 @@ export async function getTransactionById(transactionId: number): Promise<Transac
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CreatedAt", t."UpdatedAt"
+      t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -227,6 +229,7 @@ export async function createTransaction(data: {
   deductionPercent?: number | null;
   vendorName?: string | null;
   invoiceNumber?: string | null;
+  companyId?: number | null;
 }): Promise<Transaction> {
   const userId = await getUserIdOrThrow();
 
@@ -236,9 +239,9 @@ export async function createTransaction(data: {
       "CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
       "SharedDivisor", "OriginalAmountCents", "RecurringExpenseID",
       "TransactionGroupID", "TripID", "VatPercent", "DeductionPercent",
-      "VendorName", "InvoiceNumber", "UserID"
+      "VendorName", "InvoiceNumber", "CompanyID", "UserID"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     RETURNING "TransactionID"
   `,
     [
@@ -256,6 +259,7 @@ export async function createTransaction(data: {
       data.deductionPercent ?? null,
       data.vendorName ?? null,
       data.invoiceNumber ?? null,
+      data.companyId ?? null,
       userId,
     ],
   );
@@ -290,6 +294,7 @@ export async function updateTransaction(
     deductionPercent: number | null;
     vendorName: string | null;
     invoiceNumber: string | null;
+    companyId: number | null;
   }>,
 ): Promise<Transaction | null> {
   const userId = await getUserIdOrThrow();
@@ -341,6 +346,10 @@ export async function updateTransaction(
   if (data.invoiceNumber !== undefined) {
     updates.push(`"InvoiceNumber" = $${paramIndex++}`);
     params.push(data.invoiceNumber);
+  }
+  if (data.companyId !== undefined) {
+    updates.push(`"CompanyID" = $${paramIndex++}`);
+    params.push(data.companyId);
   }
 
   if (updates.length === 0) {
@@ -524,7 +533,7 @@ export async function getCategoryHistoryTransactions(
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CreatedAt", t."UpdatedAt"
+      t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -635,7 +644,7 @@ export async function getTransactionsByGroupId(groupId: number): Promise<Transac
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CreatedAt", t."UpdatedAt"
+      t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"

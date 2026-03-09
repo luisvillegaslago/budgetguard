@@ -6,7 +6,13 @@
 
 import type { SyncDirection } from '@/constants/finance';
 import { SYNC_DIRECTION } from '@/constants/finance';
-import type { RowDiff, SyncCompareResult, SyncExecutionResult, TableDiffSummary } from '@/types/sync';
+import type {
+  RowDiff,
+  SyncCompareResult,
+  SyncExecutionResult,
+  SyncProgressEvent,
+  TableDiffSummary,
+} from '@/types/sync';
 import { getPool } from './connection';
 import { getRemotePool } from './remoteConnection';
 
@@ -60,6 +66,26 @@ const SYNCABLE_TABLES: TableConfig[] = [
     columns: ['TransactionGroupID', 'UserID', 'CreatedAt'],
   },
   {
+    table: 'Companies',
+    pk: 'CompanyID',
+    descriptionColumn: 'Name',
+    hasUpdatedAt: true,
+    columns: [
+      'CompanyID',
+      'Name',
+      'TradingName',
+      'TaxId',
+      'Address',
+      'City',
+      'PostalCode',
+      'Country',
+      'UserID',
+      'IsActive',
+      'CreatedAt',
+      'UpdatedAt',
+    ],
+  },
+  {
     table: 'RecurringExpenses',
     pk: 'RecurringExpenseID',
     descriptionColumn: 'Description',
@@ -78,6 +104,10 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'IsActive',
       'SharedDivisor',
       'OriginalAmountCents',
+      'VatPercent',
+      'DeductionPercent',
+      'VendorName',
+      'CompanyID',
       'UserID',
       'CreatedAt',
       'UpdatedAt',
@@ -104,6 +134,7 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'DeductionPercent',
       'VendorName',
       'InvoiceNumber',
+      'CompanyID',
       'UserID',
       'CreatedAt',
       'UpdatedAt',
@@ -122,6 +153,51 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'TransactionID',
       'ModifiedAmountCents',
       'ProcessedAt',
+    ],
+  },
+  {
+    table: 'SkydiveJumps',
+    pk: 'JumpID',
+    descriptionColumn: 'Title',
+    hasUpdatedAt: true,
+    columns: [
+      'JumpID',
+      'JumpNumber',
+      'Title',
+      'JumpDate',
+      'Dropzone',
+      'Canopy',
+      'Wingsuit',
+      'FreefallTimeSec',
+      'JumpType',
+      'Aircraft',
+      'ExitAltitudeFt',
+      'LandingDistanceM',
+      'Comment',
+      'PriceCents',
+      'TransactionID',
+      'UserID',
+      'CreatedAt',
+      'UpdatedAt',
+    ],
+  },
+  {
+    table: 'TunnelSessions',
+    pk: 'SessionID',
+    descriptionColumn: 'Location',
+    hasUpdatedAt: true,
+    columns: [
+      'SessionID',
+      'SessionDate',
+      'Location',
+      'SessionType',
+      'DurationSec',
+      'Notes',
+      'TransactionID',
+      'UserID',
+      'CreatedAt',
+      'UpdatedAt',
+      'PriceCents',
     ],
   },
 ];
@@ -173,8 +249,12 @@ export async function computeDiff(): Promise<SyncCompareResult> {
   const remotePool = getRemotePool();
   const tables: TableDiffSummary[] = [];
 
+  // Build UserID remap so compare ignores UserID differences (local=1, remote=2)
+  const userIdRemap = await buildUserIdRemap(localPool, remotePool);
+
   const diffPromises = SYNCABLE_TABLES.map(async (config) => {
     const selectAll = `SELECT * FROM "${config.table}" ORDER BY "${config.pk}"`;
+    const hasUserIdCol = config.columns.includes('UserID');
 
     const [localRows, remoteRows] = await Promise.all([
       localPool.query(selectAll).then((r) => r.rows as RowRecord[]),
@@ -183,7 +263,9 @@ export async function computeDiff(): Promise<SyncCompareResult> {
 
     const localMap = new Map<number, RowRecord>();
     localRows.forEach((row) => {
-      localMap.set(Number(row[config.pk]), row);
+      // Remap local UserID to remote equivalent for fair comparison
+      const normalized = hasUserIdCol ? remapUserIds(row, userIdRemap) : row;
+      localMap.set(Number(row[config.pk]), normalized);
     });
 
     const remoteMap = new Map<number, RowRecord>();
@@ -278,12 +360,55 @@ export async function computeDiff(): Promise<SyncCompareResult> {
 // Execute Sync
 // ============================================================
 
-export async function executeSync(direction: SyncDirection, includeDeletes: boolean): Promise<SyncExecutionResult> {
+// Build a UserID remap from source → target by matching on email
+async function buildUserIdRemap(
+  sourcePool: { query: (text: string) => Promise<{ rows: RowRecord[] }> },
+  targetPool: { query: (text: string) => Promise<{ rows: RowRecord[] }> },
+): Promise<Map<number, number>> {
+  const [sourceUsers, targetUsers] = await Promise.all([
+    sourcePool.query('SELECT "UserID", "Email" FROM "Users"').then((r) => r.rows),
+    targetPool.query('SELECT "UserID", "Email" FROM "Users"').then((r) => r.rows),
+  ]);
+
+  const targetByEmail = new Map<string, number>();
+  targetUsers.forEach((u) => {
+    targetByEmail.set(String(u.Email).toLowerCase(), Number(u.UserID));
+  });
+
+  const remap = new Map<number, number>();
+  sourceUsers.forEach((u) => {
+    const sourceId = Number(u.UserID);
+    const targetId = targetByEmail.get(String(u.Email).toLowerCase());
+    if (targetId !== undefined && sourceId !== targetId) {
+      remap.set(sourceId, targetId);
+    }
+  });
+
+  return remap;
+}
+
+function remapUserIds(row: RowRecord, userIdRemap: Map<number, number>): RowRecord {
+  if (userIdRemap.size === 0) return row;
+  const userId = row.UserID;
+  if (userId == null) return row;
+  const remapped = userIdRemap.get(Number(userId));
+  if (remapped === undefined) return row;
+  return { ...row, UserID: remapped };
+}
+
+export async function executeSync(
+  direction: SyncDirection,
+  includeDeletes: boolean,
+  onProgress?: (event: SyncProgressEvent) => void,
+): Promise<SyncExecutionResult> {
   const localPool = getPool();
   const remotePool = getRemotePool();
 
   const sourcePool = direction === SYNC_DIRECTION.PUSH ? localPool : remotePool;
   const targetPool = direction === SYNC_DIRECTION.PUSH ? remotePool : localPool;
+
+  // Remap UserIDs between source and target by matching email
+  const userIdRemap = await buildUserIdRemap(sourcePool, targetPool);
 
   const targetClient = await targetPool.connect();
   const tableResults: SyncExecutionResult['tables'] = [];
@@ -299,9 +424,24 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
       ),
     );
 
+    onProgress?.({ phase: 'setup', message: 'Disabling triggers...' });
+
+    // Disable VendorName sync triggers so sync preserves exact data
+    await Promise.all([
+      targetClient.query('ALTER TABLE "Transactions" DISABLE TRIGGER "TR_Transactions_SyncVendorName"').catch(() => {}),
+      targetClient
+        .query('ALTER TABLE "RecurringExpenses" DISABLE TRIGGER "TR_RecurringExpenses_SyncVendorName"')
+        .catch(() => {}),
+      targetClient.query('ALTER TABLE "Companies" DISABLE TRIGGER "TR_Companies_PropagateNameChange"').catch(() => {}),
+    ]);
+
     // Phase 1: Deletes (reverse FK order, sequential to respect FK constraints)
     if (includeDeletes) {
+      let deleteIdx = 0;
       await processTablesSequentially(DELETE_ORDER, async (config) => {
+        deleteIdx++;
+        onProgress?.({ phase: 'delete', table: config.table, tableIndex: deleteIdx, tableCount: DELETE_ORDER.length });
+
         const selectAll = `SELECT * FROM "${config.table}" ORDER BY "${config.pk}"`;
         const [sourceRows, targetRows] = await Promise.all([
           sourcePool.query(selectAll).then((r) => r.rows as RowRecord[]),
@@ -328,7 +468,11 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
     // Phase 2: Inserts and Updates (FK order, sequential for FK dependencies)
     // Categories need special handling for self-referencing FK:
     // Insert parents (ParentCategoryID IS NULL) first, then children
+    let syncIdx = 0;
     await processTablesSequentially(SYNCABLE_TABLES, async (config) => {
+      syncIdx++;
+      onProgress?.({ phase: 'sync', table: config.table, tableIndex: syncIdx, tableCount: SYNCABLE_TABLES.length });
+
       const selectAll = `SELECT * FROM "${config.table}" ORDER BY "${config.pk}"`;
 
       const [sourceRows, targetRows] = await Promise.all([
@@ -376,14 +520,19 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
         });
       }
 
+      // Remap UserIDs for target DB
+      const hasUserIdCol = config.columns.includes('UserID');
+      const remappedInserts = hasUserIdCol ? toInsert.map((r) => remapUserIds(r, userIdRemap)) : toInsert;
+      const remappedUpdates = hasUserIdCol ? toUpdate.map((r) => remapUserIds(r, userIdRemap)) : toUpdate;
+
       // Insert new rows
-      if (toInsert.length > 0) {
-        await batchInsert(targetClient, config, toInsert);
+      if (remappedInserts.length > 0) {
+        await batchInsert(targetClient, config, remappedInserts);
       }
 
       // Update modified rows
-      if (toUpdate.length > 0) {
-        await batchUpdate(targetClient, config, toUpdate);
+      if (remappedUpdates.length > 0) {
+        await batchUpdate(targetClient, config, remappedUpdates);
       }
 
       // Reset sequence
@@ -403,6 +552,15 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
           deleted: 0,
         });
       }
+
+      onProgress?.({
+        phase: 'sync',
+        table: config.table,
+        inserted: toInsert.length,
+        updated: toUpdate.length,
+        tableIndex: syncIdx,
+        tableCount: SYNCABLE_TABLES.length,
+      });
     });
 
     // Re-enable UpdatedAt triggers before committing
@@ -412,14 +570,28 @@ export async function executeSync(direction: SyncDirection, includeDeletes: bool
       ),
     );
 
+    // Re-enable VendorName sync triggers
+    await Promise.all([
+      targetClient.query('ALTER TABLE "Transactions" ENABLE TRIGGER "TR_Transactions_SyncVendorName"').catch(() => {}),
+      targetClient
+        .query('ALTER TABLE "RecurringExpenses" ENABLE TRIGGER "TR_RecurringExpenses_SyncVendorName"')
+        .catch(() => {}),
+      targetClient.query('ALTER TABLE "Companies" ENABLE TRIGGER "TR_Companies_PropagateNameChange"').catch(() => {}),
+    ]);
+
     await targetClient.query('COMMIT');
   } catch (error) {
     // Re-enable triggers even on rollback to leave DB in clean state
-    await Promise.all(
-      tablesWithTriggers.map((c) =>
+    await Promise.all([
+      ...tablesWithTriggers.map((c) =>
         targetClient.query(`ALTER TABLE "${c.table}" ENABLE TRIGGER "TR_${c.table}_UpdatedAt"`).catch(() => {}),
       ),
-    );
+      targetClient.query('ALTER TABLE "Transactions" ENABLE TRIGGER "TR_Transactions_SyncVendorName"').catch(() => {}),
+      targetClient
+        .query('ALTER TABLE "RecurringExpenses" ENABLE TRIGGER "TR_RecurringExpenses_SyncVendorName"')
+        .catch(() => {}),
+      targetClient.query('ALTER TABLE "Companies" ENABLE TRIGGER "TR_Companies_PropagateNameChange"').catch(() => {}),
+    ]);
     await targetClient.query('ROLLBACK');
     throw error;
   } finally {
