@@ -464,6 +464,7 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
          WHERE o."Status" = 'pending'
            AND re."IsActive" = true
            AND re."UserID" = $1
+           AND o."OccurrenceDate" <= CURRENT_DATE
          ORDER BY o."OccurrenceDate" ASC`,
     [userId],
   );
