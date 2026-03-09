@@ -5,8 +5,8 @@
  * Main container for CRUD operations on categories
  */
 
-import { AlertCircle, FolderOpen, Plus, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { AlertCircle, FolderOpen, Plus, RefreshCw, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { CategoryDeleteDialog } from '@/components/categories/CategoryDeleteDialog';
 import { CategoryFormModal } from '@/components/categories/CategoryFormModal';
 import { CategoryTree } from '@/components/categories/CategoryTree';
@@ -28,11 +28,26 @@ interface ModalState {
 export function CategoryManagementPanel() {
   const { t } = useTranslate();
   const [typeFilter, setTypeFilter] = useState<FilterType>(FILTER_TYPE.ALL);
+  const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState<ModalState>({ type: 'none' });
   const updateCategory = useUpdateCategory();
 
   const queryType = typeFilter === FILTER_TYPE.ALL ? undefined : (typeFilter as TransactionType);
   const { data: categories, isLoading, isError, refetch } = useAllCategoriesHierarchical(queryType);
+
+  const filteredCategories = useMemo(() => {
+    if (!categories || !searchQuery.trim()) return categories;
+    const query = searchQuery.toLowerCase().trim();
+    return categories
+      .map((cat) => {
+        const nameMatches = cat.name.toLowerCase().includes(query);
+        const matchingSubs = cat.subcategories?.filter((sub) => sub.name.toLowerCase().includes(query)) ?? [];
+        if (nameMatches) return cat;
+        if (matchingSubs.length > 0) return { ...cat, subcategories: matchingSubs };
+        return null;
+      })
+      .filter((cat): cat is Category => cat !== null);
+  }, [categories, searchQuery]);
 
   const handleEdit = (category: Category) => {
     setModal({ type: 'edit', category });
@@ -105,6 +120,18 @@ export function CategoryManagementPanel() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-guard-muted" aria-hidden="true" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('category-management.search-placeholder')}
+          className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-guard-muted focus:outline-none focus:ring-2 focus:ring-guard-primary/50 transition-colors"
+        />
+      </div>
+
       {/* Content */}
       <div className="card">
         {isLoading && (
@@ -124,7 +151,7 @@ export function CategoryManagementPanel() {
           </div>
         )}
 
-        {!isLoading && !isError && categories?.length === 0 && (
+        {!isLoading && !isError && filteredCategories?.length === 0 && (
           <div className="text-center py-12 text-guard-muted">
             <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
             <p className="font-medium">{t('category-management.empty.title')}</p>
@@ -140,9 +167,9 @@ export function CategoryManagementPanel() {
           </div>
         )}
 
-        {!isLoading && !isError && categories && categories.length > 0 && (
+        {!isLoading && !isError && filteredCategories && filteredCategories.length > 0 && (
           <CategoryTree
-            categories={categories}
+            categories={filteredCategories}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onToggleActive={handleToggleActive}

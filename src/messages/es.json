@@ -204,6 +204,7 @@
     "title": "Gestión de Categorías",
     "subtitle": "Organiza tus categorías de ingresos y gastos",
     "back": "Volver al Dashboard",
+    "search-placeholder": "Buscar categoría...",
     "add-category": "Añadir Categoría",
     "add-subcategory": "Añadir Subcategoría",
     "edit-category": "Editar Categoría",

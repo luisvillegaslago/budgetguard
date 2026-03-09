@@ -204,6 +204,7 @@
     "title": "Category Management",
     "subtitle": "Organize your income and expense categories",
     "back": "Back to Dashboard",
+    "search-placeholder": "Search category...",
     "add-category": "Add Category",
     "add-subcategory": "Add Subcategory",
     "edit-category": "Edit Category",
