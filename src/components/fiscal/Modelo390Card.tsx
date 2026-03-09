@@ -6,6 +6,7 @@
  * Three sections: Devengado, Deducible, Volumen de Operaciones
  */
 
+import { Tooltip } from '@/components/ui/Tooltip';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo390Summary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
@@ -27,12 +28,11 @@ function CasillaRow({ number, label, cents, isTotal = false }: CasillaRowProps) 
     <div className={cn('flex items-baseline justify-between gap-2 py-1.5', isTotal && 'border-t border-border pt-2')}>
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="text-xs text-guard-muted tabular-nums shrink-0">[{number}]</span>
-        <span
-          title={label}
-          className={cn('text-sm truncate', isTotal ? 'font-semibold text-foreground' : 'text-foreground/80')}
-        >
-          {label}
-        </span>
+        <Tooltip content={label} side="bottom">
+          <span className={cn('text-sm truncate', isTotal ? 'font-semibold text-foreground' : 'text-foreground/80')}>
+            {label}
+          </span>
+        </Tooltip>
       </div>
       <span className={cn('text-sm tabular-nums shrink-0', isTotal ? 'font-bold text-foreground' : 'font-medium')}>
         {formatCurrency(cents)}

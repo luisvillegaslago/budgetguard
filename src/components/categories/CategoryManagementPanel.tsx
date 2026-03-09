@@ -5,12 +5,13 @@
  * Main container for CRUD operations on categories
  */
 
-import { AlertCircle, FolderOpen, Plus, RefreshCw, Search } from 'lucide-react';
+import { AlertCircle, FolderOpen, Plus, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryDeleteDialog } from '@/components/categories/CategoryDeleteDialog';
 import { CategoryFormModal } from '@/components/categories/CategoryFormModal';
 import { CategoryTree } from '@/components/categories/CategoryTree';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { FILTER_TYPE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useAllCategoriesHierarchical, useUpdateCategory } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -121,16 +122,11 @@ export function CategoryManagementPanel() {
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-guard-muted" aria-hidden="true" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={t('category-management.search-placeholder')}
-          className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-guard-muted focus:outline-none focus:ring-2 focus:ring-guard-primary/50 transition-colors"
-        />
-      </div>
+      <SearchInput
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder={t('category-management.search-placeholder')}
+      />
 
       {/* Content */}
       <div className="card">

@@ -10,6 +10,7 @@ import { Check, ChevronDown, ChevronUp, Pencil, Repeat, X } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   useConfirmAllOccurrences,
   useConfirmOccurrence,
@@ -117,16 +118,17 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsModifying(true)}
-              disabled={isProcessing}
-              className="p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
-              aria-label={t('recurring.pending.modify')}
-              title={t('recurring.pending.modify')}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
+            <Tooltip content={t('recurring.pending.modify')}>
+              <button
+                type="button"
+                onClick={() => setIsModifying(true)}
+                disabled={isProcessing}
+                className="p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={t('recurring.pending.modify')}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
             <button
               type="button"
               onClick={handleConfirm}

@@ -40,7 +40,24 @@
     "next-month": "Next month",
     "previous-year": "Previous year",
     "next-year": "Next year",
-    "month-picker": "Month picker"
+    "month-picker": "Month picker",
+    "toggle-menu": "Toggle menu",
+    "close-menu": "Close menu",
+    "main": "Main navigation",
+    "groups": {
+      "finance": "Finance",
+      "activities": "Activities",
+      "professional": "Professional"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "movements": "Movements",
+      "recurring": "Recurring",
+      "trips": "Trips",
+      "skydiving": "Skydiving",
+      "fiscal": "Fiscal",
+      "settings": "Settings"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -454,6 +471,20 @@
       "not-found": "Trip not found"
     }
   },
+  "movements": {
+    "title": "Movements",
+    "subtitle": "Expense history by category",
+    "search-placeholder": "Search category...",
+    "select-category": "Select a category to view its history",
+    "no-categories": "No expense categories found",
+    "delete-transaction": "Delete transaction",
+    "delete-confirm": "Click again to confirm",
+    "subcategory-filter": "Filter by subcategory",
+    "all-subcategories": "All",
+    "no-transactions-subcategory": "No transactions for this subcategory",
+    "try-other-subcategory": "Try selecting a different subcategory or time range",
+    "group-by-month": "Group by month"
+  },
   "category-history": {
     "view-link": "View history",
     "title": "Category History",
@@ -607,6 +638,15 @@
   "settings": {
     "title": "Settings",
     "back": "Back to Dashboard",
+    "sections": {
+      "general": "General",
+      "categories": "Categories",
+      "database": "Database"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose the language for the interface"
+    },
     "sync": {
       "title": "Database Sync",
       "local-label": "Local",

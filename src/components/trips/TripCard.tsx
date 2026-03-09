@@ -8,6 +8,7 @@
 import { Calendar, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { DeleteButton } from '@/components/ui/DeleteButton';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { TRIP_COLOR } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { TripDisplay } from '@/types/finance';
@@ -39,15 +40,15 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardPro
       {trip.categorySummary.length > 0 && totalForBar > 0 && (
         <div className="flex h-1.5 rounded-full overflow-hidden mb-4">
           {trip.categorySummary.map((cat) => (
-            <div
-              key={cat.categoryId}
-              className="h-full"
-              style={{
-                backgroundColor: cat.categoryColor ?? TRIP_COLOR,
-                width: `${(cat.totalCents / totalForBar) * 100}%`,
-              }}
-              title={`${cat.categoryName}: ${formatCurrency(cat.totalCents)}`}
-            />
+            <Tooltip key={cat.categoryId} content={`${cat.categoryName}: ${formatCurrency(cat.totalCents)}`}>
+              <div
+                className="h-full"
+                style={{
+                  backgroundColor: cat.categoryColor ?? TRIP_COLOR,
+                  width: `${(cat.totalCents / totalForBar) * 100}%`,
+                }}
+              />
+            </Tooltip>
           ))}
         </div>
       )}

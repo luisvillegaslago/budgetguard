@@ -5,8 +5,6 @@
  * Main page with tabs: Summary, Jump Log, Tunnel Sessions
  */
 
-import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { ImportPanel } from '@/components/skydiving/ImportPanel';
 import { JumpForm } from '@/components/skydiving/JumpForm';
@@ -65,70 +63,59 @@ export default function SkydivingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-guard-light dark:bg-guard-dark">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link
-            href="/dashboard"
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-            aria-label={t('skydiving.back')}
-          >
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{t('skydiving.title')}</h1>
-            <p className="text-sm text-guard-muted mt-0.5">{t('skydiving.subtitle')}</p>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b border-border">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === tab.id
-                  ? 'border-guard-primary text-guard-primary'
-                  : 'border-transparent text-guard-muted hover:text-foreground'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === 'summary' && (
-          <div className="space-y-6">
-            <SkydiveStatsCards />
-          </div>
-        )}
-
-        {activeTab === 'jumps' && (
-          <JumpLogTable
-            onNewJump={() => setShowJumpForm(true)}
-            onEditJump={(jump) => {
-              setEditingJump(jump);
-              setShowJumpForm(true);
-            }}
-            onImport={() => setImportType('jumps')}
-          />
-        )}
-
-        {activeTab === 'tunnel' && (
-          <TunnelSessionTable
-            onNewSession={() => setShowTunnelForm(true)}
-            onEditSession={(session) => {
-              setEditingTunnelSession(session);
-              setShowTunnelForm(true);
-            }}
-            onImport={() => setImportType('tunnel')}
-          />
-        )}
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">{t('skydiving.title')}</h1>
+        <p className="text-sm text-guard-muted mt-0.5">{t('skydiving.subtitle')}</p>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab.id
+                ? 'border-guard-primary text-guard-primary'
+                : 'border-transparent text-guard-muted hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'summary' && (
+        <div className="space-y-6">
+          <SkydiveStatsCards />
+        </div>
+      )}
+
+      {activeTab === 'jumps' && (
+        <JumpLogTable
+          onNewJump={() => setShowJumpForm(true)}
+          onEditJump={(jump) => {
+            setEditingJump(jump);
+            setShowJumpForm(true);
+          }}
+          onImport={() => setImportType('jumps')}
+        />
+      )}
+
+      {activeTab === 'tunnel' && (
+        <TunnelSessionTable
+          onNewSession={() => setShowTunnelForm(true)}
+          onEditSession={(session) => {
+            setEditingTunnelSession(session);
+            setShowTunnelForm(true);
+          }}
+          onImport={() => setImportType('tunnel')}
+        />
+      )}
 
       {/* Jump Form Modal */}
       {showJumpForm && (

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { DEFAULT_LOCALE, isValidLocale, type Locale } from '@/libs/i18n';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SessionProvider } from '@/providers/SessionProvider';
+import { TooltipProvider } from '@/providers/TooltipProvider';
 import { TranslationProvider } from '@/providers/TranslationProvider';
 import '@/styles/global.css';
 import '@fontsource/inter/latin.css';
@@ -35,7 +36,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <SessionProvider>
           <QueryProvider>
             <TranslationProvider>
-              <div className="relative min-h-screen">{children}</div>
+              <TooltipProvider>
+                <div className="relative min-h-screen">{children}</div>
+              </TooltipProvider>
             </TranslationProvider>
           </QueryProvider>
         </SessionProvider>

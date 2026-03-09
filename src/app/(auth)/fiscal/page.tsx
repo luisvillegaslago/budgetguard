@@ -7,8 +7,7 @@
  * - Annual: Modelo 390 (annual IVA) + Modelo 100 (annual IRPF section)
  */
 
-import { ArrowLeft, Calculator } from 'lucide-react';
-import Link from 'next/link';
+import { Calculator } from 'lucide-react';
 import { useState } from 'react';
 import { FiscalExpenseTable } from '@/components/fiscal/FiscalExpenseTable';
 import { FiscalInvoiceTable } from '@/components/fiscal/FiscalInvoiceTable';
@@ -44,112 +43,81 @@ export default function FiscalPage() {
   const isCurrentError = view === 'quarterly' ? isError : isAnnualError;
 
   return (
-    <div className="min-h-screen bg-guard-light dark:bg-guard-dark">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <Link
-                href="/dashboard"
-                className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                aria-label={t('fiscal.back')}
-              >
-                <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-              </Link>
-              <div className="flex items-center gap-2">
-                <Calculator className="h-5 w-5 text-guard-primary" aria-hidden="true" />
-                <h1 className="text-xl font-bold text-foreground">{t('fiscal.title')}</h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              {/* View Toggle */}
-              <fieldset className="flex gap-1 bg-muted rounded-lg p-1 border-0 m-0" aria-label="Fiscal view">
-                <button
-                  type="button"
-                  aria-pressed={view === 'quarterly'}
-                  onClick={() => setView('quarterly')}
-                  className={cn(
-                    'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
-                    view === 'quarterly'
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-guard-muted hover:text-foreground',
-                  )}
-                >
-                  {t('fiscal.annual.tab-quarterly')}
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={view === 'annual'}
-                  onClick={() => setView('annual')}
-                  className={cn(
-                    'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
-                    view === 'annual' ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground',
-                  )}
-                >
-                  {t('fiscal.annual.tab-annual')}
-                </button>
-              </fieldset>
-
-              {/* Quarter Selector (only shown in quarterly view) */}
-              {view === 'quarterly' ? (
-                <FiscalQuarterSelector
-                  year={year}
-                  quarter={quarter}
-                  onYearChange={setYear}
-                  onQuarterChange={setQuarter}
-                />
-              ) : (
-                <FiscalQuarterSelector
-                  year={year}
-                  quarter={quarter}
-                  onYearChange={setYear}
-                  onQuarterChange={setQuarter}
-                />
-              )}
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-2">
+          <Calculator className="h-5 w-5 text-guard-primary" aria-hidden="true" />
+          <h1 className="text-2xl font-bold text-foreground">{t('fiscal.title')}</h1>
         </div>
-      </header>
+
+        <div className="flex items-center gap-4">
+          {/* View Toggle */}
+          <fieldset className="flex gap-1 bg-muted rounded-lg p-1 border-0 m-0" aria-label="Fiscal view">
+            <button
+              type="button"
+              aria-pressed={view === 'quarterly'}
+              onClick={() => setView('quarterly')}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                view === 'quarterly' ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground',
+              )}
+            >
+              {t('fiscal.annual.tab-quarterly')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'annual'}
+              onClick={() => setView('annual')}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                view === 'annual' ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground',
+              )}
+            >
+              {t('fiscal.annual.tab-annual')}
+            </button>
+          </fieldset>
+
+          {/* Quarter Selector */}
+          <FiscalQuarterSelector year={year} quarter={quarter} onYearChange={setYear} onQuarterChange={setQuarter} />
+        </div>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isCurrentLoading && (
-          <div className="flex items-center justify-center py-20">
-            <LoadingSpinner size="lg" label={t('common.loading')} />
-          </div>
-        )}
+      {isCurrentLoading && (
+        <div className="flex items-center justify-center py-20">
+          <LoadingSpinner size="lg" label={t('common.loading')} />
+        </div>
+      )}
 
-        {isCurrentError && (
-          <div className="card text-center py-12">
-            <p className="text-guard-danger">{t('fiscal.errors.load')}</p>
-          </div>
-        )}
+      {isCurrentError && (
+        <div className="card text-center py-12">
+          <p className="text-guard-danger">{t('fiscal.errors.load')}</p>
+        </div>
+      )}
 
-        {/* Quarterly View */}
-        {view === 'quarterly' && report && !isLoading && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Modelo303Card data={report.modelo303} />
-              <Modelo130Card data={report.modelo130} />
-            </div>
-
-            <FiscalExpenseTable expenses={report.expenses} />
-            <FiscalInvoiceTable invoices={report.invoices} />
+      {/* Quarterly View */}
+      {view === 'quarterly' && report && !isLoading && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Modelo303Card data={report.modelo303} />
+            <Modelo130Card data={report.modelo130} />
           </div>
-        )}
 
-        {/* Annual View */}
-        {view === 'annual' && annualReport && !isAnnualLoading && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Modelo390Card data={annualReport.modelo390} />
-              <Modelo100Card data={annualReport.modelo100} />
-            </div>
+          <FiscalExpenseTable expenses={report.expenses} />
+          <FiscalInvoiceTable invoices={report.invoices} />
+        </div>
+      )}
+
+      {/* Annual View */}
+      {view === 'annual' && annualReport && !isAnnualLoading && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Modelo390Card data={annualReport.modelo390} />
+            <Modelo100Card data={annualReport.modelo100} />
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }

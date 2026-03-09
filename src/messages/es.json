@@ -40,7 +40,24 @@
     "next-month": "Mes siguiente",
     "previous-year": "Año anterior",
     "next-year": "Año siguiente",
-    "month-picker": "Selector de mes"
+    "month-picker": "Selector de mes",
+    "toggle-menu": "Alternar menú",
+    "close-menu": "Cerrar menú",
+    "main": "Navegación principal",
+    "groups": {
+      "finance": "Finanzas",
+      "activities": "Actividades",
+      "professional": "Profesional"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "movements": "Movimientos",
+      "recurring": "Recurrentes",
+      "trips": "Viajes",
+      "skydiving": "Paracaidismo",
+      "fiscal": "Fiscal",
+      "settings": "Ajustes"
+    }
   },
   "dashboard": {
     "title": "Panel",
@@ -454,6 +471,20 @@
       "not-found": "Viaje no encontrado"
     }
   },
+  "movements": {
+    "title": "Movimientos",
+    "subtitle": "Historial de gastos por categoría",
+    "search-placeholder": "Buscar categoría...",
+    "select-category": "Selecciona una categoría para ver su historial",
+    "no-categories": "No se encontraron categorías de gastos",
+    "delete-transaction": "Eliminar transacción",
+    "delete-confirm": "Clic de nuevo para confirmar",
+    "subcategory-filter": "Filtrar por subcategoría",
+    "all-subcategories": "Todas",
+    "no-transactions-subcategory": "Sin transacciones en esta subcategoría",
+    "try-other-subcategory": "Prueba con otra subcategoría o rango de tiempo",
+    "group-by-month": "Agrupar por mes"
+  },
   "category-history": {
     "view-link": "Ver historial",
     "title": "Historial de Categoría",
@@ -607,6 +638,15 @@
   "settings": {
     "title": "Ajustes",
     "back": "Volver al Dashboard",
+    "sections": {
+      "general": "General",
+      "categories": "Categorías",
+      "database": "Base de Datos"
+    },
+    "language": {
+      "title": "Idioma",
+      "description": "Elige el idioma de la interfaz"
+    },
     "sync": {
       "title": "Sincronizaci\u00f3n de Base de Datos",
       "local-label": "Local",

@@ -17,13 +17,13 @@ module.exports = {
       colors: {
         // BudgetGuard Brand Colors - Fintech Premium Palette
         guard: {
-          dark: '#0F172A',     // Deep Navy (Backgrounds/Sidebar)
-          primary: '#4F46E5',  // Indigo (Primary Buttons/Actions)
-          success: '#10B981',  // Emerald (Income/Positive Balance)
-          danger: '#EF4444',   // Rose (Expenses/Alerts)
-          muted: '#64748B',    // Slate (Text/Secondary info)
-          light: '#F8FAFC',    // Off-white (Card backgrounds)
-          trip: '#8B5CF6',     // Violet (Trip-related elements)
+          dark: '#0F172A', // Deep Navy (Backgrounds/Sidebar)
+          primary: '#4F46E5', // Indigo (Primary Buttons/Actions)
+          success: '#10B981', // Emerald (Income/Positive Balance)
+          danger: '#EF4444', // Rose (Expenses/Alerts)
+          muted: '#64748B', // Slate (Text/Secondary info)
+          light: '#F8FAFC', // Off-white (Card backgrounds)
+          trip: '#8B5CF6', // Violet (Trip-related elements)
         },
         // System colors using CSS variables
         background: 'hsl(var(--background))',

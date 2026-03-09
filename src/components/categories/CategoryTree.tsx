@@ -8,6 +8,7 @@
 import { ChevronRight, Eye, EyeOff, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { TRANSACTION_TYPE } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Category } from '@/types/finance';
@@ -114,58 +115,64 @@ function CategoryRow({
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
-          <button
-            type="button"
-            onClick={() => onEdit(category)}
-            className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
-            aria-label={t('category-management.actions.edit')}
-            title={t('category-management.actions.edit')}
-          >
-            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onToggleActive(category)}
-            className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
-            aria-label={
-              category.isActive
-                ? t('category-management.actions.deactivate')
-                : t('category-management.actions.activate')
-            }
-            title={
-              category.isActive
-                ? t('category-management.actions.deactivate')
-                : t('category-management.actions.activate')
-            }
-          >
-            {category.isActive ? (
-              <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-            ) : (
-              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onDelete(category)}
-            className="p-1.5 text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 rounded-md transition-colors"
-            aria-label={t('category-management.actions.delete')}
-            title={t('category-management.actions.delete')}
-          >
-            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-
-          {isParent && (
+          <Tooltip content={t('category-management.actions.edit')}>
             <button
               type="button"
-              onClick={() => onAddSubcategory(category)}
-              className="p-1.5 text-guard-muted hover:text-guard-primary hover:bg-guard-primary/10 rounded-md transition-colors"
-              aria-label={t('category-management.actions.add-subcategory')}
-              title={t('category-management.actions.add-subcategory')}
+              onClick={() => onEdit(category)}
+              className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              aria-label={t('category-management.actions.edit')}
             >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
+          </Tooltip>
+
+          <Tooltip
+            content={
+              category.isActive
+                ? t('category-management.actions.deactivate')
+                : t('category-management.actions.activate')
+            }
+          >
+            <button
+              type="button"
+              onClick={() => onToggleActive(category)}
+              className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              aria-label={
+                category.isActive
+                  ? t('category-management.actions.deactivate')
+                  : t('category-management.actions.activate')
+              }
+            >
+              {category.isActive ? (
+                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
+          </Tooltip>
+
+          <Tooltip content={t('category-management.actions.delete')}>
+            <button
+              type="button"
+              onClick={() => onDelete(category)}
+              className="p-1.5 text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 rounded-md transition-colors"
+              aria-label={t('category-management.actions.delete')}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </Tooltip>
+
+          {isParent && (
+            <Tooltip content={t('category-management.actions.add-subcategory')}>
+              <button
+                type="button"
+                onClick={() => onAddSubcategory(category)}
+                className="p-1.5 text-guard-muted hover:text-guard-primary hover:bg-guard-primary/10 rounded-md transition-colors"
+                aria-label={t('category-management.actions.add-subcategory')}
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

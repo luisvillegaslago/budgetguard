@@ -9,6 +9,7 @@ import { ArrowUpRight, ChevronDown, ChevronRight, ExternalLink, Plane } from 'lu
 import Link from 'next/link';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { SHARED_EXPENSE, TRANSACTION_TYPE, TRIP_COLOR } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction, TripGroupDisplay } from '@/types/finance';
@@ -48,9 +49,9 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
 
         {/* Trip Name & Count */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate" title={tripGroup.tripName}>
-            {tripGroup.tripName}
-          </p>
+          <OverflowTooltip content={tripGroup.tripName}>
+            <p className="text-sm font-medium text-foreground truncate">{tripGroup.tripName}</p>
+          </OverflowTooltip>
           <p className="text-xs text-guard-muted">
             {t('transactions.trip-group.expenses', { count: tripGroup.transactions.length })}
           </p>
@@ -132,10 +133,12 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
                   <CategoryIcon icon={tx.category?.icon} color={subColor} className="h-3 w-3" />
                 </div>
                 <span className="text-xs text-guard-muted w-12 flex-shrink-0">{formatDate(tx.transactionDate)}</span>
-                <span className="text-xs text-foreground flex-1 truncate" title={categoryName}>
-                  {categoryName}
-                  {tx.description && <span className="text-guard-muted"> — {tx.description}</span>}
-                </span>
+                <OverflowTooltip content={categoryName}>
+                  <span className="text-xs text-foreground flex-1 truncate">
+                    {categoryName}
+                    {tx.description && <span className="text-guard-muted"> — {tx.description}</span>}
+                  </span>
+                </OverflowTooltip>
                 {tx.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR && (
                   <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
                     {t('transactions.shared-badge')}

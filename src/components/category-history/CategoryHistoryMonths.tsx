@@ -2,26 +2,40 @@
 
 /**
  * Monthly transaction sections with sticky headers for category history
- * Read-only display — no edit/delete actions
+ * Supports optional edit/delete actions via callbacks
  */
 
+import { Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { SHARED_EXPENSE } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { CategoryHistoryMonth, Transaction } from '@/types/finance';
-import { formatDate } from '@/utils/helpers';
+import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
 interface TransactionRowProps {
   transaction: Transaction;
+  onEdit?: (transaction: Transaction) => void;
+  onDelete?: (transactionId: number) => void;
 }
 
-function TransactionRow({ transaction }: TransactionRowProps) {
+function TransactionRow({ transaction, onEdit, onDelete }: TransactionRowProps) {
   const { t } = useTranslate();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const subcategoryName = transaction.category?.name ?? t('transactions.no-category');
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
+  const handleDelete = () => {
+    if (confirmDelete) {
+      onDelete?.(transaction.transactionId);
+      setConfirmDelete(false);
+    } else {
+      setConfirmDelete(true);
+    }
+  };
 
   return (
-    <div className="flex items-center gap-3 py-2.5 px-4">
+    <div className="flex items-center gap-3 py-2.5 px-4 group hover:bg-muted/30 transition-colors">
       <span className="text-xs text-guard-muted w-12 flex-shrink-0">{formatDate(transaction.transactionDate)}</span>
 
       <div className="flex-1 min-w-0">
@@ -38,6 +52,45 @@ function TransactionRow({ transaction }: TransactionRowProps) {
         <span className="text-sm font-semibold text-guard-danger tabular-nums">
           {formatCurrency(transaction.amountCents)}
         </span>
+
+        {(onEdit || onDelete) && (
+          <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onEdit && (
+              <Tooltip content={t('category-management.actions.edit')}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(transaction);
+                  }}
+                  className="p-1.5 text-guard-muted hover:text-foreground rounded transition-colors"
+                  aria-label={t('category-management.actions.edit')}
+                >
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </Tooltip>
+            )}
+            {onDelete && (
+              <Tooltip content={confirmDelete ? t('movements.delete-confirm') : t('movements.delete-transaction')}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete();
+                  }}
+                  onBlur={() => setConfirmDelete(false)}
+                  className={cn(
+                    'p-1.5 rounded transition-colors',
+                    confirmDelete ? 'text-guard-danger bg-guard-danger/10' : 'text-guard-muted hover:text-guard-danger',
+                  )}
+                  aria-label={confirmDelete ? t('movements.delete-confirm') : t('movements.delete-transaction')}
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -45,9 +98,11 @@ function TransactionRow({ transaction }: TransactionRowProps) {
 
 interface MonthSectionProps {
   monthData: CategoryHistoryMonth;
+  onEdit?: (transaction: Transaction) => void;
+  onDelete?: (transactionId: number) => void;
 }
 
-function MonthSection({ monthData }: MonthSectionProps) {
+function MonthSection({ monthData, onEdit, onDelete }: MonthSectionProps) {
   const { t } = useTranslate();
   const monthLabel = formatDate(`${monthData.month}-01`, 'month');
 
@@ -62,7 +117,7 @@ function MonthSection({ monthData }: MonthSectionProps) {
 
       <div className="divide-y divide-border/50">
         {monthData.transactions.map((tx: Transaction) => (
-          <TransactionRow key={tx.transactionId} transaction={tx} />
+          <TransactionRow key={tx.transactionId} transaction={tx} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </section>
@@ -71,13 +126,44 @@ function MonthSection({ monthData }: MonthSectionProps) {
 
 interface CategoryHistoryMonthsProps {
   months: CategoryHistoryMonth[];
+  groupByMonth?: boolean;
+  onEditTransaction?: (transaction: Transaction) => void;
+  onDeleteTransaction?: (transactionId: number) => void;
 }
 
-export function CategoryHistoryMonths({ months }: CategoryHistoryMonthsProps) {
+export function CategoryHistoryMonths({
+  months,
+  groupByMonth = true,
+  onEditTransaction,
+  onDeleteTransaction,
+}: CategoryHistoryMonthsProps) {
+  if (!groupByMonth) {
+    const allTransactions = months.flatMap((m) => m.transactions);
+    return (
+      <div className="card overflow-hidden p-0">
+        <div className="divide-y divide-border/50">
+          {allTransactions.map((tx) => (
+            <TransactionRow
+              key={tx.transactionId}
+              transaction={tx}
+              onEdit={onEditTransaction}
+              onDelete={onDeleteTransaction}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card overflow-hidden p-0">
       {months.map((monthData) => (
-        <MonthSection key={monthData.month} monthData={monthData} />
+        <MonthSection
+          key={monthData.month}
+          monthData={monthData}
+          onEdit={onEditTransaction}
+          onDelete={onDeleteTransaction}
+        />
       ))}
     </div>
   );

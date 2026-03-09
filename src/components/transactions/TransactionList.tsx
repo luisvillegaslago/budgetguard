@@ -5,12 +5,15 @@
  * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import { ArrowDownLeft, ArrowUpRight, Pencil, Plane, Plus, Receipt, Repeat, Search, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Pencil, Plane, Plus, Receipt, Repeat } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
+import { SearchInput } from '@/components/ui/SearchInput';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { FILTER_TYPE, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useDeleteTransaction, useGroupedTransactions } from '@/hooks/useTransactions';
@@ -61,41 +64,38 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
 
       {/* Category & Description */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate" title={categoryName}>
-          {categoryName}
-        </p>
+        <OverflowTooltip content={categoryName}>
+          <p className="text-sm font-medium text-foreground truncate">{categoryName}</p>
+        </OverflowTooltip>
         {transaction.description && (
-          <p className="text-xs text-guard-muted truncate" title={transaction.description}>
-            {transaction.description}
-          </p>
+          <OverflowTooltip content={transaction.description}>
+            <p className="text-xs text-guard-muted truncate">{transaction.description}</p>
+          </OverflowTooltip>
         )}
       </div>
 
       {/* Amount + Shared Badge */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {transaction.recurringExpenseId && (
-          <span
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-            title={t('recurring.badge')}
-          >
-            <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
-          </span>
+          <Tooltip content={t('recurring.badge')}>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+              <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+            </span>
+          </Tooltip>
         )}
         {transaction.tripId && (
-          <span
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center gap-0.5"
-            title={transaction.tripName ?? t('trips.badge')}
-          >
-            <Plane className="h-2.5 w-2.5" aria-hidden="true" />
-          </span>
+          <Tooltip content={transaction.tripName ?? t('trips.badge')}>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center gap-0.5">
+              <Plane className="h-2.5 w-2.5" aria-hidden="true" />
+            </span>
+          </Tooltip>
         )}
         {isShared && (
-          <span
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary"
-            title={t('transactions.shared-badge')}
-          >
-            {t('transactions.shared-badge')}
-          </span>
+          <Tooltip content={t('transactions.shared-badge')}>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
+              {t('transactions.shared-badge')}
+            </span>
+          </Tooltip>
         )}
         <div
           className={cn('text-sm font-semibold', {
@@ -308,26 +308,12 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
       </div>
 
       {/* Search filter */}
-      <div className="relative mb-3 -mx-4 px-4">
-        <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-guard-muted" aria-hidden="true" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={t('transactions.search-placeholder')}
-          className="w-full pl-9 pr-9 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent transition-colors"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 text-guard-muted hover:text-foreground transition-colors"
-            aria-label={t('common.buttons.clear')}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <SearchInput
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder={t('transactions.search-placeholder')}
+        className="mb-3 -mx-4 px-4"
+      />
 
       <ul className="-mx-4">
         {filteredItems.length === 0 && searchQuery ? (

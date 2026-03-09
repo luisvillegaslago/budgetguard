@@ -26,6 +26,12 @@ interface FinanceUIState {
   // Recurring panel state
   isRecurringPanelCollapsed: boolean;
 
+  // Sidebar state
+  isSidebarOpen: boolean;
+
+  // Movements page preferences
+  groupByMonth: boolean;
+
   // Actions
   setSelectedMonth: (month: string) => void;
   goToPreviousMonth: () => void;
@@ -34,6 +40,8 @@ interface FinanceUIState {
   setFilters: (filters: Partial<FinanceFilters>) => void;
   resetFilters: () => void;
   toggleRecurringPanel: () => void;
+  toggleSidebar: () => void;
+  toggleGroupByMonth: () => void;
 }
 
 const defaultFilters: FinanceFilters = {
@@ -41,10 +49,18 @@ const defaultFilters: FinanceFilters = {
   categoryId: null,
 };
 
+function getStoredBoolean(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback;
+  const stored = localStorage.getItem(key);
+  return stored !== null ? stored === 'true' : fallback;
+}
+
 export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   selectedMonth: getCurrentMonth(),
   filters: defaultFilters,
   isRecurringPanelCollapsed: false,
+  isSidebarOpen: false,
+  groupByMonth: getStoredBoolean('bg-group-by-month', true),
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
 
@@ -75,6 +91,18 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   toggleRecurringPanel: () => {
     set((state) => ({ isRecurringPanelCollapsed: !state.isRecurringPanelCollapsed }));
   },
+
+  toggleSidebar: () => {
+    set((state) => ({ isSidebarOpen: !state.isSidebarOpen }));
+  },
+
+  toggleGroupByMonth: () => {
+    set((state) => {
+      const next = !state.groupByMonth;
+      localStorage.setItem('bg-group-by-month', String(next));
+      return { groupByMonth: next };
+    });
+  },
 }));
 
 // Atomic selectors to prevent unnecessary re-renders
@@ -97,3 +125,9 @@ export const useResetFilters = () => useFinanceStore((s) => s.resetFilters);
 
 export const useIsRecurringPanelCollapsed = () => useFinanceStore((s) => s.isRecurringPanelCollapsed);
 export const useToggleRecurringPanel = () => useFinanceStore((s) => s.toggleRecurringPanel);
+
+export const useSidebarOpen = () => useFinanceStore((s) => s.isSidebarOpen);
+export const useToggleSidebar = () => useFinanceStore((s) => s.toggleSidebar);
+
+export const useGroupByMonth = () => useFinanceStore((s) => s.groupByMonth);
+export const useToggleGroupByMonth = () => useFinanceStore((s) => s.toggleGroupByMonth);

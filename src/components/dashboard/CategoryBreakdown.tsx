@@ -101,7 +101,7 @@ function ExpandableSubcategories({ month, categoryId, parentTotalCents }: Expand
         <SubcategoryRow key={sub.subcategoryId} subcategory={sub} parentTotalCents={parentTotalCents} index={index} />
       ))}
       <Link
-        href={`/categories/${categoryId}/history?from=dashboard`}
+        href={`/movements?category=${categoryId}`}
         className="flex items-center gap-2 py-2 pl-12 text-xs text-guard-primary hover:text-guard-primary/80 transition-colors"
       >
         <History className="h-3 w-3" aria-hidden="true" />

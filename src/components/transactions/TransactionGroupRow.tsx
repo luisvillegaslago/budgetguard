@@ -9,6 +9,7 @@ import { ArrowUpRight, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction, TransactionGroupDisplay } from '@/types/finance';
@@ -56,13 +57,12 @@ export function TransactionGroupRow({
 
         {/* Category & Description */}
         <div className="flex-1 min-w-0">
-          <p
-            className="text-sm font-medium text-foreground truncate"
-            title={`${group.parentCategoryName}${group.description ? ` › ${group.description}` : ''}`}
-          >
-            {group.parentCategoryName}
-            {group.description ? ` › ${group.description}` : ''}
-          </p>
+          <OverflowTooltip content={`${group.parentCategoryName}${group.description ? ` › ${group.description}` : ''}`}>
+            <p className="text-sm font-medium text-foreground truncate">
+              {group.parentCategoryName}
+              {group.description ? ` › ${group.description}` : ''}
+            </p>
+          </OverflowTooltip>
           <p className="text-xs text-guard-muted">
             {group.transactions.length}{' '}
             {t('common.records', { count: group.transactions.length }).split(' ').slice(1).join(' ')}
@@ -146,10 +146,12 @@ export function TransactionGroupRow({
                 <div className="flex-shrink-0 p-1 rounded" style={{ backgroundColor: `${subColor}15` }}>
                   <CategoryIcon icon={tx.category?.icon} color={subColor} className="h-3 w-3" />
                 </div>
-                <span className="text-xs text-foreground flex-1 truncate" title={displayName}>
-                  {categoryName}
-                  {hasOwnDescription && <span className="text-guard-muted"> ({tx.description})</span>}
-                </span>
+                <OverflowTooltip content={displayName}>
+                  <span className="text-xs text-foreground flex-1 truncate">
+                    {categoryName}
+                    {hasOwnDescription && <span className="text-guard-muted"> ({tx.description})</span>}
+                  </span>
+                </OverflowTooltip>
                 {tx.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR && (
                   <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
                     {t('transactions.shared-badge')}

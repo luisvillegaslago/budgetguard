@@ -207,7 +207,7 @@ describe('CategoryTree', () => {
   it('should call onEdit with category when edit button is clicked', () => {
     render(<CategoryTree {...defaultProps} />);
 
-    const editButtons = screen.getAllByTitle('Edit');
+    const editButtons = screen.getAllByLabelText('Edit');
     fireEvent.click(editButtons[0]!);
 
     expect(mockOnEdit).toHaveBeenCalledTimes(1);
@@ -217,7 +217,7 @@ describe('CategoryTree', () => {
   it('should call onDelete with category when delete button is clicked', () => {
     render(<CategoryTree {...defaultProps} />);
 
-    const deleteButtons = screen.getAllByTitle('Delete');
+    const deleteButtons = screen.getAllByLabelText('Delete');
     fireEvent.click(deleteButtons[0]!);
 
     expect(mockOnDelete).toHaveBeenCalledTimes(1);
@@ -228,7 +228,7 @@ describe('CategoryTree', () => {
     render(<CategoryTree {...defaultProps} />);
 
     // First parent (Vivienda) is active → button should say "Deactivate"
-    const deactivateButtons = screen.getAllByTitle('Deactivate');
+    const deactivateButtons = screen.getAllByLabelText('Deactivate');
     fireEvent.click(deactivateButtons[0]!);
 
     expect(mockOnToggleActive).toHaveBeenCalledTimes(1);
@@ -239,14 +239,14 @@ describe('CategoryTree', () => {
     render(<CategoryTree {...defaultProps} />);
 
     // Obsoleta is inactive → should have "Activate" button
-    const activateButtons = screen.getAllByTitle('Activate');
+    const activateButtons = screen.getAllByLabelText('Activate');
     expect(activateButtons.length).toBeGreaterThanOrEqual(1);
   });
 
   it('should call onAddSubcategory when add subcategory button is clicked', () => {
     render(<CategoryTree {...defaultProps} />);
 
-    const addSubButtons = screen.getAllByTitle('Add subcategory');
+    const addSubButtons = screen.getAllByLabelText('Add subcategory');
     fireEvent.click(addSubButtons[0]!);
 
     expect(mockOnAddSubcategory).toHaveBeenCalledTimes(1);

@@ -5,14 +5,14 @@
  * Displays all trips as card components with loading/error/empty states
  */
 
-import { MapPin, Plus, Search, X } from 'lucide-react';
+import { MapPin, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteTrip, useTrips } from '@/hooks/useTrips';
 import type { TripDisplay } from '@/types/finance';
-import { cn } from '@/utils/helpers';
 import { TripCard } from './TripCard';
 
 interface TripListProps {
@@ -97,30 +97,7 @@ export function TripList({ onAdd }: TripListProps) {
   return (
     <div className="space-y-6">
       {/* Search filter */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-guard-muted" aria-hidden="true" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={t('trips.search-placeholder')}
-          className={cn(
-            'w-full pl-10 pr-10 py-2.5 rounded-lg border bg-background text-foreground text-sm',
-            'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-            'transition-colors duration-200 ease-out-quart border-input',
-          )}
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-guard-muted hover:text-foreground transition-colors"
-            aria-label={t('common.buttons.clear')}
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={t('trips.search-placeholder')} />
 
       {/* Empty search result */}
       {searchQuery && upcoming.length === 0 && past.length === 0 && (

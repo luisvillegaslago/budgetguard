@@ -4,9 +4,11 @@
  * Sortable table displaying skydive jump log with search and pagination
  */
 
-import { Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Pagination } from '@/components/ui/Pagination';
+import { SearchInput } from '@/components/ui/SearchInput';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { useDeleteJump, useSkydiveJumps } from '@/hooks/useSkydiveJumps';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { SkydiveJump } from '@/types/skydive';
@@ -87,15 +89,16 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="text-sm font-semibold text-foreground">{t('skydiving.jumps.title')}</h3>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onImport}
-            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-            aria-label={t('skydiving.jumps.import')}
-            title={t('skydiving.jumps.import')}
-          >
-            <Upload className="h-4 w-4" aria-hidden="true" />
-          </button>
+          <Tooltip content={t('skydiving.jumps.import')}>
+            <button
+              type="button"
+              onClick={onImport}
+              className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              aria-label={t('skydiving.jumps.import')}
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </Tooltip>
           <button
             type="button"
             onClick={onNewJump}
@@ -109,18 +112,12 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
 
       {/* Search */}
       {jumps && jumps.length > 0 && (
-        <div className="px-4 py-2 border-b border-border">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-guard-muted" aria-hidden="true" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder={t('skydiving.jumps.search-placeholder')}
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-guard-muted focus:ring-2 focus:ring-guard-primary focus:border-transparent transition-colors"
-            />
-          </div>
-        </div>
+        <SearchInput
+          value={search}
+          onChange={handleSearchChange}
+          placeholder={t('skydiving.jumps.search-placeholder')}
+          className="px-4 py-2 border-b border-border"
+        />
       )}
 
       {/* Table */}

@@ -7,6 +7,7 @@
  * Casilla 7 (amount to pay) is highlighted as the key figure
  */
 
+import { Tooltip } from '@/components/ui/Tooltip';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo130Summary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
@@ -36,15 +37,16 @@ function CasillaRow({ number, label, cents, highlight = false, indent = false, m
     >
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="text-xs text-guard-muted tabular-nums shrink-0">[{number}]</span>
-        <span
-          title={label}
-          className={cn(
-            'text-sm truncate',
-            highlight ? 'font-semibold text-foreground' : muted ? 'text-guard-muted' : 'text-foreground/80',
-          )}
-        >
-          {label}
-        </span>
+        <Tooltip content={label} side="bottom">
+          <span
+            className={cn(
+              'text-sm truncate',
+              highlight ? 'font-semibold text-foreground' : muted ? 'text-guard-muted' : 'text-foreground/80',
+            )}
+          >
+            {label}
+          </span>
+        </Tooltip>
       </div>
       <span
         className={cn(
