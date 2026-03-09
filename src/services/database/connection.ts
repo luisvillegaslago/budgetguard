@@ -33,8 +33,6 @@ export function getPool(): PoolInstance {
       connectionString: url,
       max: 10,
       idleTimeoutMillis: 30000,
-      // Neon pooler may have empty search_path — explicitly set public schema
-      ...(isNeonUrl(url) && { options: '-c search_path=public' }),
     };
 
     pool = isNeonUrl(url) ? new NeonPool(config) : new PgPool(config);
