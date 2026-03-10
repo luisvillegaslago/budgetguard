@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.7.1...v0.8.0) (2026-03-10)
+
+
+### Features
+
+* add invoice generation module with PDF export, billing profiles, and i18n support ([3891d3f](https://github.com/luisvillegaslago/budgetguard/commit/3891d3fb5537eb10d1baaa749d7f0b75a59d8199))
+* add light/dark theme selector in settings with localStorage persistence ([6d842a3](https://github.com/luisvillegaslago/budgetguard/commit/6d842a389ae0d79daed60501be74d48d4b1edeff))
+
 ## [0.7.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.7.0...v0.7.1) (2026-03-09)
 
 
