@@ -14,6 +14,7 @@ import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { Select } from '@/components/ui/Select';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateRecurringExpense, useUpdateRecurringExpense } from '@/hooks/useRecurringExpenses';
@@ -327,15 +328,10 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
               <label htmlFor="re-monthOfYear" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('recurring.form.fields.month-of-year')}
               </label>
-              <select
+              <Select
                 id="re-monthOfYear"
                 {...register('monthOfYear', { valueAsNumber: true })}
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                  'transition-colors duration-200 ease-out-quart',
-                  errors.monthOfYear ? 'border-guard-danger' : 'border-input',
-                )}
+                className={cn(errors.monthOfYear && 'border-guard-danger')}
               >
                 <option value="">{t('recurring.form.fields.month-of-year')}</option>
                 {MONTHS.map((m) => (
@@ -343,7 +339,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                     {t(`recurring.months.${m}`)}
                   </option>
                 ))}
-              </select>
+              </Select>
               {errors.monthOfYear && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
                   {errors.monthOfYear.message}

@@ -10,6 +10,7 @@ import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { Select } from '@/components/ui/Select';
 import { useCreateCompany, useUpdateCompany } from '@/hooks/useCompanies';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateCompanyInput, CreateCompanySchema } from '@/schemas/company';
@@ -41,6 +42,7 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
       city: company?.city ?? null,
       postalCode: company?.postalCode ?? null,
       country: company?.country ?? null,
+      invoiceLanguage: company?.invoiceLanguage ?? null,
     },
   });
 
@@ -178,18 +180,30 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
             </div>
           </div>
 
-          {/* Country */}
-          <div>
-            <label htmlFor="company-country" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('companies.form.fields.country')} ({t('common.labels.optional')})
-            </label>
-            <input
-              id="company-country"
-              type="text"
-              autoComplete="off"
-              {...register('country')}
-              className={inputClass(false)}
-            />
+          {/* Country + Invoice Language */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="company-country" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('companies.form.fields.country')} ({t('common.labels.optional')})
+              </label>
+              <input
+                id="company-country"
+                type="text"
+                autoComplete="off"
+                {...register('country')}
+                className={inputClass(false)}
+              />
+            </div>
+            <div>
+              <label htmlFor="company-invoiceLanguage" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('companies.form.fields.invoice-language')} ({t('common.labels.optional')})
+              </label>
+              <Select id="company-invoiceLanguage" {...register('invoiceLanguage')}>
+                <option value="">{t('companies.form.fields.invoice-language-default')}</option>
+                <option value="es">{t('companies.form.fields.invoice-language-es')}</option>
+                <option value="en">{t('companies.form.fields.invoice-language-en')}</option>
+              </Select>
+            </div>
           </div>
 
           {/* Error */}

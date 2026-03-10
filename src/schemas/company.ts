@@ -16,6 +16,7 @@ export const CreateCompanySchema = z.object({
   city: z.string().max(100).nullable().optional().default(null),
   postalCode: z.string().max(20).nullable().optional().default(null),
   country: z.string().max(100).nullable().optional().default(null),
+  invoiceLanguage: z.string().max(5).nullable().optional().default(null),
 });
 
 export type CreateCompanyInput = z.infer<typeof CreateCompanySchema>;
@@ -31,6 +32,7 @@ export const UpdateCompanySchema = z.object({
   city: z.string().max(100).nullable().optional(),
   postalCode: z.string().max(20).nullable().optional(),
   country: z.string().max(100).nullable().optional(),
+  invoiceLanguage: z.string().max(5).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 

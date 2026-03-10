@@ -5,17 +5,19 @@
  * Sections: General (language), Categories, Database (dev-only)
  */
 
-import { Building2, Database, Globe, Settings, Tag } from 'lucide-react';
+import { Building2, Database, Globe, Receipt, Settings, Tag } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryManagementPanel } from '@/components/categories/CategoryManagementPanel';
+import { BillingProfileForm } from '@/components/settings/BillingProfileForm';
 import { CompanyManagementPanel } from '@/components/settings/CompanyManagementPanel';
 import { DbSyncPanel } from '@/components/settings/DbSyncPanel';
+import { InvoicePrefixManager } from '@/components/settings/InvoicePrefixManager';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
 
-type SettingsSection = 'general' | 'categories' | 'companies' | 'database';
+type SettingsSection = 'general' | 'categories' | 'companies' | 'billing' | 'database';
 
 interface SectionConfig {
   id: SettingsSection;
@@ -28,6 +30,7 @@ const SECTIONS: SectionConfig[] = [
   { id: 'general', i18nKey: 'settings.sections.general', icon: Globe },
   { id: 'categories', i18nKey: 'settings.sections.categories', icon: Tag },
   { id: 'companies', i18nKey: 'settings.sections.companies', icon: Building2 },
+  { id: 'billing', i18nKey: 'settings.sections.billing', icon: Receipt },
   { id: 'database', i18nKey: 'settings.sections.database', icon: Database, devOnly: true },
 ];
 
@@ -79,6 +82,13 @@ export default function SettingsPage() {
       {activeSection === 'categories' && <CategoryManagementPanel />}
 
       {activeSection === 'companies' && <CompanyManagementPanel />}
+
+      {activeSection === 'billing' && (
+        <div>
+          <BillingProfileForm />
+          <InvoicePrefixManager />
+        </div>
+      )}
 
       {activeSection === 'database' && <DbSyncPanel />}
     </div>

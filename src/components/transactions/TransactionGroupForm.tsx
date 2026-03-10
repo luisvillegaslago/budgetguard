@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { Select } from '@/components/ui/Select';
 import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useCreateTransactionGroup } from '@/hooks/useTransactionGroups';
@@ -160,14 +161,6 @@ export function TransactionGroupForm({
     firstFocusable?.focus();
   }, []);
 
-  const selectClasses = cn(
-    'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-    'disabled:opacity-50 disabled:cursor-not-allowed',
-    'transition-colors duration-200 ease-out-quart',
-    'border-input',
-  );
-
   return (
     <ModalBackdrop onClose={onClose} labelledBy="group-form-title">
       <div ref={formContainerRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
@@ -240,12 +233,12 @@ export function TransactionGroupForm({
             <label htmlFor="groupParentCategory" className="block text-sm font-medium text-foreground mb-1.5">
               {t('transactions.groups.parent-category')}
             </label>
-            <select
+            <Select
               id="groupParentCategory"
               value={selectedParentId ?? ''}
               onChange={handleParentChange}
               disabled={categoriesLoading}
-              className={cn(selectClasses, errors.parentCategoryId && 'border-guard-danger')}
+              className={cn(errors.parentCategoryId && 'border-guard-danger')}
             >
               <option value="">{t('transactions.form.fields.category-placeholder')}</option>
               {categories
@@ -255,7 +248,7 @@ export function TransactionGroupForm({
                     {cat.name}
                   </option>
                 ))}
-            </select>
+            </Select>
             {errors.parentCategoryId && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
                 {errors.parentCategoryId.message}

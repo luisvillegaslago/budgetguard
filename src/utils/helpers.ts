@@ -13,21 +13,25 @@ export function cn(...inputs: ClassValue[]): string {
  * @param date - Date string or Date object
  * @param format - Format type: 'short' | 'long' | 'month'
  */
-export function formatDate(date: string | Date, format: 'short' | 'long' | 'month' = 'short'): string {
+export function formatDate(
+  date: string | Date,
+  format: 'short' | 'long' | 'month' = 'short',
+  locale = 'es-ES',
+): string {
   const d = typeof date === 'string' ? new Date(date) : date;
 
   switch (format) {
     case 'month':
-      return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+      return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
     case 'long':
-      return new Intl.DateTimeFormat('es-ES', {
+      return new Intl.DateTimeFormat(locale, {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
         timeZone: 'UTC',
       }).format(d);
     default:
-      return new Intl.DateTimeFormat('es-ES', {
+      return new Intl.DateTimeFormat(locale, {
         day: 'numeric',
         month: 'short',
         timeZone: 'UTC',

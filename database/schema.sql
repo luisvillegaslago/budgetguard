@@ -19,6 +19,8 @@ DROP TRIGGER IF EXISTS "TR_RecurringExpenses_UpdatedAt" ON "RecurringExpenses";
 DROP TRIGGER IF EXISTS "TR_SkydiveJumps_UpdatedAt" ON "SkydiveJumps";
 DROP TRIGGER IF EXISTS "TR_TunnelSessions_UpdatedAt" ON "TunnelSessions";
 DROP TRIGGER IF EXISTS "TR_Companies_UpdatedAt" ON "Companies";
+DROP TRIGGER IF EXISTS "TR_UserBillingProfiles_UpdatedAt" ON "UserBillingProfiles";
+DROP TRIGGER IF EXISTS "TR_Invoices_UpdatedAt" ON "Invoices";
 DROP TRIGGER IF EXISTS "TR_Transactions_SyncVendorName" ON "Transactions";
 DROP TRIGGER IF EXISTS "TR_RecurringExpenses_SyncVendorName" ON "RecurringExpenses";
 DROP TRIGGER IF EXISTS "TR_Companies_PropagateNameChange" ON "Companies";
@@ -40,6 +42,10 @@ DROP VIEW IF EXISTS "vw_SubcategorySummary";
 DROP VIEW IF EXISTS "vw_MonthlySummary";
 
 -- Drop tables with foreign keys first
+DROP TABLE IF EXISTS "InvoiceLineItems";
+DROP TABLE IF EXISTS "Invoices";
+DROP TABLE IF EXISTS "InvoicePrefixes";
+DROP TABLE IF EXISTS "UserBillingProfiles";
 DROP TABLE IF EXISTS "TunnelSessions";
 DROP TABLE IF EXISTS "SkydiveJumps";
 DROP TABLE IF EXISTS "VerificationTokens";
@@ -98,6 +104,7 @@ CREATE TABLE "Companies" (
     "City" VARCHAR(100) NULL,
     "PostalCode" VARCHAR(20) NULL,
     "Country" VARCHAR(100) NULL,
+    "InvoiceLanguage" VARCHAR(5) NULL DEFAULT 'es',
     "UserID" INT NULL,
     "IsActive" BOOLEAN DEFAULT TRUE,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -623,6 +630,124 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "TR_Companies_PropagateNameChange"
     AFTER UPDATE OF "Name" ON "Companies"
     FOR EACH ROW EXECUTE FUNCTION propagate_company_name_change();
+
+-- ============================================================
+-- INVOICING TABLES
+-- ============================================================
+
+-- User billing profile (issuer data for invoices, 1 per user)
+CREATE TABLE "UserBillingProfiles" (
+    "BillingProfileID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL UNIQUE,
+    "FullName" VARCHAR(150) NOT NULL,
+    "Nif" VARCHAR(30) NOT NULL,
+    "Address" VARCHAR(500) NULL,
+    "Phone" VARCHAR(30) NULL,
+    "PaymentMethod" VARCHAR(20) NOT NULL DEFAULT 'bank_transfer'
+        CHECK ("PaymentMethod" IN ('bank_transfer', 'paypal', 'other')),
+    "BankName" VARCHAR(150) NULL,
+    "Iban" VARCHAR(34) NULL,
+    "Swift" VARCHAR(11) NULL,
+    "BankAddress" VARCHAR(500) NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_BillingProfiles_User"
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID")
+);
+
+-- Invoice prefixes (numbering series)
+CREATE TABLE "InvoicePrefixes" (
+    "PrefixID" SERIAL PRIMARY KEY,
+    "Prefix" VARCHAR(10) NOT NULL,
+    "NextNumber" INT NOT NULL DEFAULT 1,
+    "Description" VARCHAR(100) NULL,
+    "UserID" INT NOT NULL,
+    "CompanyID" INT NULL,
+    "IsActive" BOOLEAN DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_InvoicePrefixes_User"
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID"),
+    CONSTRAINT "FK_InvoicePrefixes_Company"
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    CONSTRAINT "UQ_InvoicePrefix_User" UNIQUE ("Prefix", "UserID")
+);
+
+CREATE INDEX "IX_InvoicePrefixes_UserID" ON "InvoicePrefixes"("UserID");
+
+-- Invoices (issued invoices with frozen snapshots)
+CREATE TABLE "Invoices" (
+    "InvoiceID" SERIAL PRIMARY KEY,
+    "PrefixID" INT NOT NULL,
+    "InvoiceNumber" VARCHAR(20) NOT NULL,
+    "InvoiceDate" DATE NOT NULL,
+    "CompanyID" INT NULL,
+    "TransactionID" INT NULL,
+    "TotalCents" INT NOT NULL DEFAULT 0,
+    "Currency" VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    "Status" VARCHAR(15) NOT NULL DEFAULT 'draft'
+        CHECK ("Status" IN ('draft', 'finalized', 'paid', 'cancelled')),
+    -- Biller snapshot (frozen at creation)
+    "BillerName" VARCHAR(150) NOT NULL,
+    "BillerNif" VARCHAR(30) NOT NULL,
+    "BillerAddress" VARCHAR(500) NULL,
+    "BillerPhone" VARCHAR(30) NULL,
+    "BillerPaymentMethod" VARCHAR(20) NOT NULL,
+    "BillerBankName" VARCHAR(150) NULL,
+    "BillerIban" VARCHAR(34) NULL,
+    "BillerSwift" VARCHAR(11) NULL,
+    "BillerBankAddress" VARCHAR(500) NULL,
+    -- Client snapshot (frozen at creation)
+    "ClientName" VARCHAR(150) NOT NULL,
+    "ClientTradingName" VARCHAR(150) NULL,
+    "ClientTaxId" VARCHAR(30) NULL,
+    "ClientAddress" VARCHAR(250) NULL,
+    "ClientCity" VARCHAR(100) NULL,
+    "ClientPostalCode" VARCHAR(20) NULL,
+    "ClientCountry" VARCHAR(100) NULL,
+    -- Metadata
+    "Notes" TEXT NULL,
+    "UserID" INT NOT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_Invoices_Prefix"
+        FOREIGN KEY ("PrefixID") REFERENCES "InvoicePrefixes"("PrefixID"),
+    CONSTRAINT "FK_Invoices_Company"
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    CONSTRAINT "FK_Invoices_Transaction"
+        FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
+    CONSTRAINT "FK_Invoices_User"
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID"),
+    CONSTRAINT "UQ_InvoiceNumber_User" UNIQUE ("InvoiceNumber", "UserID")
+);
+
+CREATE INDEX "IX_Invoices_UserID" ON "Invoices"("UserID");
+CREATE INDEX "IX_Invoices_CompanyID" ON "Invoices"("CompanyID");
+CREATE INDEX "IX_Invoices_Status" ON "Invoices"("Status");
+CREATE INDEX "IX_Invoices_InvoiceDate" ON "Invoices"("InvoiceDate");
+
+-- Invoice line items (individual concepts)
+CREATE TABLE "InvoiceLineItems" (
+    "LineItemID" SERIAL PRIMARY KEY,
+    "InvoiceID" INT NOT NULL,
+    "SortOrder" INT NOT NULL DEFAULT 0,
+    "Description" VARCHAR(500) NOT NULL,
+    "Hours" NUMERIC(8,2) NULL,
+    "HourlyRateCents" INT NULL,
+    "AmountCents" INT NOT NULL,
+    CONSTRAINT "FK_LineItems_Invoice"
+        FOREIGN KEY ("InvoiceID") REFERENCES "Invoices"("InvoiceID") ON DELETE CASCADE
+);
+
+CREATE INDEX "IX_InvoiceLineItems_InvoiceID" ON "InvoiceLineItems"("InvoiceID");
+
+-- UpdatedAt triggers for invoice tables
+CREATE TRIGGER "TR_UserBillingProfiles_UpdatedAt"
+    BEFORE UPDATE ON "UserBillingProfiles"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER "TR_Invoices_UpdatedAt"
+    BEFORE UPDATE ON "Invoices"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SCHEMA COMPLETE

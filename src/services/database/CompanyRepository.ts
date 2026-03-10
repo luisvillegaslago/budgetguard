@@ -16,6 +16,7 @@ interface CompanyRow {
   City: string | null;
   PostalCode: string | null;
   Country: string | null;
+  InvoiceLanguage: string | null;
   IsActive: boolean;
   CreatedAt: Date | string;
   UpdatedAt: Date | string;
@@ -36,13 +37,14 @@ function rowToCompany(row: CompanyRow): Company {
     city: row.City,
     postalCode: row.PostalCode,
     country: row.Country,
+    invoiceLanguage: row.InvoiceLanguage,
     isActive: row.IsActive,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
 }
 
-const COMPANY_COLUMNS = `"CompanyID", "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "IsActive", "CreatedAt", "UpdatedAt"`;
+const COMPANY_COLUMNS = `"CompanyID", "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "IsActive", "CreatedAt", "UpdatedAt"`;
 
 /**
  * Get all companies for the current user
@@ -89,12 +91,13 @@ export async function createCompany(data: {
   city?: string | null;
   postalCode?: string | null;
   country?: string | null;
+  invoiceLanguage?: string | null;
 }): Promise<Company> {
   const userId = await getUserIdOrThrow();
 
   const rows = await query<CompanyRow>(
-    `INSERT INTO "Companies" ("Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "UserID")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO "Companies" ("Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "UserID")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${COMPANY_COLUMNS}`,
     [
       data.name,
@@ -104,6 +107,7 @@ export async function createCompany(data: {
       data.city ?? null,
       data.postalCode ?? null,
       data.country ?? null,
+      data.invoiceLanguage ?? null,
       userId,
     ],
   );
@@ -156,6 +160,7 @@ export async function updateCompany(
     city: string | null;
     postalCode: string | null;
     country: string | null;
+    invoiceLanguage: string | null;
     isActive: boolean;
   }>,
 ): Promise<Company | null> {
@@ -192,6 +197,10 @@ export async function updateCompany(
   if (data.country !== undefined) {
     updates.push(`"Country" = $${paramIndex++}`);
     params.push(data.country);
+  }
+  if (data.invoiceLanguage !== undefined) {
+    updates.push(`"InvoiceLanguage" = $${paramIndex++}`);
+    params.push(data.invoiceLanguage);
   }
   if (data.isActive !== undefined) {
     updates.push(`"IsActive" = $${paramIndex++}`);

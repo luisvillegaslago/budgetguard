@@ -3,13 +3,21 @@
  * All monetary amounts use cents (integers) internally to avoid floating point errors
  */
 
-import type { OccurrenceStatus, RecurringFrequency, TransactionType } from '@/constants/finance';
+import type {
+  InvoiceStatus,
+  OccurrenceStatus,
+  PaymentMethod,
+  RecurringFrequency,
+  TransactionType,
+} from '@/constants/finance';
 
 // Re-export from constants (single source of truth)
 export type {
   DateRangePreset,
   FiscalQuarter,
+  InvoiceStatus,
   OccurrenceStatus,
+  PaymentMethod,
   RecurringFrequency,
   TransactionType,
   VatRate,
@@ -27,6 +35,7 @@ export interface Company {
   city: string | null;
   postalCode: string | null;
   country: string | null;
+  invoiceLanguage: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -497,4 +506,102 @@ export interface AnnualFiscalReport {
   fiscalYear: number;
   modelo390: Modelo390Summary;
   modelo100: Modelo100Section;
+}
+
+// ============================================================
+// INVOICING TYPES
+// ============================================================
+
+/**
+ * User billing profile (issuer data for invoices)
+ */
+export interface BillingProfile {
+  billingProfileId: number;
+  fullName: string;
+  nif: string;
+  address: string | null;
+  phone: string | null;
+  paymentMethod: PaymentMethod;
+  bankName: string | null;
+  iban: string | null;
+  swift: string | null;
+  bankAddress: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Invoice numbering prefix/series
+ */
+export interface InvoicePrefix {
+  prefixId: number;
+  prefix: string;
+  nextNumber: number;
+  description: string | null;
+  companyId: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/**
+ * Single line item in an invoice
+ */
+export interface InvoiceLineItem {
+  lineItemId: number;
+  invoiceId: number;
+  sortOrder: number;
+  description: string;
+  hours: number | null;
+  hourlyRateCents: number | null;
+  amountCents: number;
+}
+
+/**
+ * Full invoice with line items (detail view)
+ */
+export interface Invoice {
+  invoiceId: number;
+  prefixId: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  companyId: number | null;
+  transactionId: number | null;
+  totalCents: number;
+  currency: string;
+  status: InvoiceStatus;
+  billerName: string;
+  billerNif: string;
+  billerAddress: string | null;
+  billerPhone: string | null;
+  billerPaymentMethod: PaymentMethod;
+  billerBankName: string | null;
+  billerIban: string | null;
+  billerSwift: string | null;
+  billerBankAddress: string | null;
+  clientName: string;
+  clientTradingName: string | null;
+  clientTaxId: string | null;
+  clientAddress: string | null;
+  clientCity: string | null;
+  clientPostalCode: string | null;
+  clientCountry: string | null;
+  notes: string | null;
+  invoiceLanguage: string | null;
+  lineItems: InvoiceLineItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Invoice summary for list view
+ */
+export interface InvoiceListItem {
+  invoiceId: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  clientName: string;
+  clientTradingName: string | null;
+  totalCents: number;
+  currency: string;
+  status: InvoiceStatus;
 }

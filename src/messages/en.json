@@ -15,7 +15,8 @@
       "create": "Create",
       "retry": "Retry",
       "add-first-transaction": "Add first transaction",
-      "clear": "Clear"
+      "clear": "Clear",
+      "edit": "Edit"
     },
     "labels": {
       "optional": "optional"
@@ -55,6 +56,7 @@
       "recurring": "Recurring",
       "trips": "Trips",
       "skydiving": "Skydiving",
+      "invoices": "Invoices",
       "fiscal": "Fiscal",
       "settings": "Settings"
     }
@@ -646,6 +648,7 @@
       "general": "General",
       "categories": "Categories",
       "companies": "Companies",
+      "billing": "Billing",
       "database": "Database"
     },
     "theme": {
@@ -697,6 +700,92 @@
       "only-in-local": "Only in local",
       "only-in-remote": "Only in remote",
       "pk": "ID"
+    },
+    "billing": {
+      "profile-title": "Billing Profile",
+      "prefixes-title": "Invoice Prefixes",
+      "no-prefixes": "No prefixes configured yet",
+      "next-number": "Next",
+      "saved": "Billing profile saved",
+      "fields": {
+        "full-name": "Full Name",
+        "address": "Address",
+        "phone": "Phone",
+        "payment-method": "Payment Method",
+        "bank-name": "Bank Name",
+        "bank-address": "Bank Address",
+        "prefix": "Prefix",
+        "description": "Description",
+        "start-number": "Start #",
+        "no-company": "No company"
+      },
+      "payment-methods": {
+        "bank-transfer": "Bank Transfer",
+        "other": "Other"
+      }
+    }
+  },
+  "invoices": {
+    "title": "Invoices",
+    "new": "New Invoice",
+    "empty": "No invoices yet",
+    "back-to-list": "Back to invoices",
+    "status": {
+      "draft": "Draft",
+      "finalized": "Finalized",
+      "paid": "Paid",
+      "cancelled": "Cancelled"
+    },
+    "filters": {
+      "all": "All"
+    },
+    "table": {
+      "number": "Invoice #",
+      "client": "Client",
+      "date": "Date",
+      "total": "Total",
+      "status": "Status",
+      "description": "Description",
+      "balance": "Balance"
+    },
+    "form": {
+      "title": "New Invoice",
+      "edit-title": "Edit Invoice",
+      "total": "Total",
+      "add-line": "Add line",
+      "fields": {
+        "prefix": "Series",
+        "select-prefix": "Select series...",
+        "next": "Next",
+        "date": "Date",
+        "client": "Client",
+        "select-client": "Select client...",
+        "line-items": "Line Items",
+        "description": "Description",
+        "hours": "Hours",
+        "hourly-rate": "Rate (€)",
+        "amount": "Amount (€)",
+        "notes": "Notes"
+      }
+    },
+    "detail": {
+      "bill-to": "Bill To",
+      "date": "Date",
+      "invoice-number": "Invoice #",
+      "payment-method": "Payment Method"
+    },
+    "actions": {
+      "edit": "Edit",
+      "finalize": "Finalize",
+      "mark-paid": "Mark as Paid",
+      "cancel": "Cancel Invoice",
+      "select-category": "Select income category",
+      "confirm-cancel-title": "Cancel Invoice?",
+      "confirm-cancel-paid": "This will delete the associated income transaction.",
+      "confirm-cancel-finalized": "This invoice will be marked as cancelled."
+    },
+    "errors": {
+      "load": "Error loading invoice"
     }
   },
   "companies": {
@@ -722,7 +811,11 @@
         "address": "Address",
         "city": "City",
         "postal-code": "Postal code",
-        "country": "Country"
+        "country": "Country",
+        "invoice-language": "Invoice language",
+        "invoice-language-default": "Default (Spanish)",
+        "invoice-language-es": "Spanish",
+        "invoice-language-en": "English"
       },
       "submit-create": "Create Company",
       "submit-edit": "Save Changes",

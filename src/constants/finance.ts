@@ -73,6 +73,9 @@ export const QUERY_KEY = {
   SKYDIVE_STATS: 'skydive-stats',
   SKYDIVE_CATEGORIES: 'skydive-categories',
   COMPANIES: 'companies',
+  INVOICES: 'invoices',
+  INVOICE_PREFIXES: 'invoice-prefixes',
+  BILLING_PROFILE: 'billing-profile',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -113,6 +116,9 @@ export const API_ENDPOINT = {
   SKYDIVE_STATS: '/api/skydiving/stats',
   SKYDIVE_CATEGORIES: '/api/skydiving/categories',
   COMPANIES: '/api/companies',
+  INVOICES: '/api/invoices',
+  INVOICE_PREFIXES: '/api/invoices/prefixes',
+  BILLING_PROFILE: '/api/billing-profile',
 } as const;
 
 // Well-known Category References
@@ -180,6 +186,25 @@ export const SYNC_DIRECTION = {
 } as const;
 
 export type SyncDirection = (typeof SYNC_DIRECTION)[keyof typeof SYNC_DIRECTION];
+
+// Invoice Statuses
+export const INVOICE_STATUS = {
+  DRAFT: 'draft',
+  FINALIZED: 'finalized',
+  PAID: 'paid',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type InvoiceStatus = (typeof INVOICE_STATUS)[keyof typeof INVOICE_STATUS];
+
+// Payment Methods
+export const PAYMENT_METHOD = {
+  BANK_TRANSFER: 'bank_transfer',
+  PAYPAL: 'paypal',
+  OTHER: 'other',
+} as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
