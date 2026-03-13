@@ -45,6 +45,7 @@ interface BillingProfileRow {
   Iban: string | null;
   Swift: string | null;
   BankAddress: string | null;
+  DefaultHourlyRateCents: number | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -128,6 +129,7 @@ function rowToBillingProfile(row: BillingProfileRow): BillingProfile {
     iban: row.Iban,
     swift: row.Swift,
     bankAddress: row.BankAddress,
+    defaultHourlyRateCents: row.DefaultHourlyRateCents,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -215,7 +217,7 @@ export async function getBillingProfile(): Promise<BillingProfile | null> {
   const result = await query<BillingProfileRow>(
     `SELECT "BillingProfileID", "FullName", "Nif", "Address", "Phone",
             "PaymentMethod", "BankName", "Iban", "Swift", "BankAddress",
-            "CreatedAt", "UpdatedAt"
+            "DefaultHourlyRateCents", "CreatedAt", "UpdatedAt"
      FROM "UserBillingProfiles"
      WHERE "UserID" = $1`,
     [userId],
@@ -230,8 +232,8 @@ export async function upsertBillingProfile(data: BillingProfileInput): Promise<B
   const result = await query<BillingProfileRow>(
     `INSERT INTO "UserBillingProfiles"
        ("UserID", "FullName", "Nif", "Address", "Phone", "PaymentMethod",
-        "BankName", "Iban", "Swift", "BankAddress")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        "BankName", "Iban", "Swift", "BankAddress", "DefaultHourlyRateCents")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT ("UserID") DO UPDATE SET
        "FullName" = EXCLUDED."FullName",
        "Nif" = EXCLUDED."Nif",
@@ -241,10 +243,11 @@ export async function upsertBillingProfile(data: BillingProfileInput): Promise<B
        "BankName" = EXCLUDED."BankName",
        "Iban" = EXCLUDED."Iban",
        "Swift" = EXCLUDED."Swift",
-       "BankAddress" = EXCLUDED."BankAddress"
+       "BankAddress" = EXCLUDED."BankAddress",
+       "DefaultHourlyRateCents" = EXCLUDED."DefaultHourlyRateCents"
      RETURNING "BillingProfileID", "FullName", "Nif", "Address", "Phone",
                "PaymentMethod", "BankName", "Iban", "Swift", "BankAddress",
-               "CreatedAt", "UpdatedAt"`,
+               "DefaultHourlyRateCents", "CreatedAt", "UpdatedAt"`,
     [
       userId,
       data.fullName,
@@ -256,6 +259,7 @@ export async function upsertBillingProfile(data: BillingProfileInput): Promise<B
       data.iban ?? null,
       data.swift ?? null,
       data.bankAddress ?? null,
+      data.defaultHourlyRateCents ?? null,
     ],
   );
 
@@ -748,6 +752,115 @@ export async function updateInvoiceStatus(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Refresh biller + client snapshot for a draft invoice.
+ * Re-queries UserBillingProfiles and Companies to pick up any changes
+ * made after the invoice was created. No-op for non-draft invoices.
+ */
+export async function refreshDraftSnapshot(invoiceId: number): Promise<Invoice | null> {
+  const userId = await getUserIdOrThrow();
+
+  // Verify invoice exists, belongs to user, and is draft
+  const invoiceResult = await query<InvoiceRow>(`SELECT * FROM "Invoices" WHERE "InvoiceID" = $1 AND "UserID" = $2`, [
+    invoiceId,
+    userId,
+  ]);
+
+  const invoiceRow = invoiceResult[0];
+  if (!invoiceRow) return null;
+  if (invoiceRow.Status !== INVOICE_STATUS.DRAFT) {
+    // Non-draft invoices keep their frozen snapshot
+    const lineItems = await query<LineItemRow>(
+      `SELECT * FROM "InvoiceLineItems" WHERE "InvoiceID" = $1 ORDER BY "SortOrder"`,
+      [invoiceId],
+    );
+    return rowToInvoice(invoiceRow, lineItems.map(rowToLineItem));
+  }
+
+  // Re-query billing profile
+  const profileResult = await query<BillingProfileRow>(`SELECT * FROM "UserBillingProfiles" WHERE "UserID" = $1`, [
+    userId,
+  ]);
+  const profile = profileResult[0];
+  if (!profile) throw new Error('Billing profile not configured');
+
+  // Re-query company data
+  const companyResult = await query<{
+    Name: string;
+    TradingName: string | null;
+    TaxId: string | null;
+    Address: string | null;
+    City: string | null;
+    PostalCode: string | null;
+    Country: string | null;
+  }>(
+    `SELECT "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country"
+     FROM "Companies" WHERE "CompanyID" = $1 AND "UserID" = $2`,
+    [invoiceRow.CompanyID, userId],
+  );
+  const company = companyResult[0];
+  if (!company) throw new Error('Company not found');
+
+  // Update snapshot columns
+  await query(
+    `UPDATE "Invoices" SET
+       "BillerName" = $1, "BillerNif" = $2, "BillerAddress" = $3, "BillerPhone" = $4,
+       "BillerPaymentMethod" = $5, "BillerBankName" = $6, "BillerIban" = $7,
+       "BillerSwift" = $8, "BillerBankAddress" = $9,
+       "ClientName" = $10, "ClientTradingName" = $11, "ClientTaxId" = $12,
+       "ClientAddress" = $13, "ClientCity" = $14, "ClientPostalCode" = $15, "ClientCountry" = $16
+     WHERE "InvoiceID" = $17`,
+    [
+      profile.FullName,
+      profile.Nif,
+      profile.Address,
+      profile.Phone,
+      profile.PaymentMethod,
+      profile.BankName,
+      profile.Iban,
+      profile.Swift,
+      profile.BankAddress,
+      company.Name,
+      company.TradingName,
+      company.TaxId,
+      company.Address,
+      company.City,
+      company.PostalCode,
+      company.Country,
+      invoiceId,
+    ],
+  );
+
+  // Return refreshed invoice with line items
+  const lineItems = await query<LineItemRow>(
+    `SELECT * FROM "InvoiceLineItems" WHERE "InvoiceID" = $1 ORDER BY "SortOrder"`,
+    [invoiceId],
+  );
+
+  return rowToInvoice(
+    {
+      ...invoiceRow,
+      BillerName: profile.FullName,
+      BillerNif: profile.Nif,
+      BillerAddress: profile.Address,
+      BillerPhone: profile.Phone,
+      BillerPaymentMethod: profile.PaymentMethod,
+      BillerBankName: profile.BankName,
+      BillerIban: profile.Iban,
+      BillerSwift: profile.Swift,
+      BillerBankAddress: profile.BankAddress,
+      ClientName: company.Name,
+      ClientTradingName: company.TradingName,
+      ClientTaxId: company.TaxId,
+      ClientAddress: company.Address,
+      ClientCity: company.City,
+      ClientPostalCode: company.PostalCode,
+      ClientCountry: company.Country,
+    },
+    lineItems.map(rowToLineItem),
+  );
 }
 
 /**

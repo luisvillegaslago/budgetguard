@@ -8,7 +8,8 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import type { ReactElement } from 'react';
 import React from 'react';
 import { InvoicePdfDocument } from '@/components/invoices/InvoicePdfTemplate';
-import { getInvoiceById } from '@/services/database/InvoiceRepository';
+import { INVOICE_STATUS } from '@/constants/finance';
+import { getInvoiceById, refreshDraftSnapshot } from '@/services/database/InvoiceRepository';
 import { notFound, parseIdParam, withApiHandler } from '@/utils/apiHandler';
 
 export const GET = withApiHandler(async (_request, { params }) => {
@@ -16,8 +17,14 @@ export const GET = withApiHandler(async (_request, { params }) => {
   const invoiceId = parseIdParam(id);
   if (typeof invoiceId !== 'number') return invoiceId;
 
-  const invoice = await getInvoiceById(invoiceId);
+  let invoice = await getInvoiceById(invoiceId);
   if (!invoice) return notFound('Invoice not found');
+
+  // Draft invoices: refresh biller + client snapshot before generating PDF
+  if (invoice.status === INVOICE_STATUS.DRAFT) {
+    const refreshed = await refreshDraftSnapshot(invoiceId);
+    if (refreshed) invoice = refreshed;
+  }
 
   const element = React.createElement(InvoicePdfDocument, { invoice }) as unknown as ReactElement<DocumentProps>;
   const buffer = await renderToBuffer(element);
