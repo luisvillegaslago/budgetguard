@@ -105,15 +105,18 @@ CREATE TABLE "Companies" (
     "PostalCode" VARCHAR(20) NULL,
     "Country" VARCHAR(100) NULL,
     "InvoiceLanguage" VARCHAR(5) NULL DEFAULT 'es',
+    "Role" VARCHAR(10) NOT NULL DEFAULT 'client',
     "UserID" INT NULL,
     "IsActive" BOOLEAN DEFAULT TRUE,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "UQ_Company_Name_User" UNIQUE("Name", "UserID")
+    CONSTRAINT "UQ_Company_Name_User" UNIQUE("Name", "UserID"),
+    CONSTRAINT "CK_Companies_Role" CHECK ("Role" IN ('client', 'provider'))
 );
 
 CREATE INDEX "IX_Companies_UserID" ON "Companies"("UserID");
 CREATE INDEX "IX_Companies_Active" ON "Companies"("IsActive");
+CREATE INDEX "IX_Companies_Role" ON "Companies"("Role");
 
 -- Trips for multi-day, multi-category travel expense tracking
 CREATE TABLE "Trips" (

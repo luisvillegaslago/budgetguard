@@ -4,13 +4,16 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CompanyRole } from '@/constants/finance';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { CreateCompanyInput, UpdateCompanyInput } from '@/schemas/company';
 import type { ApiResponse, Company } from '@/types/finance';
 import { fetchApi } from '@/utils/fetchApi';
 
-async function fetchCompanies(): Promise<Company[]> {
-  const response = await fetchApi(`${API_ENDPOINT.COMPANIES}?isActive=true`);
+async function fetchCompanies(role?: CompanyRole): Promise<Company[]> {
+  const params = new URLSearchParams({ isActive: 'true' });
+  if (role) params.set('role', role);
+  const response = await fetchApi(`${API_ENDPOINT.COMPANIES}?${params.toString()}`);
 
   if (!response.ok) {
     throw new Error('Error loading companies');
@@ -25,8 +28,9 @@ async function fetchCompanies(): Promise<Company[]> {
   return data.data;
 }
 
-async function fetchAllCompanies(): Promise<Company[]> {
-  const response = await fetchApi(API_ENDPOINT.COMPANIES);
+async function fetchAllCompanies(role?: CompanyRole): Promise<Company[]> {
+  const params = role ? `?role=${role}` : '';
+  const response = await fetchApi(`${API_ENDPOINT.COMPANIES}${params}`);
 
   if (!response.ok) {
     throw new Error('Error loading companies');
@@ -118,10 +122,10 @@ async function deleteCompanyRequest(id: number): Promise<void> {
 /**
  * Hook to fetch active companies (for selectors)
  */
-export function useCompanies() {
+export function useCompanies(role?: CompanyRole) {
   return useQuery({
-    queryKey: [QUERY_KEY.COMPANIES],
-    queryFn: fetchCompanies,
+    queryKey: [QUERY_KEY.COMPANIES, role],
+    queryFn: () => fetchCompanies(role),
     staleTime: CACHE_TIME.TEN_MINUTES,
   });
 }
@@ -129,10 +133,10 @@ export function useCompanies() {
 /**
  * Hook to fetch ALL companies including inactive (for management panel)
  */
-export function useAllCompanies() {
+export function useAllCompanies(role?: CompanyRole) {
   return useQuery({
-    queryKey: [QUERY_KEY.COMPANIES, 'all'],
-    queryFn: fetchAllCompanies,
+    queryKey: [QUERY_KEY.COMPANIES, 'all', role],
+    queryFn: () => fetchAllCompanies(role),
     staleTime: CACHE_TIME.TWO_MINUTES,
   });
 }

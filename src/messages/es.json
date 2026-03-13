@@ -790,20 +790,42 @@
     }
   },
   "companies": {
-    "title": "Empresas / Proveedores",
-    "subtitle": "Gestiona tus empresas y datos de facturación",
+    "title": "Empresas",
+    "subtitle": "Gestiona tus clientes y proveedores",
     "add": "Añadir Empresa",
+    "add-client": "Añadir Cliente",
+    "add-provider": "Añadir Proveedor",
     "search-placeholder": "Buscar empresa...",
     "inactive": "Inactiva",
+    "tabs": {
+      "clients": "Clientes",
+      "providers": "Proveedores"
+    },
     "empty": {
       "title": "No hay empresas aún",
       "subtitle": "Añade tu primera empresa para vincularla a transacciones",
-      "cta": "Añadir Primera Empresa"
+      "cta": "Añadir Primera Empresa",
+      "title-clients": "No hay clientes aún",
+      "title-providers": "No hay proveedores aún",
+      "subtitle-clients": "Añade tu primer cliente para vincular facturas",
+      "subtitle-providers": "Añade tu primer proveedor para vincular gastos",
+      "cta-client": "Añadir Primer Cliente",
+      "cta-provider": "Añadir Primer Proveedor"
     },
     "form": {
       "title-create": "Nueva Empresa",
       "title-edit": "Editar Empresa",
+      "title-create-client": "Nuevo Cliente",
+      "title-create-provider": "Nuevo Proveedor",
+      "title-edit-client": "Editar Cliente",
+      "title-edit-provider": "Editar Proveedor",
+      "prefixes-title": "Prefijo de Factura",
+      "prefixes-hint": "Serie de numeración vinculada a este cliente",
+      "no-prefix": "Sin prefijo asignado",
+      "create-prefix": "Crear prefijo",
+      "prefix-replace-confirm": "El prefijo \"{prefix}\" se desvinculará de este cliente. Las facturas existentes no se verán afectadas.",
       "fields": {
+        "role": "Tipo",
         "name": "Nombre",
         "name-placeholder": "Ej: Vodafone España",
         "trading-name": "Nombre comercial",

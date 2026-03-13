@@ -3,6 +3,7 @@
  * Database operations for companies/providers (user-scoped)
  */
 
+import type { CompanyRole } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { Company } from '@/types/finance';
 import { query } from './connection';
@@ -17,6 +18,7 @@ interface CompanyRow {
   PostalCode: string | null;
   Country: string | null;
   InvoiceLanguage: string | null;
+  Role: string;
   IsActive: boolean;
   CreatedAt: Date | string;
   UpdatedAt: Date | string;
@@ -38,25 +40,31 @@ function rowToCompany(row: CompanyRow): Company {
     postalCode: row.PostalCode,
     country: row.Country,
     invoiceLanguage: row.InvoiceLanguage,
+    role: row.Role as CompanyRole,
     isActive: row.IsActive,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
 }
 
-const COMPANY_COLUMNS = `"CompanyID", "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "IsActive", "CreatedAt", "UpdatedAt"`;
+const COMPANY_COLUMNS = `"CompanyID", "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "Role", "IsActive", "CreatedAt", "UpdatedAt"`;
 
 /**
  * Get all companies for the current user
  */
-export async function getCompanies(filters?: { isActive?: boolean }): Promise<Company[]> {
+export async function getCompanies(filters?: { isActive?: boolean; role?: CompanyRole }): Promise<Company[]> {
   const userId = await getUserIdOrThrow();
   const params: unknown[] = [userId];
   let sql = `SELECT ${COMPANY_COLUMNS} FROM "Companies" WHERE "UserID" = $1`;
 
   if (filters?.isActive !== undefined) {
     params.push(filters.isActive);
-    sql += ` AND "IsActive" = $2`;
+    sql += ` AND "IsActive" = $${params.length}`;
+  }
+
+  if (filters?.role !== undefined) {
+    params.push(filters.role);
+    sql += ` AND "Role" = $${params.length}`;
   }
 
   sql += ` ORDER BY "Name" ASC`;
@@ -92,12 +100,13 @@ export async function createCompany(data: {
   postalCode?: string | null;
   country?: string | null;
   invoiceLanguage?: string | null;
+  role?: string;
 }): Promise<Company> {
   const userId = await getUserIdOrThrow();
 
   const rows = await query<CompanyRow>(
-    `INSERT INTO "Companies" ("Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "UserID")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO "Companies" ("Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "Role", "UserID")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${COMPANY_COLUMNS}`,
     [
       data.name,
@@ -108,6 +117,7 @@ export async function createCompany(data: {
       data.postalCode ?? null,
       data.country ?? null,
       data.invoiceLanguage ?? null,
+      data.role ?? 'client',
       userId,
     ],
   );
@@ -161,6 +171,7 @@ export async function updateCompany(
     postalCode: string | null;
     country: string | null;
     invoiceLanguage: string | null;
+    role: string;
     isActive: boolean;
   }>,
 ): Promise<Company | null> {
@@ -201,6 +212,10 @@ export async function updateCompany(
   if (data.invoiceLanguage !== undefined) {
     updates.push(`"InvoiceLanguage" = $${paramIndex++}`);
     params.push(data.invoiceLanguage);
+  }
+  if (data.role !== undefined) {
+    updates.push(`"Role" = $${paramIndex++}`);
+    params.push(data.role);
   }
   if (data.isActive !== undefined) {
     updates.push(`"IsActive" = $${paramIndex++}`);

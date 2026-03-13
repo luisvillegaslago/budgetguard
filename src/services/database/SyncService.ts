@@ -79,6 +79,8 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'City',
       'PostalCode',
       'Country',
+      'InvoiceLanguage',
+      'Role',
       'UserID',
       'IsActive',
       'CreatedAt',

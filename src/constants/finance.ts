@@ -206,5 +206,13 @@ export const PAYMENT_METHOD = {
 
 export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];
 
+// Company Roles
+export const COMPANY_ROLE = {
+  CLIENT: 'client',
+  PROVIDER: 'provider',
+} as const;
+
+export type CompanyRole = (typeof COMPANY_ROLE)[keyof typeof COMPANY_ROLE];
+
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;

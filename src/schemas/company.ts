@@ -5,6 +5,8 @@
 
 import { z } from 'zod';
 
+import { COMPANY_ROLE } from '@/constants/finance';
+
 /**
  * Schema for creating a new company (full form)
  */
@@ -17,6 +19,7 @@ export const CreateCompanySchema = z.object({
   postalCode: z.string().max(20).nullable().optional().default(null),
   country: z.string().max(100).nullable().optional().default(null),
   invoiceLanguage: z.string().max(5).nullable().optional().default(null),
+  role: z.enum([COMPANY_ROLE.CLIENT, COMPANY_ROLE.PROVIDER]).default(COMPANY_ROLE.CLIENT),
 });
 
 export type CreateCompanyInput = z.infer<typeof CreateCompanySchema>;
@@ -33,6 +36,7 @@ export const UpdateCompanySchema = z.object({
   postalCode: z.string().max(20).nullable().optional(),
   country: z.string().max(100).nullable().optional(),
   invoiceLanguage: z.string().max(5).nullable().optional(),
+  role: z.enum([COMPANY_ROLE.CLIENT, COMPANY_ROLE.PROVIDER]).optional(),
   isActive: z.boolean().optional(),
 });
 

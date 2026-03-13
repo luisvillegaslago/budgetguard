@@ -4,6 +4,7 @@
  */
 
 import type {
+  CompanyRole,
   InvoiceStatus,
   OccurrenceStatus,
   PaymentMethod,
@@ -13,6 +14,7 @@ import type {
 
 // Re-export from constants (single source of truth)
 export type {
+  CompanyRole,
   DateRangePreset,
   FiscalQuarter,
   InvoiceStatus,
@@ -36,6 +38,7 @@ export interface Company {
   postalCode: string | null;
   country: string | null;
   invoiceLanguage: string | null;
+  role: CompanyRole;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

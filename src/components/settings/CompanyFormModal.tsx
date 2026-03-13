@@ -2,15 +2,18 @@
 
 /**
  * BudgetGuard Company Form Modal
- * Modal for creating and editing companies with all 7 fields
+ * Modal for creating and editing companies with all fields + prefix section for clients
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { CompanyPrefixSection } from '@/components/settings/CompanyPrefixSection';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
+import type { CompanyRole } from '@/constants/finance';
+import { COMPANY_ROLE } from '@/constants/finance';
 import { useCreateCompany, useUpdateCompany } from '@/hooks/useCompanies';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateCompanyInput, CreateCompanySchema } from '@/schemas/company';
@@ -20,9 +23,10 @@ import { cn } from '@/utils/helpers';
 interface CompanyFormModalProps {
   onClose: () => void;
   company?: Company;
+  role: CompanyRole;
 }
 
-export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
+export function CompanyFormModal({ onClose, company, role }: CompanyFormModalProps) {
   const { t } = useTranslate();
   const isEditing = !!company;
   const createMutation = useCreateCompany();
@@ -31,6 +35,7 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateCompanyInput>({
     resolver: zodResolver(CreateCompanySchema),
@@ -43,8 +48,11 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
       postalCode: company?.postalCode ?? null,
       country: company?.country ?? null,
       invoiceLanguage: company?.invoiceLanguage ?? null,
+      role,
     },
   });
+
+  const watchedRole = watch('role');
 
   const onSubmit = async (data: CreateCompanyInput) => {
     try {
@@ -62,6 +70,16 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
   const isPending = createMutation.isPending || updateMutation.isPending;
   const isError = createMutation.isError || updateMutation.isError;
 
+  const currentIsClient = watchedRole === COMPANY_ROLE.CLIENT;
+
+  const formTitle = isEditing
+    ? currentIsClient
+      ? t('companies.form.title-edit-client')
+      : t('companies.form.title-edit-provider')
+    : currentIsClient
+      ? t('companies.form.title-create-client')
+      : t('companies.form.title-create-provider');
+
   const inputClass = (hasError: boolean) =>
     cn(
       'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
@@ -72,11 +90,11 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="company-form-title">
-      <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="company-form-title" className="text-xl font-bold text-foreground">
-            {isEditing ? t('companies.form.title-edit') : t('companies.form.title-create')}
+            {formTitle}
           </h2>
           <button
             type="button"
@@ -89,6 +107,17 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Role selector */}
+          <div>
+            <label htmlFor="company-role" className="block text-sm font-medium text-foreground mb-1.5">
+              {t('companies.form.fields.role')}
+            </label>
+            <Select id="company-role" {...register('role')}>
+              <option value={COMPANY_ROLE.CLIENT}>{t('companies.tabs.clients')}</option>
+              <option value={COMPANY_ROLE.PROVIDER}>{t('companies.tabs.providers')}</option>
+            </Select>
+          </div>
+
           {/* Name (required) */}
           <div>
             <label htmlFor="company-name" className="block text-sm font-medium text-foreground mb-1.5">
@@ -237,6 +266,9 @@ export function CompanyFormModal({ onClose, company }: CompanyFormModalProps) {
             )}
           </button>
         </form>
+
+        {/* Prefix section for clients in edit mode */}
+        {currentIsClient && isEditing && company && <CompanyPrefixSection companyId={company.companyId} />}
       </div>
     </ModalBackdrop>
   );

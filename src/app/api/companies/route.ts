@@ -4,6 +4,7 @@
  * POST /api/companies - Create a new company
  */
 
+import type { CompanyRole } from '@/constants/finance';
 import { CreateCompanySchema } from '@/schemas/company';
 import { validateRequest } from '@/schemas/transaction';
 import { createCompany, findOrCreateByName, getCompanies } from '@/services/database/CompanyRepository';
@@ -13,8 +14,14 @@ export const GET = withApiHandler(async (request) => {
   const { searchParams } = new URL(request.url);
   const isActiveParam = searchParams.get('isActive');
   const isActive = isActiveParam === null ? undefined : isActiveParam === 'true';
+  const roleParam = searchParams.get('role');
+  const role = roleParam === 'client' || roleParam === 'provider' ? roleParam : undefined;
 
-  const companies = await getCompanies(isActive !== undefined ? { isActive } : undefined);
+  const filters: { isActive?: boolean; role?: CompanyRole } = {};
+  if (isActive !== undefined) filters.isActive = isActive;
+  if (role !== undefined) filters.role = role;
+
+  const companies = await getCompanies(Object.keys(filters).length > 0 ? filters : undefined);
 
   return { data: companies };
 }, 'GET /api/companies');

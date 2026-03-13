@@ -790,20 +790,42 @@
     }
   },
   "companies": {
-    "title": "Companies / Providers",
-    "subtitle": "Manage your companies and billing details",
+    "title": "Companies",
+    "subtitle": "Manage your clients and providers",
     "add": "Add Company",
+    "add-client": "Add Client",
+    "add-provider": "Add Provider",
     "search-placeholder": "Search company...",
     "inactive": "Inactive",
+    "tabs": {
+      "clients": "Clients",
+      "providers": "Providers"
+    },
     "empty": {
       "title": "No companies yet",
       "subtitle": "Add your first company to link it to transactions",
-      "cta": "Add First Company"
+      "cta": "Add First Company",
+      "title-clients": "No clients yet",
+      "title-providers": "No providers yet",
+      "subtitle-clients": "Add your first client to link invoices",
+      "subtitle-providers": "Add your first provider to link expenses",
+      "cta-client": "Add First Client",
+      "cta-provider": "Add First Provider"
     },
     "form": {
       "title-create": "New Company",
       "title-edit": "Edit Company",
+      "title-create-client": "New Client",
+      "title-create-provider": "New Provider",
+      "title-edit-client": "Edit Client",
+      "title-edit-provider": "Edit Provider",
+      "prefixes-title": "Invoice Prefix",
+      "prefixes-hint": "Numbering series linked to this client",
+      "no-prefix": "No prefix assigned",
+      "create-prefix": "Create prefix",
+      "prefix-replace-confirm": "Prefix \"{prefix}\" will be unlinked from this client. Existing invoices will not be affected.",
       "fields": {
+        "role": "Type",
         "name": "Name",
         "name-placeholder": "e.g., Vodafone España",
         "trading-name": "Trading name",

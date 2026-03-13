@@ -11,7 +11,6 @@ import { CategoryManagementPanel } from '@/components/categories/CategoryManagem
 import { BillingProfileForm } from '@/components/settings/BillingProfileForm';
 import { CompanyManagementPanel } from '@/components/settings/CompanyManagementPanel';
 import { DbSyncPanel } from '@/components/settings/DbSyncPanel';
-import { InvoicePrefixManager } from '@/components/settings/InvoicePrefixManager';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -86,7 +85,6 @@ export default function SettingsPage() {
       {activeSection === 'billing' && (
         <div>
           <BillingProfileForm />
-          <InvoicePrefixManager />
         </div>
       )}
 
