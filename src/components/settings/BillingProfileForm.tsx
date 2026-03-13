@@ -7,18 +7,22 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Save } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Select } from '@/components/ui/Select';
 import { PAYMENT_METHOD } from '@/constants/finance';
 import { useBillingProfile, useUpdateBillingProfile } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type BillingProfileInput, BillingProfileSchema } from '@/schemas/invoice';
+import { centsToEuros, eurosToCents } from '@/utils/money';
 
 export function BillingProfileForm() {
   const { t } = useTranslate();
   const { data: profile, isLoading } = useBillingProfile();
   const updateProfile = useUpdateBillingProfile();
+
+  // Hourly rate displayed in euros, stored in cents
+  const [hourlyRateEuros, setHourlyRateEuros] = useState<string>('');
 
   const {
     register,
@@ -37,8 +41,12 @@ export function BillingProfileForm() {
       iban: '',
       swift: '',
       bankAddress: '',
+      defaultHourlyRateCents: null,
     },
   });
+
+  // Track whether hourly rate has been modified (to enable save button)
+  const [hourlyRateDirty, setHourlyRateDirty] = useState(false);
 
   // Populate form with existing profile
   useEffect(() => {
@@ -53,12 +61,22 @@ export function BillingProfileForm() {
         iban: profile.iban ?? '',
         swift: profile.swift ?? '',
         bankAddress: profile.bankAddress ?? '',
+        defaultHourlyRateCents: profile.defaultHourlyRateCents,
       });
+      setHourlyRateEuros(
+        profile.defaultHourlyRateCents != null ? String(centsToEuros(profile.defaultHourlyRateCents)) : '',
+      );
+      setHourlyRateDirty(false);
     }
   }, [profile, reset]);
 
   const onSubmit = async (data: BillingProfileInput) => {
-    await updateProfile.mutateAsync(data);
+    const rateCents = hourlyRateEuros !== '' ? eurosToCents(Number(hourlyRateEuros)) : null;
+    await updateProfile.mutateAsync({
+      ...data,
+      defaultHourlyRateCents: rateCents,
+    });
+    setHourlyRateDirty(false);
   };
 
   if (isLoading) {
@@ -122,6 +140,26 @@ export function BillingProfileForm() {
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
             />
           </div>
+        </div>
+
+        {/* Default Hourly Rate */}
+        <div>
+          <label htmlFor="defaultHourlyRate" className="block text-sm font-medium text-foreground mb-1">
+            {t('settings.billing.fields.default-hourly-rate')}
+          </label>
+          <input
+            id="defaultHourlyRate"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="-"
+            value={hourlyRateEuros}
+            onChange={(e) => {
+              setHourlyRateEuros(e.target.value);
+              setHourlyRateDirty(true);
+            }}
+            className="w-full max-w-xs px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
+          />
         </div>
 
         {/* Payment Method */}
@@ -193,7 +231,7 @@ export function BillingProfileForm() {
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={updateProfile.isPending || !isDirty}
+            disabled={updateProfile.isPending || (!isDirty && !hourlyRateDirty)}
             className="btn-primary flex items-center gap-2"
           >
             {updateProfile.isPending ? (

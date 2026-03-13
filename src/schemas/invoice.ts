@@ -19,6 +19,7 @@ export const BillingProfileSchema = z.object({
   iban: z.string().max(34).optional().nullable(),
   swift: z.string().max(11).optional().nullable(),
   bankAddress: z.string().max(500).optional().nullable(),
+  defaultHourlyRateCents: z.number().int().positive().optional().nullable(),
 });
 
 export type BillingProfileInput = z.infer<typeof BillingProfileSchema>;

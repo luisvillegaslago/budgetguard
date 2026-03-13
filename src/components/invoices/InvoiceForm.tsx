@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
-import { useCreateInvoice, useInvoicePrefixes, useUpdateInvoice } from '@/hooks/useInvoices';
+import { useBillingProfile, useCreateInvoice, useInvoicePrefixes, useUpdateInvoice } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
 import { centsToEuros, eurosToCents } from '@/utils/money';
@@ -40,7 +40,9 @@ interface InvoiceFormProps {
   invoice?: Invoice;
 }
 
-function buildDefaultValues(invoice?: Invoice): InvoiceFormValues {
+function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number | null): InvoiceFormValues {
+  const defaultRate = defaultHourlyRateCents != null ? centsToEuros(defaultHourlyRateCents) : ('' as const);
+
   if (!invoice) {
     const today = new Date().toISOString().split('T')[0] ?? '';
     return {
@@ -48,7 +50,7 @@ function buildDefaultValues(invoice?: Invoice): InvoiceFormValues {
       invoiceDate: today,
       companyId: 0,
       notes: '',
-      lineItems: [{ description: '', hours: '', hourlyRate: '', amount: '' }],
+      lineItems: [{ description: '', hours: '', hourlyRate: defaultRate, amount: '' }],
     };
   }
 
@@ -69,6 +71,7 @@ function buildDefaultValues(invoice?: Invoice): InvoiceFormValues {
 export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   const { t } = useTranslate();
   const { data: prefixes } = useInvoicePrefixes();
+  const { data: billingProfile } = useBillingProfile();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
 
@@ -82,7 +85,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
     setValue,
     formState: { errors },
   } = useForm<InvoiceFormValues>({
-    defaultValues: buildDefaultValues(invoice),
+    defaultValues: buildDefaultValues(invoice, billingProfile?.defaultHourlyRateCents),
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' });
@@ -277,7 +280,17 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
               <span className="block text-sm font-medium text-foreground">{t('invoices.form.fields.line-items')}</span>
               <button
                 type="button"
-                onClick={() => append({ description: '', hours: '', hourlyRate: '', amount: '' })}
+                onClick={() =>
+                  append({
+                    description: '',
+                    hours: '',
+                    hourlyRate:
+                      billingProfile?.defaultHourlyRateCents != null
+                        ? centsToEuros(billingProfile.defaultHourlyRateCents)
+                        : '',
+                    amount: '',
+                  })
+                }
                 className="text-xs text-guard-primary hover:text-guard-primary/80 flex items-center gap-1"
               >
                 <Plus className="h-3 w-3" aria-hidden="true" />

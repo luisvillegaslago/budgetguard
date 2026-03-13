@@ -714,6 +714,7 @@
         "payment-method": "Payment Method",
         "bank-name": "Bank Name",
         "bank-address": "Bank Address",
+        "default-hourly-rate": "Default Hourly Rate (€)",
         "prefix": "Prefix",
         "description": "Description",
         "start-number": "Start #",

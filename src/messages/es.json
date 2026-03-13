@@ -714,6 +714,7 @@
         "payment-method": "Método de Pago",
         "bank-name": "Nombre del Banco",
         "bank-address": "Dirección del Banco",
+        "default-hourly-rate": "Tarifa por Hora por Defecto (€)",
         "prefix": "Prefijo",
         "description": "Descripción",
         "start-number": "Inicio #",

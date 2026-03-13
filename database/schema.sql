@@ -649,6 +649,7 @@ CREATE TABLE "UserBillingProfiles" (
     "Iban" VARCHAR(34) NULL,
     "Swift" VARCHAR(11) NULL,
     "BankAddress" VARCHAR(500) NULL,
+    "DefaultHourlyRateCents" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FK_BillingProfiles_User"

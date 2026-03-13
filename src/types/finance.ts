@@ -526,6 +526,7 @@ export interface BillingProfile {
   iban: string | null;
   swift: string | null;
   bankAddress: string | null;
+  defaultHourlyRateCents: number | null;
   createdAt: string;
   updatedAt: string;
 }

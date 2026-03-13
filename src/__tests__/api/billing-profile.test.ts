@@ -17,6 +17,7 @@ const mockProfile: BillingProfile = {
   iban: 'ES1234567890',
   swift: 'CAIXESBB',
   bankAddress: 'Madrid',
+  defaultHourlyRateCents: 2500,
   createdAt: '2026-03-09T10:00:00.000Z',
   updatedAt: '2026-03-09T10:00:00.000Z',
 };
