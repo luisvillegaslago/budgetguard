@@ -6,6 +6,7 @@
  *   2. Transaction group (multiple transactions from same vendor summing to invoice total)
  */
 
+import { NextResponse } from 'next/server';
 import { EXTRACTION_STATUS, FISCAL_STATUS } from '@/constants/finance';
 import {
   findMatchingTransaction,
@@ -101,6 +102,9 @@ export const POST = withApiHandler(async (_request, { params }) => {
     };
   } catch (error) {
     await updateExtractionStatus(documentId, EXTRACTION_STATUS.FAILED);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Extraction failed';
+    // biome-ignore lint/suspicious/noConsole: OCR error logging
+    console.error(`[OCR] Extraction failed for document ${documentId}:`, message);
+    return NextResponse.json({ success: false, error: message }, { status: 502 });
   }
 }, 'POST /api/fiscal/documents/[id]/extract');

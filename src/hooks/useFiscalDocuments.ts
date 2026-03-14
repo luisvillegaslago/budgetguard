@@ -182,7 +182,12 @@ export function useExtractDocument() {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Extraction failed');
+        const message = err.error ?? 'Extraction failed';
+        // Simplify API credit errors for the user
+        if (message.includes('credit balance')) {
+          throw new Error('OCR service unavailable — API credits exhausted');
+        }
+        throw new Error(message);
       }
 
       const data: ApiResponse<FiscalDocument> = await response.json();
