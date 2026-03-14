@@ -3,14 +3,22 @@
 /**
  * BudgetGuard Company Selector
  * Combobox with type-to-search and inline "create on the fly" capability
+ * Uses fixed positioning to escape overflow containers (e.g. modals)
  */
 
-import { Building2, Check, ChevronsUpDown, Plus, X } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCompanies, useQuickCreateCompany } from '@/hooks/useCompanies';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Company } from '@/types/finance';
 import { cn } from '@/utils/helpers';
+
+interface DropdownPosition {
+  top?: number;
+  bottom?: number;
+  left: number;
+  width: number;
+}
 
 interface CompanySelectorProps {
   value: number | null;
@@ -24,6 +32,7 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
   const quickCreate = useQuickCreateCompany();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [dropdownPos, setDropdownPos] = useState<DropdownPosition | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -83,15 +92,28 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
 
   const handleToggle = () => {
     if (disabled) return;
-    setIsOpen(!isOpen);
-    if (!isOpen) {
+    const willOpen = !isOpen;
+    if (willOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 240;
+      const openUp = spaceBelow < dropdownHeight && rect.top > spaceBelow;
+
+      setDropdownPos(
+        openUp
+          ? { bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width }
+          : { top: rect.bottom + 4, left: rect.left, width: rect.width },
+      );
+    }
+    setIsOpen(willOpen);
+    if (willOpen) {
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger: flex wrapper with button + optional clear icon */}
+      {/* Trigger */}
       <div
         className={cn(
           'w-full flex items-center justify-between px-3 py-2 rounded-lg border bg-background text-left text-sm',
@@ -108,15 +130,9 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        <span className="flex items-center gap-2 min-w-0">
-          <Building2 className="h-4 w-4 text-guard-muted shrink-0" aria-hidden="true" />
+        <span className="truncate min-w-0">
           {selectedCompany ? (
-            <span className="truncate text-foreground">
-              {selectedCompany.name}
-              {selectedCompany.taxId && (
-                <span className="ml-1.5 text-xs text-guard-muted">({selectedCompany.taxId})</span>
-              )}
-            </span>
+            <span className="text-foreground">{selectedCompany.name}</span>
           ) : (
             <span className="text-guard-muted">{t('companies.selector.placeholder')}</span>
           )}
@@ -139,9 +155,17 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
         </span>
       </div>
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-md animate-fade-in">
+      {/* Dropdown — fixed positioning to escape overflow containers */}
+      {isOpen && dropdownPos && (
+        <div
+          className="fixed z-[100] rounded-lg border border-border bg-background shadow-md animate-fade-in"
+          style={{
+            top: dropdownPos.top != null ? `${dropdownPos.top}px` : undefined,
+            bottom: dropdownPos.bottom != null ? `${dropdownPos.bottom}px` : undefined,
+            left: `${dropdownPos.left}px`,
+            width: `${dropdownPos.width}px`,
+          }}
+        >
           {/* Search input */}
           <div className="p-2 border-b border-border">
             <input
@@ -173,8 +197,10 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
                 ) : (
                   <span className="w-4 shrink-0" />
                 )}
-                <span className="truncate">{company.name}</span>
-                {company.taxId && <span className="text-xs text-guard-muted shrink-0">({company.taxId})</span>}
+                <span className="min-w-0">
+                  <span className="block truncate">{company.name}</span>
+                  {company.taxId && <span className="block text-xs text-guard-muted truncate">{company.taxId}</span>}
+                </span>
               </button>
             ))}
 

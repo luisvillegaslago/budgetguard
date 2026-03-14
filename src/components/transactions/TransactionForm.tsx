@@ -7,7 +7,7 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronUp, Users, X } from 'lucide-react';
+import { FileText, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
@@ -159,7 +159,7 @@ export function TransactionForm({
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="transaction-form-title" escapeClose={!isEditing}>
-      <div ref={amountRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div ref={amountRef} className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="transaction-form-title" className="text-xl font-bold text-foreground">
@@ -215,55 +215,58 @@ export function TransactionForm({
           {/* Hidden categoryId field for form validation */}
           <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
 
-          {/* Amount Input */}
-          <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.amount')}
-            </label>
-            <input
-              id="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              autoComplete="off"
-              placeholder={t('transactions.form.fields.amount-placeholder')}
-              {...register('amount', { valueAsNumber: true })}
-              onWheel={(e) => e.currentTarget.blur()}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.amount ? 'border-guard-danger' : 'border-input',
+          {/* Amount + Date (side by side on desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Amount Input */}
+            <div>
+              <label htmlFor="amount" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.amount')}
+              </label>
+              <input
+                id="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                autoComplete="off"
+                placeholder={t('transactions.form.fields.amount-placeholder')}
+                {...register('amount', { valueAsNumber: true })}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.amount ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.amount && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.amount.message}
+                </p>
               )}
-            />
-            {errors.amount && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.amount.message}
-              </p>
-            )}
-          </div>
+            </div>
 
-          {/* Date Input */}
-          <div>
-            <label htmlFor="transactionDate" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.date')}
-            </label>
-            <input
-              id="transactionDate"
-              type="date"
-              {...register('transactionDate')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.transactionDate ? 'border-guard-danger' : 'border-input',
+            {/* Date Input */}
+            <div>
+              <label htmlFor="transactionDate" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.date')}
+              </label>
+              <input
+                id="transactionDate"
+                type="date"
+                {...register('transactionDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.transactionDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.transactionDate && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.transactionDate.message}
+                </p>
               )}
-            />
-            {errors.transactionDate && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.transactionDate.message}
-              </p>
-            )}
+            </div>
           </div>
 
           {/* Hierarchical Category Selector */}
@@ -328,68 +331,72 @@ export function TransactionForm({
             )}
           </div>
 
-          {/* Fiscal Data Section (collapsible) */}
-          <div className="border border-border rounded-lg overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowFiscal(!showFiscal)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
-            >
-              <span>{t('fiscal.form.section-title')}</span>
-              {showFiscal ? (
-                <ChevronUp className="h-4 w-4 text-guard-muted" aria-hidden="true" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-guard-muted" aria-hidden="true" />
-              )}
-            </button>
+          {/* Fiscal Data Toggle */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center h-6">
+              <input
+                id="showFiscal"
+                type="checkbox"
+                checked={showFiscal}
+                onChange={(e) => setShowFiscal(e.target.checked)}
+                className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
+              />
+            </div>
+            <label htmlFor="showFiscal" className="text-sm font-medium text-foreground flex items-center gap-2">
+              <FileText className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+              {t('fiscal.form.section-title')}
+            </label>
+          </div>
 
-            {showFiscal && (
-              <div className="px-4 pb-4 space-y-3 border-t border-border animate-fade-in">
-                <div className="grid grid-cols-2 gap-3 pt-3">
-                  {/* VAT % */}
-                  <div>
-                    <label htmlFor="vatPercent" className="block text-xs font-medium text-foreground mb-1">
-                      {t('fiscal.form.vat-percent')}
-                    </label>
-                    <input
-                      id="vatPercent"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      {...register('vatPercent', { valueAsNumber: true })}
-                      onChange={(e) => {
-                        fiscalDirtyRef.current = true;
-                        register('vatPercent', { valueAsNumber: true }).onChange(e);
-                      }}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
-                    />
-                  </div>
-
-                  {/* Deduction % */}
-                  <div>
-                    <label htmlFor="deductionPercent" className="block text-xs font-medium text-foreground mb-1">
-                      {t('fiscal.form.deduction-percent')}
-                    </label>
-                    <input
-                      id="deductionPercent"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      {...register('deductionPercent', { valueAsNumber: true })}
-                      onChange={(e) => {
-                        fiscalDirtyRef.current = true;
-                        register('deductionPercent', { valueAsNumber: true }).onChange(e);
-                      }}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
-                    />
-                  </div>
+          {/* Fiscal Data Fields */}
+          {showFiscal && (
+            <div className="space-y-3 pl-7 animate-fade-in">
+              <div className="grid grid-cols-2 gap-3">
+                {/* VAT % */}
+                <div>
+                  <label htmlFor="vatPercent" className="block text-xs font-medium text-foreground mb-1">
+                    {t('fiscal.form.vat-percent')}
+                  </label>
+                  <input
+                    id="vatPercent"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    {...register('vatPercent', { valueAsNumber: true })}
+                    onChange={(e) => {
+                      fiscalDirtyRef.current = true;
+                      register('vatPercent', { valueAsNumber: true }).onChange(e);
+                    }}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                  />
                 </div>
 
-                {/* Company/Vendor */}
+                {/* Deduction % */}
+                <div>
+                  <label htmlFor="deductionPercent" className="block text-xs font-medium text-foreground mb-1">
+                    {t('fiscal.form.deduction-percent')}
+                  </label>
+                  <input
+                    id="deductionPercent"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    {...register('deductionPercent', { valueAsNumber: true })}
+                    onChange={(e) => {
+                      fiscalDirtyRef.current = true;
+                      register('deductionPercent', { valueAsNumber: true }).onChange(e);
+                    }}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Company/Vendor + Invoice Number (side by side on desktop) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="companyId" className="block text-xs font-medium text-foreground mb-1">
                     {t('fiscal.form.vendor-name')}
@@ -402,7 +409,6 @@ export function TransactionForm({
                   <input type="hidden" {...register('companyId', { valueAsNumber: true })} />
                 </div>
 
-                {/* Invoice Number */}
                 <div>
                   <label htmlFor="invoiceNumber" className="block text-xs font-medium text-foreground mb-1">
                     {t('fiscal.form.invoice-number')}
@@ -417,8 +423,8 @@ export function TransactionForm({
                   />
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {mutation.isError && (
