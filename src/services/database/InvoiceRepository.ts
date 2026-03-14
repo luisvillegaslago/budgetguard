@@ -688,7 +688,7 @@ export async function updateInvoiceStatus(
     // Validate state transition
     const validTransitions: Record<string, InvoiceStatus[]> = {
       [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.FINALIZED],
-      [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED],
+      [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.DRAFT],
       [INVOICE_STATUS.PAID]: [INVOICE_STATUS.CANCELLED],
       [INVOICE_STATUS.CANCELLED]: [],
     };
