@@ -5,7 +5,11 @@
 
 import type {
   CompanyRole,
+  FilingStatus,
+  FiscalDocumentType,
+  FiscalStatus,
   InvoiceStatus,
+  ModeloType,
   OccurrenceStatus,
   PaymentMethod,
   RecurringFrequency,
@@ -16,8 +20,12 @@ import type {
 export type {
   CompanyRole,
   DateRangePreset,
+  FilingStatus,
+  FiscalDocumentType,
   FiscalQuarter,
+  FiscalStatus,
   InvoiceStatus,
+  ModeloType,
   OccurrenceStatus,
   PaymentMethod,
   RecurringFrequency,
@@ -608,4 +616,54 @@ export interface InvoiceListItem {
   totalCents: number;
   currency: string;
   status: InvoiceStatus;
+}
+
+// ============================================================
+// FISCAL DOCUMENTS & DEADLINES
+// ============================================================
+
+/**
+ * Uploaded fiscal document (modelo or received invoice)
+ */
+export interface FiscalDocument {
+  documentId: number;
+  documentType: FiscalDocumentType;
+  modeloType: ModeloType | null;
+  fiscalYear: number;
+  fiscalQuarter: number | null;
+  status: FiscalStatus;
+  downloadUrl: string;
+  fileName: string;
+  fileSizeBytes: number;
+  contentType: string;
+  taxAmountCents: number | null;
+  transactionId: number | null;
+  transactionGroupId: number | null;
+  companyId: number | null;
+  description: string | null;
+  createdAt: string;
+}
+
+/**
+ * AEAT deadline (computed server-side, NOT by the client)
+ */
+export interface FiscalDeadline {
+  modeloType: ModeloType;
+  fiscalYear: number;
+  fiscalQuarter: number | null;
+  startDate: string;
+  endDate: string;
+  status: FilingStatus;
+  isFiled: boolean;
+  daysRemaining: number | null;
+  needsPostponement: boolean;
+}
+
+/**
+ * User preferences for fiscal deadline reminders
+ */
+export interface FiscalDeadlineSettings {
+  reminderDaysBefore: number;
+  postponementReminder: boolean;
+  isActive: boolean;
 }

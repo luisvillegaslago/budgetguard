@@ -9,6 +9,7 @@ import { Beer, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
+import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { RecurringPendingPanel } from '@/components/recurring/RecurringPendingPanel';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionGroupForm } from '@/components/transactions/TransactionGroupForm';
@@ -70,6 +71,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="space-y-8">
+        {/* Fiscal Deadline Banner */}
+        <FiscalDeadlineBanner />
+
         {/* Balance Cards */}
         <section>
           <BalanceCards />

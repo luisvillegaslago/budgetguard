@@ -11,10 +11,26 @@ import { X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useUpcomingDeadlines } from '@/hooks/useFiscalDeadlines';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useSidebarOpen, useToggleSidebar } from '@/stores/useFinanceStore';
 import { cn } from '@/utils/helpers';
 import { NAV_GROUPS, type NavGroup, type NavItem, SETTINGS_NAV } from './navConfig';
+
+function SidebarBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <span className="ml-auto bg-guard-danger text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+      {count}
+    </span>
+  );
+}
+
+function useBadgeCount(badgeQueryKey?: string): number {
+  const { data: deadlines } = useUpcomingDeadlines();
+  if (badgeQueryKey === 'fiscal-deadlines' && deadlines) return deadlines.length;
+  return 0;
+}
 
 function SidebarNavItem({ item }: { item: NavItem }) {
   const { t } = useTranslate();
@@ -24,6 +40,7 @@ function SidebarNavItem({ item }: { item: NavItem }) {
   const isActive = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path));
   const Icon = item.icon;
   const label = t(item.i18nKey);
+  const badgeCount = useBadgeCount(item.badgeQueryKey);
 
   const link = (
     <Link
@@ -33,7 +50,7 @@ function SidebarNavItem({ item }: { item: NavItem }) {
         if (window.innerWidth < 1024) toggleSidebar();
       }}
       className={cn(
-        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative',
         isActive ? 'bg-guard-primary/10 text-guard-primary' : 'text-guard-muted hover:text-foreground hover:bg-muted',
         // Collapsed state on desktop: center icon, hide text via CSS
         !isSidebarOpen && 'lg:justify-center lg:px-2',
@@ -41,6 +58,12 @@ function SidebarNavItem({ item }: { item: NavItem }) {
     >
       <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
       <span className={cn('truncate', !isSidebarOpen && 'lg:hidden')}>{label}</span>
+      {isSidebarOpen && <SidebarBadge count={badgeCount} />}
+      {!isSidebarOpen && badgeCount > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 hidden lg:flex bg-guard-danger text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] items-center justify-center px-0.5">
+          {badgeCount}
+        </span>
+      )}
     </Link>
   );
 

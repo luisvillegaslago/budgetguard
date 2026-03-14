@@ -24,6 +24,8 @@ DROP TRIGGER IF EXISTS "TR_Invoices_UpdatedAt" ON "Invoices";
 DROP TRIGGER IF EXISTS "TR_Transactions_SyncVendorName" ON "Transactions";
 DROP TRIGGER IF EXISTS "TR_RecurringExpenses_SyncVendorName" ON "RecurringExpenses";
 DROP TRIGGER IF EXISTS "TR_Companies_PropagateNameChange" ON "Companies";
+DROP TRIGGER IF EXISTS "TR_FiscalDocuments_UpdatedAt" ON "FiscalDocuments";
+DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineSettings";
 
 -- Drop sync trigger functions
 DROP FUNCTION IF EXISTS sync_vendor_name_from_company();
@@ -42,6 +44,8 @@ DROP VIEW IF EXISTS "vw_SubcategorySummary";
 DROP VIEW IF EXISTS "vw_MonthlySummary";
 
 -- Drop tables with foreign keys first
+DROP TABLE IF EXISTS "FiscalDeadlineSettings";
+DROP TABLE IF EXISTS "FiscalDocuments";
 DROP TABLE IF EXISTS "InvoiceLineItems";
 DROP TABLE IF EXISTS "Invoices";
 DROP TABLE IF EXISTS "InvoicePrefixes";
@@ -751,6 +755,71 @@ CREATE TRIGGER "TR_UserBillingProfiles_UpdatedAt"
 
 CREATE TRIGGER "TR_Invoices_UpdatedAt"
     BEFORE UPDATE ON "Invoices"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- FISCAL DOCUMENTS & DEADLINE SETTINGS
+-- ============================================================
+
+-- Fiscal documents: uploaded tax filings and received invoices
+CREATE TABLE "FiscalDocuments" (
+    "DocumentID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID"),
+    "DocumentType" VARCHAR(20) NOT NULL CHECK ("DocumentType" IN ('modelo', 'factura_recibida', 'factura_emitida')),
+    "ModeloType" VARCHAR(10) NULL CHECK ("ModeloType" IN ('303', '130', '390', '100')),
+    "FiscalYear" INT NOT NULL,
+    "FiscalQuarter" INT NULL CHECK ("FiscalQuarter" BETWEEN 1 AND 4),
+    "Status" VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK ("Status" IN ('pending', 'filed', 'postponed')),
+    -- File storage (Vercel Blob)
+    "BlobUrl" VARCHAR(500) NOT NULL,
+    "BlobPathname" VARCHAR(300) NOT NULL,
+    "FileName" VARCHAR(255) NOT NULL,
+    "FileSizeBytes" INT NOT NULL,
+    "ContentType" VARCHAR(100) NOT NULL,
+    -- Money (cents convention)
+    "TaxAmountCents" INT NULL,
+    -- Traceability
+    "TransactionID" INT NULL REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
+    "TransactionGroupID" INT NULL,
+    "CompanyID" INT NULL REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    "Description" VARCHAR(255) NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- Modelos require ModeloType; facturas do not
+    CONSTRAINT "CK_FiscalDoc_ModeloType" CHECK (
+        ("DocumentType" = 'modelo' AND "ModeloType" IS NOT NULL)
+        OR ("DocumentType" IN ('factura_recibida', 'factura_emitida') AND "ModeloType" IS NULL)
+    ),
+    -- Annual modelos (390,100) → quarter NULL; quarterly → quarter NOT NULL
+    CONSTRAINT "CK_FiscalDoc_Quarter" CHECK (
+        ("ModeloType" IN ('390', '100') AND "FiscalQuarter" IS NULL)
+        OR ("ModeloType" IN ('303', '130') AND "FiscalQuarter" IS NOT NULL)
+        OR "ModeloType" IS NULL
+    )
+);
+
+CREATE INDEX "IX_FiscalDocuments_UserYear" ON "FiscalDocuments"("UserID", "FiscalYear");
+CREATE INDEX "IX_FiscalDocuments_Type" ON "FiscalDocuments"("DocumentType");
+CREATE INDEX "IX_FiscalDocuments_Status" ON "FiscalDocuments"("Status");
+
+CREATE TRIGGER "TR_FiscalDocuments_UpdatedAt"
+    BEFORE UPDATE ON "FiscalDocuments"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Fiscal deadline reminder settings (1 per user)
+CREATE TABLE "FiscalDeadlineSettings" (
+    "SettingID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL UNIQUE REFERENCES "Users"("UserID"),
+    "ReminderDaysBefore" INT NOT NULL DEFAULT 7,
+    "PostponementReminder" BOOLEAN NOT NULL DEFAULT TRUE,
+    "IsActive" BOOLEAN NOT NULL DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER "TR_FiscalDeadlineSettings_UpdatedAt"
+    BEFORE UPDATE ON "FiscalDeadlineSettings"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================

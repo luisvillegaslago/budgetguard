@@ -18,6 +18,7 @@ export const Select = forwardRef<HTMLSelectElement, ComponentPropsWithRef<'selec
       'disabled:opacity-50 disabled:cursor-not-allowed',
       'transition-colors duration-200 ease-out-quart',
       'bg-[length:16px_16px] bg-[position:right_10px_center] bg-no-repeat',
+      '[&>option]:bg-card [&>option]:text-foreground',
       className,
     )}
     style={{ backgroundImage: CHEVRON_SVG, ...props.style }}

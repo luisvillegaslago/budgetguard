@@ -5,6 +5,7 @@
  * Table of issued invoices (income) with base amount and VAT
  */
 
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { FiscalTransaction } from '@/types/finance';
 import { formatCurrency } from '@/utils/money';
@@ -18,19 +19,16 @@ export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
 
   if (invoices.length === 0) {
     return (
-      <div className="card">
-        <h3 className="text-lg font-bold text-foreground mb-4">{t('fiscal.invoices.title')}</h3>
+      <CollapsibleSection title={t('fiscal.invoices.title')}>
         <p className="text-sm text-guard-muted text-center py-6">{t('fiscal.invoices.empty')}</p>
-      </div>
+      </CollapsibleSection>
     );
   }
 
   const totalBase = invoices.reduce((sum, inv) => sum + inv.baseCents, 0);
 
   return (
-    <div className="card overflow-hidden">
-      <h3 className="text-lg font-bold text-foreground mb-4">{t('fiscal.invoices.title')}</h3>
-
+    <CollapsibleSection title={t('fiscal.invoices.title')} className="overflow-hidden">
       <div className="overflow-x-auto -mx-6">
         <table className="w-full text-sm">
           <thead>
@@ -89,7 +87,7 @@ export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
           </tfoot>
         </table>
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 

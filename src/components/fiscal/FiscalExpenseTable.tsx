@@ -5,6 +5,7 @@
  * Detailed table of deductible expenses with fiscal breakdown columns
  */
 
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { FiscalTransaction } from '@/types/finance';
 import { formatCurrency } from '@/utils/money';
@@ -18,10 +19,9 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
 
   if (expenses.length === 0) {
     return (
-      <div className="card">
-        <h3 className="text-lg font-bold text-foreground mb-4">{t('fiscal.expenses.title')}</h3>
+      <CollapsibleSection title={t('fiscal.expenses.title')}>
         <p className="text-sm text-guard-muted text-center py-6">{t('fiscal.expenses.empty')}</p>
-      </div>
+      </CollapsibleSection>
     );
   }
 
@@ -30,9 +30,7 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
   const subtotalIva = expenses.reduce((sum, e) => sum + e.ivaDeducibleCents, 0);
 
   return (
-    <div className="card overflow-hidden">
-      <h3 className="text-lg font-bold text-foreground mb-4">{t('fiscal.expenses.title')}</h3>
-
+    <CollapsibleSection title={t('fiscal.expenses.title')} className="overflow-hidden">
       <div className="overflow-x-auto -mx-6">
         <table className="w-full text-sm">
           <thead>
@@ -103,7 +101,7 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
           </tfoot>
         </table>
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 

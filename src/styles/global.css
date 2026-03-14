@@ -39,6 +39,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     /* BudgetGuard Dark Theme */
     --background: 222 47% 11%;        /* guard-dark */
     --foreground: 222 47% 98%;        /* guard-light */
@@ -121,17 +122,6 @@
     @apply card relative overflow-hidden;
   }
 
-  .balance-card-income {
-    @apply balance-card border-l-4 border-l-guard-success;
-  }
-
-  .balance-card-expense {
-    @apply balance-card border-l-4 border-l-guard-danger;
-  }
-
-  .balance-card-total {
-    @apply balance-card border-l-4 border-l-guard-primary;
-  }
 }
 
 @layer base {

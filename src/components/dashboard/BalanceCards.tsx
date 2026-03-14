@@ -7,74 +7,11 @@
  */
 
 import { AlertCircle, ArrowDownLeft, ArrowUpRight, RefreshCw, Scale } from 'lucide-react';
-import { CARD_VARIANT, type CardVariant, FILTER_TYPE, type FilterType } from '@/constants/finance';
+import { SUMMARY_COLORS, SummaryCard, SummaryCardSkeleton } from '@/components/ui/SummaryCard';
+import { FILTER_TYPE, type FilterType } from '@/constants/finance';
 import { useFormattedSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinanceStore';
-import { cn } from '@/utils/helpers';
-
-interface BalanceCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  variant: CardVariant;
-  isPositive?: boolean;
-  staggerClass?: string;
-  isActive?: boolean;
-  onClick?: () => void;
-}
-
-function BalanceCard({ title, value, icon, variant, isPositive, staggerClass, isActive, onClick }: BalanceCardProps) {
-  const variantStyles: Record<CardVariant, string> = {
-    [CARD_VARIANT.INCOME]: 'balance-card-income',
-    [CARD_VARIANT.EXPENSE]: 'balance-card-expense',
-    [CARD_VARIANT.BALANCE]: 'balance-card-total',
-  };
-
-  const iconBgStyles: Record<CardVariant, string> = {
-    [CARD_VARIANT.INCOME]: 'bg-guard-success/10 text-guard-success',
-    [CARD_VARIANT.EXPENSE]: 'bg-guard-danger/10 text-guard-danger',
-    [CARD_VARIANT.BALANCE]: 'bg-guard-primary/10 text-guard-primary',
-  };
-
-  const content = (
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-sm font-medium text-guard-muted">{title}</p>
-        <p
-          className={cn('text-2xl font-bold mt-1', {
-            'text-guard-success': variant === CARD_VARIANT.INCOME || (variant === CARD_VARIANT.BALANCE && isPositive),
-            'text-guard-danger': variant === CARD_VARIANT.EXPENSE || (variant === CARD_VARIANT.BALANCE && !isPositive),
-          })}
-        >
-          {value}
-        </p>
-      </div>
-      <div className={cn('p-2.5 rounded-xl', iconBgStyles[variant])}>{icon}</div>
-    </div>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        aria-pressed={isActive}
-        className={cn(
-          'balance-card animate-slide-up text-left w-full',
-          staggerClass,
-          variantStyles[variant],
-          'cursor-pointer transition-all duration-200 ease-out-quart',
-          isActive && 'ring-2 ring-guard-primary ring-offset-2 ring-offset-background',
-        )}
-      >
-        {content}
-      </button>
-    );
-  }
-
-  return <div className={cn('balance-card animate-slide-up', staggerClass, variantStyles[variant])}>{content}</div>;
-}
 
 export function BalanceCards() {
   const { t } = useTranslate();
@@ -91,15 +28,7 @@ export function BalanceCards() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="balance-card animate-pulse">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="h-[20px] w-20 bg-muted rounded" />
-                <div className="h-[32px] w-32 bg-muted rounded" />
-              </div>
-              <div className="h-10 w-10 bg-muted rounded-xl" />
-            </div>
-          </div>
+          <SummaryCardSkeleton key={i} />
         ))}
       </div>
     );
@@ -123,32 +52,31 @@ export function BalanceCards() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <BalanceCard
+      <SummaryCard
         title={t('dashboard.balance-cards.income')}
         value={formatted?.income ?? defaultCurrency}
         icon={<ArrowDownLeft className="h-5 w-5" aria-hidden="true" />}
-        variant={CARD_VARIANT.INCOME}
+        colors={SUMMARY_COLORS.success}
         staggerClass="stagger-1"
         isActive={filters.type === FILTER_TYPE.INCOME}
         onClick={() => handleFilterToggle(FILTER_TYPE.INCOME)}
       />
 
-      <BalanceCard
+      <SummaryCard
         title={t('dashboard.balance-cards.expenses')}
         value={formatted?.expense ?? defaultCurrency}
         icon={<ArrowUpRight className="h-5 w-5" aria-hidden="true" />}
-        variant={CARD_VARIANT.EXPENSE}
+        colors={SUMMARY_COLORS.danger}
         staggerClass="stagger-2"
         isActive={filters.type === FILTER_TYPE.EXPENSE}
         onClick={() => handleFilterToggle(FILTER_TYPE.EXPENSE)}
       />
 
-      <BalanceCard
+      <SummaryCard
         title={t('dashboard.balance-cards.balance')}
         value={formatted?.balance ?? defaultCurrency}
         icon={<Scale className="h-5 w-5" aria-hidden="true" />}
-        variant={CARD_VARIANT.BALANCE}
-        isPositive={isBalancePositive}
+        colors={isBalancePositive ? SUMMARY_COLORS.success : SUMMARY_COLORS.danger}
         staggerClass="stagger-3"
       />
     </div>

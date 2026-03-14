@@ -5,18 +5,20 @@
  * Sections: General (language), Categories, Database (dev-only)
  */
 
-import { Building2, Database, Globe, Receipt, Settings, Tag } from 'lucide-react';
-import { useState } from 'react';
+import { Bell, Building2, Database, Globe, Receipt, Settings, Tag } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { useCallback, useState } from 'react';
 import { CategoryManagementPanel } from '@/components/categories/CategoryManagementPanel';
 import { BillingProfileForm } from '@/components/settings/BillingProfileForm';
 import { CompanyManagementPanel } from '@/components/settings/CompanyManagementPanel';
 import { DbSyncPanel } from '@/components/settings/DbSyncPanel';
+import { FiscalReminderSettings } from '@/components/settings/FiscalReminderSettings';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
 
-type SettingsSection = 'general' | 'categories' | 'companies' | 'billing' | 'database';
+type SettingsSection = 'general' | 'categories' | 'companies' | 'billing' | 'reminders' | 'database';
 
 interface SectionConfig {
   id: SettingsSection;
@@ -30,12 +32,34 @@ const SECTIONS: SectionConfig[] = [
   { id: 'categories', i18nKey: 'settings.sections.categories', icon: Tag },
   { id: 'companies', i18nKey: 'settings.sections.companies', icon: Building2 },
   { id: 'billing', i18nKey: 'settings.sections.billing', icon: Receipt },
+  { id: 'reminders', i18nKey: 'settings.sections.reminders', icon: Bell },
   { id: 'database', i18nKey: 'settings.sections.database', icon: Database, devOnly: true },
 ];
 
+const VALID_SECTIONS = new Set<string>(['general', 'categories', 'companies', 'billing', 'reminders', 'database']);
+
+function resolveInitialTab(param: string | null): SettingsSection {
+  return param && VALID_SECTIONS.has(param) ? (param as SettingsSection) : 'general';
+}
+
 export default function SettingsPage() {
   const { t } = useTranslate();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+  const searchParams = useSearchParams();
+  const [activeSection, setActiveSectionState] = useState<SettingsSection>(() =>
+    resolveInitialTab(searchParams.get('tab')),
+  );
+
+  const setActiveSection = useCallback((section: SettingsSection) => {
+    setActiveSectionState(section);
+    // Sync URL without full navigation
+    const url = new URL(window.location.href);
+    if (section === 'general') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', section);
+    }
+    window.history.replaceState({}, '', url.toString());
+  }, []);
 
   const visibleSections = SECTIONS.filter((section) => !section.devOnly || process.env.NODE_ENV === 'development');
 
@@ -87,6 +111,8 @@ export default function SettingsPage() {
           <BillingProfileForm />
         </div>
       )}
+
+      {activeSection === 'reminders' && <FiscalReminderSettings />}
 
       {activeSection === 'database' && <DbSyncPanel />}
     </div>

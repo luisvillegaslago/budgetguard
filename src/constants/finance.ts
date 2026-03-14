@@ -76,6 +76,9 @@ export const QUERY_KEY = {
   INVOICES: 'invoices',
   INVOICE_PREFIXES: 'invoice-prefixes',
   BILLING_PROFILE: 'billing-profile',
+  FISCAL_DOCUMENTS: 'fiscal-documents',
+  FISCAL_DEADLINES: 'fiscal-deadlines',
+  FISCAL_DEADLINE_SETTINGS: 'fiscal-deadline-settings',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -119,6 +122,9 @@ export const API_ENDPOINT = {
   INVOICES: '/api/invoices',
   INVOICE_PREFIXES: '/api/invoices/prefixes',
   BILLING_PROFILE: '/api/billing-profile',
+  FISCAL_DOCUMENTS: '/api/fiscal/documents',
+  FISCAL_DEADLINES: '/api/fiscal/deadlines',
+  FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
 } as const;
 
 // Well-known Category References
@@ -213,6 +219,44 @@ export const COMPANY_ROLE = {
 } as const;
 
 export type CompanyRole = (typeof COMPANY_ROLE)[keyof typeof COMPANY_ROLE];
+
+// Fiscal Document Types
+export const FISCAL_DOCUMENT_TYPE = {
+  MODELO: 'modelo',
+  FACTURA_RECIBIDA: 'factura_recibida',
+  FACTURA_EMITIDA: 'factura_emitida',
+} as const;
+
+export type FiscalDocumentType = (typeof FISCAL_DOCUMENT_TYPE)[keyof typeof FISCAL_DOCUMENT_TYPE];
+
+// Modelo Types
+export const MODELO_TYPE = {
+  M303: '303',
+  M130: '130',
+  M390: '390',
+  M100: '100',
+} as const;
+
+export type ModeloType = (typeof MODELO_TYPE)[keyof typeof MODELO_TYPE];
+
+// Fiscal Document Status
+export const FISCAL_STATUS = {
+  PENDING: 'pending',
+  FILED: 'filed',
+} as const;
+
+export type FiscalStatus = (typeof FISCAL_STATUS)[keyof typeof FISCAL_STATUS];
+
+// Filing Status (computed server-side)
+export const FILING_STATUS = {
+  NOT_DUE: 'not_due',
+  UPCOMING: 'upcoming',
+  DUE: 'due',
+  OVERDUE: 'overdue',
+  FILED: 'filed',
+} as const;
+
+export type FilingStatus = (typeof FILING_STATUS)[keyof typeof FILING_STATUS];
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
