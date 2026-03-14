@@ -1753,6 +1753,912 @@ GET /api/version
 }
 ```
 
+### Companies
+
+Companies represent clients and providers used across invoicing, fiscal documents, and transaction tracking. Each company has a `role` (`COMPANY_ROLE.CLIENT` or `COMPANY_ROLE.PROVIDER`).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/companies` | List companies (supports `?isActive=true`, `?role=client\|provider`) |
+| POST | `/api/companies` | Create company (full form or quick create with name only) |
+| GET | `/api/companies/[id]` | Get single company |
+| PUT | `/api/companies/[id]` | Update company |
+| DELETE | `/api/companies/[id]` | Soft-delete company |
+| GET | `/api/companies/[id]/transactions` | Get company transaction history (supports `?range=1y\|6m\|3m\|all`) |
+
+#### `GET /api/companies`
+
+List all companies, optionally filtered by active status and role.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `isActive` | `true` \| `false` | No | all | Filter by active status |
+| `role` | `client` \| `provider` | No | all | Filter by company role |
+
+**Example Request:**
+```bash
+GET /api/companies?role=client&isActive=true
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "companyId": 1,
+      "name": "Acme Corp",
+      "tradingName": null,
+      "taxId": "B12345678",
+      "address": "Calle Mayor 1",
+      "city": "Madrid",
+      "postalCode": "28001",
+      "country": "Spain",
+      "invoiceLanguage": "es",
+      "role": "client",
+      "isActive": true,
+      "createdAt": "2025-03-01T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### `POST /api/companies`
+
+Create a new company. Supports two modes:
+- **Full create**: All fields validated via `CreateCompanySchema`
+- **Quick create**: Body with only `{ name: "..." }` — uses `findOrCreateByName()` to deduplicate
+
+**Request Body (full create):**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Company name (1-150 chars) |
+| `tradingName` | string \| null | No | null | Trading/commercial name |
+| `taxId` | string \| null | No | null | Tax identification number (NIF/CIF) |
+| `address` | string \| null | No | null | Street address |
+| `city` | string \| null | No | null | City |
+| `postalCode` | string \| null | No | null | Postal code |
+| `country` | string \| null | No | null | Country |
+| `invoiceLanguage` | string \| null | No | null | Language code for invoices (e.g., `"es"`, `"en"`) |
+| `role` | `COMPANY_ROLE.CLIENT` \| `COMPANY_ROLE.PROVIDER` | No | `COMPANY_ROLE.CLIENT` | Company role |
+
+**Example Request (quick create):**
+```json
+{ "name": "Acme Corp" }
+```
+
+**Example Request (full create):**
+```json
+{
+  "name": "Acme Corp",
+  "taxId": "B12345678",
+  "address": "Calle Mayor 1",
+  "city": "Madrid",
+  "postalCode": "28001",
+  "country": "Spain",
+  "role": "client"
+}
+```
+
+**Response:** `201 Created` with company object.
+
+#### `GET /api/companies/[id]`
+
+Get a single company by ID.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "companyId": 1,
+    "name": "Acme Corp",
+    "taxId": "B12345678",
+    "role": "client",
+    "isActive": true
+  }
+}
+```
+
+#### `PUT /api/companies/[id]`
+
+Update a company. All fields are optional.
+
+**Request Body:** Same fields as `POST` but all optional, plus:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `isActive` | boolean | No | Activate/deactivate company |
+
+#### `DELETE /api/companies/[id]`
+
+Soft-delete a company. Returns the number of transactions referencing this company.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true, "usageCount": 5 }
+}
+```
+
+#### `GET /api/companies/[id]/transactions`
+
+Get transaction history for a company within a date range, grouped by month.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `range` | `3m` \| `6m` \| `1y` \| `all` | No | `1y` | Date range preset (`DATE_RANGE_PRESET`) |
+
+**Example Request:**
+```bash
+GET /api/companies/1/transactions?range=6m
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "company": { "companyId": 1, "name": "Acme Corp" },
+    "dateFrom": "2025-09-14",
+    "dateTo": "2026-03-14",
+    "summary": {
+      "totalCents": 150000,
+      "transactionCount": 12
+    },
+    "months": [
+      {
+        "month": "2026-03",
+        "totalCents": 25000,
+        "transactionCount": 2,
+        "transactions": [
+          {
+            "transactionId": 42,
+            "amountCents": 15000,
+            "description": "Monthly service",
+            "transactionDate": "2026-03-01"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Billing Profile
+
+Manages the user's billing profile used as the biller/sender on generated invoices. Supports a single profile per user (upsert semantics).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/billing-profile` | Get current user's billing profile |
+| PUT | `/api/billing-profile` | Create or update billing profile (upsert) |
+
+#### `GET /api/billing-profile`
+
+Get the current user's billing profile. Returns `null` data if no profile exists.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "profileId": 1,
+    "fullName": "Luis Garcia",
+    "nif": "12345678A",
+    "address": "Calle Mayor 1, 28001 Madrid",
+    "phone": "+34612345678",
+    "paymentMethod": "bank_transfer",
+    "bankName": "CaixaBank",
+    "iban": "ES1234567890123456789012",
+    "swift": "CAIXESBB",
+    "bankAddress": null,
+    "defaultHourlyRateCents": 5000
+  }
+}
+```
+
+#### `PUT /api/billing-profile`
+
+Create or update the billing profile (upsert). If a profile exists, it is updated; otherwise, a new one is created.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `fullName` | string | Yes | Full legal name (1-150 chars) |
+| `nif` | string | Yes | Tax ID / NIF (1-30 chars) |
+| `address` | string \| null | No | Full address |
+| `phone` | string \| null | No | Phone number |
+| `paymentMethod` | `PAYMENT_METHOD.BANK_TRANSFER` \| `PAYMENT_METHOD.PAYPAL` \| `PAYMENT_METHOD.OTHER` | Yes | Payment method |
+| `bankName` | string \| null | No | Bank name |
+| `iban` | string \| null | No | IBAN (max 34 chars) |
+| `swift` | string \| null | No | SWIFT/BIC code (max 11 chars) |
+| `bankAddress` | string \| null | No | Bank address |
+| `defaultHourlyRateCents` | number \| null | No | Default hourly rate in cents for invoice line items |
+
+**Example Request:**
+```json
+{
+  "fullName": "Luis Garcia",
+  "nif": "12345678A",
+  "address": "Calle Mayor 1, 28001 Madrid",
+  "paymentMethod": "bank_transfer",
+  "bankName": "CaixaBank",
+  "iban": "ES1234567890123456789012",
+  "swift": "CAIXESBB",
+  "defaultHourlyRateCents": 5000
+}
+```
+
+---
+
+### Invoices
+
+Full invoicing module with status machine: `INVOICE_STATUS.DRAFT` -> `INVOICE_STATUS.FINALIZED` -> `INVOICE_STATUS.PAID` (or `INVOICE_STATUS.CANCELLED`). Finalizing generates a PDF and saves it as a fiscal document. Marking as paid atomically creates an income transaction.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/invoices` | List invoices (supports `?status=`, `?prefixId=`) |
+| POST | `/api/invoices` | Create draft invoice with line items |
+| GET | `/api/invoices/[id]` | Get invoice with line items |
+| PUT | `/api/invoices/[id]` | Edit draft invoice (date, line items, notes) |
+| PATCH | `/api/invoices/[id]` | Update invoice status |
+| DELETE | `/api/invoices/[id]` | Delete draft invoice |
+| POST | `/api/invoices/[id]/finalize` | Finalize invoice, generate PDF, save as fiscal document |
+| GET | `/api/invoices/[id]/pdf` | Download invoice PDF |
+
+#### `GET /api/invoices`
+
+List all invoices, optionally filtered by status and prefix.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `status` | `draft` \| `finalized` \| `paid` \| `cancelled` | No | all | Filter by invoice status (`INVOICE_STATUS`) |
+| `prefixId` | number | No | all | Filter by invoice prefix ID |
+
+**Example Request:**
+```bash
+GET /api/invoices?status=draft
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "invoiceId": 1,
+      "invoiceNumber": "INV-001",
+      "prefixId": 1,
+      "companyId": 3,
+      "companyName": "Acme Corp",
+      "invoiceDate": "2025-03-01",
+      "status": "draft",
+      "totalCents": 150000,
+      "lineItemCount": 2,
+      "createdAt": "2025-03-01T10:00:00.000Z"
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+#### `POST /api/invoices`
+
+Create a new invoice in `INVOICE_STATUS.DRAFT` status. The `totalCents` is calculated server-side from line items.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `prefixId` | number | Yes | Invoice prefix ID (determines numbering series) |
+| `invoiceDate` | date | Yes | Invoice date |
+| `companyId` | number | Yes | Client company ID |
+| `lineItems` | array | Yes | 1-50 line items |
+| `notes` | string \| null | No | Additional notes (max 2000 chars) |
+
+**Line Item Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string | Yes | Line item description (1-500 chars) |
+| `hours` | number \| null | No | Number of hours worked |
+| `hourlyRateCents` | number \| null | No | Rate per hour in cents |
+| `amountCents` | number | Yes | Total amount in cents (must equal `Math.round(hours * hourlyRateCents)` if both provided) |
+
+**Example Request:**
+```json
+{
+  "prefixId": 1,
+  "invoiceDate": "2025-03-01",
+  "companyId": 3,
+  "lineItems": [
+    {
+      "description": "Web development - March 2025",
+      "hours": 20,
+      "hourlyRateCents": 5000,
+      "amountCents": 100000
+    },
+    {
+      "description": "Server maintenance",
+      "amountCents": 50000
+    }
+  ],
+  "notes": "Payment due within 30 days"
+}
+```
+
+**Response:** `201 Created` with invoice object including generated `invoiceNumber`.
+
+#### `GET /api/invoices/[id]`
+
+Get a single invoice with its line items.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "invoiceId": 1,
+    "invoiceNumber": "INV-001",
+    "status": "draft",
+    "invoiceDate": "2025-03-01",
+    "totalCents": 150000,
+    "companyId": 3,
+    "companyName": "Acme Corp",
+    "notes": "Payment due within 30 days",
+    "lineItems": [
+      {
+        "lineItemId": 1,
+        "description": "Web development - March 2025",
+        "hours": 20,
+        "hourlyRateCents": 5000,
+        "amountCents": 100000
+      },
+      {
+        "lineItemId": 2,
+        "description": "Server maintenance",
+        "hours": null,
+        "hourlyRateCents": null,
+        "amountCents": 50000
+      }
+    ]
+  }
+}
+```
+
+#### `PUT /api/invoices/[id]`
+
+Edit a draft invoice. Only `invoiceDate`, `lineItems`, and `notes` can be updated. Prefix and company are locked after creation. Only drafts can be edited.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `invoiceDate` | date | Yes | Updated invoice date |
+| `lineItems` | array | Yes | Replacement line items (1-50) |
+| `notes` | string \| null | No | Updated notes |
+
+#### `PATCH /api/invoices/[id]`
+
+Update invoice status. Used for status transitions in the invoice state machine.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | `INVOICE_STATUS.DRAFT` \| `INVOICE_STATUS.FINALIZED` \| `INVOICE_STATUS.PAID` \| `INVOICE_STATUS.CANCELLED` | Yes | Target status |
+| `categoryId` | number | Required when `INVOICE_STATUS.PAID` | Income category for the auto-created transaction |
+
+**Example Request (mark as paid):**
+```json
+{
+  "status": "paid",
+  "categoryId": 7
+}
+```
+
+**Status Transitions:**
+
+| From | To | Effect |
+|------|----|--------|
+| `draft` | `finalized` | Use `/finalize` endpoint instead for PDF generation |
+| `finalized` | `paid` | Creates income transaction with today's date |
+| `finalized` | `cancelled` | Deletes FiscalDocument + blob |
+| `finalized` | `draft` | Deletes FiscalDocument + blob, invoice becomes editable |
+| `paid` | `cancelled` | Deletes income transaction + FiscalDocument + blob |
+| `cancelled` | `draft` | Reverts to draft for re-editing (no cleanup needed) |
+
+#### `DELETE /api/invoices/[id]`
+
+Delete an invoice. Only draft invoices can be deleted.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+#### `POST /api/invoices/[id]/finalize`
+
+Finalize a draft invoice: locks the invoice number, snapshots biller/client data, generates a PDF, and saves it as a fiscal document. Returns the PDF binary.
+
+**Response:** Binary PDF with `Content-Type: application/pdf` and `Content-Disposition: attachment` headers.
+
+#### `GET /api/invoices/[id]/pdf`
+
+Download the PDF for a finalized or paid invoice. Generates the PDF on-the-fly from stored invoice data.
+
+**Response:** Binary PDF with `Content-Type: application/pdf` and `Content-Disposition: attachment` headers.
+
+---
+
+### Invoice Prefixes
+
+Invoice prefixes define numbering series for invoices (e.g., `INV`, `PROJ`). Each prefix tracks its own `nextNumber` counter, which auto-increments when invoices are created.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/invoices/prefixes` | List all prefixes |
+| POST | `/api/invoices/prefixes` | Create a new prefix |
+| PUT | `/api/invoices/prefixes/[id]` | Update prefix (description, nextNumber) |
+| DELETE | `/api/invoices/prefixes/[id]` | Delete prefix (409 if has invoices) |
+
+#### `GET /api/invoices/prefixes`
+
+List all invoice prefixes for the current user.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "prefixId": 1,
+      "prefix": "INV",
+      "description": "General invoices",
+      "nextNumber": 5,
+      "companyId": null,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+#### `POST /api/invoices/prefixes`
+
+Create a new invoice prefix.
+
+**Request Body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `prefix` | string | Yes | - | Prefix code (1-10 chars, auto-uppercased) |
+| `description` | string \| null | No | null | Human-readable description |
+| `nextNumber` | number | No | 1 | Starting invoice number |
+| `companyId` | number \| null | No | null | Optional company to scope the prefix |
+
+**Example Request:**
+```json
+{
+  "prefix": "INV",
+  "description": "General invoices",
+  "nextNumber": 1
+}
+```
+
+**Response:** `201 Created` with prefix object.
+
+#### `PUT /api/invoices/prefixes/[id]`
+
+Update an existing prefix. The `prefix` code itself is immutable.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string \| null | No | Updated description |
+| `nextNumber` | number | No | Manually set next invoice number (min 1) |
+| `companyId` | number \| null | No | Update scoped company |
+
+#### `DELETE /api/invoices/prefixes/[id]`
+
+Delete an invoice prefix. Returns `409 Conflict` if the prefix has existing invoices.
+
+**Example Response (success):**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+**Example Response (conflict):**
+```json
+{
+  "success": false,
+  "error": "Cannot delete prefix with existing invoices"
+}
+```
+
+---
+
+### Fiscal Documents
+
+Fiscal documents store uploaded tax filings, received invoices, and issued invoices. Files are stored in Vercel Blob (private access) and metadata is tracked in the database.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal/documents` | List documents (requires `?year=`, supports `?quarter=`, `?documentType=`) |
+| POST | `/api/fiscal/documents` | Upload single document (multipart/form-data) |
+| GET | `/api/fiscal/documents/[id]` | Get document metadata |
+| PATCH | `/api/fiscal/documents/[id]` | Update document status |
+| DELETE | `/api/fiscal/documents/[id]` | Delete document and blob |
+| GET | `/api/fiscal/documents/[id]/download` | Download document file (authenticated proxy) |
+| POST | `/api/fiscal/documents/bulk` | Bulk upload multiple documents (multipart/form-data) |
+
+#### `GET /api/fiscal/documents`
+
+List fiscal documents filtered by year, with optional quarter and document type filters.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | Yes | - | Fiscal year (2019-2100) |
+| `quarter` | number | No | all | Quarter (1-4) |
+| `documentType` | `modelo` \| `factura_recibida` \| `factura_emitida` | No | all | Document type (`FISCAL_DOCUMENT_TYPE`) |
+
+**Example Request:**
+```bash
+GET /api/fiscal/documents?year=2025&quarter=1&documentType=modelo
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "documentId": 1,
+      "documentType": "modelo",
+      "modeloType": "303",
+      "fiscalYear": 2025,
+      "fiscalQuarter": 1,
+      "status": "filed",
+      "fileName": "modelo-303-Q1-2025.pdf",
+      "fileSizeBytes": 245000,
+      "contentType": "application/pdf",
+      "taxAmountCents": 63175,
+      "companyId": null,
+      "description": null,
+      "createdAt": "2025-04-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+#### `POST /api/fiscal/documents`
+
+Upload a single fiscal document. Uses `multipart/form-data` with a file and JSON metadata.
+
+**Form Data Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | File | Yes | The document file |
+| `metadata` | JSON string | Yes | Document metadata (see below) |
+
+**Metadata Fields:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `documentType` | `FISCAL_DOCUMENT_TYPE.MODELO` \| `FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA` \| `FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA` | Yes | - | Document type |
+| `modeloType` | `MODELO_TYPE.M303` \| `MODELO_TYPE.M130` \| `MODELO_TYPE.M390` \| `MODELO_TYPE.M100` \| null | Conditional | null | Required for `modelo` type; must be null for `factura_*` types |
+| `fiscalYear` | number | Yes | - | Fiscal year (2019-2100) |
+| `fiscalQuarter` | number \| null | Conditional | null | Required for quarterly modelos (`303`, `130`); must be null for annual modelos (`390`, `100`) |
+| `status` | `FISCAL_STATUS.PENDING` \| `FISCAL_STATUS.FILED` | No | `FISCAL_STATUS.PENDING` | Filing status |
+| `taxAmountCents` | number \| null | No | null | Tax amount in cents |
+| `transactionId` | number \| null | No | null | Link to a transaction |
+| `transactionGroupId` | number \| null | No | null | Link to a transaction group |
+| `companyId` | number \| null | No | null | Link to a company |
+| `description` | string \| null | No | null | Description (max 255 chars) |
+
+**Validation Rules:**
+- `modeloType` is required when `documentType` is `modelo`, and must be null otherwise
+- `fiscalQuarter` is required for quarterly modelos (`303`, `130`) and must be null for annual modelos (`390`, `100`)
+
+**Response:** `201 Created` with document metadata.
+
+#### `GET /api/fiscal/documents/[id]`
+
+Get document metadata by ID. Does not expose the blob URL.
+
+#### `PATCH /api/fiscal/documents/[id]`
+
+Update the filing status of a document.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | `FISCAL_STATUS.PENDING` \| `FISCAL_STATUS.FILED` | Yes | New filing status |
+
+**Example Request:**
+```json
+{ "status": "filed" }
+```
+
+#### `DELETE /api/fiscal/documents/[id]`
+
+Delete a fiscal document and its associated blob from Vercel Blob storage.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": { "deleted": true }
+}
+```
+
+#### `GET /api/fiscal/documents/[id]/download`
+
+Authenticated download proxy. Streams the document from Vercel Blob without exposing the private blob URL to the client. Uses signed URLs for access.
+
+**Response:** Binary file with appropriate `Content-Type` and `Content-Disposition: attachment` headers. Cached for 1 hour (`Cache-Control: private, max-age=3600`).
+
+#### `POST /api/fiscal/documents/bulk`
+
+Bulk upload multiple fiscal documents. Accepts multiple files with optional metadata overrides. Filenames are auto-parsed to detect document type, modelo type, year, and quarter.
+
+**Form Data Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `files` | File[] | Yes | One or more document files |
+| `metadata` | JSON string | No | Array of metadata overrides (one per file, by index) |
+
+**Metadata Override Fields (per item):**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `documentType` | `FISCAL_DOCUMENT_TYPE.*` | Auto-detected | from filename | Document type |
+| `modeloType` | `MODELO_TYPE.*` \| null | Auto-detected | from filename | Modelo type |
+| `fiscalYear` | number | Auto-detected | current year | Fiscal year |
+| `fiscalQuarter` | number \| null | Auto-detected | from filename | Quarter |
+| `status` | `FISCAL_STATUS.*` | No | `FISCAL_STATUS.FILED` | Filing status |
+| `description` | string \| null | No | null | Description |
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      { "fileName": "modelo-303-Q1-2025.pdf", "success": true, "documentId": 5 },
+      { "fileName": "invalid-file.txt", "success": false, "error": "Validation failed" }
+    ],
+    "total": 2,
+    "succeeded": 1,
+    "failed": 1
+  }
+}
+```
+
+---
+
+### Fiscal Deadlines
+
+Server-computed AEAT (Spanish tax agency) filing deadlines. All deadline logic runs server-side based on the fiscal year, with filed modelo status tracked from fiscal documents.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal/deadlines` | Get computed deadlines for a year (supports `?year=`, `?active=true`) |
+| GET | `/api/fiscal/deadlines/settings` | Get reminder preferences |
+| PUT | `/api/fiscal/deadlines/settings` | Update reminder preferences (upsert) |
+
+#### `GET /api/fiscal/deadlines`
+
+Get all AEAT filing deadlines for a given fiscal year. Deadlines are computed server-side and enriched with filing status from fiscal documents.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | No | current year | Fiscal year (2020-2100) |
+| `active` | `true` | No | all | Return only upcoming/overdue deadlines |
+
+**Example Request:**
+```bash
+GET /api/fiscal/deadlines?year=2025&active=true
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "303-Q1",
+      "modeloType": "303",
+      "quarter": 1,
+      "description": "Modelo 303 - Q1 2025",
+      "dueDate": "2025-04-20",
+      "isFiled": false,
+      "isOverdue": true,
+      "daysUntilDue": -5,
+      "isInReminderWindow": true
+    }
+  ],
+  "meta": { "year": 2025, "reminderDaysBefore": 7 }
+}
+```
+
+#### `GET /api/fiscal/deadlines/settings`
+
+Get the current deadline reminder preferences.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "reminderDaysBefore": 7,
+    "postponementReminder": true,
+    "isActive": true
+  }
+}
+```
+
+#### `PUT /api/fiscal/deadlines/settings`
+
+Update deadline reminder preferences (upsert).
+
+**Request Body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `reminderDaysBefore` | number | No | 7 | Days before deadline to start reminding (1-90) |
+| `postponementReminder` | boolean | No | true | Show reminders for postponement deadlines |
+| `isActive` | boolean | No | true | Enable/disable deadline reminders |
+
+**Example Request:**
+```json
+{
+  "reminderDaysBefore": 14,
+  "postponementReminder": true,
+  "isActive": true
+}
+```
+
+---
+
+### Fiscal Annual
+
+Annual fiscal report for Spanish annual tax models (Modelo 390 for annual VAT summary and Modelo 100 for annual income tax).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal/annual` | Get annual fiscal report (Modelo 390 + Modelo 100) |
+
+#### `GET /api/fiscal/annual`
+
+Get the annual fiscal report summarizing VAT and income tax for a full year.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | Yes | - | Fiscal year (2020-2100) |
+
+**Example Request:**
+```bash
+GET /api/fiscal/annual?year=2025
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "fiscalYear": 2025,
+    "modelo390": {
+      "totalVatCollected": 609500,
+      "totalVatDeductible": 356800,
+      "annualVatBalance": 252700
+    },
+    "modelo100": {
+      "totalGrossIncome": 1190000,
+      "totalDeductibleExpenses": 756800,
+      "totalNetIncome": 433200,
+      "estimatedAnnualTax": 86640
+    }
+  }
+}
+```
+
+---
+
+### Database Sync
+
+Development-only endpoints for bidirectional database synchronization. Returns `403 Forbidden` in production.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/sync/compare` | Compare local and remote databases (dev only) |
+| POST | `/api/sync/execute` | Execute sync with SSE progress streaming (dev only) |
+
+#### `GET /api/sync/compare`
+
+Compare local and remote database schemas and data to compute a diff.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "tables": [
+      {
+        "name": "Transactions",
+        "localCount": 150,
+        "remoteCount": 148,
+        "diff": 2
+      }
+    ]
+  }
+}
+```
+
+#### `POST /api/sync/execute`
+
+Execute database synchronization. Returns a Server-Sent Events (SSE) stream with progress updates.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `direction` | `SYNC_DIRECTION.PUSH` \| `SYNC_DIRECTION.PULL` | Yes | Sync direction (`push` = local to remote, `pull` = remote to local) |
+| `includeDeletes` | boolean | Yes | Whether to propagate deletions |
+
+**Example Request:**
+```json
+{
+  "direction": "push",
+  "includeDeletes": false
+}
+```
+
+**Response:** `text/event-stream` with SSE events:
+```
+data: {"phase": "syncing", "message": "Processing Transactions..."}
+
+data: {"phase": "syncing", "message": "Synced 50 rows"}
+
+data: {"phase": "done", "message": "{\"tablesProcessed\": 5, \"rowsSynced\": 150}"}
+```
+
+**SSE Event Phases:**
+
+| Phase | Description |
+|-------|-------------|
+| `syncing` | Progress update during sync |
+| `done` | Sync completed successfully (message contains JSON result) |
+| `error` | Sync failed (message contains error description) |
+
 ---
 
 ## Validation
@@ -1799,6 +2705,41 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 | `UpdateTripSchema` | Partial trip update (name optional) |
 | `CreateTripExpenseSchema` | Trip expense (categoryId, amount, date, description, isShared) |
 | `UpdateTripExpenseSchema` | Partial trip expense update (all fields optional) |
+
+#### Company Schemas (`src/schemas/company.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `CreateCompanySchema` | New company (name, taxId, address, city, postalCode, country, invoiceLanguage, role) |
+| `UpdateCompanySchema` | Partial company updates (all fields optional, plus isActive) |
+| `QuickCreateCompanySchema` | Quick create with name only (from inline selector) |
+
+#### Invoice Schemas (`src/schemas/invoice.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `BillingProfileSchema` | Billing profile upsert (fullName, nif, address, paymentMethod, bank details, defaultHourlyRateCents) |
+| `CreateInvoicePrefixSchema` | New prefix (prefix code, description, nextNumber, companyId) |
+| `UpdateInvoicePrefixSchema` | Partial prefix updates (description, nextNumber, companyId) |
+| `CreateInvoiceSchema` | New invoice (prefixId, invoiceDate, companyId, lineItems[], notes) |
+| `UpdateInvoiceSchema` | Edit draft invoice (invoiceDate, lineItems[], notes) |
+| `UpdateInvoiceStatusSchema` | Status transition (status, optional categoryId for paid) |
+
+#### Fiscal Document Schemas (`src/schemas/fiscal-document.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `FiscalDocumentUploadSchema` | Single document upload metadata (documentType, modeloType, fiscalYear, fiscalQuarter, status, taxAmountCents, links) |
+| `FiscalDocumentStatusSchema` | Document status update (pending \| filed) |
+| `BulkUploadItemSchema` | Bulk upload item metadata (auto-parsed from filename, with overrides) |
+| `FiscalDeadlineSettingsSchema` | Deadline reminder preferences (reminderDaysBefore, postponementReminder, isActive) |
+| `FiscalDocumentsFiltersSchema` | Document list filters (year, quarter, documentType) |
+
+#### Sync Schemas (`src/schemas/sync.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `SyncExecuteSchema` | Sync execution params (direction: push \| pull, includeDeletes) |
 
 ---
 
@@ -1869,5 +2810,15 @@ If rounding causes a 1-cent difference, the last item absorbs it.
 | `src/services/database/CategoryRepository.ts` | Category database operations |
 | `src/services/database/RecurringExpenseRepository.ts` | Recurring expense and occurrence database operations |
 | `src/services/database/TripRepository.ts` | Trip CRUD and trip category database operations |
+| `src/services/database/InvoiceRepository.ts` | Invoice, prefix, and billing profile database operations |
+| `src/services/database/CompanyRepository.ts` | Company CRUD database operations |
+| `src/services/database/FiscalDocumentRepository.ts` | Fiscal document CRUD, deadline settings, and bulk operations |
+| `src/services/database/SyncService.ts` | Bidirectional database sync (dev only) |
+| `src/schemas/company.ts` | Company Zod schemas |
+| `src/schemas/invoice.ts` | Invoice, prefix, and billing profile Zod schemas |
+| `src/schemas/fiscal-document.ts` | Fiscal document and deadline settings Zod schemas |
+| `src/schemas/sync.ts` | Sync execution Zod schemas |
 | `src/utils/money.ts` | Money conversion utilities (eurosToCents, centsToEuros, formatCurrency) |
 | `src/utils/recurring.ts` | Recurring date calculation utilities |
+| `src/utils/fiscalDeadlines.ts` | Fiscal deadline computation utilities |
+| `src/utils/fiscalFileParser.ts` | Fiscal document filename auto-parser |

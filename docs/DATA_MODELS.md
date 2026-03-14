@@ -352,6 +352,341 @@ CREATE TABLE VerificationTokens (
 
 ---
 
+### Companies & Invoicing Tables
+
+#### Companies
+
+Normalized vendor/client data for transactions and fiscal billing. Each company is scoped to a user and has a role (`'client'` or `'provider'`).
+
+```sql
+CREATE TABLE "Companies" (
+    "CompanyID" SERIAL PRIMARY KEY,
+    "Name" VARCHAR(150) NOT NULL,
+    "TradingName" VARCHAR(150) NULL,        -- Commercial/brand name
+    "TaxId" VARCHAR(30) NULL,               -- NIF/CIF/VAT number
+    "Address" VARCHAR(250) NULL,
+    "City" VARCHAR(100) NULL,
+    "PostalCode" VARCHAR(20) NULL,
+    "Country" VARCHAR(100) NULL,
+    "InvoiceLanguage" VARCHAR(5) NULL DEFAULT 'es', -- Language for invoices
+    "Role" VARCHAR(10) NOT NULL DEFAULT 'client',
+    "UserID" INT NULL,
+    "IsActive" BOOLEAN DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UQ_Company_Name_User" UNIQUE("Name", "UserID"),
+    CONSTRAINT "CK_Companies_Role" CHECK ("Role" IN ('client', 'provider'))
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `CompanyID` | SERIAL | Auto-increment primary key |
+| `Name` | VARCHAR(150) | Legal company name (unique per user) |
+| `TradingName` | VARCHAR(150) NULL | Commercial or brand name |
+| `TaxId` | VARCHAR(30) NULL | Tax identification number (NIF/CIF/VAT) |
+| `Address` | VARCHAR(250) NULL | Street address |
+| `City` | VARCHAR(100) NULL | City |
+| `PostalCode` | VARCHAR(20) NULL | Postal/ZIP code |
+| `Country` | VARCHAR(100) NULL | Country |
+| `InvoiceLanguage` | VARCHAR(5) NULL | Language for generated invoices (`'es'`, `'en'`) |
+| `Role` | VARCHAR(10) | `'client'` (invoice recipient) or `'provider'` (expense vendor) |
+| `UserID` | INT NULL | FK to Users (scoped per user) |
+| `IsActive` | BOOLEAN | Soft delete flag |
+
+**Design note:** Companies are referenced by `Transactions.CompanyID`, `RecurringExpenses.CompanyID`, and `Invoices.CompanyID`. A trigger (`TR_Transactions_SyncVendorName`) syncs the company name to `VendorName` on linked rows.
+
+---
+
+#### UserBillingProfiles
+
+Stores the user's billing identity (issuer data) for invoice generation. One profile per user.
+
+```sql
+CREATE TABLE "UserBillingProfiles" (
+    "BillingProfileID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL UNIQUE,
+    "FullName" VARCHAR(150) NOT NULL,
+    "Nif" VARCHAR(30) NOT NULL,
+    "Address" VARCHAR(500) NULL,
+    "Phone" VARCHAR(30) NULL,
+    "PaymentMethod" VARCHAR(20) NOT NULL DEFAULT 'bank_transfer'
+        CHECK ("PaymentMethod" IN ('bank_transfer', 'paypal', 'other')),
+    "BankName" VARCHAR(150) NULL,
+    "Iban" VARCHAR(34) NULL,
+    "Swift" VARCHAR(11) NULL,
+    "BankAddress" VARCHAR(500) NULL,
+    "DefaultHourlyRateCents" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_BillingProfiles_User"
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID")
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `BillingProfileID` | SERIAL | Auto-increment primary key |
+| `UserID` | INT | FK to Users (UNIQUE -- one profile per user) |
+| `FullName` | VARCHAR(150) | Full legal name of the biller |
+| `Nif` | VARCHAR(30) | Tax identification number (NIF) |
+| `Address` | VARCHAR(500) NULL | Biller street address |
+| `Phone` | VARCHAR(30) NULL | Contact phone number |
+| `PaymentMethod` | VARCHAR(20) | `'bank_transfer'`, `'paypal'`, or `'other'` |
+| `BankName` | VARCHAR(150) NULL | Bank name (for bank transfer) |
+| `Iban` | VARCHAR(34) NULL | IBAN number |
+| `Swift` | VARCHAR(11) NULL | SWIFT/BIC code |
+| `BankAddress` | VARCHAR(500) NULL | Bank branch address |
+| `DefaultHourlyRateCents` | INT NULL | Default hourly rate in cents for invoice line items |
+
+---
+
+#### InvoicePrefixes
+
+Invoice numbering series. Each prefix tracks its next sequential number. Can be linked to a specific company for auto-selection.
+
+```sql
+CREATE TABLE "InvoicePrefixes" (
+    "PrefixID" SERIAL PRIMARY KEY,
+    "Prefix" VARCHAR(10) NOT NULL,
+    "NextNumber" INT NOT NULL DEFAULT 1,
+    "Description" VARCHAR(100) NULL,
+    "UserID" INT NOT NULL,
+    "CompanyID" INT NULL,
+    "IsActive" BOOLEAN DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_InvoicePrefixes_User"
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID"),
+    CONSTRAINT "FK_InvoicePrefixes_Company"
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    CONSTRAINT "UQ_InvoicePrefix_User" UNIQUE ("Prefix", "UserID")
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `PrefixID` | SERIAL | Auto-increment primary key |
+| `Prefix` | VARCHAR(10) | Series prefix string (e.g., `'FAC'`, `'INV'`). Unique per user |
+| `NextNumber` | INT | Next sequential number to assign (auto-incremented on invoice creation) |
+| `Description` | VARCHAR(100) NULL | Optional description of the series |
+| `UserID` | INT | FK to Users |
+| `CompanyID` | INT NULL | FK to Companies. If set, this prefix is auto-selected when invoicing this company |
+| `IsActive` | BOOLEAN | Whether this prefix series is available for new invoices |
+
+---
+
+#### Invoices
+
+Issued invoices with frozen biller and client snapshots. Status machine: `draft` → `finalized` → `paid` → `cancelled`. Also: `finalized` → `draft` (revert), `cancelled` → `draft` (revert).
+
+```sql
+CREATE TABLE "Invoices" (
+    "InvoiceID" SERIAL PRIMARY KEY,
+    "PrefixID" INT NOT NULL,
+    "InvoiceNumber" VARCHAR(20) NOT NULL,
+    "InvoiceDate" DATE NOT NULL,
+    "CompanyID" INT NULL,
+    "TransactionID" INT NULL,
+    "TotalCents" INT NOT NULL DEFAULT 0,
+    "Currency" VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    "Status" VARCHAR(15) NOT NULL DEFAULT 'draft'
+        CHECK ("Status" IN ('draft', 'finalized', 'paid', 'cancelled')),
+    -- Biller snapshot (frozen at creation)
+    "BillerName" VARCHAR(150) NOT NULL,
+    "BillerNif" VARCHAR(30) NOT NULL,
+    "BillerAddress" VARCHAR(500) NULL,
+    "BillerPhone" VARCHAR(30) NULL,
+    "BillerPaymentMethod" VARCHAR(20) NOT NULL,
+    "BillerBankName" VARCHAR(150) NULL,
+    "BillerIban" VARCHAR(34) NULL,
+    "BillerSwift" VARCHAR(11) NULL,
+    "BillerBankAddress" VARCHAR(500) NULL,
+    -- Client snapshot (frozen at creation)
+    "ClientName" VARCHAR(150) NOT NULL,
+    "ClientTradingName" VARCHAR(150) NULL,
+    "ClientTaxId" VARCHAR(30) NULL,
+    "ClientAddress" VARCHAR(250) NULL,
+    "ClientCity" VARCHAR(100) NULL,
+    "ClientPostalCode" VARCHAR(20) NULL,
+    "ClientCountry" VARCHAR(100) NULL,
+    -- Metadata
+    "Notes" TEXT NULL,
+    "UserID" INT NOT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_Invoices_Prefix"
+        FOREIGN KEY ("PrefixID") REFERENCES "InvoicePrefixes"("PrefixID"),
+    CONSTRAINT "FK_Invoices_Company"
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    CONSTRAINT "FK_Invoices_Transaction"
+        FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
+    CONSTRAINT "FK_Invoices_User"
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID"),
+    CONSTRAINT "UQ_InvoiceNumber_User" UNIQUE ("InvoiceNumber", "UserID")
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `InvoiceID` | SERIAL | Auto-increment primary key |
+| `PrefixID` | INT | FK to InvoicePrefixes (determines numbering series) |
+| `InvoiceNumber` | VARCHAR(20) | Full invoice number (e.g., `'FAC-0001'`). Unique per user |
+| `InvoiceDate` | DATE | Invoice issue date |
+| `CompanyID` | INT NULL | FK to Companies (the client). SET NULL on company deletion |
+| `TransactionID` | INT NULL | FK to Transactions. Created when invoice is marked as paid |
+| `TotalCents` | INT | Sum of all line item amounts in cents |
+| `Currency` | VARCHAR(3) | Currency code (default `'EUR'`) |
+| `Status` | VARCHAR(15) | `'draft'`, `'finalized'`, `'paid'`, or `'cancelled'` |
+| `BillerName` | VARCHAR(150) | Snapshot of biller's full name at invoice creation |
+| `BillerNif` | VARCHAR(30) | Snapshot of biller's NIF |
+| `BillerAddress` | VARCHAR(500) NULL | Snapshot of biller's address |
+| `BillerPhone` | VARCHAR(30) NULL | Snapshot of biller's phone |
+| `BillerPaymentMethod` | VARCHAR(20) | Snapshot of biller's payment method |
+| `BillerBankName` | VARCHAR(150) NULL | Snapshot of biller's bank name |
+| `BillerIban` | VARCHAR(34) NULL | Snapshot of biller's IBAN |
+| `BillerSwift` | VARCHAR(11) NULL | Snapshot of biller's SWIFT code |
+| `BillerBankAddress` | VARCHAR(500) NULL | Snapshot of biller's bank address |
+| `ClientName` | VARCHAR(150) | Snapshot of client's legal name |
+| `ClientTradingName` | VARCHAR(150) NULL | Snapshot of client's trading name |
+| `ClientTaxId` | VARCHAR(30) NULL | Snapshot of client's tax ID |
+| `ClientAddress` | VARCHAR(250) NULL | Snapshot of client's address |
+| `ClientCity` | VARCHAR(100) NULL | Snapshot of client's city |
+| `ClientPostalCode` | VARCHAR(20) NULL | Snapshot of client's postal code |
+| `ClientCountry` | VARCHAR(100) NULL | Snapshot of client's country |
+| `Notes` | TEXT NULL | Free-form notes (shown on invoice PDF) |
+| `UserID` | INT | FK to Users |
+
+**Design note:** Biller and client data are snapshotted at invoice creation time. This ensures the invoice remains legally accurate even if the company or billing profile is later modified. Marking an invoice as `'paid'` atomically creates an income Transaction.
+
+---
+
+#### InvoiceLineItems
+
+Individual line items (concepts) within an invoice. Supports hourly billing with hours and hourly rate, or fixed-amount items.
+
+```sql
+CREATE TABLE "InvoiceLineItems" (
+    "LineItemID" SERIAL PRIMARY KEY,
+    "InvoiceID" INT NOT NULL,
+    "SortOrder" INT NOT NULL DEFAULT 0,
+    "Description" VARCHAR(500) NOT NULL,
+    "Hours" NUMERIC(8,2) NULL,
+    "HourlyRateCents" INT NULL,
+    "AmountCents" INT NOT NULL,
+    CONSTRAINT "FK_LineItems_Invoice"
+        FOREIGN KEY ("InvoiceID") REFERENCES "Invoices"("InvoiceID") ON DELETE CASCADE
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `LineItemID` | SERIAL | Auto-increment primary key |
+| `InvoiceID` | INT | FK to Invoices (CASCADE delete -- line items are deleted with their invoice) |
+| `SortOrder` | INT | Display order within the invoice |
+| `Description` | VARCHAR(500) | Description of the service or product |
+| `Hours` | NUMERIC(8,2) NULL | Number of hours (for hourly billing). NULL for fixed-amount items |
+| `HourlyRateCents` | INT NULL | Rate per hour in cents. NULL for fixed-amount items |
+| `AmountCents` | INT | Line item total in cents. When hours and rate are set: `Math.round(Hours * HourlyRateCents)` |
+
+---
+
+### Fiscal Document Tables
+
+#### FiscalDocuments
+
+Uploaded tax filings (modelos) and received/issued invoices stored as files (via Vercel Blob).
+
+```sql
+CREATE TABLE "FiscalDocuments" (
+    "DocumentID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID"),
+    "DocumentType" VARCHAR(20) NOT NULL
+        CHECK ("DocumentType" IN ('modelo', 'factura_recibida', 'factura_emitida')),
+    "ModeloType" VARCHAR(10) NULL
+        CHECK ("ModeloType" IN ('303', '130', '390', '100')),
+    "FiscalYear" INT NOT NULL,
+    "FiscalQuarter" INT NULL CHECK ("FiscalQuarter" BETWEEN 1 AND 4),
+    "Status" VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK ("Status" IN ('pending', 'filed', 'postponed')),
+    -- File storage (Vercel Blob)
+    "BlobUrl" VARCHAR(500) NOT NULL,
+    "BlobPathname" VARCHAR(300) NOT NULL,
+    "FileName" VARCHAR(255) NOT NULL,
+    "FileSizeBytes" INT NOT NULL,
+    "ContentType" VARCHAR(100) NOT NULL,
+    -- Money (cents convention)
+    "TaxAmountCents" INT NULL,
+    -- Traceability
+    "TransactionID" INT NULL REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
+    "TransactionGroupID" INT NULL,
+    "CompanyID" INT NULL REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    "Description" VARCHAR(255) NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CK_FiscalDoc_ModeloType" CHECK (
+        ("DocumentType" = 'modelo' AND "ModeloType" IS NOT NULL)
+        OR ("DocumentType" IN ('factura_recibida', 'factura_emitida') AND "ModeloType" IS NULL)
+    ),
+    CONSTRAINT "CK_FiscalDoc_Quarter" CHECK (
+        ("ModeloType" IN ('390', '100') AND "FiscalQuarter" IS NULL)
+        OR ("ModeloType" IN ('303', '130') AND "FiscalQuarter" IS NOT NULL)
+        OR "ModeloType" IS NULL
+    )
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `DocumentID` | SERIAL | Auto-increment primary key |
+| `UserID` | INT | FK to Users |
+| `DocumentType` | VARCHAR(20) | `'modelo'` (tax form), `'factura_recibida'` (received invoice), or `'factura_emitida'` (issued invoice) |
+| `ModeloType` | VARCHAR(10) NULL | `'303'`, `'130'`, `'390'`, or `'100'`. Required when `DocumentType = 'modelo'`, must be NULL otherwise |
+| `FiscalYear` | INT | Tax year (e.g., `2025`) |
+| `FiscalQuarter` | INT NULL | Quarter (1-4). Required for quarterly modelos (303, 130), NULL for annual modelos (390, 100) and facturas |
+| `Status` | VARCHAR(20) | `'pending'`, `'filed'`, or `'postponed'` |
+| `BlobUrl` | VARCHAR(500) | Vercel Blob download URL |
+| `BlobPathname` | VARCHAR(300) | Vercel Blob storage path |
+| `FileName` | VARCHAR(255) | Original file name |
+| `FileSizeBytes` | INT | File size in bytes |
+| `ContentType` | VARCHAR(100) | MIME type (e.g., `'application/pdf'`) |
+| `TaxAmountCents` | INT NULL | Tax amount in cents (optional) |
+| `TransactionID` | INT NULL | FK to linked Transaction (SET NULL on delete) |
+| `TransactionGroupID` | INT NULL | ID of linked transaction group |
+| `CompanyID` | INT NULL | FK to linked Company (SET NULL on delete) |
+| `Description` | VARCHAR(255) NULL | Optional description |
+
+**Constraint logic:**
+- `DocumentType = 'modelo'` requires `ModeloType` to be set; facturas must NOT have it
+- Quarterly modelos (`303`, `130`) require `FiscalQuarter`; annual modelos (`390`, `100`) must have `FiscalQuarter = NULL`
+
+---
+
+#### FiscalDeadlineSettings
+
+Per-user preferences for fiscal deadline reminders. One row per user.
+
+```sql
+CREATE TABLE "FiscalDeadlineSettings" (
+    "SettingID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL UNIQUE REFERENCES "Users"("UserID"),
+    "ReminderDaysBefore" INT NOT NULL DEFAULT 7,
+    "PostponementReminder" BOOLEAN NOT NULL DEFAULT TRUE,
+    "IsActive" BOOLEAN NOT NULL DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `SettingID` | SERIAL | Auto-increment primary key |
+| `UserID` | INT | FK to Users (UNIQUE -- one settings row per user) |
+| `ReminderDaysBefore` | INT | Number of days before a deadline to show a reminder (default `7`) |
+| `PostponementReminder` | BOOLEAN | Whether to show reminders for postponement-eligible deadlines |
+| `IsActive` | BOOLEAN | Whether deadline reminders are enabled |
+
+---
+
 ### Database Views
 
 #### vw_MonthlySummary
@@ -581,9 +916,26 @@ Categories (self-referencing)
 TransactionGroups ← Transactions.TransactionGroupID
 Trips ← Transactions.TripID
 
+Companies
+├── Transactions.CompanyID → Companies.CompanyID (SET NULL)
+├── RecurringExpenses.CompanyID → Companies.CompanyID (SET NULL)
+├── Invoices.CompanyID → Companies.CompanyID (SET NULL)
+├── InvoicePrefixes.CompanyID → Companies.CompanyID (SET NULL)
+└── FiscalDocuments.CompanyID → Companies.CompanyID (SET NULL)
+
 Users
 ├── Accounts.UserID → Users.UserID (CASCADE)
-└── Sessions.UserID → Users.UserID (CASCADE)
+├── Sessions.UserID → Users.UserID (CASCADE)
+├── UserBillingProfiles.UserID → Users.UserID (UNIQUE)
+├── InvoicePrefixes.UserID → Users.UserID
+├── Invoices.UserID → Users.UserID
+├── FiscalDocuments.UserID → Users.UserID
+└── FiscalDeadlineSettings.UserID → Users.UserID (UNIQUE)
+
+Invoices
+├── PrefixID → InvoicePrefixes.PrefixID
+├── TransactionID → Transactions.TransactionID (SET NULL)
+└── InvoiceLineItems.InvoiceID → Invoices.InvoiceID (CASCADE)
 ```
 
 ---
@@ -596,9 +948,16 @@ Located in `src/types/finance.ts`:
 
 ```typescript
 // Re-exported from constants (single source of truth)
-export type { TransactionType } from '@/constants/finance';   // 'income' | 'expense'
-export type { RecurringFrequency } from '@/constants/finance'; // 'weekly' | 'monthly' | 'yearly'
-export type { OccurrenceStatus } from '@/constants/finance';   // 'pending' | 'confirmed' | 'skipped'
+export type { TransactionType } from '@/constants/finance';      // 'income' | 'expense'
+export type { RecurringFrequency } from '@/constants/finance';   // 'weekly' | 'monthly' | 'yearly'
+export type { OccurrenceStatus } from '@/constants/finance';     // 'pending' | 'confirmed' | 'skipped'
+export type { CompanyRole } from '@/constants/finance';          // 'client' | 'provider'
+export type { InvoiceStatus } from '@/constants/finance';        // 'draft' | 'finalized' | 'paid' | 'cancelled'
+export type { PaymentMethod } from '@/constants/finance';        // 'bank_transfer' | 'paypal' | 'other'
+export type { FiscalDocumentType } from '@/constants/finance';   // 'modelo' | 'factura_recibida' | 'factura_emitida'
+export type { ModeloType } from '@/constants/finance';           // '303' | '130' | '390' | '100'
+export type { FiscalStatus } from '@/constants/finance';         // 'pending' | 'filed'
+export type { FilingStatus } from '@/constants/finance';         // 'not_due' | 'upcoming' | 'due' | 'overdue' | 'filed'
 ```
 
 ### Category
@@ -847,6 +1206,178 @@ export interface FiscalComputedFields {
   vatAmountCents: number;           // amountCents * vatPercent / 100
   deductibleAmountCents: number;    // amountCents * deductionPercent / 100
   netAmountCents: number;           // amountCents - vatAmountCents
+}
+```
+
+### Company
+
+```typescript
+export interface Company {
+  companyId: number;
+  name: string;
+  tradingName: string | null;          // Commercial/brand name
+  taxId: string | null;                // NIF/CIF/VAT number
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string | null;
+  invoiceLanguage: string | null;      // Language for invoices ('es', 'en')
+  role: CompanyRole;                   // 'client' or 'provider'
+  isActive: boolean;
+  createdAt: string;                   // ISO datetime
+  updatedAt: string;                   // ISO datetime
+}
+```
+
+### BillingProfile
+
+```typescript
+export interface BillingProfile {
+  billingProfileId: number;
+  fullName: string;                    // Biller's legal name
+  nif: string;                         // Tax identification number
+  address: string | null;
+  phone: string | null;
+  paymentMethod: PaymentMethod;        // 'bank_transfer' | 'paypal' | 'other'
+  bankName: string | null;
+  iban: string | null;
+  swift: string | null;
+  bankAddress: string | null;
+  defaultHourlyRateCents: number | null; // Default rate for invoice line items (cents)
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### InvoicePrefix
+
+```typescript
+export interface InvoicePrefix {
+  prefixId: number;
+  prefix: string;                      // Series prefix (e.g., 'FAC')
+  nextNumber: number;                  // Next sequential number to assign
+  description: string | null;
+  companyId: number | null;            // Auto-select prefix for this company
+  isActive: boolean;
+  createdAt: string;
+}
+```
+
+### Invoice
+
+```typescript
+export interface Invoice {
+  invoiceId: number;
+  prefixId: number;
+  invoiceNumber: string;               // Full number (e.g., 'FAC-0001')
+  invoiceDate: string;                 // ISO date
+  companyId: number | null;            // FK to Companies
+  transactionId: number | null;        // Created when marked as paid
+  totalCents: number;                  // Sum of line items (cents)
+  currency: string;                    // Currency code (default 'EUR')
+  status: InvoiceStatus;               // 'draft' | 'finalized' | 'paid' | 'cancelled'
+  // Biller snapshot
+  billerName: string;
+  billerNif: string;
+  billerAddress: string | null;
+  billerPhone: string | null;
+  billerPaymentMethod: PaymentMethod;
+  billerBankName: string | null;
+  billerIban: string | null;
+  billerSwift: string | null;
+  billerBankAddress: string | null;
+  // Client snapshot
+  clientName: string;
+  clientTradingName: string | null;
+  clientTaxId: string | null;
+  clientAddress: string | null;
+  clientCity: string | null;
+  clientPostalCode: string | null;
+  clientCountry: string | null;
+  // Metadata
+  notes: string | null;
+  invoiceLanguage: string | null;      // Language for PDF generation
+  lineItems: InvoiceLineItem[];        // Nested line items
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### InvoiceLineItem
+
+```typescript
+export interface InvoiceLineItem {
+  lineItemId: number;
+  invoiceId: number;
+  sortOrder: number;                   // Display order within invoice
+  description: string;
+  hours: number | null;                // For hourly billing
+  hourlyRateCents: number | null;      // Rate per hour in cents
+  amountCents: number;                 // Line total in cents
+}
+```
+
+### InvoiceListItem
+
+```typescript
+export interface InvoiceListItem {
+  invoiceId: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  clientName: string;
+  clientTradingName: string | null;
+  totalCents: number;
+  currency: string;
+  status: InvoiceStatus;
+}
+```
+
+### FiscalDocument
+
+```typescript
+export interface FiscalDocument {
+  documentId: number;
+  documentType: FiscalDocumentType;    // 'modelo' | 'factura_recibida' | 'factura_emitida'
+  modeloType: ModeloType | null;       // '303' | '130' | '390' | '100' (only for modelos)
+  fiscalYear: number;
+  fiscalQuarter: number | null;        // 1-4 for quarterly modelos, null otherwise
+  status: FiscalStatus;                // 'pending' | 'filed'
+  downloadUrl: string;                 // Vercel Blob URL
+  fileName: string;
+  fileSizeBytes: number;
+  contentType: string;                 // MIME type
+  taxAmountCents: number | null;
+  transactionId: number | null;
+  transactionGroupId: number | null;
+  companyId: number | null;
+  description: string | null;
+  createdAt: string;
+}
+```
+
+### FiscalDeadline
+
+```typescript
+export interface FiscalDeadline {
+  modeloType: ModeloType;              // '303' | '130' | '390' | '100'
+  fiscalYear: number;
+  fiscalQuarter: number | null;        // null for annual modelos
+  startDate: string;                   // Filing window start (ISO date)
+  endDate: string;                     // Filing window end (ISO date)
+  status: FilingStatus;                // 'not_due' | 'upcoming' | 'due' | 'overdue' | 'filed'
+  isFiled: boolean;                    // Whether a document exists for this deadline
+  daysRemaining: number | null;        // Days until deadline (null if not applicable)
+  needsPostponement: boolean;          // Whether postponement is advisable
+}
+```
+
+### FiscalDeadlineSettings
+
+```typescript
+export interface FiscalDeadlineSettings {
+  reminderDaysBefore: number;          // Days before deadline to show reminder
+  postponementReminder: boolean;       // Show postponement-eligible reminders
+  isActive: boolean;                   // Whether reminders are enabled
 }
 ```
 
@@ -1236,6 +1767,259 @@ export type UpdateTripExpenseInput = z.infer<typeof UpdateTripExpenseSchema>;
 
 ---
 
+### Company Schemas
+
+Located in `src/schemas/company.ts`:
+
+#### CreateCompanySchema
+
+```typescript
+export const CreateCompanySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(150, 'Name is too long'),
+  tradingName: z.string().max(150).nullable().optional().default(null),
+  taxId: z.string().max(30).nullable().optional().default(null),
+  address: z.string().max(250).nullable().optional().default(null),
+  city: z.string().max(100).nullable().optional().default(null),
+  postalCode: z.string().max(20).nullable().optional().default(null),
+  country: z.string().max(100).nullable().optional().default(null),
+  invoiceLanguage: z.string().max(5).nullable().optional().default(null),
+  role: z.enum([COMPANY_ROLE.CLIENT, COMPANY_ROLE.PROVIDER]).default(COMPANY_ROLE.CLIENT),
+});
+
+export type CreateCompanyInput = z.infer<typeof CreateCompanySchema>;
+```
+
+#### UpdateCompanySchema
+
+```typescript
+export const UpdateCompanySchema = z.object({
+  name: z.string().min(1).max(150).optional(),
+  tradingName: z.string().max(150).nullable().optional(),
+  taxId: z.string().max(30).nullable().optional(),
+  address: z.string().max(250).nullable().optional(),
+  city: z.string().max(100).nullable().optional(),
+  postalCode: z.string().max(20).nullable().optional(),
+  country: z.string().max(100).nullable().optional(),
+  invoiceLanguage: z.string().max(5).nullable().optional(),
+  role: z.enum([COMPANY_ROLE.CLIENT, COMPANY_ROLE.PROVIDER]).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type UpdateCompanyInput = z.infer<typeof UpdateCompanySchema>;
+```
+
+#### QuickCreateCompanySchema
+
+For inline company creation from selectors (name only):
+
+```typescript
+export const QuickCreateCompanySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(150, 'Name is too long'),
+});
+
+export type QuickCreateCompanyInput = z.infer<typeof QuickCreateCompanySchema>;
+```
+
+---
+
+### Invoice Schemas
+
+Located in `src/schemas/invoice.ts`:
+
+#### BillingProfileSchema
+
+```typescript
+export const BillingProfileSchema = z.object({
+  fullName: z.string().min(1, 'Full name is required').max(150),
+  nif: z.string().min(1, 'NIF is required').max(30),
+  address: z.string().max(500).optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+  paymentMethod: z.enum([PAYMENT_METHOD.BANK_TRANSFER, PAYMENT_METHOD.PAYPAL, PAYMENT_METHOD.OTHER]),
+  bankName: z.string().max(150).optional().nullable(),
+  iban: z.string().max(34).optional().nullable(),
+  swift: z.string().max(11).optional().nullable(),
+  bankAddress: z.string().max(500).optional().nullable(),
+  defaultHourlyRateCents: z.number().int().positive().optional().nullable(),
+});
+
+export type BillingProfileInput = z.infer<typeof BillingProfileSchema>;
+```
+
+#### CreateInvoicePrefixSchema
+
+```typescript
+export const CreateInvoicePrefixSchema = z.object({
+  prefix: z.string().min(1, 'Prefix is required').max(10)
+    .transform((val) => val.toUpperCase()),
+  description: z.string().max(100).optional().nullable(),
+  nextNumber: z.number().int().min(1).default(1),
+  companyId: z.number().int().positive().optional().nullable(),
+});
+
+export type CreateInvoicePrefixInput = z.infer<typeof CreateInvoicePrefixSchema>;
+```
+
+#### UpdateInvoicePrefixSchema
+
+```typescript
+export const UpdateInvoicePrefixSchema = z.object({
+  description: z.string().max(100).optional().nullable(),
+  nextNumber: z.number().int().min(1).optional(),
+  companyId: z.number().int().positive().optional().nullable(),
+});
+
+export type UpdateInvoicePrefixInput = z.infer<typeof UpdateInvoicePrefixSchema>;
+```
+
+#### CreateInvoiceSchema
+
+TotalCents is NOT included -- it is calculated server-side from line items.
+
+```typescript
+const InvoiceLineItemSchema = z.object({
+  description: z.string().min(1, 'Description is required').max(500),
+  hours: z.number().positive().nullable().optional(),
+  hourlyRateCents: z.number().int().positive().nullable().optional(),
+  amountCents: z.number().int().positive('Amount must be greater than 0'),
+}).refine(
+  (item) => {
+    if (item.hours != null && item.hourlyRateCents != null) {
+      return item.amountCents === Math.round(item.hours * item.hourlyRateCents);
+    }
+    return true;
+  },
+  { message: 'AmountCents must equal Math.round(hours * hourlyRateCents)', path: ['amountCents'] },
+);
+
+export const CreateInvoiceSchema = z.object({
+  prefixId: z.number().int().positive(),
+  invoiceDate: z.coerce.date({ message: 'Invalid date' }),
+  companyId: z.number().int().positive(),
+  lineItems: z.array(InvoiceLineItemSchema).min(1, 'At least one line item is required').max(50),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>;
+```
+
+#### UpdateInvoiceSchema
+
+For editing a draft invoice (date, line items, notes). Prefix and company are locked after creation.
+
+```typescript
+export const UpdateInvoiceSchema = z.object({
+  invoiceDate: z.coerce.date({ message: 'Invalid date' }),
+  lineItems: z.array(InvoiceLineItemSchema).min(1, 'At least one line item is required').max(50),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>;
+```
+
+#### UpdateInvoiceStatusSchema
+
+```typescript
+export const UpdateInvoiceStatusSchema = z.object({
+  status: z.enum([INVOICE_STATUS.DRAFT, INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED]),
+  categoryId: z.number().int().positive().optional(),
+});
+
+export type UpdateInvoiceStatusInput = z.infer<typeof UpdateInvoiceStatusSchema>;
+```
+
+---
+
+### Fiscal Document Schemas
+
+Located in `src/schemas/fiscal-document.ts`:
+
+#### FiscalDocumentUploadSchema
+
+Uses `.refine()` for conditional validation: modelos require `modeloType`, facturas must not; quarterly modelos require `fiscalQuarter`, annual must not.
+
+```typescript
+export const FiscalDocumentUploadSchema = z.object({
+  documentType: z.enum(['modelo', 'factura_recibida', 'factura_emitida']),
+  modeloType: z.enum(['303', '130', '390', '100']).nullable().optional(),
+  fiscalYear: z.coerce.number().int().min(2019).max(2100),
+  fiscalQuarter: z.coerce.number().int().min(1).max(4).nullable().optional(),
+  status: z.enum(['pending', 'filed']).default('pending'),
+  taxAmountCents: z.coerce.number().int().nullable().optional(),
+  transactionId: z.coerce.number().int().positive().nullable().optional(),
+  transactionGroupId: z.coerce.number().int().positive().nullable().optional(),
+  companyId: z.coerce.number().int().positive().nullable().optional(),
+  description: z.string().max(255).nullable().optional(),
+}).refine(
+  (data) => {
+    if (data.documentType === 'modelo') return data.modeloType != null;
+    return data.modeloType == null;
+  },
+  { message: 'Modelos require modeloType; facturas must not have it', path: ['modeloType'] },
+).refine(
+  (data) => {
+    if (data.modeloType === '390' || data.modeloType === '100') return data.fiscalQuarter == null;
+    if (data.modeloType === '303' || data.modeloType === '130') return data.fiscalQuarter != null;
+    return true;
+  },
+  { message: 'Quarterly modelos require fiscalQuarter; annual modelos must not', path: ['fiscalQuarter'] },
+);
+
+export type FiscalDocumentUploadInput = z.infer<typeof FiscalDocumentUploadSchema>;
+```
+
+#### FiscalDocumentStatusSchema
+
+```typescript
+export const FiscalDocumentStatusSchema = z.object({
+  status: z.enum(['pending', 'filed']),
+});
+
+export type FiscalDocumentStatusInput = z.infer<typeof FiscalDocumentStatusSchema>;
+```
+
+#### BulkUploadItemSchema
+
+For bulk upload with auto-parsed filename metadata:
+
+```typescript
+export const BulkUploadItemSchema = z.object({
+  documentType: z.enum(['modelo', 'factura_recibida', 'factura_emitida']),
+  modeloType: z.enum(['303', '130', '390', '100']).nullable().optional(),
+  fiscalYear: z.coerce.number().int().min(2019).max(2100),
+  fiscalQuarter: z.coerce.number().int().min(1).max(4).nullable().optional(),
+  status: z.enum(['pending', 'filed']).default('filed'),
+  description: z.string().max(255).nullable().optional(),
+});
+
+export type BulkUploadItemInput = z.infer<typeof BulkUploadItemSchema>;
+```
+
+#### FiscalDeadlineSettingsSchema
+
+```typescript
+export const FiscalDeadlineSettingsSchema = z.object({
+  reminderDaysBefore: z.coerce.number().int().min(1).max(90).default(7),
+  postponementReminder: z.boolean().default(true),
+  isActive: z.boolean().default(true),
+});
+
+export type FiscalDeadlineSettingsInput = z.infer<typeof FiscalDeadlineSettingsSchema>;
+```
+
+#### FiscalDocumentsFiltersSchema
+
+```typescript
+export const FiscalDocumentsFiltersSchema = z.object({
+  year: z.coerce.number().int().min(2019).max(2100),
+  quarter: z.coerce.number().int().min(1).max(4).optional(),
+  documentType: z.enum(['modelo', 'factura_recibida', 'factura_emitida']).optional(),
+});
+
+export type FiscalDocumentsFiltersInput = z.infer<typeof FiscalDocumentsFiltersSchema>;
+```
+
+---
+
 ## Constants
 
 Located in `src/constants/finance.ts`:
@@ -1325,6 +2109,71 @@ export const API_ENDPOINT = {
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
+
+// Invoice Statuses
+export const INVOICE_STATUS = {
+  DRAFT: 'draft',
+  FINALIZED: 'finalized',
+  PAID: 'paid',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type InvoiceStatus = (typeof INVOICE_STATUS)[keyof typeof INVOICE_STATUS];
+
+// Payment Methods
+export const PAYMENT_METHOD = {
+  BANK_TRANSFER: 'bank_transfer',
+  PAYPAL: 'paypal',
+  OTHER: 'other',
+} as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];
+
+// Company Roles
+export const COMPANY_ROLE = {
+  CLIENT: 'client',
+  PROVIDER: 'provider',
+} as const;
+
+export type CompanyRole = (typeof COMPANY_ROLE)[keyof typeof COMPANY_ROLE];
+
+// Fiscal Document Types
+export const FISCAL_DOCUMENT_TYPE = {
+  MODELO: 'modelo',
+  FACTURA_RECIBIDA: 'factura_recibida',
+  FACTURA_EMITIDA: 'factura_emitida',
+} as const;
+
+export type FiscalDocumentType = (typeof FISCAL_DOCUMENT_TYPE)[keyof typeof FISCAL_DOCUMENT_TYPE];
+
+// Modelo Types
+export const MODELO_TYPE = {
+  M303: '303',
+  M130: '130',
+  M390: '390',
+  M100: '100',
+} as const;
+
+export type ModeloType = (typeof MODELO_TYPE)[keyof typeof MODELO_TYPE];
+
+// Fiscal Document Status
+export const FISCAL_STATUS = {
+  PENDING: 'pending',
+  FILED: 'filed',
+} as const;
+
+export type FiscalStatus = (typeof FISCAL_STATUS)[keyof typeof FISCAL_STATUS];
+
+// Filing Status (computed server-side for deadlines)
+export const FILING_STATUS = {
+  NOT_DUE: 'not_due',
+  UPCOMING: 'upcoming',
+  DUE: 'due',
+  OVERDUE: 'overdue',
+  FILED: 'filed',
+} as const;
+
+export type FilingStatus = (typeof FILING_STATUS)[keyof typeof FILING_STATUS];
 ```
 
 ---
@@ -1413,6 +2262,10 @@ export function isValidCents(cents: number): boolean {
 | `database/schema.sql` | Complete database schema (executable, includes Trips) |
 | `database/seed.sql` | Initial category data |
 | `src/schemas/trip.ts` | Trip and trip expense Zod schemas |
+| `src/schemas/company.ts` | Company Zod schemas (create, update, quick-create) |
+| `src/schemas/invoice.ts` | Invoice, billing profile, and prefix Zod schemas |
+| `src/schemas/fiscal-document.ts` | Fiscal document upload and settings Zod schemas |
 | `src/services/database/TripRepository.ts` | Trip CRUD and trip category database operations |
 | `src/services/database/FiscalRepository.ts` | Fiscal quarterly report database operations |
+| `src/services/database/FiscalDocumentRepository.ts` | Fiscal document CRUD database operations |
 | `src/utils/fiscal.ts` | `computeFiscalFields` utility for VAT/deduction calculations |

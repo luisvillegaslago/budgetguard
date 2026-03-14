@@ -32,7 +32,7 @@ Covers the overall system design:
 - Performance optimizations
 - API route handler wrapper (`withApiHandler`) pattern
 - CI/CD pipeline (GitHub Actions)
-- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving
+- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving, Companies, Invoicing, Fiscal Documents, Fiscal Deadlines
 
 ### API_REFERENCE.md
 
@@ -48,6 +48,12 @@ Complete API documentation:
   - `POST/PUT/DELETE /api/trips/:id/expenses`
   - `GET /api/trips/categories`
   - `GET /api/fiscal?year=&quarter=`
+  - `GET/POST /api/companies` + `GET/PUT/DELETE /api/companies/:id`
+  - `GET/POST /api/invoices` + `GET/PUT/DELETE /api/invoices/:id`
+  - `POST /api/invoices/:id/finalize` + `POST /api/invoices/:id/pay` + `POST /api/invoices/:id/cancel` + `POST /api/invoices/:id/revert`
+  - `GET/POST /api/fiscal/documents` + `GET/PUT/DELETE /api/fiscal/documents/:id`
+  - `POST /api/fiscal/documents/bulk` + `GET /api/fiscal/documents/:id/download`
+  - `GET /api/fiscal/deadlines` + `GET/PUT /api/fiscal/deadlines/settings`
   - `GET/POST /api/skydiving/jumps` + `GET/PUT/DELETE /:id` + `POST /import`
   - `GET/POST /api/skydiving/tunnel` + `PUT/DELETE /:id` + `POST /import`
   - `GET /api/skydiving/stats` + `GET /api/skydiving/categories`
@@ -138,6 +144,22 @@ Multiple transactions linked to a single event (e.g., an outing with food, drink
 
 Multi-day, multi-category travel expense tracking. Trips group transactions under a named trip entity (e.g., "Sierra Nevada 2025"). Trip expenses are regular transactions with a `TripID` foreign key. In the dashboard, trips with multiple expenses are displayed as collapsible rows. SQL views aggregate trip expenses under the trip's start date month for correct monthly summaries.
 
+### Companies
+
+Client/provider management with role-based separation. Companies have an `InvoiceLanguage` field for bilingual PDF generation. Companies are linked to transactions and invoices via `CompanyID`, and support soft-delete via `IsActive` flag.
+
+### Invoicing
+
+Full invoice lifecycle: draft→finalized→paid→cancelled. Cancelled invoices can be reverted to draft. Finalizing generates a PDF, uploads to blob storage, and creates a FiscalDocument. Marking paid creates an income transaction with today's date. Cancel/revert cleans up the associated FiscalDocument and blob storage. All destructive actions require confirm dialogs.
+
+### Fiscal Documents
+
+Store tax filings (modelos) and invoices as documents in Vercel Blob. Track filing status (pending/filed/postponed). Auto-detect document metadata from filenames. Supports bulk upload and private access with download proxy.
+
+### Fiscal Deadlines
+
+AEAT deadline computation for Spanish tax obligations. Filing status: not_due→upcoming→due→overdue→filed. Configurable reminder window for advance notifications.
+
 ---
 
 ## Feature Roadmap
@@ -151,9 +173,12 @@ Multi-day, multi-category travel expense tracking. Trips group transactions unde
 | Phase 2.7 | ✅ Complete | Fiscal module (Modelo 303/130, VAT, deductions) |
 | Phase 2.8 | ✅ Complete | Skydiving module (jump log, tunnel, CSV import, stats) |
 | Phase 2.9 | ✅ Complete | Settings (DB sync), CI/CD, API handler wrapper |
-| Phase 3 | Planned | Charts, month-to-month comparison, Excel export |
-| Phase 4 | Planned | Budgets per category, alerts |
-| Phase 5 | Planned | Multi-user/family support, mobile PWA |
+| Phase 3.0 | ✅ Complete | Invoicing (full lifecycle, PDF generation, companies) |
+| Phase 3.1 | ✅ Complete | Fiscal Documents (Vercel Blob storage, bulk upload, filing status) |
+| Phase 3.2 | ✅ Complete | Invoice Finalize (PDF→blob→FiscalDocument atomic flow) |
+| Phase 4 | Planned | Charts, month-to-month comparison, Excel export |
+| Phase 5 | Planned | Budgets per category, alerts |
+| Phase 6 | Planned | Multi-user/family support, mobile PWA |
 
 ---
 
@@ -178,6 +203,10 @@ When asked about BudgetGuard, read the appropriate documentation:
 | "Trips?" | ARCHITECTURE.md + API_REFERENCE.md |
 | "Trip expenses?" | API_REFERENCE.md + DATA_MODELS.md |
 | "Skydiving?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Invoices?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Companies?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Fiscal documents?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Fiscal deadlines?" | ARCHITECTURE.md + API_REFERENCE.md |
 | "API handler wrapper?" | ARCHITECTURE.md (withApiHandler section) |
 
 ---
@@ -195,3 +224,8 @@ When asked about BudgetGuard, read the appropriate documentation:
 | `src/constants/finance.ts` | Type constants, query keys, API endpoints |
 | `src/utils/money.ts` | Currency conversion utilities |
 | `src/utils/recurring.ts` | Occurrence date generation |
+| `src/schemas/company.ts` | Zod schemas for companies |
+| `src/schemas/invoice.ts` | Zod schemas for invoices |
+| `src/schemas/fiscal-document.ts` | Zod schemas for fiscal documents |
+| `src/utils/invoicePdf.ts` | Invoice PDF generation utilities |
+| `src/services/InvoiceFinalizeService.ts` | Invoice finalize orchestration (validate→PDF→blob→FiscalDocument) |

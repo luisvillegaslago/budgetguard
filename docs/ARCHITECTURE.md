@@ -702,7 +702,142 @@ Tracks skydiving jump logs and wind tunnel training sessions, with CSV bulk impo
 | GET | `/api/skydiving/stats` | Aggregated statistics |
 | GET | `/api/skydiving/categories` | Paracaidismo subcategories |
 
-### 8. API Route Handler Wrapper
+### 8. Companies Module (Client & Provider Management)
+
+Role-based company management separating clients from providers. Companies are linked to transactions and invoices via `CompanyID`.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Companies Module Architecture                                │
+│                                                               │
+│  Companies                                                    │
+│  ├── Role: 'client' | 'provider'                              │
+│  ├── InvoiceLanguage: 'es' | 'en' (for bilingual PDF)         │
+│  ├── TaxID, Address, Email, Phone                             │
+│  ├── IsActive (soft-delete flag)                              │
+│  └── CompanyID → Transactions, Invoices                       │
+│                                                               │
+│  Key behaviors:                                               │
+│  - Role-based separation: clients receive invoices,           │
+│    providers issue invoices to you                            │
+│  - InvoiceLanguage drives PDF generation language             │
+│  - Soft-delete via IsActive flag preserves referential        │
+│    integrity with existing transactions/invoices              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 9. Invoice Module (Full Lifecycle Management)
+
+Complete invoicing system with state machine (draft→finalized→paid→cancelled).
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Invoice Module Architecture                                  │
+│                                                               │
+│  State Machine:                                               │
+│  draft → finalized → paid → cancelled                         │
+│         ↑ revert ←──┘              ↓ revert                   │
+│         └──────────────────────────┘                           │
+│                                                               │
+│  Finalize Flow (InvoiceFinalizeService):                      │
+│  1. Validate invoice data                                     │
+│  2. prepareInvoicePdf() → generate PDF (single DRY method)    │
+│  3. Upload PDF to Vercel Blob                                 │
+│  4. Create FiscalDocument record                              │
+│  5. Update invoice status to 'finalized' (atomic)             │
+│                                                               │
+│  Mark Paid:                                                   │
+│  - Creates income Transaction with payment date (today),      │
+│    NOT invoice date                                           │
+│                                                               │
+│  Cancel / Revert:                                             │
+│  - Cleans up FiscalDocument + blob storage                    │
+│                                                               │
+│  Key design:                                                  │
+│  - Transactional creation with prefix locking                 │
+│  - Biller/client data snapshot at creation time               │
+│  - prepareInvoicePdf() is the single DRY method for all       │
+│    PDF generation (preview, finalize, re-download)            │
+│  - All destructive actions require confirm dialogs            │
+│                                                               │
+│  Tables:                                                      │
+│  - UserBillingProfiles (biller defaults)                      │
+│  - InvoicePrefixes (numbering sequences with locking)         │
+│  - Invoices (header + status + snapshot data)                 │
+│  - InvoiceLineItems (individual line items)                   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Key files:**
+- `src/services/InvoiceFinalizeService.ts`: Orchestrates validate → PDF → blob → FiscalDocument + status update (atomic)
+- `src/utils/invoicePdf.ts`: `prepareInvoicePdf()` — single DRY method for all PDF generation
+- `src/services/database/InvoiceRepository.ts`: Invoice CRUD with ConflictError class
+- `src/schemas/invoice.ts`: Zod validation schemas for invoices
+
+### 10. Fiscal Documents Module (Tax Filing Management)
+
+Document management for tax filings and invoices stored in Vercel Blob with private access.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Fiscal Documents Module Architecture                         │
+│                                                               │
+│  FiscalDocuments                                              │
+│  ├── DocumentType: modelo | invoice                           │
+│  ├── ModeloType: 303 | 130 | 390 | etc.                      │
+│  ├── FilingStatus: pending | filed | postponed                │
+│  ├── BlobUrl (Vercel Blob, private access)                    │
+│  ├── Year, Quarter, Period metadata                           │
+│  └── Auto-detect metadata from filenames                      │
+│                                                               │
+│  Features:                                                    │
+│  - Vercel Blob storage with private access                    │
+│  - Download proxy via API route (no direct blob URLs)         │
+│  - Bulk upload support                                        │
+│  - Auto-detection of document metadata from filenames         │
+│  - Filing status tracking (pending/filed/postponed)           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Key files:**
+- `src/services/database/FiscalDocumentRepository.ts`: CRUD operations for fiscal documents
+- `src/schemas/fiscal-document.ts`: Zod validation schemas
+- `src/utils/fiscalFileParser.ts`: Filename-based metadata auto-detection
+- `src/app/api/fiscal/documents/`: API routes for CRUD, bulk upload, and download proxy
+
+### 11. Fiscal Deadlines Module (AEAT Tax Deadline Computation)
+
+AEAT (Spanish tax agency) deadline computation for quarterly and annual tax obligations.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Fiscal Deadlines Module Architecture                         │
+│                                                               │
+│  Filing Status State Machine:                                 │
+│  NOT_DUE → UPCOMING → DUE → OVERDUE → FILED                  │
+│                                                               │
+│  AEAT Deadlines:                                              │
+│  ├── Modelo 303 (quarterly VAT)                               │
+│  ├── Modelo 130 (quarterly income tax)                        │
+│  ├── Modelo 390 (annual VAT summary)                          │
+│  └── Other modelos as configured                              │
+│                                                               │
+│  Features:                                                    │
+│  - Configurable reminder window (days before due)             │
+│  - Automatic status computation based on current date         │
+│  - Links to FiscalDocuments for filed status detection        │
+│  - Deadline banner component for dashboard alerts             │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Key files:**
+- `src/utils/fiscalDeadlines.ts`: AEAT deadline computation logic
+- `src/hooks/useFiscalDeadlines.ts`: TanStack Query hook for deadline data
+- `src/components/fiscal/FiscalDeadlineBanner.tsx`: Dashboard deadline alert banner
+- `src/components/fiscal/FiscalDeadlinePanel.tsx`: Detailed deadline panel
+- `src/components/settings/FiscalReminderSettings.tsx`: Reminder window configuration
+
+### 12. API Route Handler Wrapper
 
 All API routes use `withApiHandler()` (`src/utils/apiHandler.ts`) to eliminate boilerplate:
 
@@ -891,6 +1026,27 @@ OCCURRENCE_STATUS = { PENDING: 'pending', CONFIRMED: 'confirmed', SKIPPED: 'skip
 
 // Balance card variants
 CARD_VARIANT = { INCOME: 'income', EXPENSE: 'expense', BALANCE: 'balance' }
+
+// Invoice statuses
+INVOICE_STATUS = { DRAFT: 'draft', FINALIZED: 'finalized', PAID: 'paid', CANCELLED: 'cancelled' }
+
+// Payment methods
+PAYMENT_METHOD = { BANK_TRANSFER: 'bank_transfer', PAYPAL: 'paypal', OTHER: 'other' }
+
+// Company roles
+COMPANY_ROLE = { CLIENT: 'client', PROVIDER: 'provider' }
+
+// Fiscal document types
+FISCAL_DOCUMENT_TYPE = { MODELO: 'modelo', INVOICE: 'invoice' }
+
+// Fiscal status
+FISCAL_STATUS = { PENDING: 'pending', FILED: 'filed', POSTPONED: 'postponed' }
+
+// Filing status (deadline computation)
+FILING_STATUS = { NOT_DUE: 'not_due', UPCOMING: 'upcoming', DUE: 'due', OVERDUE: 'overdue', FILED: 'filed' }
+
+// Modelo types
+MODELO_TYPE = { M303: '303', M130: '130', M390: '390' }
 
 // TanStack Query keys
 QUERY_KEY = {
