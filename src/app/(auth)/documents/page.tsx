@@ -4,10 +4,12 @@
  * BudgetGuard Documents Page
  * Dedicated page for browsing and managing all fiscal documents.
  * Summary cards for filtering by type, quarter pills, and year selector.
+ * Filters are persisted in the URL query string (?year=2025&quarter=1&type=factura_recibida).
  */
 
 import { FileInput, FileOutput, FileText, Plus, ScrollText, Upload } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
 import { FiscalBulkUpload } from '@/components/fiscal/FiscalBulkUpload';
 import { FiscalDocumentList } from '@/components/fiscal/FiscalDocumentList';
 import { FiscalDocumentUpload } from '@/components/fiscal/FiscalDocumentUpload';
@@ -28,6 +30,12 @@ import { cn } from '@/utils/helpers';
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 2018 }, (_, i) => CURRENT_YEAR - i);
 const QUARTERS = [1, 2, 3, 4] as const;
+
+const VALID_DOC_TYPES = new Set<string>([
+  FISCAL_DOCUMENT_TYPE.MODELO,
+  FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA,
+  FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA,
+]);
 
 interface DocTypeSummary {
   type: FiscalDocumentType;
@@ -83,13 +91,49 @@ const STAGGER_CLASSES = ['stagger-1', 'stagger-2', 'stagger-3'] as const;
 
 export default function DocumentsPage() {
   const { t } = useTranslate();
-  const [year, setYear] = useState(CURRENT_YEAR);
-  const [quarter, setQuarter] = useState<number | undefined>(undefined);
-  const [documentType, setDocumentType] = useState<FiscalDocumentType | undefined>(undefined);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [showUpload, setShowUpload] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
 
-  // Fetch all documents for the year (no type/quarter filter — we filter client-side)
+  // Read filters from URL
+  const year = Number(searchParams.get('year')) || CURRENT_YEAR;
+  const quarterParam = searchParams.get('quarter');
+  const quarter = quarterParam ? Number(quarterParam) : undefined;
+  const typeParam = searchParams.get('type');
+  const documentType = typeParam && VALID_DOC_TYPES.has(typeParam) ? (typeParam as FiscalDocumentType) : undefined;
+
+  // Update URL query params without full navigation
+  const updateParams = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined) {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      });
+      router.replace(`/documents?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const setYear = useCallback((y: number) => updateParams({ year: String(y) }), [updateParams]);
+
+  const setQuarter = useCallback(
+    (q: number | undefined) => updateParams({ quarter: q != null ? String(q) : undefined }),
+    [updateParams],
+  );
+
+  const handleTypeToggle = useCallback(
+    (type: FiscalDocumentType) => {
+      updateParams({ type: documentType === type ? undefined : type });
+    },
+    [updateParams, documentType],
+  );
+
+  // Fetch all documents for the year
   const { data: allDocuments, isLoading } = useFiscalDocuments(year);
 
   // Filter by quarter
@@ -106,10 +150,6 @@ export default function DocumentsPage() {
     () => (documentType ? quarterFiltered.filter((d) => d.documentType === documentType) : quarterFiltered),
     [quarterFiltered, documentType],
   );
-
-  const handleTypeToggle = (type: FiscalDocumentType) => {
-    setDocumentType((prev) => (prev === type ? undefined : type));
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -164,7 +204,7 @@ export default function DocumentsPage() {
           <button
             key={q}
             type="button"
-            onClick={() => setQuarter((prev) => (prev === q ? undefined : q))}
+            onClick={() => setQuarter(quarter === q ? undefined : q)}
             className={cn(
               'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-200',
               quarter === q ? 'bg-guard-primary text-white' : 'bg-muted text-guard-muted hover:text-foreground',
