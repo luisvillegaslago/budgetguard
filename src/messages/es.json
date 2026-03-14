@@ -81,6 +81,7 @@
     "default-currency": "0,00 €",
     "actions": {
       "going-out": "Salir",
+      "add-invoice": "Factura",
       "menu": "Menú"
     }
   },

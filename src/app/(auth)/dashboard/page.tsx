@@ -5,11 +5,12 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { Beer, Plus } from 'lucide-react';
+import { Beer, FileInput, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
+import { FiscalDocumentUpload } from '@/components/fiscal/FiscalDocumentUpload';
 import { RecurringPendingPanel } from '@/components/recurring/RecurringPendingPanel';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionGroupForm } from '@/components/transactions/TransactionGroupForm';
@@ -25,6 +26,7 @@ export default function DashboardPage() {
   const { t } = useTranslate();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [showGroupForm, setShowGroupForm] = useState(false);
+  const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const goToCurrentMonth = useFinanceStore((s) => s.goToCurrentMonth);
 
@@ -56,6 +58,16 @@ export default function DashboardPage() {
           >
             <Beer className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{t('dashboard.actions.going-out')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowInvoiceUpload(true)}
+            className="btn-ghost flex items-center gap-2"
+            aria-label={t('dashboard.actions.add-invoice')}
+          >
+            <FileInput className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">{t('dashboard.actions.add-invoice')}</span>
           </button>
 
           <button
@@ -108,6 +120,11 @@ export default function DashboardPage() {
       {/* Transaction Group Form Modal */}
       {showGroupForm && (
         <TransactionGroupForm onClose={() => setShowGroupForm(false)} defaultParentCategoryId={goingOutCategoryId} />
+      )}
+
+      {/* Invoice Upload Modal */}
+      {showInvoiceUpload && (
+        <FiscalDocumentUpload year={new Date().getFullYear()} onClose={() => setShowInvoiceUpload(false)} />
       )}
     </div>
   );
