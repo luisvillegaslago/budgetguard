@@ -5,8 +5,10 @@
  * CRUD operations for companies/providers in Settings with role sub-tabs
  */
 
-import { AlertCircle, Building2, Eye, EyeOff, Pencil, Plus, RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { AlertCircle, ArrowRight, Building2, Eye, EyeOff, Pencil, Plus, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
 import { CompanyFormModal } from '@/components/settings/CompanyFormModal';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -22,9 +24,14 @@ interface ModalState {
   company?: Company;
 }
 
+function resolveInitialRole(param: string | null): CompanyRole {
+  return param === COMPANY_ROLE.PROVIDER ? COMPANY_ROLE.PROVIDER : COMPANY_ROLE.CLIENT;
+}
+
 export function CompanyManagementPanel() {
   const { t } = useTranslate();
-  const [activeRole, setActiveRole] = useState<CompanyRole>(COMPANY_ROLE.CLIENT);
+  const searchParams = useSearchParams();
+  const [activeRole, setActiveRoleState] = useState<CompanyRole>(() => resolveInitialRole(searchParams.get('role')));
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState<ModalState>({ type: 'none' });
   const updateCompany = useUpdateCompany();
@@ -48,6 +55,19 @@ export function CompanyManagementPanel() {
       data: { isActive: !company.isActive },
     });
   };
+
+  const setActiveRole = useCallback((role: CompanyRole) => {
+    setActiveRoleState(role);
+    setSearchQuery('');
+    // Sync role to URL so back-navigation preserves the sub-tab
+    const url = new URL(window.location.href);
+    if (role === COMPANY_ROLE.CLIENT) {
+      url.searchParams.delete('role');
+    } else {
+      url.searchParams.set('role', role);
+    }
+    window.history.replaceState({}, '', url.toString());
+  }, []);
 
   const closeModal = () => setModal({ type: 'none' });
 
@@ -76,10 +96,7 @@ export function CompanyManagementPanel() {
       <div className="flex gap-1 border-b border-border">
         <button
           type="button"
-          onClick={() => {
-            setActiveRole(COMPANY_ROLE.CLIENT);
-            setSearchQuery('');
-          }}
+          onClick={() => setActiveRole(COMPANY_ROLE.CLIENT)}
           className={cn(
             'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
             activeRole === COMPANY_ROLE.CLIENT
@@ -91,10 +108,7 @@ export function CompanyManagementPanel() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            setActiveRole(COMPANY_ROLE.PROVIDER);
-            setSearchQuery('');
-          }}
+          onClick={() => setActiveRole(COMPANY_ROLE.PROVIDER)}
           className={cn(
             'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
             activeRole === COMPANY_ROLE.PROVIDER
@@ -131,20 +145,29 @@ export function CompanyManagementPanel() {
         {!isLoading && !isError && filtered?.length === 0 && (
           <div className="text-center py-12 text-guard-muted">
             <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" aria-hidden="true" />
-            <p className="font-medium">
-              {isClient ? t('companies.empty.title-clients') : t('companies.empty.title-providers')}
-            </p>
-            <p className="text-sm mt-1">
-              {isClient ? t('companies.empty.subtitle-clients') : t('companies.empty.subtitle-providers')}
-            </p>
-            <button
-              type="button"
-              onClick={() => setModal({ type: 'create' })}
-              className="btn-primary mt-4 inline-flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {isClient ? t('companies.empty.cta-client') : t('companies.empty.cta-provider')}
-            </button>
+            {searchQuery.trim() ? (
+              <>
+                <p className="font-medium">{t('companies.empty.no-results')}</p>
+                <p className="text-sm mt-1">{t('companies.empty.no-results-subtitle')}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium">
+                  {isClient ? t('companies.empty.title-clients') : t('companies.empty.title-providers')}
+                </p>
+                <p className="text-sm mt-1">
+                  {isClient ? t('companies.empty.subtitle-clients') : t('companies.empty.subtitle-providers')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setModal({ type: 'create' })}
+                  className="btn-primary mt-4 inline-flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  {isClient ? t('companies.empty.cta-client') : t('companies.empty.cta-provider')}
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -178,6 +201,14 @@ export function CompanyManagementPanel() {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                  <Link
+                    href={`/movements?companyId=${company.companyId}&role=${activeRole}`}
+                    className="p-1.5 text-guard-muted hover:text-guard-primary hover:bg-muted rounded-md transition-colors"
+                    aria-label={t('companies.actions.view-transactions')}
+                    title={t('companies.actions.view-transactions')}
+                  >
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
                   <button
                     type="button"
                     onClick={() => setModal({ type: 'edit', company })}

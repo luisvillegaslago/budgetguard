@@ -221,9 +221,9 @@ describe('UpdateInvoiceStatusSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should reject draft status (cannot transition to draft)', () => {
+  it('should accept draft status (revert to draft)', () => {
     const result = UpdateInvoiceStatusSchema.safeParse({ status: INVOICE_STATUS.DRAFT });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('should reject unknown status', () => {

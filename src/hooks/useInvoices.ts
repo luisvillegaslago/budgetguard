@@ -299,3 +299,41 @@ export function useDeleteInvoice() {
     },
   });
 }
+
+export function useFinalizeInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invoiceId: number) => {
+      const response = await fetchApi(`${API_ENDPOINT.INVOICES}/${invoiceId}/finalize`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const err: ApiResponse<never> = await response.json();
+        throw new Error(err.error ?? 'Error finalizing invoice');
+      }
+
+      // Extract filename from Content-Disposition header
+      const disposition = response.headers.get('Content-Disposition') ?? '';
+      const fileNameMatch = disposition.match(/filename="?([^";\n]+)"?/);
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'invoice.pdf';
+
+      const blob = await response.blob();
+      return { blob, fileName };
+    },
+    onSuccess: ({ blob, fileName }) => {
+      // Trigger browser download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      // Invalidate caches
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+    },
+  });
+}

@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { InvoiceForm } from '@/components/invoices/InvoiceForm';
 import { INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
 import { useCategories } from '@/hooks/useCategories';
-import { useDeleteInvoice, useInvoice, useUpdateInvoiceStatus } from '@/hooks/useInvoices';
+import { useDeleteInvoice, useFinalizeInvoice, useInvoice, useUpdateInvoiceStatus } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { InvoiceStatus } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -36,9 +36,11 @@ export default function InvoiceDetailPage() {
   const { data: categories } = useCategories('income');
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
+  const finalizeInvoice = useFinalizeInvoice();
 
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<number | null>(null);
 
@@ -62,7 +64,8 @@ export default function InvoiceDetailPage() {
   }
 
   const handleFinalize = async () => {
-    await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.FINALIZED } });
+    await finalizeInvoice.mutateAsync(invoiceId);
+    setConfirmFinalize(false);
   };
 
   const handleMarkPaid = async (categoryId: number) => {
@@ -140,86 +143,86 @@ export default function InvoiceDetailPage() {
           {t('invoices.back-to-list')}
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={handleDownloadPdf}
-          disabled={pdfProgress !== null}
-          className="btn-secondary flex items-center gap-2"
-        >
-          {pdfProgress !== null ? (
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfProgress !== null}
+            className="btn-secondary flex items-center gap-2"
+          >
+            {pdfProgress !== null ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                {pdfProgress > 0 ? `${pdfProgress}%` : t('common.loading')}
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                PDF
+              </>
+            )}
+          </button>
+
+          {invoice.status === INVOICE_STATUS.DRAFT && (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              {pdfProgress > 0 ? `${pdfProgress}%` : t('common.loading')}
-            </>
-          ) : (
-            <>
-              <Download className="h-4 w-4" aria-hidden="true" />
-              PDF
+              <button
+                type="button"
+                onClick={() => setShowEditForm(true)}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                {t('invoices.actions.edit')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmFinalize(true)}
+                disabled={finalizeInvoice.isPending}
+                className="btn-primary flex items-center gap-2"
+              >
+                {finalizeInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {finalizeInvoice.isPending ? t('invoices.actions.finalizing') : t('invoices.actions.finalize')}
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteInvoice.isPending}
+                className="btn-danger flex items-center gap-2"
+              >
+                {deleteInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('common.buttons.delete')}
+              </button>
             </>
           )}
-        </button>
 
-        {invoice.status === INVOICE_STATUS.DRAFT && (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowEditForm(true)}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-              {t('invoices.actions.edit')}
-            </button>
-            <button
-              type="button"
-              onClick={handleFinalize}
-              disabled={updateStatus.isPending}
-              className="btn-primary flex items-center gap-2"
-            >
-              {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('invoices.actions.finalize')}
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteInvoice.isPending}
-              className="btn-danger flex items-center gap-2"
-            >
-              {deleteInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('common.buttons.delete')}
-            </button>
-          </>
-        )}
+          {invoice.status === INVOICE_STATUS.FINALIZED && (
+            <>
+              <button
+                type="button"
+                onClick={() => updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } })}
+                disabled={updateStatus.isPending}
+                className="btn-secondary flex items-center gap-2"
+              >
+                {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('invoices.actions.revert-to-draft')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCategoryPicker(true)}
+                disabled={updateStatus.isPending}
+                className="btn-primary flex items-center gap-2"
+              >
+                {t('invoices.actions.mark-paid')}
+              </button>
+              <button type="button" onClick={() => setConfirmCancel(true)} className="btn-danger">
+                {t('invoices.actions.cancel')}
+              </button>
+            </>
+          )}
 
-        {invoice.status === INVOICE_STATUS.FINALIZED && (
-          <>
-            <button
-              type="button"
-              onClick={() => updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } })}
-              disabled={updateStatus.isPending}
-              className="btn-secondary flex items-center gap-2"
-            >
-              {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('invoices.actions.revert-to-draft')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCategoryPicker(true)}
-              disabled={updateStatus.isPending}
-              className="btn-primary flex items-center gap-2"
-            >
-              {t('invoices.actions.mark-paid')}
-            </button>
+          {invoice.status === INVOICE_STATUS.PAID && (
             <button type="button" onClick={() => setConfirmCancel(true)} className="btn-danger">
               {t('invoices.actions.cancel')}
             </button>
-          </>
-        )}
-
-        {invoice.status === INVOICE_STATUS.PAID && (
-          <button type="button" onClick={() => setConfirmCancel(true)} className="btn-danger">
-            {t('invoices.actions.cancel')}
-          </button>
-        )}
+          )}
         </div>
       </div>
 
@@ -397,6 +400,39 @@ export default function InvoiceDetailPage() {
               >
                 {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t('invoices.actions.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finalize Confirmation Modal */}
+      {confirmFinalize && (
+        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              {t('invoices.actions.confirm-finalize-title')}
+            </h3>
+            <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-finalize-message')}</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmFinalize(false)}
+                disabled={finalizeInvoice.isPending}
+                className="flex-1 btn-secondary"
+              >
+                {t('common.buttons.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleFinalize}
+                disabled={finalizeInvoice.isPending}
+                className="flex-1 btn-primary flex items-center justify-center gap-2"
+              >
+                {finalizeInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {finalizeInvoice.isPending
+                  ? t('invoices.actions.finalizing')
+                  : t('invoices.actions.confirm-finalize-submit')}
               </button>
             </div>
           </div>

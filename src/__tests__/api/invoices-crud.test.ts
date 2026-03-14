@@ -314,13 +314,13 @@ describe('PATCH /api/invoices/[id]', () => {
     expect(response.status).toBe(400);
   });
 
-  it('should reject draft as target status', async () => {
+  it('should accept draft as target status (revert to draft)', async () => {
     const request = createMockRequest('http://localhost:3000/api/invoices/1', {
       status: INVOICE_STATUS.DRAFT,
     });
     const response = await PATCH(request as never, createMockParams('1'));
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
   });
 
   it('should return 400 for invalid ID', async () => {

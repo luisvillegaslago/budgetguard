@@ -550,6 +550,82 @@ export async function getCategoryHistoryTransactions(
   return rows.map(rowToTransaction);
 }
 
+/**
+ * Get all transactions for a company within a date range (user-scoped)
+ */
+export async function getCompanyTransactions(companyId: number, dateFrom: Date, dateTo: Date): Promise<Transaction[]> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<TransactionRow>(
+    `
+    SELECT
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."CompanyID", t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
+    WHERE t."CompanyID" = $1
+      AND t."TransactionDate" >= $2
+      AND t."TransactionDate" <= $3
+      AND t."UserID" = $4
+    ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC
+  `,
+    [companyId, dateFrom, dateTo, userId],
+  );
+
+  return rows.map(rowToTransaction);
+}
+
+/**
+ * Get summary stats for a company's transactions within a date range (user-scoped)
+ */
+export async function getCompanyTransactionsSummary(
+  companyId: number,
+  dateFrom: Date,
+  dateTo: Date,
+): Promise<CategoryHistorySummary> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<{
+    TotalCents: number;
+    TransactionCount: number;
+    MonthCount: number;
+  }>(
+    `
+    SELECT
+      COALESCE(SUM(t."AmountCents"), 0) AS "TotalCents",
+      COUNT(t."TransactionID") AS "TransactionCount",
+      COUNT(DISTINCT TO_CHAR(t."TransactionDate", 'YYYY-MM')) AS "MonthCount"
+    FROM "Transactions" t
+    WHERE t."CompanyID" = $1
+      AND t."TransactionDate" >= $2
+      AND t."TransactionDate" <= $3
+      AND t."UserID" = $4
+  `,
+    [companyId, dateFrom, dateTo, userId],
+  );
+
+  const row = rows[0];
+  const totalCents = Number(row?.TotalCents ?? 0);
+  const transactionCount = Number(row?.TransactionCount ?? 0);
+  const monthCount = Number(row?.MonthCount ?? 0);
+
+  return {
+    totalCents,
+    transactionCount,
+    monthCount,
+    averagePerMonthCents: monthCount > 0 ? Math.round(totalCents / monthCount) : 0,
+  };
+}
+
 // ============================================================
 // TRANSACTION GROUPS
 // ============================================================
