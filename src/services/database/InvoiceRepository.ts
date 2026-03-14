@@ -3,7 +3,8 @@
  * Database operations for billing profiles, invoice prefixes, and invoices (user-scoped)
  */
 
-import { INVOICE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { del } from '@vercel/blob';
+import { FISCAL_DOCUMENT_TYPE, INVOICE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { BillingProfileInput, CreateInvoiceInput, UpdateInvoiceInput } from '@/schemas/invoice';
 import type {
@@ -690,7 +691,7 @@ export async function updateInvoiceStatus(
       [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.FINALIZED],
       [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.DRAFT],
       [INVOICE_STATUS.PAID]: [INVOICE_STATUS.CANCELLED],
-      [INVOICE_STATUS.CANCELLED]: [],
+      [INVOICE_STATUS.CANCELLED]: [INVOICE_STATUS.DRAFT],
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
@@ -699,11 +700,14 @@ export async function updateInvoiceStatus(
 
     let transactionId: number | null = invoiceRow.TransactionID;
 
-    // Handle paid → creates income transaction
+    // Collect blob URLs to delete after commit (outside transaction)
+    const blobUrlsToDelete: string[] = [];
+
+    // Handle paid → creates income transaction with today's date (payment date)
     if (newStatus === INVOICE_STATUS.PAID) {
       if (!categoryId) throw new Error('categoryId is required when marking as paid');
 
-      const invoiceDate = toDateString(invoiceRow.InvoiceDate);
+      const paymentDate = toDateString(new Date());
       const txResult = await client.query<{ TransactionID: number }>(
         `INSERT INTO "Transactions"
          ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
@@ -714,7 +718,7 @@ export async function updateInvoiceStatus(
           categoryId,
           invoiceRow.TotalCents,
           `Factura ${invoiceRow.InvoiceNumber}`,
-          invoiceDate,
+          paymentDate,
           TRANSACTION_TYPE.INCOME,
           1,
           invoiceRow.InvoiceNumber,
@@ -726,13 +730,30 @@ export async function updateInvoiceStatus(
       transactionId = txResult.rows[0]?.TransactionID ?? null;
     }
 
-    // Handle cancelling a paid invoice → delete associated transaction
-    if (newStatus === INVOICE_STATUS.CANCELLED && currentStatus === INVOICE_STATUS.PAID && invoiceRow.TransactionID) {
-      await client.query(`DELETE FROM "Transactions" WHERE "TransactionID" = $1 AND "UserID" = $2`, [
-        invoiceRow.TransactionID,
-        userId,
-      ]);
-      transactionId = null;
+    // Handle cancellation or revert to draft → clean up FiscalDocument + blob
+    if (newStatus === INVOICE_STATUS.CANCELLED || newStatus === INVOICE_STATUS.DRAFT) {
+      // Delete associated income transaction (if cancelling a paid invoice)
+      if (newStatus === INVOICE_STATUS.CANCELLED && currentStatus === INVOICE_STATUS.PAID && invoiceRow.TransactionID) {
+        await client.query(`DELETE FROM "Transactions" WHERE "TransactionID" = $1 AND "UserID" = $2`, [
+          invoiceRow.TransactionID,
+          userId,
+        ]);
+        transactionId = null;
+      }
+
+      // Delete associated FiscalDocument (created when finalized)
+      const docResult = await client.query<{ DocumentID: number; BlobUrl: string }>(
+        `DELETE FROM "FiscalDocuments"
+         WHERE "UserID" = $1
+           AND "DocumentType" = $2
+           AND "Description" LIKE $3
+         RETURNING "DocumentID", "BlobUrl"`,
+        [userId, FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA, `Factura ${invoiceRow.InvoiceNumber} -%`],
+      );
+
+      docResult.rows.forEach((row) => {
+        blobUrlsToDelete.push(row.BlobUrl);
+      });
     }
 
     // Update invoice status
@@ -743,6 +764,13 @@ export async function updateInvoiceStatus(
     ]);
 
     await client.query('COMMIT');
+
+    // Clean up blob storage after successful commit (best-effort, no rollback needed)
+    if (blobUrlsToDelete.length > 0) {
+      await del(blobUrlsToDelete).catch(() => {
+        // Orphaned blobs are acceptable — no user impact
+      });
+    }
 
     // Fetch updated invoice
     return (await getInvoiceById(invoiceId))!;
@@ -786,7 +814,7 @@ export async function refreshDraftSnapshot(invoiceId: number): Promise<Invoice |
   const profile = profileResult[0];
   if (!profile) throw new Error('Billing profile not configured');
 
-  // Re-query company data
+  // Re-query company data (including InvoiceLanguage for PDF generation)
   const companyResult = await query<{
     Name: string;
     TradingName: string | null;
@@ -795,8 +823,9 @@ export async function refreshDraftSnapshot(invoiceId: number): Promise<Invoice |
     City: string | null;
     PostalCode: string | null;
     Country: string | null;
+    InvoiceLanguage: string | null;
   }>(
-    `SELECT "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country"
+    `SELECT "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage"
      FROM "Companies" WHERE "CompanyID" = $1 AND "UserID" = $2`,
     [invoiceRow.CompanyID, userId],
   );
@@ -858,6 +887,7 @@ export async function refreshDraftSnapshot(invoiceId: number): Promise<Invoice |
       ClientCity: company.City,
       ClientPostalCode: company.PostalCode,
       ClientCountry: company.Country,
+      InvoiceLanguage: company.InvoiceLanguage,
     },
     lineItems.map(rowToLineItem),
   );

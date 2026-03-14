@@ -41,6 +41,8 @@ export default function InvoiceDetailPage() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<number | null>(null);
 
@@ -78,8 +80,14 @@ export default function InvoiceDetailPage() {
     setConfirmCancel(false);
   };
 
+  const handleRevertToDraft = async () => {
+    await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } });
+    setConfirmRevert(false);
+  };
+
   const handleDelete = async () => {
     await deleteInvoice.mutateAsync(invoiceId);
+    setConfirmDelete(false);
     router.push('/invoices');
   };
 
@@ -183,7 +191,7 @@ export default function InvoiceDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setConfirmDelete(true)}
                 disabled={deleteInvoice.isPending}
                 className="btn-danger flex items-center gap-2"
               >
@@ -197,7 +205,7 @@ export default function InvoiceDetailPage() {
             <>
               <button
                 type="button"
-                onClick={() => updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } })}
+                onClick={() => setConfirmRevert(true)}
                 disabled={updateStatus.isPending}
                 className="btn-secondary flex items-center gap-2"
               >
@@ -221,6 +229,18 @@ export default function InvoiceDetailPage() {
           {invoice.status === INVOICE_STATUS.PAID && (
             <button type="button" onClick={() => setConfirmCancel(true)} className="btn-danger">
               {t('invoices.actions.cancel')}
+            </button>
+          )}
+
+          {invoice.status === INVOICE_STATUS.CANCELLED && (
+            <button
+              type="button"
+              onClick={() => setConfirmRevert(true)}
+              disabled={updateStatus.isPending}
+              className="btn-secondary flex items-center gap-2"
+            >
+              {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('invoices.actions.revert-to-draft')}
             </button>
           )}
         </div>
@@ -433,6 +453,64 @@ export default function InvoiceDetailPage() {
                 {finalizeInvoice.isPending
                   ? t('invoices.actions.finalizing')
                   : t('invoices.actions.confirm-finalize-submit')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-foreground mb-2">{t('invoices.actions.confirm-delete-title')}</h3>
+            <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-delete-message')}</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleteInvoice.isPending}
+                className="flex-1 btn-secondary"
+              >
+                {t('common.buttons.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteInvoice.isPending}
+                className="flex-1 btn-danger flex items-center justify-center gap-2"
+              >
+                {deleteInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('common.buttons.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revert to Draft Confirmation Modal */}
+      {confirmRevert && (
+        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-foreground mb-2">{t('invoices.actions.confirm-revert-title')}</h3>
+            <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-revert-message')}</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmRevert(false)}
+                disabled={updateStatus.isPending}
+                className="flex-1 btn-secondary"
+              >
+                {t('common.buttons.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleRevertToDraft}
+                disabled={updateStatus.isPending}
+                className="flex-1 btn-primary flex items-center justify-center gap-2"
+              >
+                {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('invoices.actions.revert-to-draft')}
               </button>
             </div>
           </div>

@@ -286,6 +286,8 @@ export function useUpdateInvoiceStatus() {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
     },
   });
 }
@@ -315,7 +317,7 @@ export function useFinalizeInvoice() {
       // Extract filename from Content-Disposition header
       const disposition = response.headers.get('Content-Disposition') ?? '';
       const fileNameMatch = disposition.match(/filename="?([^";\n]+)"?/);
-      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'invoice.pdf';
+      const fileName = fileNameMatch?.[1] ? decodeURIComponent(fileNameMatch[1]) : 'invoice.pdf';
 
       const blob = await response.blob();
       return { blob, fileName };
@@ -334,6 +336,7 @@ export function useFinalizeInvoice() {
       // Invalidate caches
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
     },
   });
 }

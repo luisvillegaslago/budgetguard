@@ -16,7 +16,8 @@
       "retry": "Retry",
       "add-first-transaction": "Add first transaction",
       "clear": "Clear",
-      "edit": "Edit"
+      "edit": "Edit",
+      "clear-filter": "Clear filter"
     },
     "labels": {
       "optional": "optional"
@@ -58,6 +59,7 @@
       "skydiving": "Skydiving",
       "invoices": "Invoices",
       "fiscal": "Fiscal",
+      "documents": "Documents",
       "settings": "Settings"
     }
   },
@@ -629,6 +631,79 @@
       "vat-percent": "Default VAT (%)",
       "deduction-percent": "Default deduction (%)"
     },
+    "documents": {
+      "title": "Documents",
+      "upload-title": "Upload Document",
+      "upload-button": "Upload",
+      "upload-submit": "Upload Document",
+      "bulk-title": "Bulk Upload",
+      "bulk-button": "Bulk Upload",
+      "bulk-drag-drop": "Drag & drop multiple files here",
+      "bulk-files-count": "{count} files selected",
+      "bulk-uploading": "Uploading...",
+      "bulk-upload-submit": "Upload {count} files",
+      "bulk-succeeded": "{count} uploaded",
+      "bulk-failed": "{count} failed",
+      "drag-drop": "Drag & drop a file here",
+      "browse": "Browse files",
+      "download": "Download",
+      "delete-confirm": "Delete this document?",
+      "empty": "No documents uploaded yet",
+      "fields": {
+        "document-type": "Document type",
+        "modelo-type": "Modelo type",
+        "year": "Year",
+        "quarter": "Quarter",
+        "status": "Status",
+        "tax-amount": "Tax amount (€)",
+        "description": "Description"
+      },
+      "types": {
+        "modelo": "Tax Filing (Modelo)",
+        "factura": "Received Invoice",
+        "factura-emitida": "Issued Invoice"
+      },
+      "status": {
+        "filed": "Filed",
+        "pending": "Pending"
+      },
+      "columns": {
+        "name": "File",
+        "type": "Type",
+        "status": "Status",
+        "period": "Period",
+        "amount": "Amount",
+        "size": "Size",
+        "actions": "Actions"
+      }
+    },
+    "deadlines": {
+      "panel-title": "AEAT Deadlines",
+      "panel-title-year": "AEAT Deadlines {year}",
+      "banner-title": "Upcoming tax deadlines",
+      "due-date": "due {date}",
+      "days-remaining": "{count} days left",
+      "overdue": "Overdue",
+      "aplazamiento-available": "(postponement available)",
+      "empty": "No deadlines for this year",
+      "status": {
+        "not_due": "Pending",
+        "upcoming": "Upcoming",
+        "due": "Due",
+        "overdue": "Overdue",
+        "filed": "Filed"
+      }
+    },
+    "settings": {
+      "title": "Fiscal Reminders",
+      "description": "Configure AEAT filing deadline notifications",
+      "active": "Enable deadline reminders",
+      "days-before": "Days before deadline",
+      "days-before-hint": "Show reminder this many days before the filing deadline",
+      "aplazamiento": "Postponement reminders",
+      "aplazamiento-hint": "Show when postponement can be requested during the voluntary period",
+      "saved": "Settings saved"
+    },
     "errors": {
       "load": "Error loading fiscal report"
     }
@@ -649,6 +724,7 @@
       "categories": "Categories",
       "companies": "Companies",
       "billing": "Billing",
+      "reminders": "Reminders",
       "database": "Database"
     },
     "theme": {
@@ -733,7 +809,7 @@
     "back-to-list": "Back to invoices",
     "status": {
       "draft": "Draft",
-      "finalized": "Finalized",
+      "finalized": "Issued",
       "paid": "Paid",
       "cancelled": "Cancelled"
     },
@@ -777,13 +853,22 @@
     },
     "actions": {
       "edit": "Edit",
-      "finalize": "Finalize",
+      "finalize": "Issue",
+      "revert-to-draft": "Revert to Draft",
       "mark-paid": "Mark as Paid",
       "cancel": "Cancel Invoice",
       "select-category": "Select income category",
       "confirm-cancel-title": "Cancel Invoice?",
       "confirm-cancel-paid": "This will delete the associated income transaction.",
-      "confirm-cancel-finalized": "This invoice will be marked as cancelled."
+      "confirm-cancel-finalized": "This invoice will be marked as cancelled.",
+      "confirm-finalize-title": "Issue invoice?",
+      "confirm-finalize-message": "The invoice will be issued and the PDF will be saved to Fiscal Documents.",
+      "confirm-finalize-submit": "Issue",
+      "finalizing": "Issuing...",
+      "confirm-revert-title": "Revert to draft?",
+      "confirm-revert-message": "The issued PDF will be deleted from Fiscal Documents and the invoice will no longer appear in fiscal reports.",
+      "confirm-delete-title": "Delete invoice?",
+      "confirm-delete-message": "This draft invoice will be permanently deleted."
     },
     "errors": {
       "load": "Error loading invoice"
@@ -810,7 +895,9 @@
       "subtitle-clients": "Add your first client to link invoices",
       "subtitle-providers": "Add your first provider to link expenses",
       "cta-client": "Add First Client",
-      "cta-provider": "Add First Provider"
+      "cta-provider": "Add First Provider",
+      "no-results": "No results",
+      "no-results-subtitle": "No companies found matching your search"
     },
     "form": {
       "title-create": "New Company",
@@ -851,16 +938,23 @@
     "actions": {
       "edit": "Edit",
       "deactivate": "Deactivate",
-      "activate": "Activate"
+      "activate": "Activate",
+      "view-transactions": "View transactions"
     },
     "selector": {
-      "placeholder": "Select company...",
+      "placeholder": "Select...",
       "search": "Search company...",
       "create": "Create",
       "empty": "No companies found"
     },
     "errors": {
-      "load": "Error loading companies"
+      "load": "Error loading companies",
+      "load-transactions": "Error loading company transactions"
+    },
+    "back-to-list": "Back to Companies",
+    "empty-transactions": {
+      "title": "No transactions",
+      "subtitle": "No transactions linked to this company in the selected period"
     }
   },
   "skydiving": {
@@ -1018,6 +1112,12 @@
       "load-tunnel": "Error loading tunnel sessions",
       "load-stats": "Error loading statistics"
     }
+  },
+  "documents": {
+    "title": "Documents",
+    "upload": "Upload",
+    "all-quarters": "All quarters",
+    "all-types": "All types"
   },
   "validation": {
     "category-required": "Please select a category",

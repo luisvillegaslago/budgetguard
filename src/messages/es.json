@@ -16,7 +16,8 @@
       "retry": "Reintentar",
       "add-first-transaction": "Añadir primera transacción",
       "clear": "Limpiar",
-      "edit": "Editar"
+      "edit": "Editar",
+      "clear-filter": "Quitar filtro"
     },
     "labels": {
       "optional": "opcional"
@@ -58,6 +59,7 @@
       "skydiving": "Paracaidismo",
       "invoices": "Facturas",
       "fiscal": "Fiscal",
+      "documents": "Documentos",
       "settings": "Ajustes"
     }
   },
@@ -629,6 +631,79 @@
       "vat-percent": "IVA por defecto (%)",
       "deduction-percent": "Deducción por defecto (%)"
     },
+    "documents": {
+      "title": "Documentos",
+      "upload-title": "Subir Documento",
+      "upload-button": "Subir",
+      "upload-submit": "Subir Documento",
+      "bulk-title": "Subida Masiva",
+      "bulk-button": "Subida Masiva",
+      "bulk-drag-drop": "Arrastra y suelta varios archivos aquí",
+      "bulk-files-count": "{count} archivos seleccionados",
+      "bulk-uploading": "Subiendo...",
+      "bulk-upload-submit": "Subir {count} archivos",
+      "bulk-succeeded": "{count} subidos",
+      "bulk-failed": "{count} fallidos",
+      "drag-drop": "Arrastra y suelta un archivo aquí",
+      "browse": "Explorar archivos",
+      "download": "Descargar",
+      "delete-confirm": "¿Eliminar este documento?",
+      "empty": "No hay documentos subidos",
+      "fields": {
+        "document-type": "Tipo de documento",
+        "modelo-type": "Tipo de modelo",
+        "year": "Año",
+        "quarter": "Trimestre",
+        "status": "Estado",
+        "tax-amount": "Importe (€)",
+        "description": "Descripción"
+      },
+      "types": {
+        "modelo": "Declaración (Modelo)",
+        "factura": "Factura Recibida",
+        "factura-emitida": "Factura Emitida"
+      },
+      "status": {
+        "filed": "Presentado",
+        "pending": "Pendiente"
+      },
+      "columns": {
+        "name": "Archivo",
+        "type": "Tipo",
+        "status": "Estado",
+        "period": "Periodo",
+        "amount": "Importe",
+        "size": "Tamaño",
+        "actions": "Acciones"
+      }
+    },
+    "deadlines": {
+      "panel-title": "Plazos AEAT",
+      "panel-title-year": "Plazos AEAT {year}",
+      "banner-title": "Plazos fiscales próximos",
+      "due-date": "vence {date}",
+      "days-remaining": "{count} días restantes",
+      "overdue": "Vencido",
+      "aplazamiento-available": "(aplazamiento disponible)",
+      "empty": "No hay plazos para este año",
+      "status": {
+        "not_due": "Pendiente",
+        "upcoming": "Próximo",
+        "due": "En plazo",
+        "overdue": "Vencido",
+        "filed": "Presentado"
+      }
+    },
+    "settings": {
+      "title": "Recordatorios Fiscales",
+      "description": "Configura las notificaciones de plazos de presentación AEAT",
+      "active": "Activar recordatorios de plazos",
+      "days-before": "Días de antelación",
+      "days-before-hint": "Mostrar recordatorio estos días antes del plazo de presentación",
+      "aplazamiento": "Recordatorios de aplazamiento",
+      "aplazamiento-hint": "Avisar cuando se pueda solicitar aplazamiento dentro del periodo voluntario",
+      "saved": "Ajustes guardados"
+    },
     "errors": {
       "load": "Error al cargar el informe fiscal"
     }
@@ -649,6 +724,7 @@
       "categories": "Categorías",
       "companies": "Empresas",
       "billing": "Facturación",
+      "reminders": "Recordatorios",
       "database": "Base de Datos"
     },
     "theme": {
@@ -733,7 +809,7 @@
     "back-to-list": "Volver a facturas",
     "status": {
       "draft": "Borrador",
-      "finalized": "Finalizada",
+      "finalized": "Emitida",
       "paid": "Pagada",
       "cancelled": "Cancelada"
     },
@@ -777,13 +853,22 @@
     },
     "actions": {
       "edit": "Editar",
-      "finalize": "Finalizar",
+      "finalize": "Emitir",
+      "revert-to-draft": "Volver a Borrador",
       "mark-paid": "Marcar como Pagada",
       "cancel": "Cancelar Factura",
       "select-category": "Selecciona categoría de ingreso",
       "confirm-cancel-title": "¿Cancelar factura?",
       "confirm-cancel-paid": "Esto eliminará la transacción de ingreso asociada.",
-      "confirm-cancel-finalized": "Esta factura se marcará como cancelada."
+      "confirm-cancel-finalized": "Esta factura se marcará como cancelada.",
+      "confirm-finalize-title": "¿Emitir factura?",
+      "confirm-finalize-message": "Se emitirá la factura y se guardará el PDF en Documentos Fiscales.",
+      "confirm-finalize-submit": "Emitir",
+      "finalizing": "Emitiendo...",
+      "confirm-revert-title": "¿Volver a borrador?",
+      "confirm-revert-message": "Se eliminará el PDF de Documentos Fiscales y la factura dejará de aparecer en los informes fiscales.",
+      "confirm-delete-title": "¿Eliminar factura?",
+      "confirm-delete-message": "Esta factura borrador se eliminará permanentemente."
     },
     "errors": {
       "load": "Error al cargar factura"
@@ -810,7 +895,9 @@
       "subtitle-clients": "Añade tu primer cliente para vincular facturas",
       "subtitle-providers": "Añade tu primer proveedor para vincular gastos",
       "cta-client": "Añadir Primer Cliente",
-      "cta-provider": "Añadir Primer Proveedor"
+      "cta-provider": "Añadir Primer Proveedor",
+      "no-results": "Sin resultados",
+      "no-results-subtitle": "No se encontraron empresas con ese criterio de búsqueda"
     },
     "form": {
       "title-create": "Nueva Empresa",
@@ -851,16 +938,23 @@
     "actions": {
       "edit": "Editar",
       "deactivate": "Desactivar",
-      "activate": "Activar"
+      "activate": "Activar",
+      "view-transactions": "Ver transacciones"
     },
     "selector": {
-      "placeholder": "Seleccionar empresa...",
+      "placeholder": "Seleccionar...",
       "search": "Buscar empresa...",
       "create": "Crear",
       "empty": "No se encontraron empresas"
     },
     "errors": {
-      "load": "Error al cargar empresas"
+      "load": "Error al cargar empresas",
+      "load-transactions": "Error al cargar transacciones de la empresa"
+    },
+    "back-to-list": "Volver a Empresas",
+    "empty-transactions": {
+      "title": "Sin transacciones",
+      "subtitle": "No hay transacciones vinculadas a esta empresa en el período seleccionado"
     }
   },
   "skydiving": {
@@ -1018,6 +1112,12 @@
       "load-tunnel": "Error al cargar sesiones de túnel",
       "load-stats": "Error al cargar estadísticas"
     }
+  },
+  "documents": {
+    "title": "Documentos",
+    "upload": "Subir",
+    "all-quarters": "Todos los trimestres",
+    "all-types": "Todos los tipos"
   },
   "validation": {
     "category-required": "Selecciona una categoría",
