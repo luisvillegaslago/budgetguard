@@ -10,7 +10,7 @@
  * All calculations happen in TypeScript (not SQL) for consistent rounding with the frontend.
  */
 
-import { IRPF_RATE, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import { INVOICE_STATUS, IRPF_RATE, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   FiscalTransaction,
@@ -99,23 +99,107 @@ export async function getFiscalExpenses(year: number, quarter: number): Promise<
 }
 
 /**
- * Get fiscal invoices for a specific quarter (user-scoped)
+ * Fetch finalized (not yet paid) invoices as synthetic FiscalViewRows.
+ * Paid invoices are already in vw_FiscalQuarterly via their transactions,
+ * so we only add finalized ones to avoid double-counting.
+ */
+async function getUnpaidInvoiceRows(userId: number, year: number, quarter?: number): Promise<FiscalViewRow[]> {
+  const conditions = ['i."UserID" = $1', 'i."Status" = $2', 'EXTRACT(YEAR FROM i."InvoiceDate") = $3'];
+  const params: unknown[] = [userId, INVOICE_STATUS.FINALIZED, year];
+
+  if (quarter != null) {
+    params.push(quarter);
+    conditions.push(`CEIL(EXTRACT(MONTH FROM i."InvoiceDate") / 3.0) = $${params.length}`);
+  }
+
+  const rows = await query<{
+    InvoiceDate: Date;
+    TotalCents: number;
+    FiscalQuarter: number;
+  }>(
+    `SELECT i."InvoiceDate", i."TotalCents",
+            CEIL(EXTRACT(MONTH FROM i."InvoiceDate") / 3.0)::int AS "FiscalQuarter"
+     FROM "Invoices" i
+     WHERE ${conditions.join(' AND ')}`,
+    params,
+  );
+
+  return rows.map((row) => ({
+    FiscalYear: year,
+    FiscalQuarter: row.FiscalQuarter,
+    Type: TRANSACTION_TYPE.INCOME,
+    TransactionID: 0,
+    CategoryID: 0,
+    CategoryName: PROFESSIONAL_INCOME_CATEGORY,
+    ParentCategoryName: PROFESSIONAL_INCOME_CATEGORY,
+    TransactionDate: row.InvoiceDate,
+    VendorName: null,
+    InvoiceNumber: null,
+    Description: null,
+    FullAmountCents: Number(row.TotalCents),
+    VatPercent: 0,
+    DeductionPercent: 0,
+    CompanyTaxId: null,
+  }));
+}
+
+interface IssuedInvoiceRow {
+  InvoiceID: number;
+  InvoiceNumber: string;
+  InvoiceDate: Date;
+  TotalCents: number;
+  ClientName: string;
+  ClientTaxId: string | null;
+  LineItemsDescription: string | null;
+}
+
+function issuedInvoiceToFiscalTransaction(row: IssuedInvoiceRow): FiscalTransaction {
+  const totalCents = Number(row.TotalCents);
+  return {
+    transactionId: row.InvoiceID,
+    transactionDate: toDateString(row.InvoiceDate),
+    categoryName: PROFESSIONAL_INCOME_CATEGORY,
+    parentCategoryName: PROFESSIONAL_INCOME_CATEGORY,
+    vendorName: row.ClientName,
+    invoiceNumber: row.InvoiceNumber,
+    companyTaxId: row.ClientTaxId,
+    description: row.LineItemsDescription,
+    type: TRANSACTION_TYPE.INCOME,
+    fullAmountCents: totalCents,
+    vatPercent: 0,
+    deductionPercent: 0,
+    baseCents: totalCents,
+    ivaCents: 0,
+    baseDeducibleCents: 0,
+    ivaDeducibleCents: 0,
+  };
+}
+
+/**
+ * Get fiscal invoices for a specific quarter (user-scoped).
+ * Queries the Invoices table directly for finalized/paid invoices,
+ * so they appear as soon as they are issued (not only when paid).
  */
 export async function getFiscalInvoices(year: number, quarter: number): Promise<FiscalTransaction[]> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS}
-    ${FISCAL_FROM}
-    WHERE v."FiscalYear" = $1 AND v."FiscalQuarter" = $2
-      AND v."Type" = $3
-      AND COALESCE(v."ParentCategoryName", v."CategoryName") = $4
-      AND v."UserID" = $5
-    ORDER BY v."TransactionDate" ASC`,
-    [year, quarter, TRANSACTION_TYPE.INCOME, PROFESSIONAL_INCOME_CATEGORY, userId],
+  const rows = await query<IssuedInvoiceRow>(
+    `SELECT i."InvoiceID", i."InvoiceNumber", i."InvoiceDate", i."TotalCents",
+            i."ClientName", i."ClientTaxId",
+            STRING_AGG(li."Description", ', ' ORDER BY li."SortOrder") AS "LineItemsDescription"
+     FROM "Invoices" i
+     LEFT JOIN "InvoiceLineItems" li ON li."InvoiceID" = i."InvoiceID"
+     WHERE i."UserID" = $1
+       AND i."Status" IN ($2, $3)
+       AND EXTRACT(YEAR FROM i."InvoiceDate") = $4
+       AND CEIL(EXTRACT(MONTH FROM i."InvoiceDate") / 3.0) = $5
+     GROUP BY i."InvoiceID", i."InvoiceNumber", i."InvoiceDate", i."TotalCents",
+              i."ClientName", i."ClientTaxId"
+     ORDER BY i."InvoiceDate" ASC`,
+    [userId, INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID, year, quarter],
   );
 
-  return rows.map(rowToFiscalTransaction);
+  return rows.map(issuedInvoiceToFiscalTransaction);
 }
 
 /**
@@ -124,12 +208,17 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
 export async function getModelo303Summary(year: number, quarter: number): Promise<Modelo303Summary> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-    FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2 AND "UserID" = $3`,
-    [year, quarter, userId],
-  );
+  const [viewRows, invoiceRows] = await Promise.all([
+    query<FiscalViewRow>(
+      `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
+      FROM "vw_FiscalQuarterly"
+      WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2 AND "UserID" = $3`,
+      [year, quarter, userId],
+    ),
+    getUnpaidInvoiceRows(userId, year, quarter),
+  ]);
+
+  const rows = [...viewRows, ...invoiceRows];
 
   let casilla07 = 0;
   let casilla09 = 0;
@@ -181,12 +270,19 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
 export async function getModelo130Summary(year: number, quarter: number): Promise<Modelo130Summary> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-    FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2 AND "UserID" = $3`,
-    [year, quarter, userId],
-  );
+  // Modelo 130 is cumulative — needs all quarters up to current
+  const [viewRows, invoiceRows] = await Promise.all([
+    query<FiscalViewRow>(
+      `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
+      FROM "vw_FiscalQuarterly"
+      WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2 AND "UserID" = $3`,
+      [year, quarter, userId],
+    ),
+    getUnpaidInvoiceRows(userId, year),
+  ]);
+
+  // Filter invoice rows to quarters <= current (matching view query)
+  const rows = [...viewRows, ...invoiceRows.filter((r) => r.FiscalQuarter <= quarter)];
 
   let ingresosAcum = 0;
   let gastosDocAcum = 0;
@@ -246,12 +342,17 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
 export async function getModelo390Summary(year: number): Promise<Modelo390Summary> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-    FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "UserID" = $2`,
-    [year, userId],
-  );
+  const [viewRows, invoiceRows] = await Promise.all([
+    query<FiscalViewRow>(
+      `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
+      FROM "vw_FiscalQuarterly"
+      WHERE "FiscalYear" = $1 AND "UserID" = $2`,
+      [year, userId],
+    ),
+    getUnpaidInvoiceRows(userId, year),
+  ]);
+
+  const rows = [...viewRows, ...invoiceRows];
 
   let totalC09 = 0;
   let totalC28 = 0;
@@ -309,12 +410,17 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
 export async function getModelo100Summary(year: number): Promise<Modelo100Section> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await query<FiscalViewRow>(
-    `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-    FROM "vw_FiscalQuarterly"
-    WHERE "FiscalYear" = $1 AND "UserID" = $2`,
-    [year, userId],
-  );
+  const [viewRows, invoiceRows] = await Promise.all([
+    query<FiscalViewRow>(
+      `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
+      FROM "vw_FiscalQuarterly"
+      WHERE "FiscalYear" = $1 AND "UserID" = $2`,
+      [year, userId],
+    ),
+    getUnpaidInvoiceRows(userId, year),
+  ]);
+
+  const rows = [...viewRows, ...invoiceRows];
 
   let ingresosCents = 0;
   let gastosDeducCents = 0;
