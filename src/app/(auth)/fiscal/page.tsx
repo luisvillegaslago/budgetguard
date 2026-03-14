@@ -22,11 +22,12 @@ import { Modelo303Card } from '@/components/fiscal/Modelo303Card';
 import { Modelo390Card } from '@/components/fiscal/Modelo390Card';
 import { ModeloDocumentUpload } from '@/components/fiscal/ModeloDocumentUpload';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import type { ModeloType } from '@/constants/finance';
+import type { FiscalStatus, ModeloType } from '@/constants/finance';
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
 import { useFiscalDocuments } from '@/hooks/useFiscalDocuments';
 import { useAnnualFiscalReport, useFiscalReport } from '@/hooks/useFiscalReport';
 import { useTranslate } from '@/hooks/useTranslations';
+import type { FiscalDocument } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 
 type FiscalView = 'quarterly' | 'annual';
@@ -35,17 +36,15 @@ function getCurrentQuarter(): number {
   return Math.ceil((new Date().getMonth() + 1) / 3);
 }
 
-function getFilingStatus(
-  documents: Array<{ modeloType: string | null; fiscalQuarter: number | null; status: string }>,
+function getFilingInfo(
+  documents: FiscalDocument[],
   modeloType: string,
   quarter: number | null,
-): string {
+): { status: string; document: FiscalDocument | null } {
   const match = documents.find(
     (d) => d.modeloType === modeloType && d.fiscalQuarter === quarter && d.status === FISCAL_STATUS.FILED,
   );
-  if (match) return FISCAL_STATUS.FILED;
-
-  return FISCAL_STATUS.PENDING;
+  return match ? { status: FISCAL_STATUS.FILED, document: match } : { status: FISCAL_STATUS.PENDING, document: null };
 }
 
 export default function FiscalPage() {
@@ -66,11 +65,11 @@ export default function FiscalPage() {
   const isCurrentLoading = view === 'quarterly' ? isLoading : isAnnualLoading;
   const isCurrentError = view === 'quarterly' ? isError : isAnnualError;
 
-  const modeloDocs = documents ?? [];
-  const m303Status = getFilingStatus(modeloDocs, MODELO_TYPE.M303, quarter) as typeof FISCAL_STATUS.FILED;
-  const m130Status = getFilingStatus(modeloDocs, MODELO_TYPE.M130, quarter) as typeof FISCAL_STATUS.FILED;
-  const m390Status = getFilingStatus(modeloDocs, MODELO_TYPE.M390, null) as typeof FISCAL_STATUS.FILED;
-  const m100Status = getFilingStatus(modeloDocs, MODELO_TYPE.M100, null) as typeof FISCAL_STATUS.FILED;
+  const modeloDocs = (documents ?? []) as FiscalDocument[];
+  const m303 = getFilingInfo(modeloDocs, MODELO_TYPE.M303, quarter);
+  const m130 = getFilingInfo(modeloDocs, MODELO_TYPE.M130, quarter);
+  const m390 = getFilingInfo(modeloDocs, MODELO_TYPE.M390, null);
+  const m100 = getFilingInfo(modeloDocs, MODELO_TYPE.M100, null);
 
   const isAnnualModelo = uploadModelo === MODELO_TYPE.M390 || uploadModelo === MODELO_TYPE.M100;
 
@@ -137,27 +136,49 @@ export default function FiscalPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m303Status} />
-                <button
-                  type="button"
-                  onClick={() => setUploadModelo(MODELO_TYPE.M303)}
-                  className="text-xs text-guard-primary hover:underline"
-                >
-                  {t('fiscal.documents.upload-button')}
-                </button>
+                <FiscalFilingStatus status={m303.status as FiscalStatus} />
+                {m303.document ? (
+                  <a
+                    href={m303.document.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-guard-success hover:underline"
+                  >
+                    {t('fiscal.documents.download')}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setUploadModelo(MODELO_TYPE.M303)}
+                    className="text-xs text-guard-primary hover:underline"
+                  >
+                    {t('fiscal.documents.upload-button')}
+                  </button>
+                )}
               </div>
               <Modelo303Card data={report.modelo303} />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m130Status} />
-                <button
-                  type="button"
-                  onClick={() => setUploadModelo(MODELO_TYPE.M130)}
-                  className="text-xs text-guard-primary hover:underline"
-                >
-                  {t('fiscal.documents.upload-button')}
-                </button>
+                <FiscalFilingStatus status={m130.status as FiscalStatus} />
+                {m130.document ? (
+                  <a
+                    href={m130.document.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-guard-success hover:underline"
+                  >
+                    {t('fiscal.documents.download')}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setUploadModelo(MODELO_TYPE.M130)}
+                    className="text-xs text-guard-primary hover:underline"
+                  >
+                    {t('fiscal.documents.upload-button')}
+                  </button>
+                )}
               </div>
               <Modelo130Card data={report.modelo130} />
             </div>
@@ -175,27 +196,49 @@ export default function FiscalPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m390Status} />
-                <button
-                  type="button"
-                  onClick={() => setUploadModelo(MODELO_TYPE.M390)}
-                  className="text-xs text-guard-primary hover:underline"
-                >
-                  {t('fiscal.documents.upload-button')}
-                </button>
+                <FiscalFilingStatus status={m390.status as FiscalStatus} />
+                {m390.document ? (
+                  <a
+                    href={m390.document.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-guard-success hover:underline"
+                  >
+                    {t('fiscal.documents.download')}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setUploadModelo(MODELO_TYPE.M390)}
+                    className="text-xs text-guard-primary hover:underline"
+                  >
+                    {t('fiscal.documents.upload-button')}
+                  </button>
+                )}
               </div>
               <Modelo390Card data={annualReport.modelo390} />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m100Status} />
-                <button
-                  type="button"
-                  onClick={() => setUploadModelo(MODELO_TYPE.M100)}
-                  className="text-xs text-guard-primary hover:underline"
-                >
-                  {t('fiscal.documents.upload-button')}
-                </button>
+                <FiscalFilingStatus status={m100.status as FiscalStatus} />
+                {m100.document ? (
+                  <a
+                    href={m100.document.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-guard-success hover:underline"
+                  >
+                    {t('fiscal.documents.download')}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setUploadModelo(MODELO_TYPE.M100)}
+                    className="text-xs text-guard-primary hover:underline"
+                  >
+                    {t('fiscal.documents.upload-button')}
+                  </button>
+                )}
               </div>
               <Modelo100Card data={annualReport.modelo100} />
             </div>
