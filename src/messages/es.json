@@ -717,6 +717,7 @@
       "step-uploading": "Subiendo documento...",
       "step-analyzing": "Analizando con IA...",
       "ocr-hint": "El importe, fecha y proveedor se detectarán automáticamente al subir",
+      "ocr-failed": "Documento subido pero el análisis falló. Puedes reintentar más tarde.",
       "confidence": "Confianza",
       "low-confidence": "Extracción con baja confianza — revisa todos los campos cuidadosamente.",
       "detected-vendor": "Detectado",

@@ -717,6 +717,7 @@
       "step-uploading": "Uploading document...",
       "step-analyzing": "Analyzing with AI...",
       "ocr-hint": "Amount, date, and vendor will be auto-detected after upload",
+      "ocr-failed": "Document uploaded but analysis failed. You can retry later.",
       "confidence": "Confidence",
       "low-confidence": "Low confidence extraction — please review all fields carefully.",
       "detected-vendor": "Detected",

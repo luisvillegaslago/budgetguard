@@ -11,7 +11,7 @@ import { useCallback, useState } from 'react';
 import { FiscalExtractionConfirm } from '@/components/fiscal/FiscalExtractionConfirm';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS } from '@/constants/finance';
-import { useExtractDocument, useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
+import { useDeleteFiscalDocument, useExtractDocument, useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { ExtractedInvoiceData } from '@/types/finance';
 import { cn } from '@/utils/helpers';
@@ -29,12 +29,14 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
   const [isDragOver, setIsDragOver] = useState(false);
   const [step, setStep] = useState<UploadStep>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [failedDocId, setFailedDocId] = useState<number | null>(null);
   const [extractionData, setExtractionData] = useState<{
     documentId: number;
     data: ExtractedInvoiceData;
   } | null>(null);
   const uploadMutation = useUploadFiscalDocument(year);
   const extractMutation = useExtractDocument();
+  const deleteMutation = useDeleteFiscalDocument(year);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -82,8 +84,11 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
             setExtractionData({ documentId: uploaded.documentId, data: extracted.extractedData });
             return;
           }
-        } catch {
-          // OCR failed — close normally
+        } catch (ocrErr) {
+          setStep('idle');
+          setFailedDocId(uploaded.documentId);
+          setError(ocrErr instanceof Error ? ocrErr.message : t('fiscal.extraction.ocr-failed'));
+          return;
         }
       }
 
@@ -221,8 +226,28 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
 
           {/* Error Alert */}
           {error && (
-            <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
+            <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20 space-y-2">
               <p className="text-sm text-guard-danger">{error}</p>
+              {failedDocId && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await deleteMutation.mutateAsync(failedDocId);
+                      setError(null);
+                      setFailedDocId(null);
+                      setSelectedFile(null);
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="text-xs text-guard-danger hover:underline"
+                  >
+                    {t('common.buttons.delete')}
+                  </button>
+                  <button type="button" onClick={onClose} className="text-xs text-guard-muted hover:underline">
+                    {t('common.buttons.close')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
