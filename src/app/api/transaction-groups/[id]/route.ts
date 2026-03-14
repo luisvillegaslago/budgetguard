@@ -12,6 +12,17 @@ import {
 } from '@/services/database/TransactionRepository';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
 
+export const GET = withApiHandler(async (_request, { params }) => {
+  const { id } = await params;
+  const groupId = parseIdParam(id);
+  if (typeof groupId !== 'number') return groupId;
+
+  const transactions = await getTransactionsByGroupId(groupId);
+  if (transactions.length === 0) return notFound('Grupo no encontrado');
+
+  return { data: transactions };
+}, 'GET /api/transaction-groups/[id]');
+
 export const DELETE = withApiHandler(async (_request, { params }) => {
   const { id } = await params;
   const groupId = parseIdParam(id);

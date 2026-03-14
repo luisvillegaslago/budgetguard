@@ -7,7 +7,7 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileText, Users, X } from 'lucide-react';
+import { Download, FileText, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
@@ -424,6 +424,23 @@ export function TransactionForm({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Linked Fiscal Document */}
+          {isEditing && transaction.fiscalDocumentId != null && (
+            <a
+              href={`/api/fiscal/documents/${transaction.fiscalDocumentId}/download`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'flex items-center gap-2 px-4 py-2.5 rounded-lg',
+                'bg-guard-success/5 border border-guard-success/20',
+                'text-sm text-guard-success hover:bg-guard-success/10 transition-colors',
+              )}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {t('fiscal.documents.download-linked')}
+            </a>
           )}
 
           {/* Error Message */}

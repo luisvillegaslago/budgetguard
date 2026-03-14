@@ -12,7 +12,6 @@ import { Calculator } from 'lucide-react';
 import { useState } from 'react';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDeadlinePanel } from '@/components/fiscal/FiscalDeadlinePanel';
-import { FiscalDocumentUpload } from '@/components/fiscal/FiscalDocumentUpload';
 import { FiscalExpenseTable } from '@/components/fiscal/FiscalExpenseTable';
 import { FiscalFilingStatus } from '@/components/fiscal/FiscalFilingStatus';
 import { FiscalInvoiceTable } from '@/components/fiscal/FiscalInvoiceTable';
@@ -21,6 +20,7 @@ import { Modelo100Card } from '@/components/fiscal/Modelo100Card';
 import { Modelo130Card } from '@/components/fiscal/Modelo130Card';
 import { Modelo303Card } from '@/components/fiscal/Modelo303Card';
 import { Modelo390Card } from '@/components/fiscal/Modelo390Card';
+import { ModeloDocumentUpload } from '@/components/fiscal/ModeloDocumentUpload';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import type { ModeloType } from '@/constants/finance';
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
@@ -207,10 +207,10 @@ export default function FiscalPage() {
 
       {/* Upload Modal — pre-filled with selected modelo */}
       {uploadModelo && (
-        <FiscalDocumentUpload
+        <ModeloDocumentUpload
           year={year}
           quarter={isAnnualModelo ? undefined : quarter}
-          prefilledModelo={{ modeloType: uploadModelo }}
+          modeloType={uploadModelo}
           onClose={() => setUploadModelo(null)}
         />
       )}

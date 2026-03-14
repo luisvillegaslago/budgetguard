@@ -5,6 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import type { LinkTransactionInput } from '@/schemas/fiscal-document';
 import type { ApiResponse, FiscalDocument } from '@/types/finance';
 import { fetchApi } from '@/utils/fetchApi';
 
@@ -159,6 +160,76 @@ export function useDeleteFiscalDocument(year: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS, year] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES, year] });
+    },
+  });
+}
+
+// ============================================================
+// OCR Extraction Mutations
+// ============================================================
+
+/**
+ * Trigger OCR extraction for a fiscal document
+ */
+export function useExtractDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (documentId: number): Promise<FiscalDocument> => {
+      const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${documentId}/extract`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error ?? 'Extraction failed');
+      }
+
+      const data: ApiResponse<FiscalDocument> = await response.json();
+      if (!data.success || !data.data) throw new Error(data.error ?? 'Extraction failed');
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+    },
+  });
+}
+
+/**
+ * Create a transaction from extracted data and link it to the document.
+ * Atomic triple cache invalidation on success.
+ */
+export function useLinkTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      documentId,
+      data,
+    }: {
+      documentId: number;
+      data: LinkTransactionInput;
+    }): Promise<{ transactionId: number; documentId: number }> => {
+      const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${documentId}/link-transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error ?? 'Link transaction failed');
+      }
+
+      const result: ApiResponse<{ transactionId: number; documentId: number }> = await response.json();
+      if (!result.success || !result.data) throw new Error(result.error ?? 'Link transaction failed');
+      return result.data;
+    },
+    onSuccess: () => {
+      // Atomic triple invalidation to avoid layout shift
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
     },
   });
 }

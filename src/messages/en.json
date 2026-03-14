@@ -99,6 +99,7 @@
     },
     "no-category": "No category",
     "shared-badge": "÷2",
+    "fiscal-doc-badge": "Has fiscal document",
     "groups": {
       "title": "Create Outing",
       "edit-title": "Edit Outing",
@@ -636,6 +637,7 @@
       "upload-title": "Upload Document",
       "upload-button": "Upload",
       "upload-submit": "Upload Document",
+      "upload-and-analyze": "Upload & Analyze",
       "bulk-title": "Bulk Upload",
       "bulk-button": "Bulk Upload",
       "bulk-drag-drop": "Drag & drop multiple files here",
@@ -647,6 +649,10 @@
       "drag-drop": "Drag & drop a file here",
       "browse": "Browse files",
       "download": "Download",
+      "linked-transaction": "Linked to transaction",
+      "download-linked": "Download fiscal document",
+      "linked-original": "Original amount",
+      "linked-group-items": "items",
       "delete-confirm": "Delete this document?",
       "empty": "No documents uploaded yet",
       "fields": {
@@ -703,6 +709,22 @@
       "aplazamiento": "Postponement reminders",
       "aplazamiento-hint": "Show when postponement can be requested during the voluntary period",
       "saved": "Settings saved"
+    },
+    "extraction": {
+      "confirm-title": "Review Extracted Data",
+      "analyzing": "Analyzing document...",
+      "analyzing-hint": "Extracting amounts, dates, and vendor data",
+      "step-uploading": "Uploading document...",
+      "step-analyzing": "Analyzing with AI...",
+      "ocr-hint": "Amount, date, and vendor will be auto-detected after upload",
+      "confidence": "Confidence",
+      "low-confidence": "Low confidence extraction — please review all fields carefully.",
+      "detected-vendor": "Detected",
+      "matched-vendor": "Matched",
+      "create-transaction": "Create Transaction",
+      "errors": {
+        "category-required": "Please select a category"
+      }
     },
     "errors": {
       "load": "Error loading fiscal report"

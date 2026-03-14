@@ -5,6 +5,7 @@
 
 import type {
   CompanyRole,
+  ExtractionStatus,
   FilingStatus,
   FiscalDocumentType,
   FiscalStatus,
@@ -20,6 +21,7 @@ import type {
 export type {
   CompanyRole,
   DateRangePreset,
+  ExtractionStatus,
   FilingStatus,
   FiscalDocumentType,
   FiscalQuarter,
@@ -94,6 +96,7 @@ export interface Transaction {
   vendorName: string | null;
   invoiceNumber: string | null;
   companyId: number | null;
+  fiscalDocumentId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -623,6 +626,21 @@ export interface InvoiceListItem {
 // ============================================================
 
 /**
+ * Data extracted from a fiscal document via OCR (all amounts in cents)
+ */
+export interface ExtractedInvoiceData {
+  totalAmountCents: number;
+  baseAmountCents: number | null;
+  taxAmountCents: number | null;
+  vatPercent: number | null;
+  date: string | null;
+  vendor: string | null;
+  invoiceNumber: string | null;
+  description: string | null;
+  confidence: number;
+}
+
+/**
  * Uploaded fiscal document (modelo or received invoice)
  */
 export interface FiscalDocument {
@@ -641,6 +659,8 @@ export interface FiscalDocument {
   transactionGroupId: number | null;
   companyId: number | null;
   description: string | null;
+  extractedData: ExtractedInvoiceData | null;
+  extractionStatus: ExtractionStatus;
   createdAt: string;
 }
 

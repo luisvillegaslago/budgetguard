@@ -4,9 +4,10 @@
  * All queries are user-scoped via getUserIdOrThrow().
  */
 
+import type { ExtractionStatus } from '@/constants/finance';
 import { FISCAL_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import type { FiscalDeadlineSettings, FiscalDocument, FiscalStatus } from '@/types/finance';
+import type { ExtractedInvoiceData, FiscalDeadlineSettings, FiscalDocument, FiscalStatus } from '@/types/finance';
 import { query } from './connection';
 
 // ============================================================
@@ -30,6 +31,8 @@ interface FiscalDocumentRow {
   TransactionGroupID: number | null;
   CompanyID: number | null;
   Description: string | null;
+  ExtractedData: ExtractedInvoiceData | null;
+  ExtractionStatus: string;
   CreatedAt: string;
 }
 
@@ -66,6 +69,8 @@ function rowToFiscalDocument(row: FiscalDocumentRow): FiscalDocument {
     transactionGroupId: row.TransactionGroupID,
     companyId: row.CompanyID,
     description: row.Description,
+    extractedData: row.ExtractedData ?? null,
+    extractionStatus: (row.ExtractionStatus ?? 'not_extracted') as ExtractionStatus,
     createdAt: row.CreatedAt,
   };
 }
@@ -251,6 +256,191 @@ export async function deleteDocument(id: number): Promise<string | null> {
     [id, userId],
   );
   return rows[0]?.BlobUrl ?? null;
+}
+
+// ============================================================
+// OCR Extraction
+// ============================================================
+
+/**
+ * Save OCR extraction result for a document
+ */
+export async function updateExtraction(
+  id: number,
+  data: ExtractedInvoiceData,
+  status: ExtractionStatus,
+): Promise<FiscalDocument | null> {
+  const userId = await getUserIdOrThrow();
+  const rows = await query<FiscalDocumentRow>(
+    `UPDATE "FiscalDocuments"
+     SET "ExtractedData" = $1, "ExtractionStatus" = $2
+     WHERE "DocumentID" = $3 AND "UserID" = $4
+     RETURNING *`,
+    [JSON.stringify(data), status, id, userId],
+  );
+  return rows[0] ? rowToFiscalDocument(rows[0]) : null;
+}
+
+/**
+ * Update extraction status (e.g. to 'extracting' or 'failed')
+ */
+export async function updateExtractionStatus(id: number, status: ExtractionStatus): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  await query('UPDATE "FiscalDocuments" SET "ExtractionStatus" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
+    status,
+    id,
+    userId,
+  ]);
+}
+
+/**
+ * Link a transaction to a fiscal document
+ */
+export async function linkTransaction(id: number, transactionId: number): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  await query('UPDATE "FiscalDocuments" SET "TransactionID" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
+    transactionId,
+    id,
+    userId,
+  ]);
+}
+
+/**
+ * Sync fiscal document data when the linked transaction is updated.
+ * Updates TaxAmountCents and ExtractedData.totalAmountCents to match the transaction.
+ */
+export async function syncDocumentWithTransaction(
+  transactionId: number,
+  amountCents: number,
+  originalAmountCents: number | null,
+): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  // Use original (pre-shared) amount for the document, since the invoice total is the full amount
+  const docAmountCents = originalAmountCents ?? amountCents;
+
+  await query(
+    `UPDATE "FiscalDocuments"
+     SET "TaxAmountCents" = $1,
+         "ExtractedData" = CASE
+           WHEN "ExtractedData" IS NOT NULL
+           THEN jsonb_set("ExtractedData", '{totalAmountCents}', $4::text::jsonb)
+           ELSE NULL
+         END
+     WHERE "TransactionID" = $2 AND "UserID" = $3`,
+    [docAmountCents, transactionId, userId, String(docAmountCents)],
+  );
+}
+
+/**
+ * Unlink fiscal document when the linked transaction is deleted.
+ */
+export async function unlinkTransactionDocuments(transactionId: number): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  await query('UPDATE "FiscalDocuments" SET "TransactionID" = NULL WHERE "TransactionID" = $1 AND "UserID" = $2', [
+    transactionId,
+    userId,
+  ]);
+}
+
+/**
+ * Find a matching transaction by amount (exact or shared ÷2) and date.
+ * Uses ±7 days window for income (invoices issued), ±3 days for expenses.
+ * Returns the transaction ID if found, null otherwise.
+ */
+export async function findMatchingTransaction(amountCents: number, transactionDate: string): Promise<number | null> {
+  const userId = await getUserIdOrThrow();
+  const halfAmountCents = Math.round(amountCents / 2);
+
+  const rows = await query<{ TransactionID: number }>(
+    `SELECT "TransactionID" FROM "Transactions"
+     WHERE ("AmountCents" = $1 OR ("AmountCents" = $4 AND "SharedDivisor" = 2))
+       AND "TransactionDate" BETWEEN ($2::date - INTERVAL '7 days') AND ($2::date + INTERVAL '7 days')
+       AND "UserID" = $3
+     ORDER BY ABS("TransactionDate" - $2::date)
+     LIMIT 1`,
+    [amountCents, transactionDate, userId, halfAmountCents],
+  );
+
+  return rows[0]?.TransactionID ?? null;
+}
+
+/**
+ * Link a transaction group to a fiscal document
+ */
+export async function linkTransactionGroup(id: number, transactionGroupId: number): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  await query('UPDATE "FiscalDocuments" SET "TransactionGroupID" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
+    transactionGroupId,
+    id,
+    userId,
+  ]);
+}
+
+/**
+ * Find matching transaction group by summing transactions from the same vendor
+ * on nearby dates (±3 days) that total the invoice amount.
+ * Works with both exact and shared (÷2) amounts.
+ * Returns the group ID if found or created, null otherwise.
+ */
+export async function findMatchingTransactionGroup(
+  amountCents: number,
+  transactionDate: string,
+  companyId: number | null,
+): Promise<number | null> {
+  if (!companyId) return null;
+  const userId = await getUserIdOrThrow();
+  const halfAmountCents = Math.round(amountCents / 2);
+
+  // Find transactions from same company within ±3 days
+  const rows = await query<{
+    TransactionID: number;
+    AmountCents: number;
+    OriginalAmountCents: number | null;
+    SharedDivisor: number;
+    TransactionGroupID: number | null;
+  }>(
+    `SELECT "TransactionID", "AmountCents", "OriginalAmountCents", "SharedDivisor", "TransactionGroupID"
+     FROM "Transactions"
+     WHERE "CompanyID" = $1
+       AND "TransactionDate" BETWEEN ($2::date - INTERVAL '3 days') AND ($2::date + INTERVAL '3 days')
+       AND "UserID" = $3
+     ORDER BY "TransactionDate"`,
+    [companyId, transactionDate, userId],
+  );
+
+  if (rows.length < 2) return null;
+
+  // Check if original amounts (pre-shared) sum to the invoice total
+  const totalOriginalCents = rows.reduce((sum, r) => sum + (r.OriginalAmountCents ?? r.AmountCents), 0);
+
+  // Allow ±1 cent tolerance for rounding
+  const matchesExact = Math.abs(totalOriginalCents - amountCents) <= 1;
+  const matchesShared = Math.abs(totalOriginalCents - halfAmountCents) <= 1;
+
+  if (!matchesExact && !matchesShared) return null;
+
+  // If transactions already share a group, return it
+  const existingGroupId = rows.find((r) => r.TransactionGroupID != null)?.TransactionGroupID;
+  if (existingGroupId && rows.every((r) => r.TransactionGroupID === existingGroupId)) {
+    return existingGroupId;
+  }
+
+  // Create a new group and assign all transactions to it
+  const groupRows = await query<{ TransactionGroupID: number }>(
+    'INSERT INTO "TransactionGroups" ("UserID") VALUES ($1) RETURNING "TransactionGroupID"',
+    [userId],
+  );
+  const groupId = groupRows[0]?.TransactionGroupID;
+  if (!groupId) return null;
+
+  const transactionIds = rows.map((r) => r.TransactionID);
+  await query('UPDATE "Transactions" SET "TransactionGroupID" = $1 WHERE "TransactionID" = ANY($2) AND "UserID" = $3', [
+    groupId,
+    transactionIds,
+    userId,
+  ]);
+
+  return groupId;
 }
 
 // ============================================================

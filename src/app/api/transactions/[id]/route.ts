@@ -7,6 +7,7 @@
 
 import { SHARED_EXPENSE } from '@/constants/finance';
 import { CreateTransactionSchema, validateRequest } from '@/schemas/transaction';
+import { syncDocumentWithTransaction, unlinkTransactionDocuments } from '@/services/database/FiscalDocumentRepository';
 import {
   cleanupOrphanedGroup,
   deleteTransaction,
@@ -72,6 +73,11 @@ export const PUT = withApiHandler(async (request, { params }) => {
   const transaction = await updateTransaction(transactionId, updateData);
   if (!transaction) return notFound('Transaccion no encontrada');
 
+  // Sync linked fiscal document if transaction has one
+  if (transaction.fiscalDocumentId != null) {
+    await syncDocumentWithTransaction(transactionId, transaction.amountCents, transaction.originalAmountCents);
+  }
+
   return { data: transaction };
 }, 'PUT /api/transactions/[id]');
 
@@ -83,6 +89,11 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
   // Check if transaction belongs to a group before deleting (for orphan cleanup)
   const existing = await getTransactionById(transactionId);
   if (!existing) return notFound('Transaccion no encontrada');
+
+  // Unlink fiscal documents before deleting
+  if (existing.fiscalDocumentId != null) {
+    await unlinkTransactionDocuments(transactionId);
+  }
 
   const deleted = await deleteTransaction(transactionId);
   if (!deleted) return notFound('Transaccion no encontrada');

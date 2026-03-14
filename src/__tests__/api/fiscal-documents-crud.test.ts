@@ -26,6 +26,8 @@ const mockDocument: FiscalDocument = {
   transactionGroupId: null,
   companyId: null,
   description: 'IVA Q1',
+  extractedData: null,
+  extractionStatus: 'not_extracted',
   createdAt: '2025-04-20T10:00:00.000Z',
 };
 

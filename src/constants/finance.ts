@@ -258,5 +258,15 @@ export const FILING_STATUS = {
 
 export type FilingStatus = (typeof FILING_STATUS)[keyof typeof FILING_STATUS];
 
+// Extraction Status (OCR pipeline)
+export const EXTRACTION_STATUS = {
+  NOT_EXTRACTED: 'not_extracted',
+  EXTRACTING: 'extracting',
+  EXTRACTED: 'extracted',
+  FAILED: 'failed',
+} as const;
+
+export type ExtractionStatus = (typeof EXTRACTION_STATUS)[keyof typeof EXTRACTION_STATUS];
+
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;

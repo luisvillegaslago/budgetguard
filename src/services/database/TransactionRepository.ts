@@ -38,6 +38,7 @@ interface TransactionRow {
   VendorName: string | null;
   InvoiceNumber: string | null;
   CompanyID: number | null;
+  FiscalDocumentID: number | null;
   CreatedAt: Date | string;
   UpdatedAt: Date | string;
 }
@@ -118,6 +119,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     vendorName: row.VendorName,
     invoiceNumber: row.InvoiceNumber,
     companyId: row.CompanyID,
+    fiscalDocumentId: row.FiscalDocumentID ?? null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -144,7 +146,9 @@ export async function getTransactionsByMonth(
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID", t."CreatedAt", t."UpdatedAt"
+      t."CompanyID",
+      (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
+      t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -196,7 +200,9 @@ export async function getTransactionById(transactionId: number): Promise<Transac
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID", t."CreatedAt", t."UpdatedAt"
+      t."CompanyID",
+      (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
+      t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"

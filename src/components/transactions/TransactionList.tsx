@@ -5,7 +5,7 @@
  * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import { ArrowDownLeft, ArrowUpRight, Pencil, Plane, Plus, Receipt, Repeat } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, FileCheck, Pencil, Plane, Plus, Receipt, Repeat } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
@@ -87,6 +87,13 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
           <Tooltip content={transaction.tripName ?? t('trips.badge')}>
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center gap-0.5">
               <Plane className="h-2.5 w-2.5" aria-hidden="true" />
+            </span>
+          </Tooltip>
+        )}
+        {transaction.fiscalDocumentId != null && (
+          <Tooltip content={t('transactions.fiscal-doc-badge')}>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+              <FileCheck className="h-2.5 w-2.5" aria-hidden="true" />
             </span>
           </Tooltip>
         )}

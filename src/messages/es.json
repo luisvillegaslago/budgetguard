@@ -99,6 +99,7 @@
     },
     "no-category": "Sin categoría",
     "shared-badge": "÷2",
+    "fiscal-doc-badge": "Tiene documento fiscal",
     "groups": {
       "title": "Crear Salida",
       "edit-title": "Editar Salida",
@@ -636,6 +637,7 @@
       "upload-title": "Subir Documento",
       "upload-button": "Subir",
       "upload-submit": "Subir Documento",
+      "upload-and-analyze": "Subir y Analizar",
       "bulk-title": "Subida Masiva",
       "bulk-button": "Subida Masiva",
       "bulk-drag-drop": "Arrastra y suelta varios archivos aquí",
@@ -647,6 +649,10 @@
       "drag-drop": "Arrastra y suelta un archivo aquí",
       "browse": "Explorar archivos",
       "download": "Descargar",
+      "linked-transaction": "Vinculado a transacción",
+      "download-linked": "Descargar documento fiscal",
+      "linked-original": "Importe original",
+      "linked-group-items": "conceptos",
       "delete-confirm": "¿Eliminar este documento?",
       "empty": "No hay documentos subidos",
       "fields": {
@@ -703,6 +709,22 @@
       "aplazamiento": "Recordatorios de aplazamiento",
       "aplazamiento-hint": "Avisar cuando se pueda solicitar aplazamiento dentro del periodo voluntario",
       "saved": "Ajustes guardados"
+    },
+    "extraction": {
+      "confirm-title": "Revisar Datos Extraídos",
+      "analyzing": "Analizando documento...",
+      "analyzing-hint": "Extrayendo importes, fechas y datos del proveedor",
+      "step-uploading": "Subiendo documento...",
+      "step-analyzing": "Analizando con IA...",
+      "ocr-hint": "El importe, fecha y proveedor se detectarán automáticamente al subir",
+      "confidence": "Confianza",
+      "low-confidence": "Extracción con baja confianza — revisa todos los campos cuidadosamente.",
+      "detected-vendor": "Detectado",
+      "matched-vendor": "Coincide",
+      "create-transaction": "Crear Transacción",
+      "errors": {
+        "category-required": "Selecciona una categoría"
+      }
     },
     "errors": {
       "load": "Error al cargar el informe fiscal"

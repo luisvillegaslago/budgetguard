@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { eurosToCents } from '@/utils/money';
 
 /**
  * Schema for fiscal document upload metadata
@@ -83,3 +84,80 @@ export const FiscalDocumentsFiltersSchema = z.object({
 });
 
 export type FiscalDocumentsFiltersInput = z.infer<typeof FiscalDocumentsFiltersSchema>;
+
+// ============================================================
+// OCR Extraction Schemas
+// ============================================================
+
+/**
+ * Sanitize OCR amount values: "419,28 €" → 419.28
+ */
+const sanitizeAmount = (val: unknown) =>
+  typeof val === 'string' ? Number.parseFloat(val.replace(/[€\s]/g, '').replace(',', '.')) : val;
+
+/**
+ * Schema for raw OCR output — validates and converts euros→cents via .transform()
+ * The caller receives ExtractedInvoiceData (all amounts in cents).
+ */
+export const ExtractedInvoiceRawSchema = z
+  .object({
+    totalAmountEuros: z.preprocess(
+      sanitizeAmount,
+      z
+        .number()
+        .positive()
+        .transform((euros) => eurosToCents(euros)),
+    ),
+    baseAmountEuros: z.preprocess(
+      sanitizeAmount,
+      z
+        .number()
+        .transform((euros) => eurosToCents(euros))
+        .nullable()
+        .optional(),
+    ),
+    taxAmountEuros: z.preprocess(
+      sanitizeAmount,
+      z
+        .number()
+        .transform((euros) => eurosToCents(euros))
+        .nullable()
+        .optional(),
+    ),
+    vatPercent: z.number().nullable().optional(),
+    date: z.string().nullable().optional(),
+    vendor: z.string().nullable().optional(),
+    invoiceNumber: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
+    confidence: z.number().min(0).max(1),
+  })
+  .transform((data) => ({
+    totalAmountCents: data.totalAmountEuros,
+    baseAmountCents: data.baseAmountEuros ?? null,
+    taxAmountCents: data.taxAmountEuros ?? null,
+    vatPercent: data.vatPercent ?? null,
+    date: data.date ?? null,
+    vendor: data.vendor ?? null,
+    invoiceNumber: data.invoiceNumber ?? null,
+    description: data.description ?? null,
+    confidence: data.confidence,
+  }));
+
+/**
+ * Schema for link-transaction request (create transaction + link to document)
+ */
+export const LinkTransactionSchema = z.object({
+  categoryId: z.number().int().positive(),
+  amountCents: z.number().int(),
+  transactionDate: z.string(),
+  type: z.enum(['income', 'expense']),
+  description: z.string().nullable().optional(),
+  vatPercent: z.number().nullable().optional(),
+  deductionPercent: z.number().nullable().optional(),
+  vendorName: z.string().nullable().optional(),
+  invoiceNumber: z.string().nullable().optional(),
+  companyId: z.number().int().positive().nullable().optional(),
+  isShared: z.boolean().optional(),
+});
+
+export type LinkTransactionInput = z.infer<typeof LinkTransactionSchema>;

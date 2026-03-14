@@ -203,7 +203,7 @@ export default function DocumentsPage() {
       {!isLoading && <FiscalDocumentList documents={displayedDocuments} year={year} />}
 
       {/* Upload Modal */}
-      {showUpload && <FiscalDocumentUpload year={year} quarter={quarter} onClose={() => setShowUpload(false)} />}
+      {showUpload && <FiscalDocumentUpload year={year} onClose={() => setShowUpload(false)} />}
 
       {/* Bulk Upload Modal */}
       {showBulkUpload && <FiscalBulkUpload onClose={() => setShowBulkUpload(false)} />}

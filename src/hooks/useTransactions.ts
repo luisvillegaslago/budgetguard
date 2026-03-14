@@ -142,6 +142,9 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
     },
   });
 }
@@ -157,6 +160,9 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
     },
   });
 }

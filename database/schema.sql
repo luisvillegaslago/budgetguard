@@ -784,6 +784,10 @@ CREATE TABLE "FiscalDocuments" (
     "TransactionGroupID" INT NULL,
     "CompanyID" INT NULL REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
     "Description" VARCHAR(255) NULL,
+    -- OCR extraction
+    "ExtractedData" JSONB DEFAULT NULL,
+    "ExtractionStatus" VARCHAR(20) DEFAULT 'not_extracted'
+        CHECK ("ExtractionStatus" IN ('not_extracted', 'extracting', 'extracted', 'failed')),
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     -- Modelos require ModeloType; facturas do not

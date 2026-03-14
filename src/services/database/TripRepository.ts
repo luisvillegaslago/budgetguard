@@ -124,6 +124,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     vendorName: null,
     invoiceNumber: null,
     companyId: null,
+    fiscalDocumentId: null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
