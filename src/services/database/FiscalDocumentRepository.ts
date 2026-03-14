@@ -294,6 +294,24 @@ export async function updateExtractionStatus(id: number, status: ExtractionStatu
 }
 
 /**
+ * Update document status, quarter, and tax amount after successful OCR extraction.
+ */
+export async function updateDocumentPostExtraction(
+  id: number,
+  status: string,
+  fiscalQuarter: number | null,
+  taxAmountCents: number | null,
+): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  await query(
+    `UPDATE "FiscalDocuments"
+     SET "Status" = $1, "FiscalQuarter" = $2, "TaxAmountCents" = $3
+     WHERE "DocumentID" = $4 AND "UserID" = $5`,
+    [status, fiscalQuarter, taxAmountCents, id, userId],
+  );
+}
+
+/**
  * Link a transaction to a fiscal document
  */
 export async function linkTransaction(id: number, transactionId: number): Promise<void> {

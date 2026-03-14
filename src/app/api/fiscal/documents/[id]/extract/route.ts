@@ -6,7 +6,7 @@
  *   2. Transaction group (multiple transactions from same vendor summing to invoice total)
  */
 
-import { EXTRACTION_STATUS } from '@/constants/finance';
+import { EXTRACTION_STATUS, FISCAL_STATUS } from '@/constants/finance';
 import {
   findMatchingTransaction,
   findMatchingTransactionGroup,
@@ -14,6 +14,7 @@ import {
   getDocumentById,
   linkTransaction,
   linkTransactionGroup,
+  updateDocumentPostExtraction,
   updateExtraction,
   updateExtractionStatus,
 } from '@/services/database/FiscalDocumentRepository';
@@ -48,8 +49,19 @@ export const POST = withApiHandler(async (_request, { params }) => {
     // Run OCR extraction
     const extractedData = await extractFromDocument(buffer, blobInfo.contentType, blobInfo.fileName);
 
-    // Save result
+    // Save extraction result
     const updated = await updateExtraction(documentId, extractedData, EXTRACTION_STATUS.EXTRACTED);
+
+    // Update status to filed + compute quarter from extracted date
+    const extractedQuarter = extractedData.date
+      ? Math.ceil((new Date(extractedData.date).getUTCMonth() + 1) / 3)
+      : null;
+    await updateDocumentPostExtraction(
+      documentId,
+      FISCAL_STATUS.FILED,
+      extractedQuarter,
+      extractedData.totalAmountCents,
+    );
 
     // Auto-match: try single transaction first, then group
     let matchedTransactionId: number | null = null;
