@@ -738,7 +738,7 @@ CREATE TABLE "InvoiceLineItems" (
     "LineItemID" SERIAL PRIMARY KEY,
     "InvoiceID" INT NOT NULL,
     "SortOrder" INT NOT NULL DEFAULT 0,
-    "Description" VARCHAR(500) NOT NULL,
+    "Description" VARCHAR(2000) NOT NULL,
     "Hours" NUMERIC(8,2) NULL,
     "HourlyRateCents" INT NULL,
     "AmountCents" INT NOT NULL,
