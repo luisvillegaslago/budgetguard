@@ -24,7 +24,7 @@ interface FiscalDocumentUploadProps {
 }
 
 export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProps) {
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [step, setStep] = useState<UploadStep>('idle');
@@ -78,7 +78,7 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
       if (uploaded.documentId) {
         setStep('analyzing');
         try {
-          const extracted = await extractMutation.mutateAsync(uploaded.documentId);
+          const extracted = await extractMutation.mutateAsync({ documentId: uploaded.documentId, locale });
           setStep('done');
           setExtractionData({ documentId: uploaded.documentId, data: extracted });
           return;

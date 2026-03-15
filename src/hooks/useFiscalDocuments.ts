@@ -178,10 +178,17 @@ export function useExtractDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (documentId: number): Promise<ExtractedInvoiceData> => {
-      const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${documentId}/extract`, {
-        method: 'POST',
-      });
+    mutationFn: async ({
+      documentId,
+      locale,
+    }: {
+      documentId: number;
+      locale: string;
+    }): Promise<ExtractedInvoiceData> => {
+      const response = await fetchApi(
+        `${API_ENDPOINT.FISCAL_DOCUMENTS}/${documentId}/extract?locale=${encodeURIComponent(locale)}`,
+        { method: 'POST' },
+      );
 
       if (!response.ok) {
         const err = await response.json();

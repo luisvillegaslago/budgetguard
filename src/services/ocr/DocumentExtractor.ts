@@ -6,10 +6,19 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import type { Locale } from '@/libs/i18n';
+import { DEFAULT_LOCALE } from '@/libs/i18n';
 import { ExtractedInvoiceRawSchema } from '@/schemas/fiscal-document';
 import type { ExtractedInvoiceData } from '@/types/finance';
 
-const EXTRACTION_PROMPT = `You are an invoice data extraction assistant. Analyze this document and extract the following information as JSON.
+const LOCALE_TO_LANGUAGE: Record<Locale, string> = {
+  en: 'English',
+  es: 'Spanish',
+};
+
+function getExtractionPrompt(locale: Locale = DEFAULT_LOCALE): string {
+  const language = LOCALE_TO_LANGUAGE[locale];
+  return `You are an invoice data extraction assistant. Analyze this document and extract the following information as JSON.
 
 Return ONLY a JSON object with these fields:
 - totalAmountEuros: number (total amount in euros, REQUIRED)
@@ -19,7 +28,7 @@ Return ONLY a JSON object with these fields:
 - date: string | null (invoice date in YYYY-MM-DD format)
 - vendor: string | null (vendor/company name)
 - invoiceNumber: string | null (invoice or document number)
-- description: string | null (brief description of what was purchased/billed)
+- description: string | null (brief description of what was purchased/billed, written in ${language})
 - confidence: number (your confidence in the extraction, 0.0 to 1.0)
 
 Rules:
@@ -28,6 +37,7 @@ Rules:
 - If the document is not an invoice/receipt, still try to extract what you can
 - Set confidence lower if the document is blurry, partially visible, or you're unsure
 - Return ONLY valid JSON, no markdown formatting or explanation`;
+}
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -50,6 +60,7 @@ export async function extractFromDocument(
   fileBuffer: Buffer,
   contentType: string,
   fileName: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<ExtractedInvoiceData> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -63,6 +74,7 @@ export async function extractFromDocument(
   const client = new Anthropic({ apiKey });
   const base64Data = fileBuffer.toString('base64');
   const isPdf = contentType === 'application/pdf';
+  const prompt = getExtractionPrompt(locale);
 
   const content: Anthropic.ContentBlockParam[] = isPdf
     ? [
@@ -70,14 +82,14 @@ export async function extractFromDocument(
           type: 'document',
           source: { type: 'base64', media_type: 'application/pdf', data: base64Data },
         },
-        { type: 'text', text: EXTRACTION_PROMPT },
+        { type: 'text', text: prompt },
       ]
     : [
         {
           type: 'image',
           source: { type: 'base64', media_type: getImageMediaType(contentType), data: base64Data },
         },
-        { type: 'text', text: EXTRACTION_PROMPT },
+        { type: 'text', text: prompt },
       ];
 
   const response = await client.messages.create({

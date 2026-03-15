@@ -232,7 +232,12 @@ function DocumentRow({
             <FileText className="h-4 w-4 text-guard-muted shrink-0" aria-hidden="true" />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-medium text-foreground truncate">{document.fileName}</p>
+                <p
+                  className="text-sm font-medium text-foreground truncate"
+                  title={document.displayName ? document.fileName : undefined}
+                >
+                  {document.displayName ?? document.fileName}
+                </p>
                 {hasLinkedTransaction && (
                   <button
                     type="button"
@@ -253,7 +258,9 @@ function DocumentRow({
           </div>
         </td>
         <td className="py-2.5 px-3">
-          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', typeStyle.badge)}>{typeLabel}</span>
+          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', typeStyle.badge)}>
+            {typeLabel}
+          </span>
         </td>
         <td className="py-2.5 px-3">
           <button

@@ -657,6 +657,7 @@ export interface FiscalDocument {
   transactionGroupId: number | null;
   companyId: number | null;
   description: string | null;
+  displayName: string | null;
   createdAt: string;
 }
 

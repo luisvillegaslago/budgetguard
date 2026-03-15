@@ -30,6 +30,7 @@ interface FiscalDocumentRow {
   TransactionGroupID: number | null;
   CompanyID: number | null;
   Description: string | null;
+  DisplayName: string | null;
   CreatedAt: string;
 }
 
@@ -66,6 +67,7 @@ function rowToFiscalDocument(row: FiscalDocumentRow): FiscalDocument {
     transactionGroupId: row.TransactionGroupID,
     companyId: row.CompanyID,
     description: row.Description,
+    displayName: row.DisplayName,
     createdAt: row.CreatedAt,
   };
 }
@@ -152,6 +154,7 @@ export interface CreateDocumentInput {
   transactionGroupId: number | null;
   companyId: number | null;
   description: string | null;
+  displayName?: string | null;
 }
 
 export async function createDocument(input: CreateDocumentInput): Promise<FiscalDocument> {
@@ -161,8 +164,8 @@ export async function createDocument(input: CreateDocumentInput): Promise<Fiscal
       "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
       "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
       "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
-      "CompanyID", "Description"
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      "CompanyID", "Description", "DisplayName"
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     RETURNING *`,
     [
       userId,
@@ -181,6 +184,7 @@ export async function createDocument(input: CreateDocumentInput): Promise<Fiscal
       input.transactionGroupId,
       input.companyId,
       input.description,
+      input.displayName ?? null,
     ],
   );
   return rowToFiscalDocument(rows[0]!);
@@ -190,7 +194,7 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
   if (inputs.length === 0) return [];
   const userId = await getUserIdOrThrow();
 
-  const COLS_PER_ROW = 16;
+  const COLS_PER_ROW = 17;
   const values: string[] = [];
   const params: unknown[] = [];
 
@@ -215,6 +219,7 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
       input.transactionGroupId,
       input.companyId,
       input.description,
+      input.displayName ?? null,
     );
   });
 
@@ -223,13 +228,25 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
       "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
       "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
       "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
-      "CompanyID", "Description"
+      "CompanyID", "Description", "DisplayName"
     ) VALUES ${values.join(', ')}
     RETURNING *`,
     params,
   );
 
   return rows.map(rowToFiscalDocument);
+}
+
+/**
+ * Update display name for a document (set after OCR extraction)
+ */
+export async function updateDocumentDisplayName(id: number, displayName: string): Promise<void> {
+  const userId = await getUserIdOrThrow();
+  await query('UPDATE "FiscalDocuments" SET "DisplayName" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
+    displayName,
+    id,
+    userId,
+  ]);
 }
 
 export async function updateDocumentStatus(id: number, status: string): Promise<FiscalDocument | null> {
