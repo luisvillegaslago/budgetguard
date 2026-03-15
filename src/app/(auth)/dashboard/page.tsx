@@ -6,7 +6,7 @@
  */
 
 import { Beer, FileInput, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
@@ -18,8 +18,8 @@ import { TransactionList } from '@/components/transactions/TransactionList';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { GOING_OUT_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
+import { useDashboardUrlSync } from '@/hooks/useDashboardUrlSync';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useFinanceStore } from '@/stores/useFinanceStore';
 import type { Transaction } from '@/types/finance';
 
 export default function DashboardPage() {
@@ -28,7 +28,9 @@ export default function DashboardPage() {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const goToCurrentMonth = useFinanceStore((s) => s.goToCurrentMonth);
+
+  // Bidirectional sync: URL ↔ Zustand (month, type filter)
+  useDashboardUrlSync();
 
   // Resolve "Salir" category ID for the going-out shortcut
   const { data: expenseCategories } = useCategoriesHierarchical(TRANSACTION_TYPE.EXPENSE);
@@ -36,12 +38,6 @@ export default function DashboardPage() {
     () => expenseCategories?.find((c) => c.name === GOING_OUT_CATEGORY.NAME)?.categoryId,
     [expenseCategories],
   );
-
-  // Sync selected month with actual current month on mount
-  // Prevents stale state from HMR/module caching in development
-  useEffect(() => {
-    goToCurrentMonth();
-  }, [goToCurrentMonth]);
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

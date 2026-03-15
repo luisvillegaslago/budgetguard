@@ -13,8 +13,16 @@ import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { INVOICE_STATUS } from '@/constants/finance';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
+import { useUrlParams } from '@/hooks/useUrlParams';
 import type { InvoiceStatus } from '@/types/finance';
 import { cn } from '@/utils/helpers';
+
+const VALID_STATUSES = new Set<string>([
+  INVOICE_STATUS.DRAFT,
+  INVOICE_STATUS.FINALIZED,
+  INVOICE_STATUS.PAID,
+  INVOICE_STATUS.CANCELLED,
+]);
 
 const STATUS_FILTERS: Array<{ key: string; value: InvoiceStatus | undefined }> = [
   { key: 'all', value: undefined },
@@ -28,7 +36,11 @@ export default function InvoicesPage() {
   const { t } = useTranslate();
   const router = useRouter();
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | undefined>(undefined);
+  const { searchParams, updateParams } = useUrlParams('/invoices');
+
+  const statusParam = searchParams.get('status');
+  const statusFilter: InvoiceStatus | undefined =
+    statusParam && VALID_STATUSES.has(statusParam) ? (statusParam as InvoiceStatus) : undefined;
 
   const { data: invoices, isLoading } = useInvoices(statusFilter ? { status: statusFilter } : undefined);
 
@@ -57,7 +69,7 @@ export default function InvoicesPage() {
           <button
             key={filter.key}
             type="button"
-            onClick={() => setStatusFilter(filter.value)}
+            onClick={() => updateParams({ status: filter.value })}
             className={cn(
               'px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
               statusFilter === filter.value

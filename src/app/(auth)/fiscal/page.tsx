@@ -9,7 +9,7 @@
  */
 
 import { Calculator } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDeadlinePanel } from '@/components/fiscal/FiscalDeadlinePanel';
 import { FiscalExpenseTable } from '@/components/fiscal/FiscalExpenseTable';
@@ -27,6 +27,7 @@ import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/fi
 import { useFiscalDocuments } from '@/hooks/useFiscalDocuments';
 import { useAnnualFiscalReport, useFiscalReport } from '@/hooks/useFiscalReport';
 import { useTranslate } from '@/hooks/useTranslations';
+import { useUrlParams } from '@/hooks/useUrlParams';
 import type { FiscalDocument } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 
@@ -49,10 +50,20 @@ function getFilingInfo(
 
 export default function FiscalPage() {
   const { t } = useTranslate();
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [quarter, setQuarter] = useState(getCurrentQuarter);
-  const [view, setView] = useState<FiscalView>('quarterly');
+  const { searchParams, updateParams } = useUrlParams('/fiscal');
   const [uploadModelo, setUploadModelo] = useState<ModeloType | null>(null);
+
+  // Read filters from URL (defaults: current year, current quarter, quarterly view)
+  const year = Number(searchParams.get('year')) || new Date().getFullYear();
+  const quarter = Number(searchParams.get('quarter')) || getCurrentQuarter();
+  const view: FiscalView = searchParams.get('view') === 'annual' ? 'annual' : 'quarterly';
+
+  const setYear = useCallback((y: number) => updateParams({ year: String(y) }), [updateParams]);
+  const setQuarter = useCallback((q: number) => updateParams({ quarter: String(q) }), [updateParams]);
+  const setView = useCallback(
+    (v: FiscalView) => updateParams({ view: v === 'quarterly' ? undefined : v }),
+    [updateParams],
+  );
 
   const { data: report, isLoading, isError } = useFiscalReport(year, quarter);
   const { data: annualReport, isLoading: isAnnualLoading, isError: isAnnualError } = useAnnualFiscalReport(year);

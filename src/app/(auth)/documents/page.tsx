@@ -8,7 +8,6 @@
  */
 
 import { FileInput, FileOutput, FileText, Plus, ScrollText, Upload } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { FiscalBulkUpload } from '@/components/fiscal/FiscalBulkUpload';
 import { FiscalDocumentList } from '@/components/fiscal/FiscalDocumentList';
@@ -24,6 +23,7 @@ import type { FiscalDocumentType } from '@/constants/finance';
 import { FISCAL_DOCUMENT_TYPE } from '@/constants/finance';
 import { useFiscalDocuments } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
+import { useUrlParams } from '@/hooks/useUrlParams';
 import type { FiscalDocument } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 
@@ -91,10 +91,9 @@ const STAGGER_CLASSES = ['stagger-1', 'stagger-2', 'stagger-3'] as const;
 
 export default function DocumentsPage() {
   const { t } = useTranslate();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [showUpload, setShowUpload] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const { searchParams, updateParams } = useUrlParams('/documents');
 
   // Read filters from URL
   const year = Number(searchParams.get('year')) || CURRENT_YEAR;
@@ -102,22 +101,6 @@ export default function DocumentsPage() {
   const quarter = quarterParam ? Number(quarterParam) : undefined;
   const typeParam = searchParams.get('type');
   const documentType = typeParam && VALID_DOC_TYPES.has(typeParam) ? (typeParam as FiscalDocumentType) : undefined;
-
-  // Update URL query params without full navigation
-  const updateParams = useCallback(
-    (updates: Record<string, string | undefined>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value === undefined) {
-          params.delete(key);
-        } else {
-          params.set(key, value);
-        }
-      });
-      router.replace(`/documents?${params.toString()}`, { scroll: false });
-    },
-    [router, searchParams],
-  );
 
   const setYear = useCallback((y: number) => updateParams({ year: String(y) }), [updateParams]);
 
