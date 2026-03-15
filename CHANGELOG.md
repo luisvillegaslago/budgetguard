@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.9.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.8.0...v0.9.0) (2026-03-15)
+
+
+### Features
+
+* add company transactions, UI components, and schema updates ([70fc7b4](https://github.com/luisvillegaslago/budgetguard/commit/70fc7b4799243bdb44051cbfeb82b49512e0f915))
+* add default hourly rate to billing profile with invoice form prepopulation ([6aa6f73](https://github.com/luisvillegaslago/budgetguard/commit/6aa6f7371da2b44e1e60d01063869c09584c8fd4))
+* add invoice upload button to dashboard ([552ab7f](https://github.com/luisvillegaslago/budgetguard/commit/552ab7fd4ef68eb55b4cbee0fc47636cfea44f3d))
+* add OCR extraction for fiscal documents with auto-transaction linking ([2a50179](https://github.com/luisvillegaslago/budgetguard/commit/2a501794a620f4fd78bcfb9a01210bdc9d28b071))
+* add revert-to-draft for issued invoices and responsive action bar ([64cb039](https://github.com/luisvillegaslago/budgetguard/commit/64cb039ba32bb18e4b5721c38a65357d6b85e16e))
+* auto-create linked transactions for individual skydive jumps and tunnel sessions ([fe3d9f5](https://github.com/luisvillegaslago/budgetguard/commit/fe3d9f57f43110c1df59b7a2adb2c9e0236ced67))
+* auto-refresh draft invoice snapshot on PDF generation ([60d921b](https://github.com/luisvillegaslago/budgetguard/commit/60d921bbf9ea25e487e75c639dde94971d9b1811))
+* implement fiscal documents and AEAT deadlines module ([d0d4439](https://github.com/luisvillegaslago/budgetguard/commit/d0d4439d7e5529893b5b60735d8b41577cb2ff68))
+* implement invoice finalization, draft reversion, and company transaction detail ([09dc6d8](https://github.com/luisvillegaslago/budgetguard/commit/09dc6d8557b48ea11d439571d35215e0caf35acd))
+* implement invoice finalize flow with PDF generation and blob storage ([3d1ee32](https://github.com/luisvillegaslago/budgetguard/commit/3d1ee32beeedd459ee4ce1bb5f67505a6f074a93))
+* improve delete confirmation and OCR error handling ([79b6b48](https://github.com/luisvillegaslago/budgetguard/commit/79b6b48c8c9d483bb58cf733a9442f84eac20792))
+* improve transaction form layout and company selector UX ([a64c8c2](https://github.com/luisvillegaslago/budgetguard/commit/a64c8c2eb4dd29d5eef04415f5d859fb10c6d0dc))
+* include finalized invoices in fiscal reports before payment ([1d36748](https://github.com/luisvillegaslago/budgetguard/commit/1d367489bcadbcf1c7c9b2f90e9b975ee9ebc017))
+* invoice lifecycle improvements and confirm dialogs ([29ea174](https://github.com/luisvillegaslago/budgetguard/commit/29ea1742d9628f0b6522ce072be55df6492759e4))
+* locale-aware OCR descriptions and normalized document display names ([9297aa6](https://github.com/luisvillegaslago/budgetguard/commit/9297aa69a1c6540a189296866f5fa5d6d3e445ba))
+* persist document filters in URL for improved navigation ([d8ba7c1](https://github.com/luisvillegaslago/budgetguard/commit/d8ba7c19d4d50f4c361d02558e7388faa8e50849))
+* persist page filters in URL query params ([9479432](https://github.com/luisvillegaslago/budgetguard/commit/947943233534a51a343385f3d21078279b0f0b29))
+* responsive tables, normalized tokens, and color consistency ([f9c1d60](https://github.com/luisvillegaslago/budgetguard/commit/f9c1d60d904fbbc7dc5d3bdc8d8a55b09c6f9c3c))
+* separate companies into clients and providers with role-based sub-tabs ([e0a38ed](https://github.com/luisvillegaslago/budgetguard/commit/e0a38ed1d2ca272d9732aa25cfc519f30abdce9c))
+* set invoice date before PDF generation ([45a052d](https://github.com/luisvillegaslago/budgetguard/commit/45a052d07a8346e89c151b91dc209fac7bbac766))
+* show download link for filed modelos in fiscal page ([4564fc6](https://github.com/luisvillegaslago/budgetguard/commit/4564fc6d61921159b0c87ab85003c1091afff23b))
+
+
+### Bug Fixes
+
+* add dark mode support for checkbox input styling ([a1f9c24](https://github.com/luisvillegaslago/budgetguard/commit/a1f9c245e26f40d76d819ae04989da57282e8364))
+* add invoice tables to database sync service ([a14a9ff](https://github.com/luisvillegaslago/budgetguard/commit/a14a9ff8f779438715f06fa8287613064c9429bf))
+* ensure date-driven logic uses current date accurately ([03311bc](https://github.com/luisvillegaslago/budgetguard/commit/03311bc3b14a54318f5249a3b58ce105b6ee2dc3))
+* improve OCR error messages and show delete option on failure ([6564d0e](https://github.com/luisvillegaslago/budgetguard/commit/6564d0ee1f761aa29ceb5009e0dc23d1c1aad2e5))
+* mark uploaded invoices as filed with quarter after OCR extraction ([eb6a7ab](https://github.com/luisvillegaslago/budgetguard/commit/eb6a7ab20580a4834eae0196291e229602d31491))
+* show error and delete option when OCR extraction fails ([adeb3c7](https://github.com/luisvillegaslago/budgetguard/commit/adeb3c738b1b6e60826ed4b3dc8aa6e962e2347e))
+* simplify grouped transaction title to show only parent category ([9b42104](https://github.com/luisvillegaslago/budgetguard/commit/9b421040860b780f0b46b7ae083eb523ce025f45))
+
 ## [0.8.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.7.1...v0.8.0) (2026-03-10)
 
 
