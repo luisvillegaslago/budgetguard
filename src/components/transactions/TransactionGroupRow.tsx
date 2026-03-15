@@ -57,11 +57,8 @@ export function TransactionGroupRow({
 
         {/* Category & Description */}
         <div className="flex-1 min-w-0">
-          <OverflowTooltip content={`${group.parentCategoryName}${group.description ? ` › ${group.description}` : ''}`}>
-            <p className="text-sm font-medium text-foreground truncate">
-              {group.parentCategoryName}
-              {group.description ? ` › ${group.description}` : ''}
-            </p>
+          <OverflowTooltip content={group.parentCategoryName}>
+            <p className="text-sm font-medium text-foreground truncate">{group.parentCategoryName}</p>
           </OverflowTooltip>
           <p className="text-xs text-guard-muted">
             {group.transactions.length}{' '}
