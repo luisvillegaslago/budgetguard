@@ -138,6 +138,11 @@
   }
 }
 
+/* Checkbox styling — match input background in dark mode */
+input[type='checkbox'] {
+  color-scheme: only light;
+}
+
 /* Custom scrollbar */
 * {
   scrollbar-width: thin;
