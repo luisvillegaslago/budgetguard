@@ -312,7 +312,7 @@ export default function InvoiceDetailPage() {
               key={item.lineItemId}
               className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-3 py-3 border-b border-border text-sm"
             >
-              <span className="text-foreground">{item.description}</span>
+              <span className="text-foreground whitespace-pre-line">{item.description}</span>
               <span className="text-center text-guard-muted">{item.hours != null ? item.hours : '-'}</span>
               <span className="text-right text-guard-muted">
                 {item.hourlyRateCents != null ? formatRate(item.hourlyRateCents) : '-'}
