@@ -3,13 +3,13 @@
  * Database operations for skydive jumps, tunnel sessions, and stats (user-scoped)
  */
 
-import { SKYDIVE_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, SKYDIVE_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { ImportJumpRow, ImportTunnelRow } from '@/schemas/skydive';
 import type { Category } from '@/types/finance';
 import type { ImportResult, JumpsByType, JumpsByYear, SkydiveJump, SkydiveStats, TunnelSession } from '@/types/skydive';
 import { toDateString } from '@/utils/helpers';
-import { query } from './connection';
+import { getPool, query } from './connection';
 
 // ============================================================
 // Row types
@@ -128,6 +128,27 @@ function rowToTunnelSession(row: TunnelRow): TunnelSession {
 }
 
 // ============================================================
+// Subcategory Lookup
+// ============================================================
+
+/**
+ * Find the CategoryID for a named subcategory under the "Paracaidismo" parent.
+ * Returns null if the subcategory does not exist for this user.
+ */
+export async function findSkydiveSubcategoryId(subcategoryName: string, userId: number): Promise<number | null> {
+  const result = await query<{ CategoryID: number }>(
+    `SELECT sub."CategoryID"
+     FROM "Categories" sub
+     INNER JOIN "Categories" parent ON sub."ParentCategoryID" = parent."CategoryID"
+     WHERE parent."Name" = $1 AND sub."Name" = $2
+       AND parent."ParentCategoryID" IS NULL AND sub."UserID" = $3
+     LIMIT 1`,
+    [SKYDIVE_CATEGORY.NAME, subcategoryName, userId],
+  );
+  return result[0]?.CategoryID ?? null;
+}
+
+// ============================================================
 // Jump Queries (user-scoped)
 // ============================================================
 
@@ -225,37 +246,108 @@ export async function createJump(data: {
   landingDistanceM?: number | null;
   comment?: string | null;
   priceCents?: number | null;
+  categoryId?: number | null;
 }): Promise<SkydiveJump> {
   const userId = await getUserIdOrThrow();
+  const shouldLinkTransaction = data.priceCents != null && data.priceCents > 0 && data.categoryId != null;
 
-  const result = await query<JumpRow>(
-    `INSERT INTO "SkydiveJumps" ("JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
-      "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM", "Comment", "PriceCents", "UserID")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-     RETURNING "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
-       "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
-       "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
-    [
-      data.jumpNumber,
-      data.title ?? null,
-      data.jumpDate,
-      data.dropzone ?? null,
-      data.canopy ?? null,
-      data.wingsuit ?? null,
-      data.freefallTimeSec ?? null,
-      data.jumpType ?? null,
-      data.aircraft ?? null,
-      data.exitAltitudeFt ?? null,
-      data.landingDistanceM ?? null,
-      data.comment ?? null,
-      data.priceCents ?? null,
-      userId,
-    ],
-  );
+  // Simple insert when no transaction linking is needed
+  if (!shouldLinkTransaction) {
+    const result = await query<JumpRow>(
+      `INSERT INTO "SkydiveJumps" ("JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
+        "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM", "Comment", "PriceCents", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
+         "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
+         "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
+      [
+        data.jumpNumber,
+        data.title ?? null,
+        data.jumpDate,
+        data.dropzone ?? null,
+        data.canopy ?? null,
+        data.wingsuit ?? null,
+        data.freefallTimeSec ?? null,
+        data.jumpType ?? null,
+        data.aircraft ?? null,
+        data.exitAltitudeFt ?? null,
+        data.landingDistanceM ?? null,
+        data.comment ?? null,
+        data.priceCents ?? null,
+        userId,
+      ],
+    );
+    const row = result[0];
+    if (!row) throw new Error('Failed to create jump');
+    return rowToJump(row);
+  }
 
-  const row = result[0];
-  if (!row) throw new Error('Failed to create jump');
-  return rowToJump(row);
+  // Atomic transaction: insert jump + linked expense transaction
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const jumpResult = await client.query<JumpRow>(
+      `INSERT INTO "SkydiveJumps" ("JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
+        "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM", "Comment", "PriceCents", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
+         "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
+         "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
+      [
+        data.jumpNumber,
+        data.title ?? null,
+        data.jumpDate,
+        data.dropzone ?? null,
+        data.canopy ?? null,
+        data.wingsuit ?? null,
+        data.freefallTimeSec ?? null,
+        data.jumpType ?? null,
+        data.aircraft ?? null,
+        data.exitAltitudeFt ?? null,
+        data.landingDistanceM ?? null,
+        data.comment ?? null,
+        data.priceCents ?? null,
+        userId,
+      ],
+    );
+
+    const jumpRow = jumpResult.rows[0];
+    if (!jumpRow) throw new Error('Failed to create jump');
+
+    const description = data.dropzone ? `Salto – ${data.dropzone}` : 'Salto paracaidismo';
+    const jumpDate = typeof data.jumpDate === 'string' ? data.jumpDate : toDateString(data.jumpDate);
+
+    const txResult = await client.query<{ TransactionID: number }>(
+      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING "TransactionID"`,
+      [
+        data.categoryId,
+        data.priceCents,
+        description,
+        jumpDate,
+        TRANSACTION_TYPE.EXPENSE,
+        SHARED_EXPENSE.DEFAULT_DIVISOR,
+        userId,
+      ],
+    );
+
+    const txId = txResult.rows[0]?.TransactionID;
+    if (txId) {
+      await client.query('UPDATE "SkydiveJumps" SET "TransactionID" = $1 WHERE "JumpID" = $2', [txId, jumpRow.JumpID]);
+      jumpRow.TransactionID = txId;
+    }
+
+    await client.query('COMMIT');
+    return rowToJump(jumpRow);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateJump(jumpId: number, data: Record<string, unknown>): Promise<SkydiveJump | null> {
@@ -423,28 +515,93 @@ export async function createTunnelSession(data: {
   durationSec: number;
   notes?: string | null;
   priceCents?: number | null;
+  categoryId?: number | null;
 }): Promise<TunnelSession> {
   const userId = await getUserIdOrThrow();
+  const shouldLinkTransaction = data.priceCents != null && data.priceCents > 0 && data.categoryId != null;
 
-  const result = await query<TunnelRow>(
-    `INSERT INTO "TunnelSessions" ("SessionDate", "Location", "SessionType", "DurationSec", "Notes", "PriceCents", "UserID")
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
-       "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
-    [
-      data.sessionDate,
-      data.location ?? null,
-      data.sessionType ?? null,
-      data.durationSec,
-      data.notes ?? null,
-      data.priceCents ?? null,
-      userId,
-    ],
-  );
+  // Simple insert when no transaction linking is needed
+  if (!shouldLinkTransaction) {
+    const result = await query<TunnelRow>(
+      `INSERT INTO "TunnelSessions" ("SessionDate", "Location", "SessionType", "DurationSec", "Notes", "PriceCents", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
+         "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
+      [
+        data.sessionDate,
+        data.location ?? null,
+        data.sessionType ?? null,
+        data.durationSec,
+        data.notes ?? null,
+        data.priceCents ?? null,
+        userId,
+      ],
+    );
+    const row = result[0];
+    if (!row) throw new Error('Failed to create tunnel session');
+    return rowToTunnelSession(row);
+  }
 
-  const row = result[0];
-  if (!row) throw new Error('Failed to create tunnel session');
-  return rowToTunnelSession(row);
+  // Atomic transaction: insert session + linked expense transaction
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const sessionResult = await client.query<TunnelRow>(
+      `INSERT INTO "TunnelSessions" ("SessionDate", "Location", "SessionType", "DurationSec", "Notes", "PriceCents", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
+         "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
+      [
+        data.sessionDate,
+        data.location ?? null,
+        data.sessionType ?? null,
+        data.durationSec,
+        data.notes ?? null,
+        data.priceCents ?? null,
+        userId,
+      ],
+    );
+
+    const sessionRow = sessionResult.rows[0];
+    if (!sessionRow) throw new Error('Failed to create tunnel session');
+
+    const description = data.location ? `Túnel – ${data.location}` : 'Túnel de viento';
+    const sessionDate = typeof data.sessionDate === 'string' ? data.sessionDate : toDateString(data.sessionDate);
+
+    const txResult = await client.query<{ TransactionID: number }>(
+      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING "TransactionID"`,
+      [
+        data.categoryId,
+        data.priceCents,
+        description,
+        sessionDate,
+        TRANSACTION_TYPE.EXPENSE,
+        SHARED_EXPENSE.DEFAULT_DIVISOR,
+        userId,
+      ],
+    );
+
+    const txId = txResult.rows[0]?.TransactionID;
+    if (txId) {
+      await client.query('UPDATE "TunnelSessions" SET "TransactionID" = $1 WHERE "SessionID" = $2', [
+        txId,
+        sessionRow.SessionID,
+      ]);
+      sessionRow.TransactionID = txId;
+    }
+
+    await client.query('COMMIT');
+    return rowToTunnelSession(sessionRow);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateTunnelSession(

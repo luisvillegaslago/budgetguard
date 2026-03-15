@@ -37,9 +37,9 @@ jest.mock('@/libs/auth', () => ({
   AuthError: class AuthError extends Error {},
 }));
 
-// Mock database connection (used by import route to find tunnel category)
+// Mock database connection
 jest.mock('@/services/database/connection', () => ({
-  query: jest.fn(async () => [{ CategoryID: 10 }]),
+  query: jest.fn(async () => []),
 }));
 
 // Mock the SkydiveRepository
@@ -59,6 +59,7 @@ jest.mock('@/services/database/SkydiveRepository', () => ({
     capturedBulkRows = rows;
     return { ...mockImportResult, total: rows.length, inserted: rows.length, skipped: 0 };
   }),
+  findSkydiveSubcategoryId: jest.fn(async () => 10),
 }));
 
 // Mock NextResponse

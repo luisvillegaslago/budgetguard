@@ -141,6 +141,10 @@ export const SKYDIVE_CATEGORY = {
   NAME: 'Paracaidismo',
   ICON: 'cloud',
   COLOR: '#84CC16',
+  SUBCATEGORY: {
+    TUNNEL: 'Túnel de viento',
+    JUMPS: 'Saltos',
+  },
 } as const;
 
 // Date Range Presets (for category history)

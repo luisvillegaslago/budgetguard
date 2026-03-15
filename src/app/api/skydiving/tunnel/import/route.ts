@@ -9,8 +9,7 @@ import { SKYDIVE_CATEGORY } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { ImportTunnelRow } from '@/schemas/skydive';
 import { ImportTunnelRowSchema } from '@/schemas/skydive';
-import { query } from '@/services/database/connection';
-import { bulkCreateTunnelSessions } from '@/services/database/SkydiveRepository';
+import { bulkCreateTunnelSessions, findSkydiveSubcategoryId } from '@/services/database/SkydiveRepository';
 import { withApiHandler } from '@/utils/apiHandler';
 
 const ImportBodySchema = z.object({
@@ -43,16 +42,7 @@ export const POST = withApiHandler(async (request) => {
 
   // Find the "Túnel de viento" subcategory to link transactions
   const userId = await getUserIdOrThrow();
-  const catResult = await query<{ CategoryID: number }>(
-    `SELECT sub."CategoryID"
-     FROM "Categories" sub
-     INNER JOIN "Categories" parent ON sub."ParentCategoryID" = parent."CategoryID"
-     WHERE parent."Name" = $1 AND sub."Name" = 'Túnel de viento'
-       AND parent."ParentCategoryID" IS NULL AND sub."UserID" = $2
-     LIMIT 1`,
-    [SKYDIVE_CATEGORY.NAME, userId],
-  );
-  const tunnelCategoryId = catResult[0]?.CategoryID ?? null;
+  const tunnelCategoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL, userId);
 
   const importResult = await bulkCreateTunnelSessions(validRows, tunnelCategoryId);
 

@@ -178,7 +178,7 @@ src/
 │   │   ├── FiscalDocumentRepository.ts # Fiscal document CRUD + auto-matching + linking
 │   │   ├── InvoiceRepository.ts       # Invoice + prefix + billing profile CRUD
 │   │   ├── CompanyRepository.ts       # Company CRUD + role filtering
-│   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats
+│   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats, tx linking
 │   │   └── SyncService.ts            # Bidirectional database sync
 │   ├── ocr/
 │   │   └── DocumentExtractor.ts       # Claude Vision OCR extraction
@@ -708,7 +708,7 @@ export const API_ENDPOINT = {
 
 ### 7. Skydiving Module (Jump Log & Tunnel Sessions)
 
-Tracks skydiving jump logs and wind tunnel training sessions, with CSV bulk import, aggregated statistics, and optional transaction linking.
+Tracks skydiving jump logs and wind tunnel training sessions, with CSV bulk import, aggregated statistics, and automatic transaction linking when a price is provided.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -725,6 +725,10 @@ Tracks skydiving jump logs and wind tunnel training sessions, with CSV bulk impo
 │  ├── vw_SkydivingStats (totals, cost, freefall time)          │
 │  ├── vw_JumpsByType (count + freefall per jump type)          │
 │  └── vw_JumpsByYear (count + freefall per year)               │
+│                                                               │
+│  Transaction Linking (when PriceCents > 0):                   │
+│  ├── Single create: atomic BEGIN/COMMIT (insert + tx + link)  │
+│  └── Bulk import: post-insert linking for rows without tx     │
 │                                                               │
 │  Bulk Import:                                                 │
 │  ├── Jumps: ON CONFLICT (JumpNumber, UserID) DO NOTHING       │
@@ -1121,6 +1125,9 @@ MODELO_TYPE = { M303: '303', M130: '130', M390: '390', M100: '100' }
 
 // Extraction status (OCR pipeline)
 EXTRACTION_STATUS = { NOT_EXTRACTED: 'not_extracted', EXTRACTING: 'extracting', EXTRACTED: 'extracted', FAILED: 'failed' }
+
+// Well-known category references (used to find subcategory IDs for transaction linking)
+SKYDIVE_CATEGORY = { NAME: 'Paracaidismo', ICON: 'cloud', COLOR: '#84CC16', SUBCATEGORY: { TUNNEL: 'Túnel de viento', JUMPS: 'Saltos' } }
 
 // TanStack Query keys
 QUERY_KEY = {
