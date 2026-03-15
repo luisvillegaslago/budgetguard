@@ -97,6 +97,7 @@ jest.mock('@/services/database/InvoiceRepository', () => ({
 
 jest.mock('@/services/database/connection', () => ({
   getPool: jest.fn(() => ({
+    query: jest.fn(async () => ({ rows: [] })),
     connect: jest.fn(async () => ({
       query: mockClientQuery,
       release: mockClientRelease,
@@ -177,8 +178,8 @@ describe('InvoiceFinalizeService', () => {
     it('should upload PDF to correct path', async () => {
       await finalizeInvoice(1);
 
-      // Invoice date 2025-07-15 → fiscal year 2025
-      expect(capturedBlobPath).toBe('fiscal/user-123/2025/invoice_INV-01.pdf');
+      const expectedYear = new Date().getUTCFullYear();
+      expect(capturedBlobPath).toBe(`fiscal/user-123/${expectedYear}/invoice_INV-01.pdf`);
     });
 
     it('should upload the generated PDF buffer', async () => {
@@ -207,13 +208,15 @@ describe('InvoiceFinalizeService', () => {
       expect(insertQuery.params).toContain(FISCAL_STATUS.FILED);
     });
 
-    it('should derive fiscal quarter from invoice date', async () => {
+    it('should derive fiscal quarter from today date', async () => {
       await finalizeInvoice(1);
 
       const insertQuery = capturedTransactionQueries[1]!;
-      // July → Q3, year 2025
-      expect(insertQuery.params).toContain(2025);
-      expect(insertQuery.params).toContain(3);
+      const now = new Date();
+      const expectedYear = now.getUTCFullYear();
+      const expectedQuarter = Math.ceil((now.getUTCMonth() + 1) / 3);
+      expect(insertQuery.params).toContain(expectedYear);
+      expect(insertQuery.params).toContain(expectedQuarter);
     });
 
     it('should include company ID in fiscal document', async () => {

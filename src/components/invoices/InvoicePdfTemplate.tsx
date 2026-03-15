@@ -237,17 +237,20 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
           <View style={styles.clientSection}>
             <Text style={styles.billToLabel}>{l.billTo}</Text>
             <Text style={styles.clientName}>{invoice.clientName}</Text>
-            {invoice.clientTradingName && <Text style={styles.clientDetail}>{invoice.clientTradingName}</Text>}
-            {invoice.clientAddress && <Text style={styles.clientDetail}>{invoice.clientAddress}</Text>}
+            {invoice.clientTradingName && <Text style={styles.clientDetail}>{invoice.clientTradingName.trim()}</Text>}
+            {invoice.clientAddress && <Text style={styles.clientDetail}>{invoice.clientAddress.trim()}</Text>}
             {(invoice.clientCity || invoice.clientPostalCode) && (
               <Text style={styles.clientDetail}>
-                {[invoice.clientPostalCode, invoice.clientCity].filter(Boolean).join(' ')}
+                {[invoice.clientPostalCode, invoice.clientCity]
+                  .filter(Boolean)
+                  .map((s) => s?.trim())
+                  .join(' ')}
               </Text>
             )}
-            {invoice.clientCountry && <Text style={styles.clientDetail}>{invoice.clientCountry}</Text>}
+            {invoice.clientCountry && <Text style={styles.clientDetail}>{invoice.clientCountry.trim()}</Text>}
             {invoice.clientTaxId && (
               <Text style={styles.clientDetail}>
-                {l.taxId}: {invoice.clientTaxId}
+                {l.taxId}: {invoice.clientTaxId.trim()}
               </Text>
             )}
           </View>
