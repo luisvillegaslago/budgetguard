@@ -5,7 +5,7 @@
  */
 
 import type { TransactionType } from '@/constants/finance';
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { LinkTransactionSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
@@ -24,7 +24,7 @@ export const POST = withApiHandler(async (request, { params }) => {
 
   await getUserIdOrThrow();
   const document = await getDocumentById(documentId);
-  if (!document) return notFound('Document not found');
+  if (!document) return notFound(API_ERROR.NOT_FOUND.DOCUMENT);
 
   const body = await request.json();
   const validation = validateRequest(LinkTransactionSchema, body);

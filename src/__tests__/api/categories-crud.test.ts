@@ -4,7 +4,7 @@
  * Tests includeInactive support on GET /api/categories
  */
 
-import { TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, TRANSACTION_TYPE } from '@/constants/finance';
 import type { Category } from '@/types/finance';
 
 const mockCategory: Category = {
@@ -231,7 +231,7 @@ describe('DELETE /api/categories/[id]', () => {
 
     expect(response.status).toBe(409);
     expect(data.success).toBe(false);
-    expect(data.error).toBe('has-transactions');
+    expect(data.error).toBe(API_ERROR.CONFLICT.HAS_TRANSACTIONS);
     expect(data.count).toBe(5);
   });
 
@@ -242,7 +242,7 @@ describe('DELETE /api/categories/[id]', () => {
 
     expect(response.status).toBe(409);
     expect(data.success).toBe(false);
-    expect(data.error).toBe('has-subcategories');
+    expect(data.error).toBe(API_ERROR.CONFLICT.HAS_SUBCATEGORIES);
     expect(data.count).toBe(3);
   });
 
@@ -266,7 +266,7 @@ describe('DELETE /api/categories/[id]', () => {
     const response = await DELETE_SINGLE(request as never, createMockParams('10'));
     const data = await response.json();
 
-    expect(data.error).toBe('has-transactions');
+    expect(data.error).toBe(API_ERROR.CONFLICT.HAS_TRANSACTIONS);
   });
 });
 

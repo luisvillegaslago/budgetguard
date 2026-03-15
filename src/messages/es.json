@@ -1154,7 +1154,129 @@
     "category-required": "Selecciona una categoría",
     "amount-positive": "El monto debe ser mayor a 0",
     "description-too-long": "La descripción es muy larga",
+    "description-required": "La descripción es requerida",
     "invalid-date": "Fecha inválida",
+    "name-required": "El nombre es requerido",
+    "name-too-long": "El nombre es muy largo",
+    "full-name-required": "El nombre completo es requerido",
+    "nif-required": "El NIF es requerido",
+    "prefix-required": "El prefijo es requerido",
+    "invalid-color": "Color hex inválido",
+    "line-items-required": "Se requiere al menos un concepto",
+    "select-prefix": "Selecciona una serie",
+    "select-client": "Selecciona un cliente",
+    "date-required": "La fecha es requerida",
+    "day-of-week-required": "El día de la semana es requerido para frecuencia semanal",
+    "day-of-month-required": "El día del mes es requerido para esta frecuencia",
+    "month-required": "El mes es requerido para frecuencia anual",
+    "amount-mismatch": "El importe debe ser igual a horas × tarifa",
+    "jump-number-positive": "El número de salto debe ser positivo",
+    "duration-positive": "La duración debe ser positiva",
+    "modelo-type-mismatch": "Los modelos requieren tipo de modelo; las facturas no deben tenerlo",
+    "quarterly-mismatch": "Los modelos trimestrales requieren trimestre; los anuales no",
     "invalid-month-format": "Formato de mes inválido. Usa YYYY-MM"
+  },
+  "api-error": {
+    "unauthorized": "Necesitas iniciar sesión para acceder a este recurso",
+    "internal": "Ha ocurrido un error inesperado. Inténtalo de nuevo.",
+    "invalid-id": "ID inválido",
+    "not-found": {
+      "transaction": "Transacción no encontrada",
+      "category": "Categoría no encontrada",
+      "invoice": "Factura no encontrada",
+      "company": "Empresa no encontrada",
+      "trip": "Viaje no encontrado",
+      "expense": "Gasto no encontrado",
+      "recurring-expense": "Gasto recurrente no encontrado",
+      "occurrence": "Ocurrencia no encontrada",
+      "group": "Grupo de transacciones no encontrado",
+      "jump": "Salto no encontrado",
+      "tunnel-session": "Sesión de túnel no encontrada",
+      "prefix": "Prefijo de factura no encontrado",
+      "document": "Documento no encontrado",
+      "document-blob": "Archivo del documento no encontrado",
+      "billing-profile": "Perfil de facturación no encontrado"
+    },
+    "conflict": {
+      "has-transactions": "Esta categoría tiene transacciones vinculadas",
+      "has-subcategories": "Esta categoría tiene subcategorías",
+      "prefix-in-use": "Este prefijo tiene facturas y no se puede eliminar"
+    },
+    "invoice": {
+      "category-required-for-paid": "Se requiere una categoría de ingreso para marcar como pagada",
+      "cannot-finalize": "Solo se pueden emitir facturas en estado borrador",
+      "only-draft-editable": "Solo se pueden editar facturas en estado borrador",
+      "only-draft-deletable": "Solo se pueden eliminar facturas en estado borrador",
+      "invalid-status-transition": "Transición de estado inválida"
+    },
+    "fiscal": {
+      "file-required": "Se requiere un archivo",
+      "metadata-required": "Se requieren los metadatos del documento",
+      "extraction-failed": "No se pudo analizar el documento",
+      "download-failed": "No se pudo descargar el documento"
+    },
+    "validation": {
+      "invalid-month": "Formato de mes inválido. Usa YYYY-MM",
+      "category-id-required": "Se requiere el ID de categoría",
+      "name-required": "El nombre es requerido",
+      "not-available-in-prod": "Esta función no está disponible en producción"
+    },
+    "mutation": {
+      "create": {
+        "transaction": "Error al crear la transacción",
+        "category": "Error al crear la categoría",
+        "invoice": "Error al crear la factura",
+        "company": "Error al crear la empresa",
+        "prefix": "Error al crear el prefijo",
+        "recurring-expense": "Error al crear el gasto recurrente",
+        "trip": "Error al crear el viaje",
+        "trip-expense": "Error al crear el gasto de viaje",
+        "jump": "Error al crear el salto",
+        "tunnel-session": "Error al crear la sesión de túnel",
+        "group": "Error al crear el grupo de transacciones"
+      },
+      "update": {
+        "transaction": "Error al actualizar la transacción",
+        "category": "Error al actualizar la categoría",
+        "invoice": "Error al actualizar la factura",
+        "company": "Error al actualizar la empresa",
+        "prefix": "Error al actualizar el prefijo",
+        "billing-profile": "Error al actualizar el perfil de facturación",
+        "recurring-expense": "Error al actualizar el gasto recurrente",
+        "trip": "Error al actualizar el viaje",
+        "trip-expense": "Error al actualizar el gasto de viaje",
+        "jump": "Error al actualizar el salto",
+        "tunnel-session": "Error al actualizar la sesión de túnel",
+        "fiscal-status": "Error al actualizar el estado del documento",
+        "fiscal-settings": "Error al actualizar los ajustes fiscales"
+      },
+      "delete": {
+        "transaction": "Error al eliminar la transacción",
+        "category": "Error al eliminar la categoría",
+        "invoice": "Error al eliminar la factura",
+        "company": "Error al eliminar la empresa",
+        "prefix": "Error al eliminar el prefijo",
+        "recurring-expense": "Error al eliminar el gasto recurrente",
+        "trip": "Error al eliminar el viaje",
+        "trip-expense": "Error al eliminar el gasto de viaje",
+        "jump": "Error al eliminar el salto",
+        "tunnel-session": "Error al eliminar la sesión de túnel",
+        "fiscal-document": "Error al eliminar el documento"
+      },
+      "import": {
+        "jumps": "Error al importar saltos",
+        "tunnel-sessions": "Error al importar sesiones de túnel"
+      },
+      "upload": {
+        "fiscal-document": "Error al subir el documento",
+        "fiscal-bulk": "Error en la subida masiva"
+      },
+      "finalize": {
+        "invoice": "Error al emitir la factura"
+      },
+      "link": {
+        "fiscal-transaction": "Error al vincular la transacción"
+      }
+    }
   }
 }

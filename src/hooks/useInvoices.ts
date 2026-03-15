@@ -4,7 +4,8 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type {
   BillingProfileInput,
   CreateInvoiceInput,
@@ -21,6 +22,7 @@ import type {
   InvoicePrefix,
   InvoiceStatus,
 } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 // ============================================================
@@ -43,7 +45,7 @@ async function updateBillingProfileRequest(input: BillingProfileInput): Promise<
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error updating billing profile');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.BILLING_PROFILE));
   }
   const data: ApiResponse<BillingProfile> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
@@ -66,7 +68,7 @@ async function createInvoicePrefixRequest(input: CreateInvoicePrefixInput): Prom
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error creating prefix');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.PREFIX));
   }
   const data: ApiResponse<InvoicePrefix> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
@@ -84,7 +86,7 @@ async function updateInvoicePrefixRequest(params: {
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error updating prefix');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.PREFIX));
   }
   const data: ApiResponse<InvoicePrefix> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
@@ -97,7 +99,7 @@ async function deleteInvoicePrefixRequest(prefixId: number): Promise<void> {
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error deleting prefix');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.PREFIX));
   }
 }
 
@@ -130,7 +132,7 @@ async function createInvoiceRequest(input: CreateInvoiceInput): Promise<Invoice>
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error creating invoice');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.INVOICE));
   }
   const data: ApiResponse<Invoice> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
@@ -145,7 +147,7 @@ async function updateInvoiceRequest(params: { invoiceId: number; data: UpdateInv
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error updating invoice');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.INVOICE));
   }
   const data: ApiResponse<Invoice> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
@@ -163,7 +165,7 @@ async function updateInvoiceStatusRequest(params: {
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error updating invoice');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.INVOICE));
   }
   const data: ApiResponse<Invoice> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
@@ -176,7 +178,7 @@ async function deleteInvoiceRequest(invoiceId: number): Promise<void> {
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error deleting invoice');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.INVOICE));
   }
 }
 
@@ -194,7 +196,7 @@ export function useBillingProfile() {
 
 export function useUpdateBillingProfile() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: updateBillingProfileRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.BILLING_PROFILE] });
@@ -212,7 +214,7 @@ export function useInvoicePrefixes() {
 
 export function useCreateInvoicePrefix() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: createInvoicePrefixRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
@@ -222,7 +224,7 @@ export function useCreateInvoicePrefix() {
 
 export function useUpdateInvoicePrefix() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: updateInvoicePrefixRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
@@ -232,7 +234,7 @@ export function useUpdateInvoicePrefix() {
 
 export function useDeleteInvoicePrefix() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteInvoicePrefixRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
@@ -259,7 +261,7 @@ export function useInvoice(invoiceId: number) {
 
 export function useCreateInvoice() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: createInvoiceRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
@@ -270,7 +272,7 @@ export function useCreateInvoice() {
 
 export function useUpdateInvoice() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: updateInvoiceRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
@@ -280,7 +282,7 @@ export function useUpdateInvoice() {
 
 export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: updateInvoiceStatusRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
@@ -294,7 +296,7 @@ export function useUpdateInvoiceStatus() {
 
 export function useDeleteInvoice() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteInvoiceRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
@@ -311,7 +313,7 @@ export function useFinalizeInvoice() {
       });
       if (!response.ok) {
         const err: ApiResponse<never> = await response.json();
-        throw new Error(err.error ?? 'Error finalizing invoice');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.FINALIZE.INVOICE));
       }
 
       // Extract filename from Content-Disposition header

@@ -4,7 +4,7 @@
  */
 
 import { del } from '@vercel/blob';
-import { FISCAL_DOCUMENT_TYPE, INVOICE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TYPE, INVOICE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { BillingProfileInput, CreateInvoiceInput, UpdateInvoiceInput } from '@/schemas/invoice';
 import type {
@@ -599,9 +599,9 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
     );
 
     const invoiceRow = invoiceResult.rows[0];
-    if (!invoiceRow) throw new Error('Invoice not found');
+    if (!invoiceRow) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
     if (invoiceRow.Status !== INVOICE_STATUS.DRAFT) {
-      throw new Error('Only draft invoices can be edited');
+      throw new Error(API_ERROR.INVOICE.ONLY_DRAFT_EDITABLE);
     }
 
     // 2. Delete existing line items
@@ -682,7 +682,7 @@ export async function updateInvoiceStatus(
     );
 
     const invoiceRow = invoiceResult.rows[0];
-    if (!invoiceRow) throw new Error('Invoice not found');
+    if (!invoiceRow) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
 
     const currentStatus = invoiceRow.Status as InvoiceStatus;
 
@@ -695,7 +695,7 @@ export async function updateInvoiceStatus(
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw new Error(`Invalid status transition from '${currentStatus}' to '${newStatus}'`);
+      throw new Error(API_ERROR.INVOICE.INVALID_STATUS_TRANSITION);
     }
 
     let transactionId: number | null = invoiceRow.TransactionID;
@@ -705,7 +705,7 @@ export async function updateInvoiceStatus(
 
     // Handle paid → creates income transaction with today's date (payment date)
     if (newStatus === INVOICE_STATUS.PAID) {
-      if (!categoryId) throw new Error('categoryId is required when marking as paid');
+      if (!categoryId) throw new Error(API_ERROR.INVOICE.CATEGORY_REQUIRED_FOR_PAID);
 
       const paymentDate = toDateString(new Date());
       const txResult = await client.query<{ TransactionID: number }>(
@@ -907,7 +907,7 @@ export async function deleteInvoice(invoiceId: number): Promise<boolean> {
 
   if (!check[0]) return false;
   if (check[0].Status !== INVOICE_STATUS.DRAFT) {
-    throw new Error('Only draft invoices can be deleted');
+    throw new Error(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
   }
 
   // Line items cascade automatically

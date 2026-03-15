@@ -5,7 +5,7 @@
  * Tests POST /api/recurring-expenses/occurrences/[id]/skip
  */
 
-import { OCCURRENCE_STATUS, RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, OCCURRENCE_STATUS, RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { PendingOccurrencesSummary, RecurringOccurrence } from '@/types/finance';
 
 const mockOccurrence: RecurringOccurrence = {
@@ -181,7 +181,7 @@ describe('POST /api/recurring-expenses/occurrences/[id]/confirm', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Internal server error');
+    expect(data.error).toBe(API_ERROR.INTERNAL);
     consoleSpy.mockRestore();
   });
 
@@ -192,7 +192,7 @@ describe('POST /api/recurring-expenses/occurrences/[id]/confirm', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Internal server error');
+    expect(data.error).toBe(API_ERROR.INTERNAL);
     consoleSpy.mockRestore();
   });
 

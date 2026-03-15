@@ -5,6 +5,7 @@
  * DELETE /api/skydiving/jumps/[id] - Delete jump
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { UpdateJumpSchema } from '@/schemas/skydive';
 import { validateRequest } from '@/schemas/transaction';
 import { deleteJump, getJumpById, updateJump } from '@/services/database/SkydiveRepository';
@@ -16,7 +17,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof jumpId !== 'number') return jumpId;
 
   const jump = await getJumpById(jumpId);
-  if (!jump) return notFound('Jump not found');
+  if (!jump) return notFound(API_ERROR.NOT_FOUND.JUMP);
 
   return { data: jump };
 }, 'GET /api/skydiving/jumps/[id]');
@@ -31,7 +32,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   if (!validation.success) return validationError(validation.errors);
 
   const jump = await updateJump(jumpId, validation.data);
-  if (!jump) return notFound('Jump not found');
+  if (!jump) return notFound(API_ERROR.NOT_FOUND.JUMP);
 
   return { data: jump };
 }, 'PUT /api/skydiving/jumps/[id]');

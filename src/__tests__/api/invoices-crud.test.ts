@@ -3,7 +3,7 @@
  * Tests GET/POST /api/invoices, GET/PUT/PATCH/DELETE /api/invoices/[id]
  */
 
-import { INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
+import { API_ERROR, INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
 import type { Invoice, InvoiceListItem } from '@/types/finance';
 
 const mockLineItems = [
@@ -97,17 +97,17 @@ jest.mock('@/services/database/InvoiceRepository', () => ({
   }),
   createInvoice: jest.fn(async () => mockInvoice),
   updateInvoice: jest.fn(async (id: number) => {
-    if (id === 999) throw new Error('Invoice not found');
+    if (id === 999) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
     return { ...mockInvoice, notes: 'Updated notes' };
   }),
   updateInvoiceStatus: jest.fn(async (id: number, status: string) => {
-    if (id === 999) throw new Error('Invoice not found');
+    if (id === 999) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
     if (id === 1 && status === 'paid') throw new Error('Invalid status transition');
     return { ...mockInvoice, status };
   }),
   deleteInvoice: jest.fn(async (id: number) => {
     if (id === 999) return false;
-    if (id === 2) throw new Error('Only draft invoices can be deleted');
+    if (id === 2) throw new Error(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
     return true;
   }),
 }));

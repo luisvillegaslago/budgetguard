@@ -4,6 +4,7 @@
  */
 
 import { put } from '@vercel/blob';
+import { API_ERROR } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { BulkUploadItemSchema } from '@/schemas/fiscal-document';
 import { bulkCreateDocuments, type CreateDocumentInput } from '@/services/database/FiscalDocumentRepository';
@@ -28,7 +29,7 @@ export const POST = withApiHandler(async (request) => {
   });
 
   if (files.length === 0) {
-    return validationError({ files: ['At least one file is required'] });
+    return validationError({ files: [API_ERROR.FISCAL.FILE_REQUIRED] });
   }
 
   // Parse optional metadata overrides

@@ -4,6 +4,7 @@
  * PATCH /api/transaction-groups/[id] - Update group description/date (propagates to all)
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { UpdateTransactionGroupSchema, validateRequest } from '@/schemas/transaction';
 import {
   deleteTransactionGroup,
@@ -18,7 +19,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof groupId !== 'number') return groupId;
 
   const transactions = await getTransactionsByGroupId(groupId);
-  if (transactions.length === 0) return notFound('Grupo no encontrado');
+  if (transactions.length === 0) return notFound(API_ERROR.NOT_FOUND.GROUP);
 
   return { data: transactions };
 }, 'GET /api/transaction-groups/[id]');
@@ -29,7 +30,7 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
   if (typeof groupId !== 'number') return groupId;
 
   const deleted = await deleteTransactionGroup(groupId);
-  if (!deleted) return notFound('Grupo no encontrado');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.GROUP);
 
   return { data: { deleted: true } };
 }, 'DELETE /api/transaction-groups/[id]');
@@ -40,7 +41,7 @@ export const PATCH = withApiHandler(async (request, { params }) => {
   if (typeof groupId !== 'number') return groupId;
 
   const existing = await getTransactionsByGroupId(groupId);
-  if (existing.length === 0) return notFound('Grupo no encontrado');
+  if (existing.length === 0) return notFound(API_ERROR.NOT_FOUND.GROUP);
 
   const body = await request.json();
   const validation = validateRequest(UpdateTransactionGroupSchema, body);

@@ -4,13 +4,14 @@
  * Dev-only: Returns 403 in production
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { SyncExecuteSchema } from '@/schemas/sync';
 import { executeSync } from '@/services/database/SyncService';
 import type { SyncProgressEvent } from '@/types/sync';
 
 export async function POST(request: Request) {
   if (process.env.NODE_ENV !== 'development') {
-    return new Response(JSON.stringify({ error: 'Not available in production' }), { status: 403 });
+    return new Response(JSON.stringify({ error: API_ERROR.VALIDATION.NOT_AVAILABLE_IN_PROD }), { status: 403 });
   }
 
   const body: unknown = await request.json();

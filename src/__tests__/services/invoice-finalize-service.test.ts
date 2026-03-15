@@ -3,7 +3,7 @@
  * Tests the orchestration logic: validate → refresh → PDF → blob → transaction.
  */
 
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, INVOICE_STATUS } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, INVOICE_STATUS } from '@/constants/finance';
 import type { Invoice } from '@/types/finance';
 
 // ============================================================
@@ -114,7 +114,7 @@ jest.mock('@/utils/invoicePdf', () => ({
         fileName: `invoice_${mockDraftInvoice.invoiceNumber}.pdf`,
       };
     }
-    throw new Error('Invoice not found');
+    throw new Error(API_ERROR.NOT_FOUND.INVOICE);
   }),
 }));
 
@@ -150,11 +150,11 @@ describe('InvoiceFinalizeService', () => {
 
   describe('validation', () => {
     it('should throw when invoice not found', async () => {
-      await expect(finalizeInvoice(999)).rejects.toThrow('Invoice not found');
+      await expect(finalizeInvoice(999)).rejects.toThrow(API_ERROR.NOT_FOUND.INVOICE);
     });
 
     it('should throw when invoice is not draft', async () => {
-      await expect(finalizeInvoice(2)).rejects.toThrow("Cannot finalize invoice with status 'finalized'");
+      await expect(finalizeInvoice(2)).rejects.toThrow(API_ERROR.INVOICE.CANNOT_FINALIZE);
     });
   });
 

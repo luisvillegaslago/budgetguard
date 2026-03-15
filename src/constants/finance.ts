@@ -274,3 +274,142 @@ export type ExtractionStatus = (typeof EXTRACTION_STATUS)[keyof typeof EXTRACTIO
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
+
+// ============================================================
+// API ERROR CODES (i18n keys — backend returns these, frontend translates)
+// ============================================================
+
+export const API_ERROR = {
+  UNAUTHORIZED: 'api-error.unauthorized',
+  INTERNAL: 'api-error.internal',
+  INVALID_ID: 'api-error.invalid-id',
+  NOT_FOUND: {
+    TRANSACTION: 'api-error.not-found.transaction',
+    CATEGORY: 'api-error.not-found.category',
+    INVOICE: 'api-error.not-found.invoice',
+    COMPANY: 'api-error.not-found.company',
+    TRIP: 'api-error.not-found.trip',
+    EXPENSE: 'api-error.not-found.expense',
+    RECURRING_EXPENSE: 'api-error.not-found.recurring-expense',
+    OCCURRENCE: 'api-error.not-found.occurrence',
+    GROUP: 'api-error.not-found.group',
+    JUMP: 'api-error.not-found.jump',
+    TUNNEL_SESSION: 'api-error.not-found.tunnel-session',
+    PREFIX: 'api-error.not-found.prefix',
+    DOCUMENT: 'api-error.not-found.document',
+    DOCUMENT_BLOB: 'api-error.not-found.document-blob',
+    BILLING_PROFILE: 'api-error.not-found.billing-profile',
+  },
+  CONFLICT: {
+    HAS_TRANSACTIONS: 'api-error.conflict.has-transactions',
+    HAS_SUBCATEGORIES: 'api-error.conflict.has-subcategories',
+    PREFIX_IN_USE: 'api-error.conflict.prefix-in-use',
+  },
+  INVOICE: {
+    CATEGORY_REQUIRED_FOR_PAID: 'api-error.invoice.category-required-for-paid',
+    CANNOT_FINALIZE: 'api-error.invoice.cannot-finalize',
+    ONLY_DRAFT_EDITABLE: 'api-error.invoice.only-draft-editable',
+    ONLY_DRAFT_DELETABLE: 'api-error.invoice.only-draft-deletable',
+    INVALID_STATUS_TRANSITION: 'api-error.invoice.invalid-status-transition',
+  },
+  FISCAL: {
+    FILE_REQUIRED: 'api-error.fiscal.file-required',
+    METADATA_REQUIRED: 'api-error.fiscal.metadata-required',
+    EXTRACTION_FAILED: 'api-error.fiscal.extraction-failed',
+    DOWNLOAD_FAILED: 'api-error.fiscal.download-failed',
+  },
+  VALIDATION: {
+    INVALID_MONTH: 'api-error.validation.invalid-month',
+    CATEGORY_ID_REQUIRED: 'api-error.validation.category-id-required',
+    NAME_REQUIRED: 'api-error.validation.name-required',
+    NOT_AVAILABLE_IN_PROD: 'api-error.validation.not-available-in-prod',
+  },
+  MUTATION: {
+    CREATE: {
+      TRANSACTION: 'api-error.mutation.create.transaction',
+      CATEGORY: 'api-error.mutation.create.category',
+      INVOICE: 'api-error.mutation.create.invoice',
+      COMPANY: 'api-error.mutation.create.company',
+      PREFIX: 'api-error.mutation.create.prefix',
+      RECURRING_EXPENSE: 'api-error.mutation.create.recurring-expense',
+      TRIP: 'api-error.mutation.create.trip',
+      TRIP_EXPENSE: 'api-error.mutation.create.trip-expense',
+      JUMP: 'api-error.mutation.create.jump',
+      TUNNEL_SESSION: 'api-error.mutation.create.tunnel-session',
+      GROUP: 'api-error.mutation.create.group',
+    },
+    UPDATE: {
+      TRANSACTION: 'api-error.mutation.update.transaction',
+      CATEGORY: 'api-error.mutation.update.category',
+      INVOICE: 'api-error.mutation.update.invoice',
+      COMPANY: 'api-error.mutation.update.company',
+      PREFIX: 'api-error.mutation.update.prefix',
+      BILLING_PROFILE: 'api-error.mutation.update.billing-profile',
+      RECURRING_EXPENSE: 'api-error.mutation.update.recurring-expense',
+      TRIP: 'api-error.mutation.update.trip',
+      TRIP_EXPENSE: 'api-error.mutation.update.trip-expense',
+      JUMP: 'api-error.mutation.update.jump',
+      TUNNEL_SESSION: 'api-error.mutation.update.tunnel-session',
+      FISCAL_STATUS: 'api-error.mutation.update.fiscal-status',
+      FISCAL_SETTINGS: 'api-error.mutation.update.fiscal-settings',
+    },
+    DELETE: {
+      TRANSACTION: 'api-error.mutation.delete.transaction',
+      CATEGORY: 'api-error.mutation.delete.category',
+      INVOICE: 'api-error.mutation.delete.invoice',
+      COMPANY: 'api-error.mutation.delete.company',
+      PREFIX: 'api-error.mutation.delete.prefix',
+      RECURRING_EXPENSE: 'api-error.mutation.delete.recurring-expense',
+      TRIP: 'api-error.mutation.delete.trip',
+      TRIP_EXPENSE: 'api-error.mutation.delete.trip-expense',
+      JUMP: 'api-error.mutation.delete.jump',
+      TUNNEL_SESSION: 'api-error.mutation.delete.tunnel-session',
+      FISCAL_DOCUMENT: 'api-error.mutation.delete.fiscal-document',
+    },
+    IMPORT: {
+      JUMPS: 'api-error.mutation.import.jumps',
+      TUNNEL_SESSIONS: 'api-error.mutation.import.tunnel-sessions',
+    },
+    UPLOAD: {
+      FISCAL_DOCUMENT: 'api-error.mutation.upload.fiscal-document',
+      FISCAL_BULK: 'api-error.mutation.upload.fiscal-bulk',
+    },
+    FINALIZE: {
+      INVOICE: 'api-error.mutation.finalize.invoice',
+    },
+    LINK: {
+      FISCAL_TRANSACTION: 'api-error.mutation.link.fiscal-transaction',
+    },
+  },
+} as const;
+
+// ============================================================
+// VALIDATION KEY CONSTANTS (i18n keys for Zod schema messages)
+// ============================================================
+
+export const VALIDATION_KEY = {
+  CATEGORY_REQUIRED: 'validation.category-required',
+  AMOUNT_POSITIVE: 'validation.amount-positive',
+  DESCRIPTION_TOO_LONG: 'validation.description-too-long',
+  DESCRIPTION_REQUIRED: 'validation.description-required',
+  INVALID_DATE: 'validation.invalid-date',
+  NAME_REQUIRED: 'validation.name-required',
+  NAME_TOO_LONG: 'validation.name-too-long',
+  FULL_NAME_REQUIRED: 'validation.full-name-required',
+  NIF_REQUIRED: 'validation.nif-required',
+  PREFIX_REQUIRED: 'validation.prefix-required',
+  INVALID_COLOR: 'validation.invalid-color',
+  LINE_ITEMS_REQUIRED: 'validation.line-items-required',
+  SELECT_PREFIX: 'validation.select-prefix',
+  SELECT_CLIENT: 'validation.select-client',
+  DATE_REQUIRED: 'validation.date-required',
+  DAY_OF_WEEK_REQUIRED: 'validation.day-of-week-required',
+  DAY_OF_MONTH_REQUIRED: 'validation.day-of-month-required',
+  MONTH_REQUIRED: 'validation.month-required',
+  AMOUNT_MISMATCH: 'validation.amount-mismatch',
+  JUMP_NUMBER_POSITIVE: 'validation.jump-number-positive',
+  DURATION_POSITIVE: 'validation.duration-positive',
+  MODELO_TYPE_MISMATCH: 'validation.modelo-type-mismatch',
+  QUARTERLY_MISMATCH: 'validation.quarterly-mismatch',
+  INVALID_MONTH_FORMAT: 'validation.invalid-month-format',
+} as const;

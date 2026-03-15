@@ -3,9 +3,11 @@
  * TanStack Query hooks for AEAT deadline data (server-computed).
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { ApiResponse, FiscalDeadline, FiscalDeadlineSettings } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 // ============================================================
@@ -81,7 +83,7 @@ export function useFiscalDeadlineSettings() {
 export function useUpdateDeadlineSettings() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (settings: FiscalDeadlineSettings) => {
       const response = await fetchApi(API_ENDPOINT.FISCAL_DEADLINE_SETTINGS, {
         method: 'PUT',
@@ -91,7 +93,7 @@ export function useUpdateDeadlineSettings() {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Settings update failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.UPDATE.FISCAL_SETTINGS));
       }
 
       const data: ApiResponse<FiscalDeadlineSettings> = await response.json();

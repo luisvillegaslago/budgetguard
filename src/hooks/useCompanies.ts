@@ -3,11 +3,13 @@
  * TanStack Query hooks for fetching and mutating companies
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CompanyRole } from '@/constants/finance';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateCompanyInput, UpdateCompanyInput } from '@/schemas/company';
 import type { ApiResponse, Company } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchCompanies(role?: CompanyRole): Promise<Company[]> {
@@ -54,7 +56,7 @@ async function createCompanyRequest(input: CreateCompanyInput): Promise<Company>
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error creating company');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.COMPANY));
   }
 
   const data: ApiResponse<Company> = await response.json();
@@ -75,7 +77,7 @@ async function quickCreateCompanyRequest(name: string): Promise<Company> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error creating company');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.COMPANY));
   }
 
   const data: ApiResponse<Company> = await response.json();
@@ -96,7 +98,7 @@ async function updateCompanyRequest(id: number, input: UpdateCompanyInput): Prom
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error updating company');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.COMPANY));
   }
 
   const data: ApiResponse<Company> = await response.json();
@@ -115,7 +117,7 @@ async function deleteCompanyRequest(id: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error deleting company');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.COMPANY));
   }
 }
 
@@ -147,7 +149,7 @@ export function useAllCompanies(role?: CompanyRole) {
 export function useCreateCompany() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: createCompanyRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
@@ -161,7 +163,7 @@ export function useCreateCompany() {
 export function useQuickCreateCompany() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: quickCreateCompanyRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
@@ -175,7 +177,7 @@ export function useQuickCreateCompany() {
 export function useUpdateCompany() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateCompanyInput }) => updateCompanyRequest(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
@@ -189,7 +191,7 @@ export function useUpdateCompany() {
 export function useDeleteCompany() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteCompanyRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });

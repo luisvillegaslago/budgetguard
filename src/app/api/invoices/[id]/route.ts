@@ -6,7 +6,7 @@
  * DELETE /api/invoices/[id] - Delete draft invoice
  */
 
-import { INVOICE_STATUS } from '@/constants/finance';
+import { API_ERROR, INVOICE_STATUS } from '@/constants/finance';
 import { UpdateInvoiceSchema, UpdateInvoiceStatusSchema } from '@/schemas/invoice';
 import { validateRequest } from '@/schemas/transaction';
 import {
@@ -23,7 +23,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof invoiceId !== 'number') return invoiceId;
 
   const invoice = await getInvoiceById(invoiceId);
-  if (!invoice) return notFound('Invoice not found');
+  if (!invoice) return notFound(API_ERROR.NOT_FOUND.INVOICE);
 
   return { data: invoice };
 }, 'GET /api/invoices/[id]');
@@ -67,7 +67,7 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
   if (typeof invoiceId !== 'number') return invoiceId;
 
   const deleted = await deleteInvoice(invoiceId);
-  if (!deleted) return notFound('Invoice not found');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.INVOICE);
 
   return { data: { deleted: true } };
 }, 'DELETE /api/invoices/[id]');

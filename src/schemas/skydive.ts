@@ -4,14 +4,15 @@
  */
 
 import { z } from 'zod';
+import { VALIDATION_KEY } from '@/constants/finance';
 
 /**
  * Schema for creating a new jump
  */
 export const CreateJumpSchema = z.object({
-  jumpNumber: z.number().int().positive('Jump number must be positive'),
+  jumpNumber: z.number().int().positive(VALIDATION_KEY.JUMP_NUMBER_POSITIVE),
   title: z.string().max(255).optional().nullable(),
-  jumpDate: z.coerce.date({ message: 'Invalid date' }),
+  jumpDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   dropzone: z.string().max(150).optional().nullable(),
   canopy: z.string().max(100).optional().nullable(),
   wingsuit: z.string().max(100).optional().nullable(),
@@ -37,10 +38,10 @@ export type UpdateJumpInput = z.infer<typeof UpdateJumpSchema>;
  * Schema for creating a new tunnel session
  */
 export const CreateTunnelSessionSchema = z.object({
-  sessionDate: z.coerce.date({ message: 'Invalid date' }),
+  sessionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   location: z.string().max(150).optional().nullable(),
   sessionType: z.string().max(100).optional().nullable(),
-  durationMin: z.number().positive('Duration must be positive'),
+  durationMin: z.number().positive(VALIDATION_KEY.DURATION_POSITIVE),
   notes: z.string().optional().nullable(),
   price: z.number().min(0).optional().nullable(),
 });

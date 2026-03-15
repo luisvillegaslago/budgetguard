@@ -4,7 +4,7 @@
  */
 
 import type { DateRangePreset } from '@/constants/finance';
-import { DATE_RANGE_PRESET } from '@/constants/finance';
+import { API_ERROR, DATE_RANGE_PRESET } from '@/constants/finance';
 import { CategoryHistoryFiltersSchema, validateRequest } from '@/schemas/transaction';
 import { getCategoryById } from '@/services/database/CategoryRepository';
 import { getCategoryHistorySummary, getCategoryHistoryTransactions } from '@/services/database/TransactionRepository';
@@ -52,7 +52,7 @@ export const GET = withApiHandler(async (request, { params }) => {
   const { dateFrom, dateTo } = resolveRange(range);
 
   const category = await getCategoryById(categoryId);
-  if (!category) return notFound('Categoria no encontrada');
+  if (!category) return notFound(API_ERROR.NOT_FOUND.CATEGORY);
 
   const [summary, transactions] = await Promise.all([
     getCategoryHistorySummary(categoryId, dateFrom, dateTo),

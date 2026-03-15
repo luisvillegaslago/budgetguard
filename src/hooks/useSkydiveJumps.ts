@@ -3,11 +3,13 @@
  * TanStack Query hooks for jump CRUD and import operations
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateJumpInput, UpdateJumpInput } from '@/schemas/skydive';
 import type { ApiResponse } from '@/types/finance';
 import type { ImportResult, SkydiveJump } from '@/types/skydive';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchJumps(filters?: { year?: number; dropzone?: string }): Promise<SkydiveJump[]> {
@@ -37,7 +39,7 @@ export function useSkydiveJumps(filters?: { year?: number; dropzone?: string }) 
 export function useCreateJump() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (input: CreateJumpInput) => {
       const response = await fetchApi(API_ENDPOINT.SKYDIVE_JUMPS, {
         method: 'POST',
@@ -47,7 +49,7 @@ export function useCreateJump() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error creating jump');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.JUMP));
       }
 
       const data: ApiResponse<SkydiveJump> = await response.json();
@@ -64,7 +66,7 @@ export function useCreateJump() {
 export function useUpdateJump() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (params: { jumpId: number; data: UpdateJumpInput }) => {
       const response = await fetchApi(`${API_ENDPOINT.SKYDIVE_JUMPS}/${params.jumpId}`, {
         method: 'PUT',
@@ -74,7 +76,7 @@ export function useUpdateJump() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error updating jump');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.JUMP));
       }
 
       const data: ApiResponse<SkydiveJump> = await response.json();
@@ -91,7 +93,7 @@ export function useUpdateJump() {
 export function useDeleteJump() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (jumpId: number) => {
       const response = await fetchApi(`${API_ENDPOINT.SKYDIVE_JUMPS}/${jumpId}`, {
         method: 'DELETE',
@@ -99,7 +101,7 @@ export function useDeleteJump() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error deleting jump');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.JUMP));
       }
     },
     onSuccess: () => {
@@ -112,7 +114,7 @@ export function useDeleteJump() {
 export function useImportJumps() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (rows: Record<string, unknown>[]) => {
       const response = await fetchApi(`${API_ENDPOINT.SKYDIVE_JUMPS}/import`, {
         method: 'POST',
@@ -122,7 +124,7 @@ export function useImportJumps() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error importing jumps');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.IMPORT.JUMPS));
       }
 
       const data: ApiResponse<ImportResult & { validationErrors: Array<{ row: number; error: string }> }> =

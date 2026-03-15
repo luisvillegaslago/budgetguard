@@ -4,6 +4,7 @@
  */
 
 import { put } from '@vercel/blob';
+import { API_ERROR } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { FiscalDocumentsFiltersSchema, FiscalDocumentUploadSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
@@ -33,11 +34,11 @@ export const POST = withApiHandler(async (request) => {
   const metadataJson = formData.get('metadata') as string | null;
 
   if (!file) {
-    return validationError({ file: ['File is required'] });
+    return validationError({ file: [API_ERROR.FISCAL.FILE_REQUIRED] });
   }
 
   if (!metadataJson) {
-    return validationError({ metadata: ['Metadata is required'] });
+    return validationError({ metadata: [API_ERROR.FISCAL.METADATA_REQUIRED] });
   }
 
   const metadata = JSON.parse(metadataJson);

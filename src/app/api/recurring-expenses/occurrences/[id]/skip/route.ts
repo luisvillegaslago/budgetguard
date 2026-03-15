@@ -4,6 +4,7 @@
  * Marks an occurrence as skipped (no transaction created)
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { skipOccurrence } from '@/services/database/RecurringExpenseRepository';
 import { notFound, parseIdParam, withApiHandler } from '@/utils/apiHandler';
 
@@ -13,7 +14,7 @@ export const POST = withApiHandler(async (_request, { params }) => {
   if (typeof occurrenceId !== 'number') return occurrenceId;
 
   const skipped = await skipOccurrence(occurrenceId);
-  if (!skipped) return notFound('Ocurrencia no encontrada o ya procesada');
+  if (!skipped) return notFound(API_ERROR.NOT_FOUND.OCCURRENCE);
 
   return { data: { skipped: true } };
 }, 'POST /api/recurring-expenses/occurrences/[id]/skip');

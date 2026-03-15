@@ -3,6 +3,7 @@
  * Tests GET /api/summary/subcategories?month=YYYY-MM&categoryId=N
  */
 
+import { API_ERROR } from '@/constants/finance';
 import type { SubcategorySummary } from '@/types/finance';
 
 const mockSubcategories: SubcategorySummary[] = [
@@ -79,7 +80,7 @@ describe('GET /api/summary/subcategories', () => {
 
     expect(response.status).toBe(400);
     expect(data.success).toBe(false);
-    expect(data.error).toContain('categoryId');
+    expect(data.error).toBe(API_ERROR.VALIDATION.CATEGORY_ID_REQUIRED);
   });
 
   it('should return 400 for invalid month format', async () => {

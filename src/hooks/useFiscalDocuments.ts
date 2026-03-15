@@ -3,10 +3,12 @@
  * TanStack Query hooks for fiscal document CRUD operations.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { LinkTransactionInput } from '@/schemas/fiscal-document';
 import type { ApiResponse, ExtractedInvoiceData, FiscalDocument } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 // ============================================================
@@ -44,7 +46,7 @@ export function useFiscalDocuments(year: number, quarter?: number, documentType?
 export function useUploadFiscalDocument(year: number) {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async ({ file, metadata }: { file: File; metadata: Record<string, unknown> }) => {
       const formData = new FormData();
       formData.append('file', file);
@@ -57,7 +59,7 @@ export function useUploadFiscalDocument(year: number) {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Upload failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.UPLOAD.FISCAL_DOCUMENT));
       }
 
       const data: ApiResponse<FiscalDocument> = await response.json();
@@ -81,7 +83,7 @@ interface BulkUploadResult {
 export function useBulkUploadDocuments() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async ({
       files,
       metadata,
@@ -102,7 +104,7 @@ export function useBulkUploadDocuments() {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Bulk upload failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.UPLOAD.FISCAL_BULK));
       }
 
       const data: ApiResponse<BulkUploadResult> = await response.json();
@@ -119,7 +121,7 @@ export function useBulkUploadDocuments() {
 export function useUpdateDocumentStatus(year: number) {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
       const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${id}`, {
         method: 'PATCH',
@@ -129,7 +131,7 @@ export function useUpdateDocumentStatus(year: number) {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Status update failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.UPDATE.FISCAL_STATUS));
       }
 
       const data: ApiResponse<FiscalDocument> = await response.json();
@@ -146,7 +148,7 @@ export function useUpdateDocumentStatus(year: number) {
 export function useDeleteFiscalDocument(year: number) {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async ({ id, deleteTransaction = false }: { id: number; deleteTransaction?: boolean }) => {
       const params = deleteTransaction ? '?deleteTransaction=true' : '';
       const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${id}${params}`, {
@@ -155,7 +157,7 @@ export function useDeleteFiscalDocument(year: number) {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Delete failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.DELETE.FISCAL_DOCUMENT));
       }
     },
     onSuccess: () => {
@@ -177,7 +179,7 @@ export function useDeleteFiscalDocument(year: number) {
 export function useExtractDocument() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async ({
       documentId,
       locale,
@@ -192,7 +194,7 @@ export function useExtractDocument() {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'extraction_failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.FISCAL.EXTRACTION_FAILED));
       }
 
       const data: ApiResponse<ExtractedInvoiceData> = await response.json();
@@ -212,7 +214,7 @@ export function useExtractDocument() {
 export function useLinkTransaction() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async ({
       documentId,
       data,
@@ -228,7 +230,7 @@ export function useLinkTransaction() {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error ?? 'Link transaction failed');
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.LINK.FISCAL_TRANSACTION));
       }
 
       const result: ApiResponse<{ transactionId: number; documentId: number }> = await response.json();

@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { MONTH_FORMAT_REGEX } from '@/constants/finance';
+import { API_ERROR, MONTH_FORMAT_REGEX } from '@/constants/finance';
 import { getMonthlySummary } from '@/services/database/TransactionRepository';
 import { withApiHandler } from '@/utils/apiHandler';
 import { getCurrentMonth } from '@/utils/helpers';
@@ -14,7 +14,7 @@ export const GET = withApiHandler(async (request) => {
   const month = searchParams.get('month') ?? getCurrentMonth();
 
   if (!MONTH_FORMAT_REGEX.test(month)) {
-    return NextResponse.json({ success: false, error: 'Formato de mes invalido. Usa YYYY-MM' }, { status: 400 });
+    return NextResponse.json({ success: false, error: API_ERROR.VALIDATION.INVALID_MONTH }, { status: 400 });
   }
 
   const summary = await getMonthlySummary(month);

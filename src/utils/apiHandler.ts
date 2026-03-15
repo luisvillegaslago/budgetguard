@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { API_ERROR } from '@/constants/finance';
 import { AuthError } from '@/libs/auth';
 
 type NextRouteParams = { params: Promise<Record<string, string | undefined>> };
@@ -50,11 +51,11 @@ export function withApiHandler(handler: ApiHandler, routeLabel: string) {
       return NextResponse.json(body, { status: result.status ?? 200 });
     } catch (error) {
       if (error instanceof AuthError) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return NextResponse.json({ error: API_ERROR.UNAUTHORIZED }, { status: 401 });
       }
       // biome-ignore lint/suspicious/noConsole: Centralized error logging for API routes
       console.error(`${routeLabel} error:`, error);
-      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+      return NextResponse.json({ success: false, error: API_ERROR.INTERNAL }, { status: 500 });
     }
   };
 }
@@ -66,11 +67,11 @@ export function withApiHandler(handler: ApiHandler, routeLabel: string) {
  */
 export function parseIdParam(id: string | undefined): number | NextResponse {
   if (!id) {
-    return NextResponse.json({ success: false, error: 'ID invalido' }, { status: 400 });
+    return NextResponse.json({ success: false, error: API_ERROR.INVALID_ID }, { status: 400 });
   }
   const parsed = Number.parseInt(id, 10);
   if (Number.isNaN(parsed) || parsed <= 0) {
-    return NextResponse.json({ success: false, error: 'ID invalido' }, { status: 400 });
+    return NextResponse.json({ success: false, error: API_ERROR.INVALID_ID }, { status: 400 });
   }
   return parsed;
 }

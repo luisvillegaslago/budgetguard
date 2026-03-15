@@ -5,6 +5,7 @@
  * DELETE /api/categories/[id] - Delete a category
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { UpdateCategorySchema, validateRequest } from '@/schemas/transaction';
 import {
   deleteCategory,
@@ -21,7 +22,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof categoryId !== 'number') return categoryId;
 
   const category = await getCategoryById(categoryId);
-  if (!category) return notFound('Categoria no encontrada');
+  if (!category) return notFound(API_ERROR.NOT_FOUND.CATEGORY);
 
   return { data: category };
 }, 'GET /api/categories/[id]');
@@ -36,7 +37,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   if (!validation.success) return validationError(validation.errors);
 
   const category = await updateCategory(categoryId, validation.data);
-  if (!category) return notFound('Categoria no encontrada');
+  if (!category) return notFound(API_ERROR.NOT_FOUND.CATEGORY);
 
   return { data: category };
 }, 'PUT /api/categories/[id]');
@@ -48,16 +49,16 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
 
   const transactionCount = await getCategoryTransactionCount(categoryId);
   if (transactionCount > 0) {
-    return conflict('has-transactions', { count: transactionCount });
+    return conflict(API_ERROR.CONFLICT.HAS_TRANSACTIONS, { count: transactionCount });
   }
 
   const childrenCount = await getCategoryChildrenCount(categoryId);
   if (childrenCount > 0) {
-    return conflict('has-subcategories', { count: childrenCount });
+    return conflict(API_ERROR.CONFLICT.HAS_SUBCATEGORIES, { count: childrenCount });
   }
 
   const deleted = await deleteCategory(categoryId);
-  if (!deleted) return notFound('Categoria no encontrada');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.CATEGORY);
 
   return { data: { deleted: true } };
 }, 'DELETE /api/categories/[id]');

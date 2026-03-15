@@ -4,7 +4,7 @@
  */
 
 import type { DateRangePreset } from '@/constants/finance';
-import { DATE_RANGE_PRESET } from '@/constants/finance';
+import { API_ERROR, DATE_RANGE_PRESET } from '@/constants/finance';
 import { CategoryHistoryFiltersSchema, validateRequest } from '@/schemas/transaction';
 import { getCompanyById } from '@/services/database/CompanyRepository';
 import { getCompanyTransactions, getCompanyTransactionsSummary } from '@/services/database/TransactionRepository';
@@ -49,7 +49,7 @@ export const GET = withApiHandler(async (request, { params }) => {
   const { dateFrom, dateTo } = resolveRange(range);
 
   const company = await getCompanyById(companyId);
-  if (!company) return notFound('Company not found');
+  if (!company) return notFound(API_ERROR.NOT_FOUND.COMPANY);
 
   const [summary, transactions] = await Promise.all([
     getCompanyTransactionsSummary(companyId, dateFrom, dateTo),

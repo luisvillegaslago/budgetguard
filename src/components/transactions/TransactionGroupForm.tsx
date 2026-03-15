@@ -15,7 +15,7 @@ import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
-import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_TYPE, VALIDATION_KEY } from '@/constants/finance';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useCreateTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -32,11 +32,11 @@ interface TransactionGroupFormProps {
 
 // Form schema: description, date, parentCategoryId, and dynamic amounts per subcategory
 const GroupFormSchema = z.object({
-  description: z.string().min(1, 'La descripción es requerida').max(255),
-  transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
+  description: z.string().min(1, VALIDATION_KEY.DESCRIPTION_REQUIRED).max(255),
+  transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   type: TransactionTypeSchema,
   isShared: z.boolean().optional().default(false),
-  parentCategoryId: z.number().int().positive('Selecciona una categoría'),
+  parentCategoryId: z.number().int().positive(VALIDATION_KEY.CATEGORY_REQUIRED),
 });
 
 type GroupFormValues = z.infer<typeof GroupFormSchema>;

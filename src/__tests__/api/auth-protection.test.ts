@@ -3,6 +3,7 @@
  * Verifies that API routes return 401 when user is not authenticated
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { AuthError } from '@/libs/auth';
 
 // Mock repositories to throw AuthError (simulating unauthenticated access)
@@ -124,7 +125,7 @@ describe('API Auth Protection — Categories', () => {
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toBe('Unauthorized');
+    expect(data.error).toBe(API_ERROR.UNAUTHORIZED);
   });
 });
 
@@ -137,7 +138,7 @@ describe('API Auth Protection — Summary', () => {
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toBe('Unauthorized');
+    expect(data.error).toBe(API_ERROR.UNAUTHORIZED);
   });
 });
 
@@ -149,6 +150,6 @@ describe('API Auth Protection — Trips', () => {
     const data = await response.json();
 
     expect(response.status).toBe(401);
-    expect(data.error).toBe('Unauthorized');
+    expect(data.error).toBe(API_ERROR.UNAUTHORIZED);
   });
 });

@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
+import { VALIDATION_KEY } from '@/constants/finance';
 import { useBillingProfile, useCreateInvoice, useInvoicePrefixes, useUpdateInvoice } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
@@ -18,16 +19,16 @@ import { centsToEuros, eurosToCents } from '@/utils/money';
 
 // Form schema (user enters euros, we convert to cents on submit)
 const LineItemFormSchema = z.object({
-  description: z.string().min(1, 'Description is required'),
+  description: z.string().min(1, VALIDATION_KEY.DESCRIPTION_REQUIRED),
   hours: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
   hourlyRate: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
   amount: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
 });
 
 const InvoiceFormSchema = z.object({
-  prefixId: z.number().int().positive('Select a prefix'),
-  invoiceDate: z.string().min(1, 'Date is required'),
-  companyId: z.number().int().positive('Select a client'),
+  prefixId: z.number().int().positive(VALIDATION_KEY.SELECT_PREFIX),
+  invoiceDate: z.string().min(1, VALIDATION_KEY.DATE_REQUIRED),
+  companyId: z.number().int().positive(VALIDATION_KEY.SELECT_CLIENT),
   notes: z.string().optional(),
   lineItems: z.array(LineItemFormSchema).min(1),
 });
@@ -381,7 +382,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           </div>
 
           {/* Actions */}
-          {mutation.isError && <p className="text-sm text-guard-danger">{mutation.error.message}</p>}
+          {mutation.errorMessage && <p className="text-sm text-guard-danger">{mutation.errorMessage}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">

@@ -5,7 +5,7 @@
  * DELETE /api/recurring-expenses/[id] - Soft-delete (deactivate)
  */
 
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
 import { UpdateRecurringExpenseSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import {
@@ -23,7 +23,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof recurringExpenseId !== 'number') return recurringExpenseId;
 
   const expense = await getRecurringExpenseById(recurringExpenseId);
-  if (!expense) return notFound('Gasto recurrente no encontrado');
+  if (!expense) return notFound(API_ERROR.NOT_FOUND.RECURRING_EXPENSE);
 
   return { data: expense };
 }, 'GET /api/recurring-expenses/[id]');
@@ -52,7 +52,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   }
 
   const expense = await updateRecurringExpense(recurringExpenseId, updateData);
-  if (!expense) return notFound('Gasto recurrente no encontrado');
+  if (!expense) return notFound(API_ERROR.NOT_FOUND.RECURRING_EXPENSE);
 
   return { data: expense };
 }, 'PUT /api/recurring-expenses/[id]');
@@ -69,7 +69,7 @@ export const DELETE = withApiHandler(async (request, { params }) => {
     ? await hardDeleteRecurringExpense(recurringExpenseId)
     : await deleteRecurringExpense(recurringExpenseId);
 
-  if (!deleted) return notFound('Gasto recurrente no encontrado');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.RECURRING_EXPENSE);
 
   return { data: { deleted: true } };
 }, 'DELETE /api/recurring-expenses/[id]');

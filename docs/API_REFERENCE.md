@@ -21,12 +21,12 @@ All endpoints return JSON with this structure:
   "meta": { ... }  // Optional metadata (pagination, counts)
 }
 
-// Error response
+// Error response (error values are i18n keys, translated client-side)
 {
   "success": false,
-  "error": "Human-readable error message",
+  "error": "api-error.not-found.transaction",  // i18n key from API_ERROR constants
   "errors": {      // Validation errors (optional)
-    "fieldName": ["Error message 1", "Error message 2"]
+    "fieldName": ["validation.category-required"]  // i18n keys from VALIDATION_KEY constants
   }
 }
 ```

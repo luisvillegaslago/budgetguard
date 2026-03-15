@@ -4,14 +4,14 @@
  */
 
 import { z } from 'zod';
-import { INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
+import { INVOICE_STATUS, PAYMENT_METHOD, VALIDATION_KEY } from '@/constants/finance';
 
 /**
  * Schema for creating/updating a billing profile
  */
 export const BillingProfileSchema = z.object({
-  fullName: z.string().min(1, 'Full name is required').max(150),
-  nif: z.string().min(1, 'NIF is required').max(30),
+  fullName: z.string().min(1, VALIDATION_KEY.FULL_NAME_REQUIRED).max(150),
+  nif: z.string().min(1, VALIDATION_KEY.NIF_REQUIRED).max(30),
   address: z.string().max(500).optional().nullable(),
   phone: z.string().max(30).optional().nullable(),
   paymentMethod: z.enum([PAYMENT_METHOD.BANK_TRANSFER, PAYMENT_METHOD.PAYPAL, PAYMENT_METHOD.OTHER]),
@@ -30,7 +30,7 @@ export type BillingProfileInput = z.infer<typeof BillingProfileSchema>;
 export const CreateInvoicePrefixSchema = z.object({
   prefix: z
     .string()
-    .min(1, 'Prefix is required')
+    .min(1, VALIDATION_KEY.PREFIX_REQUIRED)
     .max(10)
     .transform((val) => val.toUpperCase()),
   description: z.string().max(100).optional().nullable(),
@@ -56,10 +56,10 @@ export type UpdateInvoicePrefixInput = z.infer<typeof UpdateInvoicePrefixSchema>
  */
 const InvoiceLineItemSchema = z
   .object({
-    description: z.string().min(1, 'Description is required').max(500),
+    description: z.string().min(1, VALIDATION_KEY.DESCRIPTION_REQUIRED).max(2000),
     hours: z.number().positive().nullable().optional(),
     hourlyRateCents: z.number().int().positive().nullable().optional(),
-    amountCents: z.number().int().positive('Amount must be greater than 0'),
+    amountCents: z.number().int().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
   })
   .refine(
     (item) => {
@@ -68,7 +68,7 @@ const InvoiceLineItemSchema = z
       }
       return true;
     },
-    { message: 'AmountCents must equal Math.round(hours * hourlyRateCents)', path: ['amountCents'] },
+    { message: VALIDATION_KEY.AMOUNT_MISMATCH, path: ['amountCents'] },
   );
 
 /**
@@ -77,9 +77,9 @@ const InvoiceLineItemSchema = z
  */
 export const CreateInvoiceSchema = z.object({
   prefixId: z.number().int().positive(),
-  invoiceDate: z.coerce.date({ message: 'Invalid date' }),
+  invoiceDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   companyId: z.number().int().positive(),
-  lineItems: z.array(InvoiceLineItemSchema).min(1, 'At least one line item is required').max(50),
+  lineItems: z.array(InvoiceLineItemSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED).max(50),
   notes: z.string().max(2000).optional().nullable(),
 });
 
@@ -100,8 +100,8 @@ export type UpdateInvoiceStatusInput = z.infer<typeof UpdateInvoiceStatusSchema>
  * Prefix and company are locked after creation
  */
 export const UpdateInvoiceSchema = z.object({
-  invoiceDate: z.coerce.date({ message: 'Invalid date' }),
-  lineItems: z.array(InvoiceLineItemSchema).min(1, 'At least one line item is required').max(50),
+  invoiceDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
+  lineItems: z.array(InvoiceLineItemSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED).max(50),
   notes: z.string().max(2000).optional().nullable(),
 });
 

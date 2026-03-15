@@ -4,7 +4,7 @@
  */
 
 import { put } from '@vercel/blob';
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, INVOICE_STATUS } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, INVOICE_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { getPool } from '@/services/database/connection';
 import { getInvoiceById } from '@/services/database/InvoiceRepository';
@@ -22,9 +22,9 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
 
   // 1. Validate status before generating PDF
   const check = await getInvoiceById(invoiceId);
-  if (!check) throw new Error('Invoice not found');
+  if (!check) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
   if (check.status !== INVOICE_STATUS.DRAFT) {
-    throw new Error(`Cannot finalize invoice with status '${check.status}'`);
+    throw new Error(API_ERROR.INVOICE.CANNOT_FINALIZE);
   }
 
   // 2. Set invoice date to today before generating PDF

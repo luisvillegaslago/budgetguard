@@ -5,11 +5,12 @@
  */
 
 import { NextResponse } from 'next/server';
+import { API_ERROR } from '@/constants/finance';
 import { computeDiff } from '@/services/database/SyncService';
 
 export async function GET() {
   if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
+    return NextResponse.json({ error: API_ERROR.VALIDATION.NOT_AVAILABLE_IN_PROD }, { status: 403 });
   }
 
   try {

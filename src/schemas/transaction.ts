@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { DATE_RANGE_PRESET, MONTH_FORMAT_REGEX, TRANSACTION_TYPE } from '@/constants/finance';
+import { DATE_RANGE_PRESET, MONTH_FORMAT_REGEX, TRANSACTION_TYPE, VALIDATION_KEY } from '@/constants/finance';
 
 /**
  * Transaction type enum
@@ -16,10 +16,10 @@ export const TransactionTypeSchema = z.enum([TRANSACTION_TYPE.INCOME, TRANSACTIO
  * Used by both form validation and API request validation
  */
 export const CreateTransactionSchema = z.object({
-  categoryId: z.number().int().positive('Selecciona una categoria'),
-  amount: z.number().positive('El monto debe ser mayor a 0'),
-  description: z.string().max(255, 'La descripcion es muy larga').optional().default(''),
-  transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
+  categoryId: z.number().int().positive(VALIDATION_KEY.CATEGORY_REQUIRED),
+  amount: z.number().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
+  description: z.string().max(255, VALIDATION_KEY.DESCRIPTION_TOO_LONG).optional().default(''),
+  transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   type: TransactionTypeSchema,
   isShared: z.boolean().optional().default(false),
   vatPercent: z.number().min(0).max(100).optional().nullable(),
@@ -44,7 +44,7 @@ export type UpdateTransactionInput = z.infer<typeof UpdateTransactionSchema>;
  * Schema for transaction filters (query params)
  */
 export const TransactionFiltersSchema = z.object({
-  month: z.string().regex(MONTH_FORMAT_REGEX, 'Formato de mes invalido (YYYY-MM)').optional(),
+  month: z.string().regex(MONTH_FORMAT_REGEX, VALIDATION_KEY.INVALID_MONTH_FORMAT).optional(),
   type: TransactionTypeSchema.optional(),
   categoryId: z.coerce.number().int().positive().optional(),
 });
@@ -55,12 +55,12 @@ export type TransactionFiltersInput = z.infer<typeof TransactionFiltersSchema>;
  * Schema for category creation
  */
 export const CreateCategorySchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido').max(100, 'El nombre es muy largo'),
+  name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(100, VALIDATION_KEY.NAME_TOO_LONG),
   type: TransactionTypeSchema,
   icon: z.string().max(50).optional().nullable(),
   color: z
     .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, 'Color hex invalido')
+    .regex(/^#[0-9A-Fa-f]{6}$/, VALIDATION_KEY.INVALID_COLOR)
     .optional()
     .nullable(),
   sortOrder: z.number().int().optional().default(0),
@@ -106,7 +106,7 @@ const TransactionGroupItemSchema = z.object({
  */
 export const CreateTransactionGroupSchema = z.object({
   description: z.string().min(1).max(255),
-  transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
+  transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   type: TransactionTypeSchema,
   isShared: z.boolean().optional().default(false),
   parentCategoryId: z.number().int().positive(),
@@ -120,7 +120,7 @@ export type CreateTransactionGroupInput = z.infer<typeof CreateTransactionGroupS
  */
 export const UpdateTransactionGroupSchema = z.object({
   description: z.string().min(1).max(255).optional(),
-  transactionDate: z.coerce.date({ message: 'Fecha invalida' }).optional(),
+  transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }).optional(),
 });
 
 export type UpdateTransactionGroupInput = z.infer<typeof UpdateTransactionGroupSchema>;

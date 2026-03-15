@@ -4,7 +4,7 @@
  * DELETE /api/trips/[id]/expenses/[expenseId] - Delete a trip expense
  */
 
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
 import { validateRequest } from '@/schemas/transaction';
 import { UpdateTripExpenseSchema } from '@/schemas/trip';
 import { deleteTransaction, getTransactionById, updateTransaction } from '@/services/database/TransactionRepository';
@@ -48,7 +48,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   }
 
   const transaction = await updateTransaction(transactionId, updateData);
-  if (!transaction) return notFound('Gasto no encontrado');
+  if (!transaction) return notFound(API_ERROR.NOT_FOUND.EXPENSE);
 
   return { data: transaction };
 }, 'PUT /api/trips/[id]/expenses/[expenseId]');
@@ -59,7 +59,7 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
   if (typeof transactionId !== 'number') return transactionId;
 
   const deleted = await deleteTransaction(transactionId);
-  if (!deleted) return notFound('Gasto no encontrado');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.EXPENSE);
 
   return { data: { deleted: true } };
 }, 'DELETE /api/trips/[id]/expenses/[expenseId]');

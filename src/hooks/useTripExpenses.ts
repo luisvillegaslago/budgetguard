@@ -3,10 +3,12 @@
  * TanStack Query mutations for trip expense CRUD operations
  */
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
+import { useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateTripExpenseInput, UpdateTripExpenseInput } from '@/schemas/trip';
 import type { ApiResponse, Transaction } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function createTripExpenseRequest(params: {
@@ -21,7 +23,7 @@ async function createTripExpenseRequest(params: {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al crear gasto de viaje');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.TRIP_EXPENSE));
   }
 
   const data: ApiResponse<Transaction> = await response.json();
@@ -46,7 +48,7 @@ async function updateTripExpenseRequest(params: {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al actualizar gasto');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.TRIP_EXPENSE));
   }
 
   const data: ApiResponse<Transaction> = await response.json();
@@ -65,7 +67,7 @@ async function deleteTripExpenseRequest(params: { tripId: number; expenseId: num
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al eliminar gasto');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.TRIP_EXPENSE));
   }
 }
 
@@ -75,7 +77,7 @@ async function deleteTripExpenseRequest(params: { tripId: number; expenseId: num
 export function useCreateTripExpense(tripId: number) {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: (data: CreateTripExpenseInput) => createTripExpenseRequest({ tripId, data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
@@ -92,7 +94,7 @@ export function useCreateTripExpense(tripId: number) {
 export function useUpdateTripExpense(tripId: number) {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: (params: { expenseId: number; data: UpdateTripExpenseInput }) =>
       updateTripExpenseRequest({ tripId, ...params }),
     onSuccess: () => {
@@ -110,7 +112,7 @@ export function useUpdateTripExpense(tripId: number) {
 export function useDeleteTripExpense(tripId: number) {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: (expenseId: number) => deleteTripExpenseRequest({ tripId, expenseId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });

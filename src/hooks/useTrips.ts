@@ -3,10 +3,12 @@
  * TanStack Query hooks for trip CRUD operations
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateTripInput, UpdateTripInput } from '@/schemas/trip';
 import type { ApiResponse, Trip, TripDetail, TripDisplay } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchTrips(): Promise<TripDisplay[]> {
@@ -50,7 +52,7 @@ async function createTripRequest(input: CreateTripInput): Promise<Trip> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al crear viaje');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.TRIP));
   }
 
   const data: ApiResponse<Trip> = await response.json();
@@ -71,7 +73,7 @@ async function updateTripRequest(params: { tripId: number; data: UpdateTripInput
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al actualizar viaje');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.TRIP));
   }
 
   const data: ApiResponse<Trip> = await response.json();
@@ -90,7 +92,7 @@ async function deleteTripRequest(tripId: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al eliminar viaje');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.TRIP));
   }
 }
 
@@ -123,7 +125,7 @@ export function useTrip(tripId: number) {
 export function useCreateTrip() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: createTripRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
@@ -137,7 +139,7 @@ export function useCreateTrip() {
 export function useUpdateTrip() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: updateTripRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
@@ -151,7 +153,7 @@ export function useUpdateTrip() {
 export function useDeleteTrip() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteTripRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });

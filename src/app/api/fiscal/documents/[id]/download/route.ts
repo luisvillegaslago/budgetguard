@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { API_ERROR } from '@/constants/finance';
 import { getDocumentBlobUrl } from '@/services/database/FiscalDocumentRepository';
 import { notFound, parseIdParam, withApiHandler } from '@/utils/apiHandler';
 import { fetchBlob } from '@/utils/blobFetch';
@@ -14,11 +15,11 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof documentId !== 'number') return documentId;
 
   const doc = await getDocumentBlobUrl(documentId);
-  if (!doc) return notFound('Document not found');
+  if (!doc) return notFound(API_ERROR.NOT_FOUND.DOCUMENT);
 
   const blobResponse = await fetchBlob(doc.blobUrl);
   if (!blobResponse.ok) {
-    return NextResponse.json({ success: false, error: 'Failed to fetch document' }, { status: 502 });
+    return NextResponse.json({ success: false, error: API_ERROR.FISCAL.DOWNLOAD_FAILED }, { status: 502 });
   }
 
   return new NextResponse(blobResponse.body, {

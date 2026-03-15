@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { MONTH_FORMAT_REGEX } from '@/constants/finance';
+import { API_ERROR, MONTH_FORMAT_REGEX } from '@/constants/finance';
 import { getSubcategorySummary } from '@/services/database/TransactionRepository';
 import { parseIdParam, withApiHandler } from '@/utils/apiHandler';
 import { getCurrentMonth } from '@/utils/helpers';
@@ -16,11 +16,11 @@ export const GET = withApiHandler(async (request) => {
   const categoryIdParam = searchParams.get('categoryId');
 
   if (!MONTH_FORMAT_REGEX.test(month)) {
-    return NextResponse.json({ success: false, error: 'Formato de mes invalido. Usa YYYY-MM' }, { status: 400 });
+    return NextResponse.json({ success: false, error: API_ERROR.VALIDATION.INVALID_MONTH }, { status: 400 });
   }
 
   if (!categoryIdParam) {
-    return NextResponse.json({ success: false, error: 'categoryId es requerido' }, { status: 400 });
+    return NextResponse.json({ success: false, error: API_ERROR.VALIDATION.CATEGORY_ID_REQUIRED }, { status: 400 });
   }
 
   const categoryId = parseIdParam(categoryIdParam);

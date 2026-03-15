@@ -4,6 +4,7 @@
  * DELETE /api/invoices/prefixes/[id] - Delete a prefix (409 if has invoices)
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { UpdateInvoicePrefixSchema } from '@/schemas/invoice';
 import { validateRequest } from '@/schemas/transaction';
 import { ConflictError, deleteInvoicePrefix, updateInvoicePrefix } from '@/services/database/InvoiceRepository';
@@ -19,7 +20,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   if (!parsed.success) return validationError(parsed.errors);
 
   const updated = await updateInvoicePrefix(prefixId, parsed.data);
-  if (!updated) return notFound('Prefix not found');
+  if (!updated) return notFound(API_ERROR.NOT_FOUND.PREFIX);
 
   return { data: updated };
 }, 'PUT /api/invoices/prefixes/[id]');
@@ -31,11 +32,11 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
 
   try {
     const deleted = await deleteInvoicePrefix(prefixId);
-    if (!deleted) return notFound('Prefix not found');
+    if (!deleted) return notFound(API_ERROR.NOT_FOUND.PREFIX);
     return { data: { deleted: true } };
   } catch (error) {
     if (error instanceof ConflictError) {
-      return conflict(error.message);
+      return conflict(API_ERROR.CONFLICT.PREFIX_IN_USE);
     }
     throw error;
   }

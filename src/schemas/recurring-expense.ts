@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { RECURRING_FREQUENCY } from '@/constants/finance';
+import { RECURRING_FREQUENCY, VALIDATION_KEY } from '@/constants/finance';
 
 export const RecurringFrequencySchema = z.enum([
   RECURRING_FREQUENCY.WEEKLY,
@@ -18,14 +18,14 @@ export const RecurringFrequencySchema = z.enum([
  */
 export const CreateRecurringExpenseSchema = z
   .object({
-    categoryId: z.number().int().positive('Category is required'),
-    amount: z.number().positive('Amount must be greater than 0'),
-    description: z.string().max(255, 'Description is too long').optional().default(''),
+    categoryId: z.number().int().positive(VALIDATION_KEY.CATEGORY_REQUIRED),
+    amount: z.number().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
+    description: z.string().max(255, VALIDATION_KEY.DESCRIPTION_TOO_LONG).optional().default(''),
     frequency: RecurringFrequencySchema,
     dayOfWeek: z.number().int().min(0).max(6).nullable().optional().default(null),
     dayOfMonth: z.number().int().min(1).max(31).nullable().optional().default(null),
     monthOfYear: z.number().int().min(1).max(12).nullable().optional().default(null),
-    startDate: z.coerce.date({ message: 'Invalid date' }),
+    startDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
     endDate: z.coerce.date().nullable().optional().default(null),
     isShared: z.boolean().optional().default(false),
     vatPercent: z.number().min(0).max(100).nullable().optional().default(null),
@@ -40,7 +40,7 @@ export const CreateRecurringExpenseSchema = z
       }
       return true;
     },
-    { message: 'Day of week is required for weekly frequency', path: ['dayOfWeek'] },
+    { message: VALIDATION_KEY.DAY_OF_WEEK_REQUIRED, path: ['dayOfWeek'] },
   )
   .refine(
     (data) => {
@@ -49,7 +49,7 @@ export const CreateRecurringExpenseSchema = z
       }
       return true;
     },
-    { message: 'Day of month is required for this frequency', path: ['dayOfMonth'] },
+    { message: VALIDATION_KEY.DAY_OF_MONTH_REQUIRED, path: ['dayOfMonth'] },
   )
   .refine(
     (data) => {
@@ -58,7 +58,7 @@ export const CreateRecurringExpenseSchema = z
       }
       return true;
     },
-    { message: 'Month is required for yearly frequency', path: ['monthOfYear'] },
+    { message: VALIDATION_KEY.MONTH_REQUIRED, path: ['monthOfYear'] },
   );
 
 export type CreateRecurringExpenseInput = z.infer<typeof CreateRecurringExpenseSchema>;

@@ -3,9 +3,10 @@
  * TanStack Query hooks for transaction CRUD operations
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY, SHARED_EXPENSE } from '@/constants/finance';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY, SHARED_EXPENSE } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateTransactionInput } from '@/schemas/transaction';
 import type {
   ApiResponse,
@@ -14,6 +15,7 @@ import type {
   TransactionType,
   TripGroupDisplay,
 } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 interface TransactionsResponse {
@@ -59,7 +61,7 @@ async function createTransactionRequest(input: CreateTransactionInput): Promise<
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al crear transaccion');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.TRANSACTION));
   }
 
   const data: ApiResponse<Transaction> = await response.json();
@@ -80,7 +82,7 @@ async function updateTransactionRequest(id: number, input: Partial<CreateTransac
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al actualizar transaccion');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.TRANSACTION));
   }
 
   const data: ApiResponse<Transaction> = await response.json();
@@ -99,7 +101,7 @@ async function deleteTransactionRequest(id: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al eliminar transaccion');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.TRANSACTION));
   }
 }
 
@@ -120,7 +122,7 @@ export function useTransactions(month: string, filters?: TransactionFilters) {
 export function useCreateTransaction() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: createTransactionRequest,
     onSuccess: () => {
       // Invalidate all transaction and summary queries to refresh data
@@ -136,7 +138,7 @@ export function useCreateTransaction() {
 export function useUpdateTransaction() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<CreateTransactionInput> }) =>
       updateTransactionRequest(id, data),
     onSuccess: () => {
@@ -155,7 +157,7 @@ export function useUpdateTransaction() {
 export function useDeleteTransaction() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteTransactionRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });

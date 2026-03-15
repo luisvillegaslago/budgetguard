@@ -1280,18 +1280,29 @@ export function getErrorTranslations(locale: 'en' | 'es') {
 - Uses inline styles (no CSS dependencies)
 - Uses `staticTranslations` for i18n
 
-### API Error Responses
+### API Error Responses & i18n
+
+Backend returns **i18n keys** (not human-readable messages). The frontend translates them via `t()`.
 
 ```typescript
 // Success
 { success: true, data: { ... } }
 
 // Validation Error (400)
-{ success: false, errors: { fieldName: ['Error message'] } }
+{ success: false, errors: { fieldName: ['validation.category-required'] } }
+
+// Not Found (404)
+{ success: false, error: 'api-error.not-found.transaction' }
 
 // Server Error (500)
-{ success: false, error: 'Human-readable message' }
+{ success: false, error: 'api-error.internal' }
 ```
+
+**Constants**: `API_ERROR` (backend error codes) and `VALIDATION_KEY` (Zod schema messages) in `src/constants/finance.ts`.
+
+**Frontend**: `useApiMutation` wrapper auto-translates `error.message` → exposes `errorMessage` (already translated). Request functions use `extractApiErrorKey()` from `src/utils/apiErrorHandler.ts` for fallbacks.
+
+**Integrity**: `src/__tests__/utils/error-keys-integrity.test.ts` validates all keys exist in both `en.json` and `es.json`.
 
 ---
 

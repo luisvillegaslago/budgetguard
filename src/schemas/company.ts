@@ -5,13 +5,13 @@
 
 import { z } from 'zod';
 
-import { COMPANY_ROLE } from '@/constants/finance';
+import { COMPANY_ROLE, VALIDATION_KEY } from '@/constants/finance';
 
 /**
  * Schema for creating a new company (full form)
  */
 export const CreateCompanySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(150, 'Name is too long'),
+  name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(150, VALIDATION_KEY.NAME_TOO_LONG),
   tradingName: z.string().max(150).nullable().optional().default(null),
   taxId: z.string().max(30).nullable().optional().default(null),
   address: z.string().max(250).nullable().optional().default(null),
@@ -46,7 +46,7 @@ export type UpdateCompanyInput = z.infer<typeof UpdateCompanySchema>;
  * Schema for quick company creation (name only, from inline selector)
  */
 export const QuickCreateCompanySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(150, 'Name is too long'),
+  name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(150, VALIDATION_KEY.NAME_TOO_LONG),
 });
 
 export type QuickCreateCompanyInput = z.infer<typeof QuickCreateCompanySchema>;

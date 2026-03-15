@@ -1154,7 +1154,129 @@
     "category-required": "Please select a category",
     "amount-positive": "Amount must be greater than 0",
     "description-too-long": "Description is too long",
+    "description-required": "Description is required",
     "invalid-date": "Invalid date",
+    "name-required": "Name is required",
+    "name-too-long": "Name is too long",
+    "full-name-required": "Full name is required",
+    "nif-required": "NIF is required",
+    "prefix-required": "Prefix is required",
+    "invalid-color": "Invalid hex color",
+    "line-items-required": "At least one line item is required",
+    "select-prefix": "Select a prefix",
+    "select-client": "Select a client",
+    "date-required": "Date is required",
+    "day-of-week-required": "Day of week is required for weekly frequency",
+    "day-of-month-required": "Day of month is required for this frequency",
+    "month-required": "Month is required for yearly frequency",
+    "amount-mismatch": "Amount must equal hours × rate",
+    "jump-number-positive": "Jump number must be positive",
+    "duration-positive": "Duration must be positive",
+    "modelo-type-mismatch": "Modelos require modeloType; invoices must not have it",
+    "quarterly-mismatch": "Quarterly modelos require quarter; annual modelos must not",
     "invalid-month-format": "Invalid month format. Use YYYY-MM"
+  },
+  "api-error": {
+    "unauthorized": "You need to sign in to access this resource",
+    "internal": "An unexpected error occurred. Please try again.",
+    "invalid-id": "Invalid ID",
+    "not-found": {
+      "transaction": "Transaction not found",
+      "category": "Category not found",
+      "invoice": "Invoice not found",
+      "company": "Company not found",
+      "trip": "Trip not found",
+      "expense": "Expense not found",
+      "recurring-expense": "Recurring expense not found",
+      "occurrence": "Occurrence not found",
+      "group": "Transaction group not found",
+      "jump": "Jump not found",
+      "tunnel-session": "Tunnel session not found",
+      "prefix": "Invoice prefix not found",
+      "document": "Document not found",
+      "document-blob": "Document file not found",
+      "billing-profile": "Billing profile not found"
+    },
+    "conflict": {
+      "has-transactions": "This category has linked transactions",
+      "has-subcategories": "This category has subcategories",
+      "prefix-in-use": "This prefix has invoices and cannot be deleted"
+    },
+    "invoice": {
+      "category-required-for-paid": "An income category is required to mark as paid",
+      "cannot-finalize": "Only draft invoices can be finalized",
+      "only-draft-editable": "Only draft invoices can be edited",
+      "only-draft-deletable": "Only draft invoices can be deleted",
+      "invalid-status-transition": "Invalid status transition"
+    },
+    "fiscal": {
+      "file-required": "A file is required",
+      "metadata-required": "Document metadata is required",
+      "extraction-failed": "Could not analyze the document",
+      "download-failed": "Could not download the document"
+    },
+    "validation": {
+      "invalid-month": "Invalid month format. Use YYYY-MM",
+      "category-id-required": "Category ID is required",
+      "name-required": "Name is required",
+      "not-available-in-prod": "This feature is not available in production"
+    },
+    "mutation": {
+      "create": {
+        "transaction": "Error creating transaction",
+        "category": "Error creating category",
+        "invoice": "Error creating invoice",
+        "company": "Error creating company",
+        "prefix": "Error creating prefix",
+        "recurring-expense": "Error creating recurring expense",
+        "trip": "Error creating trip",
+        "trip-expense": "Error creating trip expense",
+        "jump": "Error creating jump",
+        "tunnel-session": "Error creating tunnel session",
+        "group": "Error creating transaction group"
+      },
+      "update": {
+        "transaction": "Error updating transaction",
+        "category": "Error updating category",
+        "invoice": "Error updating invoice",
+        "company": "Error updating company",
+        "prefix": "Error updating prefix",
+        "billing-profile": "Error updating billing profile",
+        "recurring-expense": "Error updating recurring expense",
+        "trip": "Error updating trip",
+        "trip-expense": "Error updating trip expense",
+        "jump": "Error updating jump",
+        "tunnel-session": "Error updating tunnel session",
+        "fiscal-status": "Error updating document status",
+        "fiscal-settings": "Error updating fiscal settings"
+      },
+      "delete": {
+        "transaction": "Error deleting transaction",
+        "category": "Error deleting category",
+        "invoice": "Error deleting invoice",
+        "company": "Error deleting company",
+        "prefix": "Error deleting prefix",
+        "recurring-expense": "Error deleting recurring expense",
+        "trip": "Error deleting trip",
+        "trip-expense": "Error deleting trip expense",
+        "jump": "Error deleting jump",
+        "tunnel-session": "Error deleting tunnel session",
+        "fiscal-document": "Error deleting document"
+      },
+      "import": {
+        "jumps": "Error importing jumps",
+        "tunnel-sessions": "Error importing tunnel sessions"
+      },
+      "upload": {
+        "fiscal-document": "Error uploading document",
+        "fiscal-bulk": "Error in bulk upload"
+      },
+      "finalize": {
+        "invoice": "Error finalizing invoice"
+      },
+      "link": {
+        "fiscal-transaction": "Error linking transaction"
+      }
+    }
   }
 }

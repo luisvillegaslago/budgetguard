@@ -3,10 +3,12 @@
  * TanStack Query hooks for fetching and mutating categories
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, FILTER_TYPE, QUERY_KEY, TRANSACTION_TYPE } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, FILTER_TYPE, QUERY_KEY, TRANSACTION_TYPE } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateCategoryInput, UpdateCategoryInput } from '@/schemas/transaction';
 import type { ApiResponse, Category, TransactionType } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchCategories(type?: TransactionType, hierarchical = false): Promise<Category[]> {
@@ -61,7 +63,7 @@ async function createCategoryRequest(input: CreateCategoryInput): Promise<Catego
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al crear categoria');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.CATEGORY));
   }
 
   const data: ApiResponse<Category> = await response.json();
@@ -82,7 +84,7 @@ async function updateCategoryRequest(id: number, input: UpdateCategoryInput): Pr
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al actualizar categoria');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.CATEGORY));
   }
 
   const data: ApiResponse<Category> = await response.json();
@@ -95,6 +97,7 @@ async function updateCategoryRequest(id: number, input: UpdateCategoryInput): Pr
 }
 
 interface DeleteCategoryError {
+  success: boolean;
   error: string;
   count?: number;
 }
@@ -106,7 +109,7 @@ async function deleteCategoryRequest(id: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: DeleteCategoryError = await response.json();
-    const error = new Error(errorData.error ?? 'Error al eliminar categoria');
+    const error = new Error(errorData.error ?? API_ERROR.MUTATION.DELETE.CATEGORY);
     (error as Error & { count?: number }).count = errorData.count;
     throw error;
   }
@@ -166,7 +169,7 @@ export function useAllCategoriesHierarchical(type?: TransactionType) {
 export function useCreateCategory() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: createCategoryRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORIES] });
@@ -180,7 +183,7 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateCategoryInput }) => updateCategoryRequest(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORIES] });
@@ -195,7 +198,7 @@ export function useUpdateCategory() {
 export function useDeleteCategory() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteCategoryRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORIES] });

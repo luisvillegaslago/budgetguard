@@ -6,6 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { API_ERROR } from '@/constants/finance';
 import type { Locale } from '@/libs/i18n';
 import { DEFAULT_LOCALE, isValidLocale } from '@/libs/i18n';
 import { getCompanyById } from '@/services/database/CompanyRepository';
@@ -30,7 +31,7 @@ export const POST = withApiHandler(async (request, { params }) => {
   if (typeof documentId !== 'number') return documentId;
 
   const document = await getDocumentById(documentId);
-  if (!document) return notFound('Document not found');
+  if (!document) return notFound(API_ERROR.NOT_FOUND.DOCUMENT);
 
   const localeParam = new URL(request.url).searchParams.get('locale') ?? '';
   const validatedLocale: Locale = isValidLocale(localeParam) ? localeParam : DEFAULT_LOCALE;
@@ -38,11 +39,11 @@ export const POST = withApiHandler(async (request, { params }) => {
   try {
     // Download document from blob storage
     const blobInfo = await getDocumentBlobUrl(documentId);
-    if (!blobInfo) return notFound('Document blob not found');
+    if (!blobInfo) return notFound(API_ERROR.NOT_FOUND.DOCUMENT_BLOB);
 
     const blobResponse = await fetchBlob(blobInfo.blobUrl);
     if (!blobResponse.ok) {
-      return NextResponse.json({ success: false, error: 'extraction_failed' }, { status: 502 });
+      return NextResponse.json({ success: false, error: API_ERROR.FISCAL.EXTRACTION_FAILED }, { status: 502 });
     }
 
     const buffer = Buffer.from(await blobResponse.arrayBuffer());
@@ -103,7 +104,7 @@ export const POST = withApiHandler(async (request, { params }) => {
     // biome-ignore lint/suspicious/noConsole: OCR error logging
     console.error(`[OCR] Extraction failed for document ${documentId}:`, message);
 
-    let errorCode = 'extraction_failed';
+    let errorCode: string = API_ERROR.FISCAL.EXTRACTION_FAILED;
     if (message.includes('credit balance')) errorCode = 'api_credits_exhausted';
     else if (message.includes('validation failed') || message.includes('totalAmountEuros'))
       errorCode = 'unrecognizable_amount';

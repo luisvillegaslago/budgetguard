@@ -3,10 +3,12 @@
  * TanStack Query mutations for transaction group CRUD operations
  */
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, QUERY_KEY } from '@/constants/finance';
+import { useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateTransactionGroupInput, UpdateTransactionGroupInput } from '@/schemas/transaction';
 import type { ApiResponse, Transaction } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function createTransactionGroupRequest(input: CreateTransactionGroupInput): Promise<Transaction[]> {
@@ -18,7 +20,7 @@ async function createTransactionGroupRequest(input: CreateTransactionGroupInput)
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al crear grupo de transacciones');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.GROUP));
   }
 
   const data: ApiResponse<Transaction[]> = await response.json();
@@ -37,7 +39,7 @@ async function deleteTransactionGroupRequest(groupId: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al eliminar grupo');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.TRANSACTION));
   }
 }
 
@@ -53,7 +55,7 @@ async function updateTransactionGroupRequest(params: {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al actualizar grupo');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.TRANSACTION));
   }
 
   const data: ApiResponse<Transaction[]> = await response.json();
@@ -71,7 +73,7 @@ async function updateTransactionGroupRequest(params: {
 export function useCreateTransactionGroup() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: createTransactionGroupRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
@@ -87,7 +89,7 @@ export function useCreateTransactionGroup() {
 export function useDeleteTransactionGroup() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteTransactionGroupRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
@@ -103,7 +105,7 @@ export function useDeleteTransactionGroup() {
 export function useUpdateTransactionGroup() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: updateTransactionGroupRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });

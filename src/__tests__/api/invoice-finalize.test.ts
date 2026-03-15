@@ -3,7 +3,7 @@
  * Tests the finalize endpoint with mocked service layer.
  */
 
-import { INVOICE_STATUS } from '@/constants/finance';
+import { API_ERROR, INVOICE_STATUS } from '@/constants/finance';
 
 // ============================================================
 // Mock Data
@@ -34,7 +34,7 @@ jest.mock('@/services/InvoiceFinalizeService', () => ({
   finalizeInvoice: jest.fn(async (invoiceId: number) => {
     capturedInvoiceId = invoiceId;
 
-    if (shouldThrowNotFound) throw new Error('Invoice not found');
+    if (shouldThrowNotFound) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
     if (shouldThrowInvalidStatus) throw new Error("Cannot finalize invoice with status 'finalized'");
     if (shouldThrowBlobError) throw new Error('Blob upload failed');
 

@@ -5,6 +5,7 @@
  * DELETE /api/companies/[id] - Soft-delete a company
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { UpdateCompanySchema } from '@/schemas/company';
 import { validateRequest } from '@/schemas/transaction';
 import {
@@ -21,7 +22,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof companyId !== 'number') return companyId;
 
   const company = await getCompanyById(companyId);
-  if (!company) return notFound('Company not found');
+  if (!company) return notFound(API_ERROR.NOT_FOUND.COMPANY);
 
   return { data: company };
 }, 'GET /api/companies/[id]');
@@ -36,7 +37,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   if (!validation.success) return validationError(validation.errors);
 
   const company = await updateCompany(companyId, validation.data);
-  if (!company) return notFound('Company not found');
+  if (!company) return notFound(API_ERROR.NOT_FOUND.COMPANY);
 
   return { data: company };
 }, 'PUT /api/companies/[id]');
@@ -49,7 +50,7 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
   const usageCount = await getCompanyUsageCount(companyId);
 
   const deleted = await deleteCompany(companyId);
-  if (!deleted) return notFound('Company not found');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.COMPANY);
 
   return { data: { deleted: true, usageCount } };
 }, 'DELETE /api/companies/[id]');

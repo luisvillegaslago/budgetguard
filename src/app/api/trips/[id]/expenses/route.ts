@@ -3,7 +3,7 @@
  * POST /api/trips/[id]/expenses - Add an expense to a trip
  */
 
-import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { validateRequest } from '@/schemas/transaction';
 import { CreateTripExpenseSchema } from '@/schemas/trip';
 import { createTransaction } from '@/services/database/TransactionRepository';
@@ -17,7 +17,7 @@ export const POST = withApiHandler(async (request, { params }) => {
   if (typeof tripId !== 'number') return tripId;
 
   const trip = await getTripById(tripId);
-  if (!trip) return notFound('Viaje no encontrado');
+  if (!trip) return notFound(API_ERROR.NOT_FOUND.TRIP);
 
   const body = await request.json();
   const validation = validateRequest(CreateTripExpenseSchema, body);

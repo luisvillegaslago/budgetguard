@@ -8,6 +8,7 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { API_ERROR } from '@/constants/finance';
 import { useDeleteCategory, useUpdateCategory } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Category } from '@/types/finance';
@@ -37,9 +38,9 @@ export function CategoryDeleteDialog({ category, onClose, onDeleted }: CategoryD
       onDeleted();
     } catch (error) {
       const err = error as Error & { count?: number };
-      if (err.message === 'has-transactions') {
+      if (err.message === API_ERROR.CONFLICT.HAS_TRANSACTIONS) {
         setConflict({ type: 'has-transactions', count: err.count ?? 0 });
-      } else if (err.message === 'has-subcategories') {
+      } else if (err.message === API_ERROR.CONFLICT.HAS_SUBCATEGORIES) {
         setConflict({ type: 'has-subcategories', count: err.count ?? 0 });
       }
     }

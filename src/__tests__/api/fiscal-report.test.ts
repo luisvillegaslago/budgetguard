@@ -4,7 +4,7 @@
  * Validates parameter validation, repository delegation, and error handling
  */
 
-import { TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, TRANSACTION_TYPE } from '@/constants/finance';
 import type { FiscalTransaction, Modelo130Summary, Modelo303Summary } from '@/types/finance';
 
 // ── Mock Data ──
@@ -246,7 +246,7 @@ describe('GET /api/fiscal', () => {
 
     expect(response.status).toBe(500);
     expect(body.success).toBe(false);
-    expect(body.error).toBe('Internal server error');
+    expect(body.error).toBe(API_ERROR.INTERNAL);
     consoleSpy.mockRestore();
   });
 });

@@ -3,10 +3,12 @@
  * TanStack Query hooks for recurring expense CRUD operations
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateRecurringExpenseInput, UpdateRecurringExpenseInput } from '@/schemas/recurring-expense';
 import type { ApiResponse, RecurringExpense } from '@/types/finance';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 interface RecurringExpensesResponse {
@@ -42,7 +44,7 @@ async function createRecurringExpenseRequest(input: CreateRecurringExpenseInput)
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al crear gasto recurrente');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.RECURRING_EXPENSE));
   }
 
   const data: ApiResponse<RecurringExpense> = await response.json();
@@ -66,7 +68,7 @@ async function updateRecurringExpenseRequest(
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al actualizar gasto recurrente');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.RECURRING_EXPENSE));
   }
 
   const data: ApiResponse<RecurringExpense> = await response.json();
@@ -85,7 +87,7 @@ async function deleteRecurringExpenseRequest(id: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al eliminar gasto recurrente');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.RECURRING_EXPENSE));
   }
 }
 
@@ -96,7 +98,7 @@ async function hardDeleteRecurringExpenseRequest(id: number): Promise<void> {
 
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
-    throw new Error(errorData.error ?? 'Error al eliminar gasto recurrente');
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.RECURRING_EXPENSE));
   }
 }
 
@@ -117,7 +119,7 @@ export function useRecurringExpenses() {
 export function useCreateRecurringExpense() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: createRecurringExpenseRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
@@ -132,7 +134,7 @@ export function useCreateRecurringExpense() {
 export function useUpdateRecurringExpense() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateRecurringExpenseInput }) =>
       updateRecurringExpenseRequest(id, data),
     onSuccess: () => {
@@ -148,7 +150,7 @@ export function useUpdateRecurringExpense() {
 export function useDeleteRecurringExpense() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: deleteRecurringExpenseRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
@@ -163,7 +165,7 @@ export function useDeleteRecurringExpense() {
 export function useHardDeleteRecurringExpense() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: hardDeleteRecurringExpenseRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });

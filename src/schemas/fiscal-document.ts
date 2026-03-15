@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { VALIDATION_KEY } from '@/constants/finance';
 import { eurosToCents } from '@/utils/money';
 
 /**
@@ -27,7 +28,7 @@ export const FiscalDocumentUploadSchema = z
       if (data.documentType === 'modelo') return data.modeloType != null;
       return data.modeloType == null;
     },
-    { message: 'Modelos require modeloType; facturas must not have it', path: ['modeloType'] },
+    { message: VALIDATION_KEY.MODELO_TYPE_MISMATCH, path: ['modeloType'] },
   )
   .refine(
     (data) => {
@@ -35,7 +36,7 @@ export const FiscalDocumentUploadSchema = z
       if (data.modeloType === '303' || data.modeloType === '130') return data.fiscalQuarter != null;
       return true;
     },
-    { message: 'Quarterly modelos require fiscalQuarter; annual modelos must not', path: ['fiscalQuarter'] },
+    { message: VALIDATION_KEY.QUARTERLY_MISMATCH, path: ['fiscalQuarter'] },
   );
 
 export type FiscalDocumentUploadInput = z.infer<typeof FiscalDocumentUploadSchema>;

@@ -3,11 +3,13 @@
  * TanStack Query hooks for tunnel session CRUD and import operations
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
+import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateTunnelSessionInput, UpdateTunnelSessionInput } from '@/schemas/skydive';
 import type { ApiResponse } from '@/types/finance';
 import type { ImportResult, TunnelSession } from '@/types/skydive';
+import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 async function fetchTunnelSessions(filters?: { year?: number; location?: string }): Promise<TunnelSession[]> {
@@ -37,7 +39,7 @@ export function useTunnelSessions(filters?: { year?: number; location?: string }
 export function useCreateTunnelSession() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (input: CreateTunnelSessionInput) => {
       const response = await fetchApi(API_ENDPOINT.TUNNEL_SESSIONS, {
         method: 'POST',
@@ -47,7 +49,7 @@ export function useCreateTunnelSession() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error creating session');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CREATE.TUNNEL_SESSION));
       }
 
       const data: ApiResponse<TunnelSession> = await response.json();
@@ -64,7 +66,7 @@ export function useCreateTunnelSession() {
 export function useUpdateTunnelSession() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (params: { sessionId: number; data: UpdateTunnelSessionInput }) => {
       const response = await fetchApi(`${API_ENDPOINT.TUNNEL_SESSIONS}/${params.sessionId}`, {
         method: 'PUT',
@@ -74,7 +76,7 @@ export function useUpdateTunnelSession() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error updating session');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.TUNNEL_SESSION));
       }
 
       const data: ApiResponse<TunnelSession> = await response.json();
@@ -91,7 +93,7 @@ export function useUpdateTunnelSession() {
 export function useDeleteTunnelSession() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (sessionId: number) => {
       const response = await fetchApi(`${API_ENDPOINT.TUNNEL_SESSIONS}/${sessionId}`, {
         method: 'DELETE',
@@ -99,7 +101,7 @@ export function useDeleteTunnelSession() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error deleting session');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.TUNNEL_SESSION));
       }
     },
     onSuccess: () => {
@@ -112,7 +114,7 @@ export function useDeleteTunnelSession() {
 export function useImportTunnelSessions() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (rows: Record<string, unknown>[]) => {
       const response = await fetchApi(`${API_ENDPOINT.TUNNEL_SESSIONS}/import`, {
         method: 'POST',
@@ -122,7 +124,7 @@ export function useImportTunnelSessions() {
 
       if (!response.ok) {
         const errorData: ApiResponse<never> = await response.json();
-        throw new Error(errorData.error ?? 'Error importing sessions');
+        throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.IMPORT.TUNNEL_SESSIONS));
       }
 
       const data: ApiResponse<ImportResult & { validationErrors: Array<{ row: number; error: string }> }> =

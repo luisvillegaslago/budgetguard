@@ -4,6 +4,7 @@
  * DELETE /api/skydiving/tunnel/[id] - Delete tunnel session
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { UpdateTunnelSessionSchema } from '@/schemas/skydive';
 import { validateRequest } from '@/schemas/transaction';
 import { deleteTunnelSession, updateTunnelSession } from '@/services/database/SkydiveRepository';
@@ -26,7 +27,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
     ...(price !== undefined ? { priceCents: price != null ? eurosToCents(price) : null } : {}),
   };
   const session = await updateTunnelSession(sessionId, payload);
-  if (!session) return notFound('Session not found');
+  if (!session) return notFound(API_ERROR.NOT_FOUND.TUNNEL_SESSION);
 
   return { data: session };
 }, 'PUT /api/skydiving/tunnel/[id]');

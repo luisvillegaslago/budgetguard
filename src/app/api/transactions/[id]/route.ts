@@ -5,7 +5,7 @@
  * DELETE /api/transactions/[id] - Delete a transaction
  */
 
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
 import { CreateTransactionSchema, validateRequest } from '@/schemas/transaction';
 import { unlinkTransactionDocuments } from '@/services/database/FiscalDocumentRepository';
 import {
@@ -23,7 +23,7 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (typeof transactionId !== 'number') return transactionId;
 
   const transaction = await getTransactionById(transactionId);
-  if (!transaction) return notFound('Transaccion no encontrada');
+  if (!transaction) return notFound(API_ERROR.NOT_FOUND.TRANSACTION);
 
   return { data: transaction };
 }, 'GET /api/transactions/[id]');
@@ -71,7 +71,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   }
 
   const transaction = await updateTransaction(transactionId, updateData);
-  if (!transaction) return notFound('Transaccion no encontrada');
+  if (!transaction) return notFound(API_ERROR.NOT_FOUND.TRANSACTION);
 
   return { data: transaction };
 }, 'PUT /api/transactions/[id]');
@@ -83,7 +83,7 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
 
   // Check if transaction belongs to a group before deleting (for orphan cleanup)
   const existing = await getTransactionById(transactionId);
-  if (!existing) return notFound('Transaccion no encontrada');
+  if (!existing) return notFound(API_ERROR.NOT_FOUND.TRANSACTION);
 
   // Unlink fiscal documents before deleting
   if (existing.fiscalDocumentId != null) {
@@ -91,7 +91,7 @@ export const DELETE = withApiHandler(async (_request, { params }) => {
   }
 
   const deleted = await deleteTransaction(transactionId);
-  if (!deleted) return notFound('Transaccion no encontrada');
+  if (!deleted) return notFound(API_ERROR.NOT_FOUND.TRANSACTION);
 
   // Clean up orphaned group if this transaction belonged to one
   if (existing.transactionGroupId) {
