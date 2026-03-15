@@ -59,7 +59,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
   };
 
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-amber-50/50 dark:hover:bg-amber-950/10 transition-colors">
+    <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-guard-warning/5 transition-colors">
       {/* Category Icon */}
       <div className="flex-shrink-0 p-1.5 rounded-md" style={{ backgroundColor: `${iconColor}15` }}>
         <CategoryIcon icon={occurrence.recurringExpense.category?.icon} color={iconColor} />
@@ -86,7 +86,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
             value={modifiedAmount}
             onChange={(e) => setModifiedAmount(e.target.value)}
             placeholder={String(centsToEuros(occurrence.recurringExpense.amountCents))}
-            className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-1 focus:ring-guard-primary"
+            className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
             aria-label={t('recurring.pending.modified-amount')}
           />
           <button
@@ -245,8 +245,8 @@ export function RecurringPendingPanel() {
     <div
       className={cn(
         'rounded-[var(--radius)] border transition-colors duration-200',
-        'bg-amber-50/50 dark:bg-amber-950/20',
-        'border-amber-200 dark:border-amber-800/30',
+        'bg-guard-warning/5',
+        'border-guard-warning/20',
       )}
     >
       {/* Header */}
@@ -257,8 +257,8 @@ export function RecurringPendingPanel() {
         aria-expanded={!isCollapsed}
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-            <Repeat className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <div className="p-2 rounded-lg bg-guard-warning/10">
+            <Repeat className="h-4 w-4 text-guard-warning" aria-hidden="true" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">
@@ -282,7 +282,7 @@ export function RecurringPendingPanel() {
 
           {/* Global confirm all */}
           {data.months.length > 1 && (
-            <div className="pt-2 border-t border-amber-200/50 dark:border-amber-800/20">
+            <div className="pt-2 border-t border-guard-warning/20">
               <button
                 type="button"
                 onClick={handleConfirmAll}

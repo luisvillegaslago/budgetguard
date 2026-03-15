@@ -29,7 +29,7 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize, onPa
     'p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-30 disabled:pointer-events-none';
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-border">
       <span className="text-xs text-guard-muted">
         {t('skydiving.pagination.showing', { from, to, total: totalItems })}
       </span>
@@ -63,7 +63,7 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize, onPa
               if (val >= 1 && val <= totalPages) onPageChange(val - 1);
             }}
             onWheel={(e) => e.currentTarget.blur()}
-            className="w-12 text-center text-xs py-1 rounded border border-input bg-background text-foreground focus:ring-1 focus:ring-guard-primary focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-12 text-center text-xs py-1 rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             aria-label={t('skydiving.pagination.page-input')}
           />
           <span>/ {totalPages}</span>

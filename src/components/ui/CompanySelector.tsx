@@ -174,7 +174,7 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('companies.selector.search')}
-              className="w-full px-3 py-1.5 text-sm rounded-md border border-input bg-background text-foreground focus:ring-1 focus:ring-guard-primary focus:border-transparent"
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
               autoComplete="off"
             />
           </div>

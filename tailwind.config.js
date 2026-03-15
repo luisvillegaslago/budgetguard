@@ -24,6 +24,8 @@ module.exports = {
           muted: '#64748B', // Slate (Text/Secondary info)
           light: '#F8FAFC', // Off-white (Card backgrounds)
           trip: '#8B5CF6', // Violet (Trip-related elements)
+          accent: '#8B5CF6', // Violet (Fiscal models, secondary actions)
+          warning: '#F59E0B', // Amber (Alerts, pending states)
         },
         // System colors using CSS variables
         background: 'hsl(var(--background))',

@@ -32,7 +32,7 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
       className={cn(
         'flex items-center gap-2 text-sm',
         isOverdue && 'text-guard-danger',
-        isDue && 'text-amber-600 dark:text-amber-400',
+        isDue && 'text-guard-warning',
         !isOverdue && !isDue && 'text-foreground',
       )}
     >
@@ -52,7 +52,7 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
             isOverdue
               ? 'bg-guard-danger/10 text-guard-danger'
               : isDue
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                ? 'bg-guard-warning/10 text-guard-warning'
                 : 'bg-guard-primary/10 text-guard-primary',
           )}
         >
@@ -84,13 +84,13 @@ export function FiscalDeadlineBanner() {
     <div
       className={cn(
         'rounded-lg border p-4 mb-6',
-        hasOverdue ? 'bg-guard-danger/5 border-guard-danger/20' : 'bg-amber-500/5 border-amber-500/20',
+        hasOverdue ? 'bg-guard-danger/5 border-guard-danger/20' : 'bg-guard-warning/5 border-guard-warning/20',
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <Bell
-            className={cn('h-5 w-5 mt-0.5 shrink-0', hasOverdue ? 'text-guard-danger' : 'text-amber-500')}
+            className={cn('h-5 w-5 mt-0.5 shrink-0', hasOverdue ? 'text-guard-danger' : 'text-guard-warning')}
             aria-hidden="true"
           />
           <div className="space-y-2">

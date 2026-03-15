@@ -369,7 +369,7 @@ export function TransactionForm({
                       register('vatPercent', { valueAsNumber: true }).onChange(e);
                     }}
                     onWheel={(e) => e.currentTarget.blur()}
-                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    className="w-full input-sm"
                   />
                 </div>
 
@@ -390,7 +390,7 @@ export function TransactionForm({
                       register('deductionPercent', { valueAsNumber: true }).onChange(e);
                     }}
                     onWheel={(e) => e.currentTarget.blur()}
-                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    className="w-full input-sm"
                   />
                 </div>
               </div>
@@ -419,7 +419,7 @@ export function TransactionForm({
                     autoComplete="off"
                     placeholder={t('fiscal.form.invoice-placeholder')}
                     {...register('invoiceNumber')}
-                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                    className="w-full input-sm"
                   />
                 </div>
               </div>

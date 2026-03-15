@@ -94,24 +94,14 @@ export function BillingProfileForm() {
             <label htmlFor="fullName" className="block text-sm font-medium text-foreground mb-1">
               {t('settings.billing.fields.full-name')}
             </label>
-            <input
-              id="fullName"
-              type="text"
-              {...register('fullName')}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-            />
+            <input id="fullName" type="text" {...register('fullName')} className="w-full input-sm" />
             {errors.fullName && <p className="text-xs text-guard-danger mt-1">{errors.fullName.message}</p>}
           </div>
           <div>
             <label htmlFor="nif" className="block text-sm font-medium text-foreground mb-1">
               NIF
             </label>
-            <input
-              id="nif"
-              type="text"
-              {...register('nif')}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-            />
+            <input id="nif" type="text" {...register('nif')} className="w-full input-sm" />
             {errors.nif && <p className="text-xs text-guard-danger mt-1">{errors.nif.message}</p>}
           </div>
         </div>
@@ -122,23 +112,13 @@ export function BillingProfileForm() {
             <label htmlFor="address" className="block text-sm font-medium text-foreground mb-1">
               {t('settings.billing.fields.address')}
             </label>
-            <input
-              id="address"
-              type="text"
-              {...register('address')}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-            />
+            <input id="address" type="text" {...register('address')} className="w-full input-sm" />
           </div>
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-1">
               {t('settings.billing.fields.phone')}
             </label>
-            <input
-              id="phone"
-              type="text"
-              {...register('phone')}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-            />
+            <input id="phone" type="text" {...register('phone')} className="w-full input-sm" />
           </div>
         </div>
 
@@ -158,7 +138,7 @@ export function BillingProfileForm() {
               setHourlyRateEuros(e.target.value);
               setHourlyRateDirty(true);
             }}
-            className="w-full max-w-xs px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
+            className="w-full max-w-xs input-sm"
           />
         </div>
 
@@ -180,23 +160,13 @@ export function BillingProfileForm() {
             <label htmlFor="bankName" className="block text-sm font-medium text-foreground mb-1">
               {t('settings.billing.fields.bank-name')}
             </label>
-            <input
-              id="bankName"
-              type="text"
-              {...register('bankName')}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-            />
+            <input id="bankName" type="text" {...register('bankName')} className="w-full input-sm" />
           </div>
           <div>
             <label htmlFor="swift" className="block text-sm font-medium text-foreground mb-1">
               SWIFT
             </label>
-            <input
-              id="swift"
-              type="text"
-              {...register('swift')}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-            />
+            <input id="swift" type="text" {...register('swift')} className="w-full input-sm" />
           </div>
         </div>
 
@@ -204,24 +174,14 @@ export function BillingProfileForm() {
           <label htmlFor="iban" className="block text-sm font-medium text-foreground mb-1">
             IBAN
           </label>
-          <input
-            id="iban"
-            type="text"
-            {...register('iban')}
-            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-          />
+          <input id="iban" type="text" {...register('iban')} className="w-full input-sm" />
         </div>
 
         <div>
           <label htmlFor="bankAddress" className="block text-sm font-medium text-foreground mb-1">
             {t('settings.billing.fields.bank-address')}
           </label>
-          <textarea
-            id="bankAddress"
-            {...register('bankAddress')}
-            rows={2}
-            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary resize-none"
-          />
+          <textarea id="bankAddress" {...register('bankAddress')} rows={2} className="w-full input-sm resize-none" />
         </div>
 
         {/* Submit */}

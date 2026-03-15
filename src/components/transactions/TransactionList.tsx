@@ -78,7 +78,7 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {transaction.recurringExpenseId && (
           <Tooltip content={t('recurring.badge')}>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-warning/10 text-guard-warning">
               <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
             </span>
           </Tooltip>

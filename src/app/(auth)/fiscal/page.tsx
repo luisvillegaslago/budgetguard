@@ -133,7 +133,7 @@ export default function FiscalPage() {
       {/* Quarterly View */}
       {view === 'quarterly' && report && !isLoading && (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <FiscalFilingStatus status={m303.status as FiscalStatus} />
@@ -193,7 +193,7 @@ export default function FiscalPage() {
       {/* Annual View */}
       {view === 'annual' && annualReport && !isAnnualLoading && (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <FiscalFilingStatus status={m390.status as FiscalStatus} />

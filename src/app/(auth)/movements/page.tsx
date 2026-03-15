@@ -89,7 +89,7 @@ export default function MovementsPage() {
       </div>
 
       {/* Master-detail layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8">
         {/* Category browser (left panel) */}
         <div className="lg:col-span-4">
           <CategoryBrowser

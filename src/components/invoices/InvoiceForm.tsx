@@ -264,12 +264,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
               <label htmlFor="invoiceDate" className="block text-sm font-medium text-foreground mb-1">
                 {t('invoices.form.fields.date')}
               </label>
-              <input
-                id="invoiceDate"
-                type="date"
-                {...register('invoiceDate')}
-                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
-              />
+              <input id="invoiceDate" type="date" {...register('invoiceDate')} className="w-full input-sm" />
               {errors.invoiceDate && <p className="text-xs text-guard-danger mt-1">{errors.invoiceDate.message}</p>}
             </div>
           </div>
@@ -307,7 +302,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                       {...register(`lineItems.${index}.description`)}
                       placeholder={t('invoices.form.fields.description')}
                       rows={3}
-                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary resize-none"
+                      className="w-full input-sm resize-none"
                     />
                     {fields.length > 1 && (
                       <button
@@ -331,7 +326,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                         placeholder="-"
                         {...register(`lineItems.${index}.hours`, { valueAsNumber: true })}
                         onChange={(e) => handleLineItemChange(index, 'hours', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
+                        className="w-full input-sm"
                       />
                     </div>
                     <div>
@@ -345,7 +340,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                         placeholder="-"
                         {...register(`lineItems.${index}.hourlyRate`, { valueAsNumber: true })}
                         onChange={(e) => handleLineItemChange(index, 'hourlyRate', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
+                        className="w-full input-sm"
                       />
                     </div>
                     <div>
@@ -356,7 +351,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                         min="0"
                         placeholder="0.00"
                         {...register(`lineItems.${index}.amount`, { valueAsNumber: true })}
-                        className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary"
+                        className="w-full input-sm"
                       />
                     </div>
                   </div>
@@ -382,12 +377,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
               {t('invoices.form.fields.notes')}{' '}
               <span className="text-guard-muted text-xs">({t('common.labels.optional')})</span>
             </label>
-            <textarea
-              id="notes"
-              {...register('notes')}
-              rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary resize-none"
-            />
+            <textarea id="notes" {...register('notes')} rows={2} className="w-full input-sm resize-none" />
           </div>
 
           {/* Actions */}

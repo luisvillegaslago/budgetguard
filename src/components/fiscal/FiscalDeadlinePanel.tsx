@@ -31,7 +31,7 @@ const STATUS_STYLES = {
   [FILING_STATUS.FILED]: 'text-guard-success',
   [FILING_STATUS.NOT_DUE]: 'text-guard-muted',
   [FILING_STATUS.UPCOMING]: 'text-guard-primary',
-  [FILING_STATUS.DUE]: 'text-amber-600 dark:text-amber-400',
+  [FILING_STATUS.DUE]: 'text-guard-warning',
   [FILING_STATUS.OVERDUE]: 'text-guard-danger',
 } as const;
 
@@ -88,7 +88,7 @@ function DeadlineRow({ deadline }: { deadline: FiscalDeadline }) {
             deadline.status === FILING_STATUS.FILED && 'bg-guard-success/10 text-guard-success',
             deadline.status === FILING_STATUS.NOT_DUE && 'bg-muted text-guard-muted',
             deadline.status === FILING_STATUS.UPCOMING && 'bg-guard-primary/10 text-guard-primary',
-            deadline.status === FILING_STATUS.DUE && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+            deadline.status === FILING_STATUS.DUE && 'bg-guard-warning/10 text-guard-warning',
             deadline.status === FILING_STATUS.OVERDUE && 'bg-guard-danger/10 text-guard-danger',
           )}
         >

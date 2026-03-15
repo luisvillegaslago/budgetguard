@@ -107,15 +107,15 @@ export const SUMMARY_COLORS = {
     activeGlow: `${GLOW} shadow-guard-primary/40 border-guard-primary/50`,
   },
   violet: {
-    border: 'border-l-violet-500',
-    iconBg: 'bg-violet-500/10 text-violet-400',
-    value: 'text-violet-400',
-    activeGlow: `${GLOW} shadow-violet-500/40 border-violet-500/50`,
+    border: 'border-l-guard-accent',
+    iconBg: 'bg-guard-accent/10 text-guard-accent',
+    value: 'text-guard-accent',
+    activeGlow: `${GLOW} shadow-guard-accent/40 border-guard-accent/50`,
   },
   amber: {
-    border: 'border-l-amber-500',
-    iconBg: 'bg-amber-500/10 text-amber-400',
-    value: 'text-amber-400',
-    activeGlow: `${GLOW} shadow-amber-500/40 border-amber-500/50`,
+    border: 'border-l-guard-warning',
+    iconBg: 'bg-guard-warning/10 text-guard-warning',
+    value: 'text-guard-warning',
+    activeGlow: `${GLOW} shadow-guard-warning/40 border-guard-warning/50`,
   },
 } as const satisfies Record<string, SummaryCardColorScheme>;

@@ -166,9 +166,9 @@ export function FiscalExtractionConfirm({
 
         {/* Low confidence warning */}
         {lowConfidence && (
-          <div className="flex items-start gap-2 px-3 py-2.5 mb-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" aria-hidden="true" />
-            <p className="text-sm text-amber-600 dark:text-amber-400">{t('fiscal.extraction.low-confidence')}</p>
+          <div className="flex items-start gap-2 px-3 py-2.5 mb-4 rounded-lg bg-guard-warning/10 border border-guard-warning/20">
+            <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+            <p className="text-sm text-guard-warning">{t('fiscal.extraction.low-confidence')}</p>
           </div>
         )}
 
@@ -182,7 +182,7 @@ export function FiscalExtractionConfirm({
                 ? 'bg-guard-success/10 text-guard-success'
                 : extractedData.confidence >= LOW_CONFIDENCE_THRESHOLD
                   ? 'bg-guard-primary/10 text-guard-primary'
-                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                  : 'bg-guard-warning/10 text-guard-warning',
             )}
           >
             {Math.round(extractedData.confidence * 100)}%
@@ -238,7 +238,7 @@ export function FiscalExtractionConfirm({
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className={cn(INPUT_CLASSES, lowConfidence && 'border-amber-500/50')}
+              className={cn(INPUT_CLASSES, lowConfidence && 'border-guard-warning/50')}
             />
           </div>
 
@@ -277,7 +277,7 @@ export function FiscalExtractionConfirm({
               {t('fiscal.form.vendor-name')}
             </label>
             {detectedVendor && !autoMatchedCompany && (
-              <p className="text-xs text-amber-500 mb-1.5">
+              <p className="text-xs text-guard-warning mb-1.5">
                 {t('fiscal.extraction.detected-vendor')}: {detectedVendor}
               </p>
             )}

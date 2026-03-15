@@ -31,12 +31,12 @@ const STATUS_STYLES: Record<string, string> = {
 
 export const DOC_TYPE_STYLES: Record<FiscalDocumentType, { badge: string; label: string }> = {
   [FISCAL_DOCUMENT_TYPE.MODELO]: {
-    badge: 'bg-violet-500/10 text-violet-400',
-    label: 'border-l-violet-500',
+    badge: 'bg-guard-accent/10 text-guard-accent',
+    label: 'border-l-guard-accent',
   },
   [FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA]: {
-    badge: 'bg-amber-500/10 text-amber-400',
-    label: 'border-l-amber-500',
+    badge: 'bg-guard-warning/10 text-guard-warning',
+    label: 'border-l-guard-warning',
   },
   [FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA]: {
     badge: 'bg-guard-success/10 text-guard-success',
@@ -193,6 +193,121 @@ function LinkedTransactionDetail({ transactionId }: { transactionId: number }) {
   );
 }
 
+function DocumentMobileCard({
+  document,
+  year,
+  onRequestDelete,
+}: {
+  document: FiscalDocument;
+  year: number;
+  onRequestDelete: (doc: FiscalDocument) => void;
+}) {
+  const { t } = useTranslate();
+  const updateStatus = useUpdateDocumentStatus(year);
+  const [expanded, setExpanded] = useState(false);
+  const hasLinkedTransaction = document.transactionId != null || document.transactionGroupId != null;
+  const typeStyle = DOC_TYPE_STYLES[document.documentType];
+
+  const typeLabel =
+    document.documentType === FISCAL_DOCUMENT_TYPE.MODELO
+      ? `Modelo ${document.modeloType}${document.fiscalQuarter ? ` Q${document.fiscalQuarter}` : ''}`
+      : document.documentType === FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA
+        ? t('fiscal.documents.types.factura-emitida')
+        : t('fiscal.documents.types.factura');
+
+  const handleStatusToggle = () => {
+    const next = document.status === FISCAL_STATUS.PENDING ? FISCAL_STATUS.FILED : FISCAL_STATUS.PENDING;
+    updateStatus.mutate({ id: document.documentId, status: next });
+  };
+
+  return (
+    <div className="p-4 space-y-3">
+      {/* Row 1: Name + actions */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <FileText className="h-4 w-4 text-guard-muted shrink-0" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground truncate">{document.displayName ?? document.fileName}</p>
+          </div>
+          {document.description && (
+            <p className="text-xs text-guard-muted truncate mt-0.5 ml-5.5">{document.description}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <a
+            href={document.downloadUrl}
+            download
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-guard-primary transition-colors rounded-lg"
+            title={t('fiscal.documents.download')}
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+          </a>
+          <button
+            type="button"
+            onClick={() => onRequestDelete(document)}
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-guard-danger transition-colors rounded-lg"
+            title={t('common.buttons.delete')}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {/* Row 2: Badges */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', typeStyle.badge)}>
+          {typeLabel}
+        </span>
+        <button
+          type="button"
+          onClick={handleStatusToggle}
+          disabled={updateStatus.isPending}
+          className={cn(
+            'text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer transition-opacity hover:opacity-80',
+            STATUS_STYLES[document.status],
+          )}
+        >
+          {t(`fiscal.documents.status.${document.status}`)}
+        </button>
+        <span className="text-xs text-guard-muted tabular-nums">
+          {formatFiscalPeriod(document.fiscalYear, document.fiscalQuarter)}
+        </span>
+      </div>
+
+      {/* Row 3: Amount + Size + Linked */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {document.taxAmountCents != null && (
+            <span className="text-sm font-medium tabular-nums">{formatCurrency(document.taxAmountCents)}</span>
+          )}
+          <span className="text-xs text-guard-muted">{formatFileSize(document.fileSizeBytes)}</span>
+        </div>
+        {hasLinkedTransaction && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-xs text-guard-success hover:text-guard-success/80 transition-colors"
+          >
+            <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {/* Expanded linked transaction */}
+      {expanded && hasLinkedTransaction && (
+        <div className="bg-guard-primary/5 rounded-lg -mx-1 px-1">
+          {document.transactionId != null ? (
+            <LinkedTransactionDetail transactionId={document.transactionId} />
+          ) : document.transactionGroupId != null ? (
+            <LinkedGroupDetail transactionGroupId={document.transactionGroupId} />
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DocumentRow({
   document,
   year,
@@ -278,7 +393,7 @@ function DocumentRow({
         <td className="py-2.5 px-3 text-sm text-guard-muted tabular-nums">
           {formatFiscalPeriod(document.fiscalYear, document.fiscalQuarter)}
         </td>
-        <td className="py-2.5 px-3 text-right">
+        <td className="py-2.5 px-3 text-right whitespace-nowrap">
           {document.taxAmountCents != null && (
             <span className="text-sm tabular-nums">{formatCurrency(document.taxAmountCents)}</span>
           )}
@@ -341,29 +456,30 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
           <h3 className="text-base font-semibold text-foreground">{t('fiscal.documents.title')}</h3>
           <span className="text-sm text-guard-muted">{t('common.records', { count: documents.length })}</span>
         </div>
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border">
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.documents.columns.name')}
                 </th>
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.documents.columns.type')}
                 </th>
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.documents.columns.status')}
                 </th>
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.documents.columns.period')}
                 </th>
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider text-right">
                   {t('fiscal.documents.columns.amount')}
                 </th>
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider text-right">
                   {t('fiscal.documents.columns.size')}
                 </th>
-                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider text-right">
                   {t('fiscal.documents.columns.actions')}
                 </th>
               </tr>
@@ -374,6 +490,13 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile/Tablet cards */}
+        <div className="lg:hidden divide-y divide-border">
+          {documents.map((doc) => (
+            <DocumentMobileCard key={doc.documentId} document={doc} year={year} onRequestDelete={setDeleteTarget} />
+          ))}
         </div>
       </div>
 

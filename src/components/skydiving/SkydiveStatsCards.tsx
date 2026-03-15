@@ -95,7 +95,7 @@ export function SkydiveStatsCards() {
       value: String(stats.uniqueDropzones),
       subtitle: stats.lastJumpDate ? formatDate(stats.lastJumpDate, 'long') : undefined,
       icon: MapPin,
-      color: 'text-amber-500',
+      color: 'text-guard-warning',
     },
   ];
 
