@@ -105,8 +105,10 @@ export const ExtractedInvoiceRawSchema = z
       sanitizeAmount,
       z
         .number()
-        .positive()
-        .transform((euros) => eurosToCents(euros)),
+        .nonnegative()
+        .nullable()
+        .optional()
+        .transform((euros) => eurosToCents(euros ?? 0)),
     ),
     baseAmountEuros: z.preprocess(
       sanitizeAmount,

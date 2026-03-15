@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { LinkTransactionInput } from '@/schemas/fiscal-document';
-import type { ApiResponse, FiscalDocument } from '@/types/finance';
+import type { ApiResponse, ExtractedInvoiceData, FiscalDocument } from '@/types/finance';
 import { fetchApi } from '@/utils/fetchApi';
 
 // ============================================================
@@ -147,8 +147,9 @@ export function useDeleteFiscalDocument(year: number) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: number) => {
-      const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${id}`, {
+    mutationFn: async ({ id, deleteTransaction = false }: { id: number; deleteTransaction?: boolean }) => {
+      const params = deleteTransaction ? '?deleteTransaction=true' : '';
+      const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${id}${params}`, {
         method: 'DELETE',
       });
 
@@ -160,6 +161,8 @@ export function useDeleteFiscalDocument(year: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS, year] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES, year] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
     },
   });
 }
@@ -175,23 +178,18 @@ export function useExtractDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (documentId: number): Promise<FiscalDocument> => {
+    mutationFn: async (documentId: number): Promise<ExtractedInvoiceData> => {
       const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/${documentId}/extract`, {
         method: 'POST',
       });
 
       if (!response.ok) {
         const err = await response.json();
-        const message = err.error ?? 'Extraction failed';
-        // Simplify API credit errors for the user
-        if (message.includes('credit balance')) {
-          throw new Error('OCR service unavailable — API credits exhausted');
-        }
-        throw new Error(message);
+        throw new Error(err.error ?? 'extraction_failed');
       }
 
-      const data: ApiResponse<FiscalDocument> = await response.json();
-      if (!data.success || !data.data) throw new Error(data.error ?? 'Extraction failed');
+      const data: ApiResponse<ExtractedInvoiceData> = await response.json();
+      if (!data.success || !data.data) throw new Error(data.error ?? 'extraction_failed');
       return data.data;
     },
     onSuccess: () => {

@@ -4,10 +4,9 @@
  * All queries are user-scoped via getUserIdOrThrow().
  */
 
-import type { ExtractionStatus } from '@/constants/finance';
 import { FISCAL_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import type { ExtractedInvoiceData, FiscalDeadlineSettings, FiscalDocument, FiscalStatus } from '@/types/finance';
+import type { FiscalDeadlineSettings, FiscalDocument, FiscalStatus } from '@/types/finance';
 import { query } from './connection';
 
 // ============================================================
@@ -31,8 +30,6 @@ interface FiscalDocumentRow {
   TransactionGroupID: number | null;
   CompanyID: number | null;
   Description: string | null;
-  ExtractedData: ExtractedInvoiceData | null;
-  ExtractionStatus: string;
   CreatedAt: string;
 }
 
@@ -69,8 +66,6 @@ function rowToFiscalDocument(row: FiscalDocumentRow): FiscalDocument {
     transactionGroupId: row.TransactionGroupID,
     companyId: row.CompanyID,
     description: row.Description,
-    extractedData: row.ExtractedData ?? null,
-    extractionStatus: (row.ExtractionStatus ?? 'not_extracted') as ExtractionStatus,
     createdAt: row.CreatedAt,
   };
 }
@@ -258,56 +253,23 @@ export async function deleteDocument(id: number): Promise<string | null> {
   return rows[0]?.BlobUrl ?? null;
 }
 
-// ============================================================
-// OCR Extraction
-// ============================================================
-
 /**
- * Save OCR extraction result for a document
+ * Update document metadata after linking a transaction.
+ * Sets the confirmed amount, status, and quarter.
  */
-export async function updateExtraction(
+export async function updateDocumentAfterLink(
   id: number,
-  data: ExtractedInvoiceData,
-  status: ExtractionStatus,
-): Promise<FiscalDocument | null> {
-  const userId = await getUserIdOrThrow();
-  const rows = await query<FiscalDocumentRow>(
-    `UPDATE "FiscalDocuments"
-     SET "ExtractedData" = $1, "ExtractionStatus" = $2
-     WHERE "DocumentID" = $3 AND "UserID" = $4
-     RETURNING *`,
-    [JSON.stringify(data), status, id, userId],
-  );
-  return rows[0] ? rowToFiscalDocument(rows[0]) : null;
-}
-
-/**
- * Update extraction status (e.g. to 'extracting' or 'failed')
- */
-export async function updateExtractionStatus(id: number, status: ExtractionStatus): Promise<void> {
-  const userId = await getUserIdOrThrow();
-  await query('UPDATE "FiscalDocuments" SET "ExtractionStatus" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
-    status,
-    id,
-    userId,
-  ]);
-}
-
-/**
- * Update document status, quarter, and tax amount after successful OCR extraction.
- */
-export async function updateDocumentPostExtraction(
-  id: number,
-  status: string,
+  taxAmountCents: number,
   fiscalQuarter: number | null,
-  taxAmountCents: number | null,
+  companyId: number | null,
 ): Promise<void> {
   const userId = await getUserIdOrThrow();
   await query(
     `UPDATE "FiscalDocuments"
-     SET "Status" = $1, "FiscalQuarter" = $2, "TaxAmountCents" = $3
+     SET "TaxAmountCents" = $1, "FiscalQuarter" = COALESCE($2, "FiscalQuarter"),
+         "CompanyID" = COALESCE($3, "CompanyID"), "Status" = 'filed'
      WHERE "DocumentID" = $4 AND "UserID" = $5`,
-    [status, fiscalQuarter, taxAmountCents, id, userId],
+    [taxAmountCents, fiscalQuarter, companyId, id, userId],
   );
 }
 
@@ -321,32 +283,6 @@ export async function linkTransaction(id: number, transactionId: number): Promis
     id,
     userId,
   ]);
-}
-
-/**
- * Sync fiscal document data when the linked transaction is updated.
- * Updates TaxAmountCents and ExtractedData.totalAmountCents to match the transaction.
- */
-export async function syncDocumentWithTransaction(
-  transactionId: number,
-  amountCents: number,
-  originalAmountCents: number | null,
-): Promise<void> {
-  const userId = await getUserIdOrThrow();
-  // Use original (pre-shared) amount for the document, since the invoice total is the full amount
-  const docAmountCents = originalAmountCents ?? amountCents;
-
-  await query(
-    `UPDATE "FiscalDocuments"
-     SET "TaxAmountCents" = $1,
-         "ExtractedData" = CASE
-           WHEN "ExtractedData" IS NOT NULL
-           THEN jsonb_set("ExtractedData", '{totalAmountCents}', $4::text::jsonb)
-           ELSE NULL
-         END
-     WHERE "TransactionID" = $2 AND "UserID" = $3`,
-    [docAmountCents, transactionId, userId, String(docAmountCents)],
-  );
 }
 
 /**

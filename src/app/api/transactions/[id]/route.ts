@@ -7,7 +7,7 @@
 
 import { SHARED_EXPENSE } from '@/constants/finance';
 import { CreateTransactionSchema, validateRequest } from '@/schemas/transaction';
-import { syncDocumentWithTransaction, unlinkTransactionDocuments } from '@/services/database/FiscalDocumentRepository';
+import { unlinkTransactionDocuments } from '@/services/database/FiscalDocumentRepository';
 import {
   cleanupOrphanedGroup,
   deleteTransaction,
@@ -72,11 +72,6 @@ export const PUT = withApiHandler(async (request, { params }) => {
 
   const transaction = await updateTransaction(transactionId, updateData);
   if (!transaction) return notFound('Transaccion no encontrada');
-
-  // Sync linked fiscal document if transaction has one
-  if (transaction.fiscalDocumentId != null) {
-    await syncDocumentWithTransaction(transactionId, transaction.amountCents, transaction.originalAmountCents);
-  }
 
   return { data: transaction };
 }, 'PUT /api/transactions/[id]');

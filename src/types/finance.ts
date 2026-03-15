@@ -5,7 +5,6 @@
 
 import type {
   CompanyRole,
-  ExtractionStatus,
   FilingStatus,
   FiscalDocumentType,
   FiscalStatus,
@@ -21,7 +20,6 @@ import type {
 export type {
   CompanyRole,
   DateRangePreset,
-  ExtractionStatus,
   FilingStatus,
   FiscalDocumentType,
   FiscalQuarter,
@@ -659,8 +657,6 @@ export interface FiscalDocument {
   transactionGroupId: number | null;
   companyId: number | null;
   description: string | null;
-  extractedData: ExtractedInvoiceData | null;
-  extractionStatus: ExtractionStatus;
   createdAt: string;
 }
 

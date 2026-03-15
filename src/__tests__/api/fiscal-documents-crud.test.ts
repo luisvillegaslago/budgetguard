@@ -26,8 +26,6 @@ const mockDocument: FiscalDocument = {
   transactionGroupId: null,
   companyId: null,
   description: 'IVA Q1',
-  extractedData: null,
-  extractionStatus: 'not_extracted',
   createdAt: '2025-04-20T10:00:00.000Z',
 };
 
@@ -87,6 +85,10 @@ jest.mock('@/services/database/FiscalDocumentRepository', () => ({
   }),
 }));
 
+jest.mock('@/services/database/TransactionRepository', () => ({
+  deleteTransaction: jest.fn(async () => true),
+}));
+
 jest.mock('@vercel/blob', () => ({
   del: jest.fn(async () => undefined),
 }));
@@ -116,9 +118,10 @@ function createMockRequest(
   body?: Record<string, unknown>,
 ): {
   url: string;
+  nextUrl: URL;
   json: () => Promise<Record<string, unknown>>;
 } {
-  return { url, json: async () => body ?? {} };
+  return { url, nextUrl: new URL(url), json: async () => body ?? {} };
 }
 
 function createMockParams(id: string): { params: Promise<{ id: string }> } {
