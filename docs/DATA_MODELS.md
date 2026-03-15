@@ -1332,6 +1332,24 @@ export interface InvoiceListItem {
 }
 ```
 
+### ExtractedInvoiceData
+
+Data extracted from a fiscal document via OCR (all amounts in cents). This data is **transient** — used only in the UI flow, never persisted in the database.
+
+```typescript
+export interface ExtractedInvoiceData {
+  totalAmountCents: number;            // Invoice total (cents, REQUIRED)
+  baseAmountCents: number | null;      // Pre-tax amount
+  taxAmountCents: number | null;       // Tax/VAT amount
+  vatPercent: number | null;           // VAT percentage (e.g., 21)
+  date: string | null;                 // Invoice date in YYYY-MM-DD format
+  vendor: string | null;              // Vendor/company name
+  invoiceNumber: string | null;       // Invoice or document number
+  description: string | null;         // Brief description of purchase
+  confidence: number;                  // OCR confidence 0.0 to 1.0
+}
+```
+
 ### FiscalDocument
 
 ```typescript
@@ -1342,15 +1360,16 @@ export interface FiscalDocument {
   fiscalYear: number;
   fiscalQuarter: number | null;        // 1-4 for quarterly modelos, null otherwise
   status: FiscalStatus;                // 'pending' | 'filed'
-  downloadUrl: string;                 // Vercel Blob URL
-  fileName: string;
+  downloadUrl: string;                 // Vercel Blob URL (served via download proxy)
+  fileName: string;                    // Original uploaded filename
   fileSizeBytes: number;
   contentType: string;                 // MIME type
-  taxAmountCents: number | null;
-  transactionId: number | null;
-  transactionGroupId: number | null;
-  companyId: number | null;
+  taxAmountCents: number | null;       // Confirmed amount (single source of truth, set after linking)
+  transactionId: number | null;        // Linked single transaction
+  transactionGroupId: number | null;   // Linked transaction group
+  companyId: number | null;            // Linked vendor company
   description: string | null;
+  displayName: string | null;          // Generated post-OCR: "Vendor - YYYY-MM-DD.ext"
   createdAt: string;
 }
 ```
@@ -2018,6 +2037,51 @@ export const FiscalDocumentsFiltersSchema = z.object({
 export type FiscalDocumentsFiltersInput = z.infer<typeof FiscalDocumentsFiltersSchema>;
 ```
 
+#### ExtractedInvoiceRawSchema
+
+Validates OCR output from Claude Vision. Uses `.transform()` to convert euro amounts to cents. The raw response uses `totalAmountEuros` (etc.) and the schema converts to `totalAmountCents`.
+
+```typescript
+export const ExtractedInvoiceRawSchema = z.object({
+  totalAmountEuros: z.number().transform(eurosToCents),
+  baseAmountEuros: z.number().nullable().optional().transform(v => v != null ? eurosToCents(v) : null),
+  taxAmountEuros: z.number().nullable().optional().transform(v => v != null ? eurosToCents(v) : null),
+  vatPercent: z.number().nullable().optional(),
+  date: z.string().nullable().optional(),
+  vendor: z.string().nullable().optional(),
+  invoiceNumber: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  confidence: z.number().min(0).max(1),
+}).transform((data) => ({
+  totalAmountCents: data.totalAmountEuros,
+  baseAmountCents: data.baseAmountEuros ?? null,
+  taxAmountCents: data.taxAmountEuros ?? null,
+  // ... maps all fields
+}));
+```
+
+#### LinkTransactionSchema
+
+Validates the request body for `POST /api/fiscal/documents/[id]/link-transaction`. Creates a transaction and links it to the document atomically.
+
+```typescript
+export const LinkTransactionSchema = z.object({
+  categoryId: z.number().int().positive(),
+  amountCents: z.number().int(),
+  transactionDate: z.string(),
+  type: z.enum(['income', 'expense']),
+  description: z.string().nullable().optional(),
+  vatPercent: z.number().nullable().optional(),
+  deductionPercent: z.number().nullable().optional(),
+  vendorName: z.string().nullable().optional(),
+  invoiceNumber: z.string().nullable().optional(),
+  companyId: z.number().int().positive().nullable().optional(),
+  isShared: z.boolean().optional(),
+});
+
+export type LinkTransactionInput = z.infer<typeof LinkTransactionSchema>;
+```
+
 ---
 
 ## Constants
@@ -2174,6 +2238,16 @@ export const FILING_STATUS = {
 } as const;
 
 export type FilingStatus = (typeof FILING_STATUS)[keyof typeof FILING_STATUS];
+
+// Extraction Status (OCR pipeline)
+export const EXTRACTION_STATUS = {
+  NOT_EXTRACTED: 'not_extracted',
+  EXTRACTING: 'extracting',
+  EXTRACTED: 'extracted',
+  FAILED: 'failed',
+} as const;
+
+export type ExtractionStatus = (typeof EXTRACTION_STATUS)[keyof typeof EXTRACTION_STATUS];
 ```
 
 ---

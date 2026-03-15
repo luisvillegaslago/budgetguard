@@ -2307,8 +2307,10 @@ Fiscal documents store uploaded tax filings, received invoices, and issued invoi
 | POST | `/api/fiscal/documents` | Upload single document (multipart/form-data) |
 | GET | `/api/fiscal/documents/[id]` | Get document metadata |
 | PATCH | `/api/fiscal/documents/[id]` | Update document status |
-| DELETE | `/api/fiscal/documents/[id]` | Delete document and blob |
+| DELETE | `/api/fiscal/documents/[id]` | Delete document and blob (supports `?deleteTransaction=true`) |
 | GET | `/api/fiscal/documents/[id]/download` | Download document file (authenticated proxy) |
+| POST | `/api/fiscal/documents/[id]/extract` | Run OCR extraction via Claude Vision |
+| POST | `/api/fiscal/documents/[id]/link-transaction` | Create transaction and link to document (atomic) |
 | POST | `/api/fiscal/documents/bulk` | Bulk upload multiple documents (multipart/form-data) |
 
 #### `GET /api/fiscal/documents`
@@ -2405,13 +2407,24 @@ Update the filing status of a document.
 
 #### `DELETE /api/fiscal/documents/[id]`
 
-Delete a fiscal document and its associated blob from Vercel Blob storage.
+Delete a fiscal document and its associated blob from Vercel Blob storage. Optionally delete the linked transaction.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `deleteTransaction` | `true` | No | `false` | Also delete the linked transaction |
+
+**Example Request:**
+```bash
+DELETE /api/fiscal/documents/5?deleteTransaction=true
+```
 
 **Example Response:**
 ```json
 {
   "success": true,
-  "data": { "deleted": true }
+  "data": { "deleted": true, "transactionDeleted": true }
 }
 ```
 
@@ -2420,6 +2433,87 @@ Delete a fiscal document and its associated blob from Vercel Blob storage.
 Authenticated download proxy. Streams the document from Vercel Blob without exposing the private blob URL to the client. Uses signed URLs for access.
 
 **Response:** Binary file with appropriate `Content-Type` and `Content-Disposition: attachment` headers. Cached for 1 hour (`Cache-Control: private, max-age=3600`).
+
+#### `POST /api/fiscal/documents/[id]/extract`
+
+Run OCR extraction on a fiscal document using Claude Vision. Downloads the file from Vercel Blob, sends it to the Anthropic API, and returns structured extracted data. Extracted data is **transient** — it is NOT persisted in the database.
+
+After extraction, the endpoint auto-matches the document against existing transactions:
+- **Single transaction match**: Finds transactions within ±7 days with matching amount (or original amount for shared expenses)
+- **Transaction group match**: Finds groups within ±3 days where member transactions sum to the invoice total
+
+If a match is found, the document is automatically linked and its status set to `filed`.
+
+**Request:** No body required.
+
+**Example Response (with auto-match):**
+```json
+{
+  "success": true,
+  "data": {
+    "totalAmountCents": 12100,
+    "baseAmountCents": 10000,
+    "taxAmountCents": 2100,
+    "vatPercent": 21,
+    "date": "2025-03-01",
+    "vendor": "Vodafone",
+    "invoiceNumber": "INV-2025-001",
+    "description": "Monthly phone service",
+    "confidence": 0.95
+  },
+  "meta": {
+    "matchedTransactionId": 42
+  }
+}
+```
+
+**Error Codes (502):**
+
+| Code | Description |
+|------|-------------|
+| `extraction_failed` | Generic OCR error (blurry, unreadable) |
+| `api_credits_exhausted` | Anthropic API quota exceeded |
+| `unrecognizable_amount` | OCR could not detect a valid `totalAmountEuros` |
+
+---
+
+#### `POST /api/fiscal/documents/[id]/link-transaction`
+
+Atomically create a transaction and link it to the document. Used after OCR extraction when the user confirms the extracted data (or enters it manually).
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `categoryId` | number | Yes | Category for the transaction |
+| `amountCents` | number | Yes | Amount in cents |
+| `transactionDate` | string | Yes | Date in `YYYY-MM-DD` format |
+| `type` | `income` \| `expense` | Yes | Transaction type |
+| `description` | string | No | Transaction description |
+| `vatPercent` | number | No | VAT percentage (e.g., 21) |
+| `deductionPercent` | number | No | Deduction percentage for fiscal reporting |
+| `vendorName` | string | No | Vendor name |
+| `invoiceNumber` | string | No | Invoice number |
+| `companyId` | number | No | Company ID |
+| `isShared` | boolean | No | Whether to halve the amount (÷2) |
+
+**Side effects (atomic):**
+1. Creates the transaction with all fiscal fields
+2. Links the transaction to the document (`TransactionID`)
+3. Updates document: `status='filed'`, `taxAmountCents` (original pre-÷2 amount), `fiscalQuarter`, `companyId`
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": 123,
+    "documentId": 5
+  }
+}
+```
+
+---
 
 #### `POST /api/fiscal/documents/bulk`
 
@@ -2734,6 +2828,8 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 | `BulkUploadItemSchema` | Bulk upload item metadata (auto-parsed from filename, with overrides) |
 | `FiscalDeadlineSettingsSchema` | Deadline reminder preferences (reminderDaysBefore, postponementReminder, isActive) |
 | `FiscalDocumentsFiltersSchema` | Document list filters (year, quarter, documentType) |
+| `ExtractedInvoiceRawSchema` | OCR output validation with euro→cents conversion via `.transform()` |
+| `LinkTransactionSchema` | Transaction creation + document linking request (categoryId, amountCents, transactionDate, type, fiscal fields) |
 
 #### Sync Schemas (`src/schemas/sync.ts`)
 

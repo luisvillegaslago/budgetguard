@@ -47,7 +47,19 @@ src/
 │   │   │   │   └── [expenseId]/route.ts # PUT/DELETE trip expense
 │   │   │   └── categories/route.ts    # GET trip categories (Viajes subcategories)
 │   │   ├── fiscal/
-│   │   │   └── route.ts               # GET fiscal quarterly report
+│   │   │   ├── route.ts               # GET fiscal quarterly report
+│   │   │   ├── annual/route.ts        # GET annual report (Modelo 390 + 100)
+│   │   │   ├── documents/
+│   │   │   │   ├── route.ts           # GET/POST fiscal documents
+│   │   │   │   ├── bulk/route.ts      # POST bulk upload
+│   │   │   │   └── [id]/
+│   │   │   │       ├── route.ts       # GET/PATCH/DELETE document
+│   │   │   │       ├── download/route.ts  # GET download proxy
+│   │   │   │       ├── extract/route.ts   # POST OCR extraction
+│   │   │   │       └── link-transaction/route.ts # POST create + link
+│   │   │   └── deadlines/
+│   │   │       ├── route.ts           # GET deadlines
+│   │   │       └── settings/route.ts  # GET/PUT reminder settings
 │   │   ├── skydiving/
 │   │   │   ├── jumps/
 │   │   │   │   ├── route.ts           # GET/POST jumps (paginated)
@@ -109,7 +121,14 @@ src/
 │   ├── fiscal/
 │   │   ├── FiscalReport.tsx           # Fiscal quarterly report display
 │   │   ├── Modelo303Card.tsx          # VAT summary card
-│   │   └── Modelo130Card.tsx          # Income tax summary card
+│   │   ├── Modelo130Card.tsx          # Income tax summary card
+│   │   ├── FiscalDocumentUpload.tsx   # Single upload with auto-OCR
+│   │   ├── FiscalDocumentList.tsx     # Document list with delete options
+│   │   ├── FiscalExtractionConfirm.tsx # OCR confirmation modal
+│   │   ├── FiscalBulkUpload.tsx       # Multi-file bulk uploader
+│   │   ├── FiscalFilingStatus.tsx     # Filing status indicators
+│   │   ├── FiscalDeadlinePanel.tsx    # Deadline display panel
+│   │   └── FiscalDeadlineBanner.tsx   # Dashboard deadline alert
 │   └── ui/
 │       ├── MonthPicker.tsx            # Month navigation
 │       ├── LoadingSpinner.tsx         # Loading indicator
@@ -129,6 +148,15 @@ src/
 │   ├── useTripCategories.ts           # Trip-specific categories query
 │   ├── useMonthPrefetch.ts            # Adjacent months prefetch
 │   ├── useFiscalReport.ts            # Fiscal quarterly report query
+│   ├── useFiscalDocuments.ts         # Fiscal document CRUD + OCR hooks
+│   ├── useFiscalDeadlines.ts         # AEAT deadline queries
+│   ├── useFiscalDefaults.ts          # Fiscal defaults per category
+│   ├── useInvoices.ts                # Invoice CRUD + finalize hooks
+│   ├── useCompanies.ts               # Companies list query
+│   ├── useCompanyTransactions.ts     # Company-scoped transaction queries
+│   ├── useCategoryHistory.ts         # Category transaction history
+│   ├── useAppVersion.ts              # Build version info
+│   ├── useDbSync.ts                  # Database sync hooks
 │   ├── useSkydiveJumps.ts            # Jump CRUD queries/mutations
 │   ├── useTunnelSessions.ts          # Tunnel session CRUD queries/mutations
 │   ├── useSkydiveStats.ts            # Skydiving stats query
@@ -140,21 +168,31 @@ src/
 │   └── localeStore.ts                 # Language preference
 │
 ├── services/
-│   └── database/
-│       ├── connection.ts              # PostgreSQL (Neon) connection pool
-│       ├── TransactionRepository.ts   # Transactions + groups DB operations
-│       ├── CategoryRepository.ts      # Categories DB operations (hierarchical)
-│       ├── RecurringExpenseRepository.ts # Recurring rules + occurrences DB operations
-│       ├── TripRepository.ts          # Trip CRUD + trip categories DB operations
-│       ├── FiscalRepository.ts        # Fiscal quarterly report DB operations
-│       ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats
-│       └── SyncService.ts            # Bidirectional database sync
+│   ├── database/
+│   │   ├── connection.ts              # PostgreSQL (Neon) connection pool
+│   │   ├── TransactionRepository.ts   # Transactions + groups DB operations
+│   │   ├── CategoryRepository.ts      # Categories DB operations (hierarchical)
+│   │   ├── RecurringExpenseRepository.ts # Recurring rules + occurrences DB operations
+│   │   ├── TripRepository.ts          # Trip CRUD + trip categories DB operations
+│   │   ├── FiscalRepository.ts        # Fiscal quarterly report DB operations
+│   │   ├── FiscalDocumentRepository.ts # Fiscal document CRUD + auto-matching + linking
+│   │   ├── InvoiceRepository.ts       # Invoice + prefix + billing profile CRUD
+│   │   ├── CompanyRepository.ts       # Company CRUD + role filtering
+│   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats
+│   │   └── SyncService.ts            # Bidirectional database sync
+│   ├── ocr/
+│   │   └── DocumentExtractor.ts       # Claude Vision OCR extraction
+│   └── InvoiceFinalizeService.ts      # Invoice finalize orchestration
 │
 ├── schemas/
 │   ├── transaction.ts                 # Transaction, Category, Group Zod schemas
 │   ├── recurring-expense.ts           # Recurring expense Zod schemas
 │   ├── trip.ts                        # Trip and trip expense Zod schemas
 │   ├── fiscal.ts                      # Fiscal query validation
+│   ├── fiscal-document.ts            # Fiscal document + OCR + link schemas
+│   ├── invoice.ts                     # Invoice, prefix, billing profile schemas
+│   ├── company.ts                     # Company schemas
+│   ├── sync.ts                        # Sync execution schemas
 │   └── skydive.ts                     # Jump + tunnel session Zod schemas
 │
 ├── types/
@@ -174,7 +212,14 @@ src/
 │   ├── helpers.ts                     # Date/utility functions
 │   ├── recurring.ts                   # Occurrence date calculation
 │   ├── fiscal.ts                     # computeFiscalFields utility
+│   ├── fiscalDeadlines.ts            # AEAT deadline computation
+│   ├── fiscalFileParser.ts           # Auto-detect doc metadata from filename
+│   ├── fiscalDisplayName.ts          # Display name generation (vendor + date)
+│   ├── blobFetch.ts                  # Vercel Blob download utility
+│   ├── fetchApi.ts                   # Authenticated fetch wrapper (401 → redirect)
 │   ├── apiHandler.ts                 # API route handler wrapper (withApiHandler)
+│   ├── invoicePdf.ts                 # Invoice PDF generation
+│   ├── invoiceLabels.ts             # Invoice PDF i18n labels
 │   ├── skydive-csv-parsers.ts        # CSV parsing for jump/tunnel imports
 │   └── staticTranslations.ts         # i18n for error boundaries
 │
@@ -245,6 +290,9 @@ database/
 │  - RecurringExpenseRepository (rules + occurrences)          │
 │  - TripRepository (trips + trip expenses + trip categories)  │
 │  - FiscalRepository (quarterly fiscal reports)               │
+│  - FiscalDocumentRepository (documents + OCR matching)       │
+│  - InvoiceRepository (invoices + prefixes + billing)         │
+│  - CompanyRepository (companies + roles)                     │
 │  - SkydiveRepository (jumps + tunnel + stats)                │
 │  - SyncService (bidirectional database sync)                 │
 └─────────────────────────────────────────────────────────────┘
@@ -774,36 +822,59 @@ Complete invoicing system with state machine (draft→finalized→paid→cancell
 - `src/services/database/InvoiceRepository.ts`: Invoice CRUD with ConflictError class
 - `src/schemas/invoice.ts`: Zod validation schemas for invoices
 
-### 10. Fiscal Documents Module (Tax Filing Management)
+### 10. Fiscal Documents Module (Tax Filing Management + OCR)
 
-Document management for tax filings and invoices stored in Vercel Blob with private access.
+Document management for tax filings and invoices stored in Vercel Blob with private access. Includes OCR-powered automatic data extraction via Claude Vision.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Fiscal Documents Module Architecture                         │
 │                                                               │
 │  FiscalDocuments                                              │
-│  ├── DocumentType: modelo | invoice                           │
-│  ├── ModeloType: 303 | 130 | 390 | etc.                      │
-│  ├── FilingStatus: pending | filed | postponed                │
+│  ├── DocumentType: modelo | factura_recibida | factura_emitida│
+│  ├── ModeloType: 303 | 130 | 390 | 100                       │
+│  ├── FilingStatus: pending | filed                            │
 │  ├── BlobUrl (Vercel Blob, private access)                    │
-│  ├── Year, Quarter, Period metadata                           │
+│  ├── TaxAmountCents (single source of truth for amount)       │
+│  ├── TransactionID / TransactionGroupID (linked transaction)  │
+│  ├── CompanyID (linked vendor)                                │
 │  └── Auto-detect metadata from filenames                      │
 │                                                               │
+│  OCR Extraction Flow:                                         │
+│  Upload → Claude Vision OCR → Auto-match transaction          │
+│       → Confirmation modal → Link transaction (atomic)        │
+│                                                               │
 │  Features:                                                    │
+│  - OCR extraction via Claude Vision (PDF + images)            │
+│  - Auto-matching to existing transactions (±7 days single,    │
+│    ±3 days group)                                             │
+│  - Atomic transaction creation + document linking             │
 │  - Vercel Blob storage with private access                    │
 │  - Download proxy via API route (no direct blob URLs)         │
 │  - Bulk upload support                                        │
 │  - Auto-detection of document metadata from filenames         │
-│  - Filing status tracking (pending/filed/postponed)           │
+│  - Filing status tracking (pending/filed)                     │
+│  - Delete with optional linked transaction cleanup            │
+│  - DisplayName generated post-OCR (vendor + date)             │
+│                                                               │
+│  Key design: Extracted data is TRANSIENT (not persisted).     │
+│  TaxAmountCents is the single source of truth after linking.  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Key files:**
-- `src/services/database/FiscalDocumentRepository.ts`: CRUD operations for fiscal documents
-- `src/schemas/fiscal-document.ts`: Zod validation schemas
+- `src/services/ocr/DocumentExtractor.ts`: Claude Vision OCR extraction service
+- `src/services/database/FiscalDocumentRepository.ts`: CRUD + auto-matching + linking
+- `src/schemas/fiscal-document.ts`: Zod validation schemas (upload, link, extraction)
 - `src/utils/fiscalFileParser.ts`: Filename-based metadata auto-detection
-- `src/app/api/fiscal/documents/`: API routes for CRUD, bulk upload, and download proxy
+- `src/utils/fiscalDisplayName.ts`: Display name generation (vendor + date)
+- `src/utils/blobFetch.ts`: Vercel Blob download utility
+- `src/app/api/fiscal/documents/`: API routes for CRUD, bulk upload, download proxy
+- `src/app/api/fiscal/documents/[id]/extract/`: OCR extraction endpoint
+- `src/app/api/fiscal/documents/[id]/link-transaction/`: Atomic transaction creation + linking
+- `src/components/fiscal/FiscalDocumentUpload.tsx`: Upload with auto-OCR flow
+- `src/components/fiscal/FiscalExtractionConfirm.tsx`: OCR confirmation modal
+- `src/components/fiscal/FiscalDocumentList.tsx`: Document list with delete options
 
 ### 11. Fiscal Deadlines Module (AEAT Tax Deadline Computation)
 
@@ -1037,30 +1108,43 @@ PAYMENT_METHOD = { BANK_TRANSFER: 'bank_transfer', PAYPAL: 'paypal', OTHER: 'oth
 COMPANY_ROLE = { CLIENT: 'client', PROVIDER: 'provider' }
 
 // Fiscal document types
-FISCAL_DOCUMENT_TYPE = { MODELO: 'modelo', INVOICE: 'invoice' }
+FISCAL_DOCUMENT_TYPE = { MODELO: 'modelo', FACTURA_RECIBIDA: 'factura_recibida', FACTURA_EMITIDA: 'factura_emitida' }
 
 // Fiscal status
-FISCAL_STATUS = { PENDING: 'pending', FILED: 'filed', POSTPONED: 'postponed' }
+FISCAL_STATUS = { PENDING: 'pending', FILED: 'filed' }
 
 // Filing status (deadline computation)
 FILING_STATUS = { NOT_DUE: 'not_due', UPCOMING: 'upcoming', DUE: 'due', OVERDUE: 'overdue', FILED: 'filed' }
 
 // Modelo types
-MODELO_TYPE = { M303: '303', M130: '130', M390: '390' }
+MODELO_TYPE = { M303: '303', M130: '130', M390: '390', M100: '100' }
+
+// Extraction status (OCR pipeline)
+EXTRACTION_STATUS = { NOT_EXTRACTED: 'not_extracted', EXTRACTING: 'extracting', EXTRACTED: 'extracted', FAILED: 'failed' }
 
 // TanStack Query keys
 QUERY_KEY = {
   CATEGORIES, TRANSACTIONS, SUMMARY,
   SUBCATEGORY_SUMMARY, RECURRING_EXPENSES,
   PENDING_OCCURRENCES, TRANSACTION_GROUPS,
-  TRIPS, TRIP_CATEGORIES, FISCAL,
+  TRIPS, TRIP_CATEGORIES, CATEGORY_HISTORY,
+  FISCAL_REPORT, FISCAL_ANNUAL, VERSION,
+  SYNC_COMPARE, SKYDIVE_JUMPS, TUNNEL_SESSIONS,
+  SKYDIVE_STATS, SKYDIVE_CATEGORIES, COMPANIES,
+  INVOICES, INVOICE_PREFIXES, BILLING_PROFILE,
+  FISCAL_DOCUMENTS, FISCAL_DEADLINES, FISCAL_DEADLINE_SETTINGS,
 }
 
 // API endpoints
 API_ENDPOINT = {
   CATEGORIES, TRANSACTIONS, SUMMARY,
   SUBCATEGORY_SUMMARY, RECURRING_EXPENSES,
-  TRANSACTION_GROUPS, TRIPS, FISCAL,
+  TRANSACTION_GROUPS, TRIPS, CATEGORY_HISTORY,
+  FISCAL, FISCAL_ANNUAL, VERSION,
+  SYNC_COMPARE, SYNC_EXECUTE, SKYDIVE_JUMPS,
+  TUNNEL_SESSIONS, SKYDIVE_STATS, SKYDIVE_CATEGORIES,
+  COMPANIES, INVOICES, INVOICE_PREFIXES,
+  BILLING_PROFILE, FISCAL_DOCUMENTS,
 }
 
 // Cache times

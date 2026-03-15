@@ -32,7 +32,7 @@ Covers the overall system design:
 - Performance optimizations
 - API route handler wrapper (`withApiHandler`) pattern
 - CI/CD pipeline (GitHub Actions)
-- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving, Companies, Invoicing, Fiscal Documents, Fiscal Deadlines
+- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving, Companies, Invoicing, Fiscal Documents (with OCR extraction), Fiscal Deadlines
 
 ### API_REFERENCE.md
 
@@ -51,7 +51,8 @@ Complete API documentation:
   - `GET/POST /api/companies` + `GET/PUT/DELETE /api/companies/:id`
   - `GET/POST /api/invoices` + `GET/PUT/DELETE /api/invoices/:id`
   - `POST /api/invoices/:id/finalize` + `POST /api/invoices/:id/pay` + `POST /api/invoices/:id/cancel` + `POST /api/invoices/:id/revert`
-  - `GET/POST /api/fiscal/documents` + `GET/PUT/DELETE /api/fiscal/documents/:id`
+  - `GET/POST /api/fiscal/documents` + `GET/PATCH/DELETE /api/fiscal/documents/:id`
+  - `POST /api/fiscal/documents/:id/extract` + `POST /api/fiscal/documents/:id/link-transaction`
   - `POST /api/fiscal/documents/bulk` + `GET /api/fiscal/documents/:id/download`
   - `GET /api/fiscal/deadlines` + `GET/PUT /api/fiscal/deadlines/settings`
   - `GET/POST /api/skydiving/jumps` + `GET/PUT/DELETE /:id` + `POST /import`
@@ -154,7 +155,7 @@ Full invoice lifecycle: draft→finalized→paid→cancelled. Cancelled invoices
 
 ### Fiscal Documents
 
-Store tax filings (modelos) and invoices as documents in Vercel Blob. Track filing status (pending/filed/postponed). Auto-detect document metadata from filenames. Supports bulk upload and private access with download proxy.
+Store tax filings (modelos) and invoices as documents in Vercel Blob. OCR extraction via Claude Vision auto-detects amounts, dates, vendors from uploaded documents. Auto-matches documents to existing transactions and creates new transactions atomically. Supports bulk upload, private access with download proxy, and delete with optional linked transaction cleanup. DisplayName generated post-OCR (vendor + date format).
 
 ### Fiscal Deadlines
 
@@ -176,6 +177,7 @@ AEAT deadline computation for Spanish tax obligations. Filing status: not_due→
 | Phase 3.0 | ✅ Complete | Invoicing (full lifecycle, PDF generation, companies) |
 | Phase 3.1 | ✅ Complete | Fiscal Documents (Vercel Blob storage, bulk upload, filing status) |
 | Phase 3.2 | ✅ Complete | Invoice Finalize (PDF→blob→FiscalDocument atomic flow) |
+| Phase 3.3 | ✅ Complete | OCR extraction (Claude Vision), auto-matching, transaction linking, display names |
 | Phase 4 | Planned | Charts, month-to-month comparison, Excel export |
 | Phase 5 | Planned | Budgets per category, alerts |
 | Phase 6 | Planned | Multi-user/family support, mobile PWA |
@@ -229,3 +231,6 @@ When asked about BudgetGuard, read the appropriate documentation:
 | `src/schemas/fiscal-document.ts` | Zod schemas for fiscal documents |
 | `src/utils/invoicePdf.ts` | Invoice PDF generation utilities |
 | `src/services/InvoiceFinalizeService.ts` | Invoice finalize orchestration (validate→PDF→blob→FiscalDocument) |
+| `src/services/ocr/DocumentExtractor.ts` | Claude Vision OCR extraction service |
+| `src/utils/fiscalDisplayName.ts` | Display name generation for fiscal documents |
+| `src/utils/blobFetch.ts` | Vercel Blob download utility |
