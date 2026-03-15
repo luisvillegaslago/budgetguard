@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.10.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.9.0...v0.10.0) (2026-03-15)
+
+
+### Features
+
+* expand LineItems.Description column to 2000 characters ([f9dad35](https://github.com/luisvillegaslago/budgetguard/commit/f9dad35e1af4d26ac82138ca9886f448b974df9d))
+* internationalize API errors with error codes pattern ([137779b](https://github.com/luisvillegaslago/budgetguard/commit/137779b7f91251f0ff6cb2f21b4cec2292248e33))
+
+
+### Bug Fixes
+
+* preserve line breaks in LineItems.Description display ([fee59e0](https://github.com/luisvillegaslago/budgetguard/commit/fee59e0d810b0381068eb51c934682ec8aebd534))
+
 ## [0.9.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.8.0...v0.9.0) (2026-03-15)
 
 
