@@ -7,8 +7,9 @@
  * Linked transactions are expandable inline.
  */
 
-import { ChevronDown, Download, FileText, Link2, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { AlertTriangle, ChevronDown, Download, FileText, Link2, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import type { FiscalDocumentType } from '@/constants/finance';
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useDeleteFiscalDocument, useUpdateDocumentStatus } from '@/hooks/useFiscalDocuments';
@@ -60,7 +61,7 @@ function LinkedGroupDetail({ transactionGroupId }: { transactionGroupId: number 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
     fetchApi(`/api/transaction-groups/${transactionGroupId}`)
       .then((res) => res.json())
       .then((data: ApiResponse<Transaction[]>) => {
@@ -68,7 +69,7 @@ function LinkedGroupDetail({ transactionGroupId }: { transactionGroupId: number 
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  });
+  }, [transactionGroupId]);
 
   if (loading) {
     return <div className="px-4 py-3 text-xs text-guard-muted animate-pulse">{t('common.loading')}</div>;
@@ -113,8 +114,7 @@ function LinkedTransactionDetail({ transactionId }: { transactionId: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Fetch on mount
-  useState(() => {
+  useEffect(() => {
     fetchApi(`/api/transactions/${transactionId}`)
       .then((res) => res.json())
       .then((data: ApiResponse<Transaction>) => {
@@ -123,7 +123,7 @@ function LinkedTransactionDetail({ transactionId }: { transactionId: number }) {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  });
+  }, [transactionId]);
 
   if (loading) {
     return <div className="px-4 py-3 text-xs text-guard-muted animate-pulse">{t('common.loading')}</div>;
@@ -193,9 +193,16 @@ function LinkedTransactionDetail({ transactionId }: { transactionId: number }) {
   );
 }
 
-function DocumentRow({ document, year }: { document: FiscalDocument; year: number }) {
+function DocumentRow({
+  document,
+  year,
+  onRequestDelete,
+}: {
+  document: FiscalDocument;
+  year: number;
+  onRequestDelete: (doc: FiscalDocument) => void;
+}) {
   const { t } = useTranslate();
-  const deleteMutation = useDeleteFiscalDocument(year);
   const updateStatus = useUpdateDocumentStatus(year);
   const [expanded, setExpanded] = useState(false);
 
@@ -215,11 +222,7 @@ function DocumentRow({ document, year }: { document: FiscalDocument; year: numbe
     updateStatus.mutate({ id: document.documentId, status: next });
   };
 
-  const ext = document.extractedData;
-  // Show extracted amount, fall back to manually entered taxAmountCents
-  const displayAmountCents = ext?.totalAmountCents ?? document.taxAmountCents;
-  // Show extracted vendor or description as subtitle
-  const subtitle = ext?.vendor ?? document.description;
+  const subtitle = document.description;
 
   return (
     <>
@@ -269,11 +272,8 @@ function DocumentRow({ document, year }: { document: FiscalDocument; year: numbe
           {formatFiscalPeriod(document.fiscalYear, document.fiscalQuarter)}
         </td>
         <td className="py-2.5 px-3 text-right">
-          {displayAmountCents != null && (
-            <span className="text-sm tabular-nums">{formatCurrency(displayAmountCents)}</span>
-          )}
-          {ext?.vatPercent != null && (
-            <span className="block text-[10px] text-guard-muted tabular-nums">IVA {ext.vatPercent}%</span>
+          {document.taxAmountCents != null && (
+            <span className="text-sm tabular-nums">{formatCurrency(document.taxAmountCents)}</span>
           )}
         </td>
         <td className="py-2.5 px-3 text-right text-xs text-guard-muted">{formatFileSize(document.fileSizeBytes)}</td>
@@ -289,12 +289,7 @@ function DocumentRow({ document, year }: { document: FiscalDocument; year: numbe
             </a>
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm(t('fiscal.documents.delete-confirm'))) {
-                  deleteMutation.mutate(document.documentId);
-                }
-              }}
-              disabled={deleteMutation.isPending}
+              onClick={() => onRequestDelete(document)}
               className="p-1.5 text-guard-muted hover:text-guard-danger transition-colors"
               title={t('common.buttons.delete')}
             >
@@ -320,6 +315,8 @@ function DocumentRow({ document, year }: { document: FiscalDocument; year: numbe
 
 export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps) {
   const { t } = useTranslate();
+  const deleteMutation = useDeleteFiscalDocument(year);
+  const [deleteTarget, setDeleteTarget] = useState<FiscalDocument | null>(null);
 
   if (documents.length === 0) {
     return (
@@ -331,45 +328,104 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
   }
 
   return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h3 className="text-base font-semibold text-foreground">{t('fiscal.documents.title')}</h3>
-        <span className="text-sm text-guard-muted">{t('common.records', { count: documents.length })}</span>
+    <>
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <h3 className="text-base font-semibold text-foreground">{t('fiscal.documents.title')}</h3>
+          <span className="text-sm text-guard-muted">{t('common.records', { count: documents.length })}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                  {t('fiscal.documents.columns.name')}
+                </th>
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                  {t('fiscal.documents.columns.type')}
+                </th>
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                  {t('fiscal.documents.columns.status')}
+                </th>
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
+                  {t('fiscal.documents.columns.period')}
+                </th>
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
+                  {t('fiscal.documents.columns.amount')}
+                </th>
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
+                  {t('fiscal.documents.columns.size')}
+                </th>
+                <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
+                  {t('fiscal.documents.columns.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((doc) => (
+                <DocumentRow key={doc.documentId} document={doc} year={year} onRequestDelete={setDeleteTarget} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
-                {t('fiscal.documents.columns.name')}
-              </th>
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
-                {t('fiscal.documents.columns.type')}
-              </th>
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
-                {t('fiscal.documents.columns.status')}
-              </th>
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase">
-                {t('fiscal.documents.columns.period')}
-              </th>
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
-                {t('fiscal.documents.columns.amount')}
-              </th>
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
-                {t('fiscal.documents.columns.size')}
-              </th>
-              <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase text-right">
-                {t('fiscal.documents.columns.actions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {documents.map((doc) => (
-              <DocumentRow key={doc.documentId} document={doc} year={year} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+
+      {/* Delete Confirmation Modal — rendered outside table */}
+      {deleteTarget && (
+        <ModalBackdrop onClose={() => setDeleteTarget(null)} labelledBy="delete-confirm-title">
+          <div className="card w-full max-w-sm animate-modal-in p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-guard-danger/10">
+                <AlertTriangle className="h-5 w-5 text-guard-danger" aria-hidden="true" />
+              </div>
+              <h3 id="delete-confirm-title" className="text-lg font-semibold text-foreground">
+                {t('fiscal.documents.delete-confirm')}
+              </h3>
+            </div>
+            {deleteTarget.transactionId != null && (
+              <p className="text-sm text-guard-muted mb-4">{t('fiscal.documents.delete-has-transaction')}</p>
+            )}
+            <div className="flex flex-col gap-2">
+              {deleteTarget.transactionId != null && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteMutation.mutate({ id: deleteTarget.documentId, deleteTransaction: true });
+                    setDeleteTarget(null);
+                  }}
+                  className="w-full py-2.5 rounded-lg font-medium text-sm bg-guard-danger text-white hover:bg-guard-danger/90 transition-colors"
+                >
+                  {t('fiscal.documents.delete-with-transaction')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  deleteMutation.mutate({ id: deleteTarget.documentId });
+                  setDeleteTarget(null);
+                }}
+                className={cn(
+                  'w-full py-2.5 rounded-lg font-medium text-sm transition-colors',
+                  deleteTarget.transactionId != null
+                    ? 'bg-guard-danger/10 text-guard-danger hover:bg-guard-danger/20'
+                    : 'bg-guard-danger text-white hover:bg-guard-danger/90',
+                )}
+              >
+                {deleteTarget.transactionId != null
+                  ? t('fiscal.documents.delete-keep-transaction')
+                  : t('common.buttons.delete')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="w-full py-2.5 rounded-lg font-medium text-sm bg-muted text-guard-muted hover:text-foreground transition-colors"
+              >
+                {t('common.buttons.cancel')}
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
+    </>
   );
 }

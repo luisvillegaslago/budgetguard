@@ -79,15 +79,19 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
         setStep('analyzing');
         try {
           const extracted = await extractMutation.mutateAsync(uploaded.documentId);
-          if (extracted.extractedData) {
-            setStep('done');
-            setExtractionData({ documentId: uploaded.documentId, data: extracted.extractedData });
-            return;
-          }
+          setStep('done');
+          setExtractionData({ documentId: uploaded.documentId, data: extracted });
+          return;
         } catch (ocrErr) {
           setStep('idle');
           setFailedDocId(uploaded.documentId);
-          setError(ocrErr instanceof Error ? ocrErr.message : t('fiscal.extraction.ocr-failed'));
+          const code = ocrErr instanceof Error ? ocrErr.message : '';
+          const errorMessages: Record<string, string> = {
+            extraction_failed: t('fiscal.extraction.errors.extraction-failed'),
+            api_credits_exhausted: t('fiscal.extraction.errors.api-credits'),
+            unrecognizable_amount: t('fiscal.extraction.errors.unrecognizable'),
+          };
+          setError(errorMessages[code] ?? t('fiscal.extraction.errors.extraction-failed'));
           return;
         }
       }
@@ -190,13 +194,15 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
             {selectedFile ? (
               <div className="flex items-center justify-center gap-2">
                 <span className="text-sm font-medium text-foreground">{selectedFile.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedFile(null)}
-                  className="p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
+                {!failedDocId && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFile(null)}
+                    className="p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -218,51 +224,81 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
             )}
           </div>
 
-          {/* OCR hint */}
-          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-guard-primary/5 border border-guard-primary/20">
-            <Zap className="h-4 w-4 text-guard-primary mt-0.5 shrink-0" aria-hidden="true" />
-            <p className="text-xs text-guard-muted">{t('fiscal.extraction.ocr-hint')}</p>
-          </div>
-
-          {/* Error Alert */}
-          {error && (
-            <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20 space-y-2">
-              <p className="text-sm text-guard-danger">{error}</p>
-              {failedDocId && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await deleteMutation.mutateAsync(failedDocId);
-                      setError(null);
-                      setFailedDocId(null);
-                      setSelectedFile(null);
-                    }}
-                    disabled={deleteMutation.isPending}
-                    className="text-xs text-guard-danger hover:underline"
-                  >
-                    {t('common.buttons.delete')}
-                  </button>
-                  <button type="button" onClick={onClose} className="text-xs text-guard-muted hover:underline">
-                    {t('common.buttons.close')}
-                  </button>
-                </div>
-              )}
+          {/* OCR hint — hidden when error */}
+          {!failedDocId && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-guard-primary/5 border border-guard-primary/20">
+              <Zap className="h-4 w-4 text-guard-primary mt-0.5 shrink-0" aria-hidden="true" />
+              <p className="text-xs text-guard-muted">{t('fiscal.extraction.ocr-hint')}</p>
             </div>
           )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={!selectedFile}
-            className={cn(
-              'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
-              'bg-guard-primary hover:bg-guard-primary/90',
-              'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
-            )}
-          >
-            {t('fiscal.documents.upload-and-analyze')}
-          </button>
+          {/* Error Alert */}
+          {error && (
+            <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
+              <p className="text-sm text-guard-danger">{error}</p>
+            </div>
+          )}
+
+          {/* Action buttons when OCR failed */}
+          {failedDocId && (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setExtractionData({
+                    documentId: failedDocId,
+                    data: {
+                      totalAmountCents: 0,
+                      baseAmountCents: null,
+                      taxAmountCents: null,
+                      vatPercent: null,
+                      date: null,
+                      vendor: null,
+                      invoiceNumber: null,
+                      description: null,
+                      confidence: 0,
+                    },
+                  });
+                }}
+                className={cn(
+                  'flex-1 py-2.5 rounded-lg font-medium text-sm transition-colors',
+                  'bg-guard-primary text-white hover:bg-guard-primary/90',
+                )}
+              >
+                {t('fiscal.extraction.enter-manually')}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await deleteMutation.mutateAsync({ id: failedDocId });
+                  onClose();
+                }}
+                disabled={deleteMutation.isPending}
+                className={cn(
+                  'flex-1 py-2.5 rounded-lg font-medium text-sm transition-colors',
+                  'bg-guard-danger text-white hover:bg-guard-danger/90',
+                )}
+              >
+                {t('common.buttons.delete')}
+              </button>
+            </div>
+          )}
+
+          {/* Submit Button — hidden when error */}
+          {!failedDocId && (
+            <button
+              type="submit"
+              disabled={!selectedFile}
+              className={cn(
+                'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
+                'bg-guard-primary hover:bg-guard-primary/90',
+                'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
+              )}
+            >
+              {t('fiscal.documents.upload-and-analyze')}
+            </button>
+          )}
         </form>
       </div>
     </ModalBackdrop>

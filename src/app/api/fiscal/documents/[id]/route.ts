@@ -8,6 +8,7 @@ import { del } from '@vercel/blob';
 import { FiscalDocumentStatusSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
 import { deleteDocument, getDocumentById, updateDocumentStatus } from '@/services/database/FiscalDocumentRepository';
+import { deleteTransaction } from '@/services/database/TransactionRepository';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
 
 export const GET = withApiHandler(async (_request, { params }) => {
@@ -36,16 +37,25 @@ export const PATCH = withApiHandler(async (request, { params }) => {
   return { data: document };
 }, 'PATCH /api/fiscal/documents/[id]');
 
-export const DELETE = withApiHandler(async (_request, { params }) => {
+export const DELETE = withApiHandler(async (request, { params }) => {
   const { id } = await params;
   const documentId = parseIdParam(id);
   if (typeof documentId !== 'number') return documentId;
 
+  // Check if we should also delete the linked transaction
+  const shouldDeleteTransaction = request.nextUrl.searchParams.get('deleteTransaction') === 'true';
+  const doc = await getDocumentById(documentId);
+  if (!doc) return notFound('Document not found');
+
+  // Delete linked transaction if requested
+  if (shouldDeleteTransaction && doc.transactionId) {
+    await deleteTransaction(doc.transactionId);
+  }
+
   const blobUrl = await deleteDocument(documentId);
   if (!blobUrl) return notFound('Document not found');
 
-  // Delete from Vercel Blob
   await del(blobUrl);
 
-  return { data: { deleted: true } };
+  return { data: { deleted: true, transactionDeleted: shouldDeleteTransaction && !!doc.transactionId } };
 }, 'DELETE /api/fiscal/documents/[id]');

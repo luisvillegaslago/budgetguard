@@ -655,6 +655,9 @@
       "linked-original": "Importe original",
       "linked-group-items": "conceptos",
       "delete-confirm": "¿Eliminar este documento?",
+      "delete-has-transaction": "Este documento tiene una transacción vinculada. ¿Quieres eliminar también la transacción?",
+      "delete-with-transaction": "Eliminar documento y transacción",
+      "delete-keep-transaction": "Eliminar solo documento",
       "empty": "No hay documentos subidos",
       "fields": {
         "document-type": "Tipo de documento",
@@ -719,13 +722,17 @@
       "step-analyzing": "Analizando con IA...",
       "ocr-hint": "El importe, fecha y proveedor se detectarán automáticamente al subir",
       "ocr-failed": "Documento subido pero el análisis falló. Puedes reintentar más tarde.",
+      "enter-manually": "Introducir datos manualmente",
       "confidence": "Confianza",
       "low-confidence": "Extracción con baja confianza — revisa todos los campos cuidadosamente.",
       "detected-vendor": "Detectado",
       "matched-vendor": "Coincide",
       "create-transaction": "Crear Transacción",
       "errors": {
-        "category-required": "Selecciona una categoría"
+        "category-required": "Selecciona una categoría",
+        "extraction-failed": "No se pudo analizar el documento. Puedes introducir los datos manualmente.",
+        "api-credits": "Servicio de análisis no disponible temporalmente. Puedes introducir los datos manualmente.",
+        "unrecognizable": "No se detectó un importe válido en el documento. Puede estar en otra divisa."
       }
     },
     "errors": {

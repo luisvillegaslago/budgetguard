@@ -655,6 +655,9 @@
       "linked-original": "Original amount",
       "linked-group-items": "items",
       "delete-confirm": "Delete this document?",
+      "delete-has-transaction": "This document has a linked transaction. Do you also want to delete the transaction?",
+      "delete-with-transaction": "Delete document and transaction",
+      "delete-keep-transaction": "Delete document only",
       "empty": "No documents uploaded yet",
       "fields": {
         "document-type": "Document type",
@@ -719,13 +722,17 @@
       "step-analyzing": "Analyzing with AI...",
       "ocr-hint": "Amount, date, and vendor will be auto-detected after upload",
       "ocr-failed": "Document uploaded but analysis failed. You can retry later.",
+      "enter-manually": "Enter data manually",
       "confidence": "Confidence",
       "low-confidence": "Low confidence extraction — please review all fields carefully.",
       "detected-vendor": "Detected",
       "matched-vendor": "Matched",
       "create-transaction": "Create Transaction",
       "errors": {
-        "category-required": "Please select a category"
+        "category-required": "Please select a category",
+        "extraction-failed": "Could not analyze the document. You can enter the data manually.",
+        "api-credits": "Analysis service temporarily unavailable. You can enter the data manually.",
+        "unrecognizable": "Could not detect a valid amount in the document. It may be in a different currency."
       }
     },
     "errors": {
