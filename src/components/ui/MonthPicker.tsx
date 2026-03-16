@@ -85,7 +85,7 @@ export function MonthPicker() {
       ref={containerRef}
       role="toolbar"
       aria-label={t('navigation.month-picker')}
-      className="relative flex items-center gap-1 sm:gap-2 flex-shrink-0"
+      className="relative flex flex-wrap justify-center items-center gap-1 sm:gap-2 sm:flex-nowrap flex-shrink-0 min-w-0"
       onKeyDown={handleKeyDown}
     >
       {/* Previous Month Button */}
@@ -103,7 +103,7 @@ export function MonthPicker() {
         type="button"
         onClick={handleToggle}
         className={cn(
-          'flex items-center gap-2 min-w-[180px] justify-center px-3 py-1.5 rounded-lg transition-colors',
+          'flex items-center gap-2 min-w-0 sm:min-w-[180px] justify-center px-3 py-1.5 rounded-lg transition-colors',
           'hover:bg-muted',
           isOpen && 'bg-muted',
         )}
@@ -181,8 +181,8 @@ export function MonthPicker() {
         type="button"
         onClick={goToCurrentMonth}
         className={cn(
-          'ml-2 px-3 py-1.5 text-sm font-medium text-guard-primary hover:bg-guard-primary/10 rounded-lg transition-colors',
-          isCurrentMonth ? 'invisible' : 'visible',
+          'hidden sm:inline-block px-3 py-1.5 text-sm font-medium text-guard-primary hover:bg-guard-primary/10 rounded-lg transition-colors sm:ml-2',
+          isCurrentMonth ? 'sm:invisible' : '',
         )}
         aria-hidden={isCurrentMonth}
         tabIndex={isCurrentMonth ? -1 : 0}

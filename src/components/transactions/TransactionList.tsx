@@ -5,7 +5,7 @@
  * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import { ArrowDownLeft, ArrowUpRight, FileCheck, Pencil, Plane, Plus, Receipt, Repeat } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, FileCheck, Pencil, Plane, Plus, Receipt, Repeat, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
@@ -44,98 +44,162 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
     ? `${transaction.parentCategory.name} › ${transaction.category?.name ?? ''}`
     : (transaction.category?.name ?? t('transactions.no-category'));
 
-  return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: Edit button provides keyboard access
-    // biome-ignore lint/a11y/noStaticElementInteractions: Cannot use <button> here due to nested interactive elements
-    <div
-      className="flex items-center gap-4 py-3 px-4 hover:bg-muted/50 rounded-lg transition-colors group animate-fade-in cursor-pointer"
-      style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
-      onClick={() => onEdit(transaction)}
+  const amountEl = (
+    <span
+      className={cn(
+        'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
+        {
+          'text-guard-success': isIncome,
+          'text-guard-danger': !isIncome,
+        },
+      )}
     >
-      {/* Date */}
-      <div className="w-16 flex-shrink-0">
-        <span className="text-sm text-guard-muted">{formatDate(transaction.transactionDate)}</span>
-      </div>
+      {isIncome ? (
+        <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
+      ) : (
+        <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+      )}
+      {isIncome ? '+' : '-'}
+      {formatCurrency(transaction.amountCents)}
+    </span>
+  );
 
-      {/* Category Icon */}
-      <div className="flex-shrink-0 p-2 rounded-lg" style={{ backgroundColor: `${iconColor}15` }}>
-        <CategoryIcon icon={transaction.category?.icon} color={iconColor} />
-      </div>
-
-      {/* Category & Description */}
-      <div className="flex-1 min-w-0">
-        <OverflowTooltip content={categoryName}>
-          <p className="text-sm font-medium text-foreground truncate">{categoryName}</p>
-        </OverflowTooltip>
-        {transaction.description && (
-          <OverflowTooltip content={transaction.description}>
-            <p className="text-xs text-guard-muted truncate">{transaction.description}</p>
+  return (
+    <div
+      className="py-3 px-3 sm:px-4 hover:bg-muted/50 rounded-lg transition-colors group animate-fade-in"
+      style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
+    >
+      {/* Desktop: single row — clickable */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: Edit button provides keyboard access */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Cannot use button due to nested interactive elements */}
+      <div className="hidden sm:flex items-center gap-4 cursor-pointer" onClick={() => onEdit(transaction)}>
+        <div className="flex-shrink-0 p-2 rounded-lg" style={{ backgroundColor: `${iconColor}15` }}>
+          <CategoryIcon icon={transaction.category?.icon} color={iconColor} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <OverflowTooltip content={categoryName}>
+            <p className="text-sm font-medium text-foreground truncate">{categoryName}</p>
           </OverflowTooltip>
-        )}
-      </div>
-
-      {/* Amount + Shared Badge */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {transaction.recurringExpenseId && (
-          <Tooltip content={t('recurring.badge')}>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-warning/10 text-guard-warning">
-              <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
-            </span>
-          </Tooltip>
-        )}
-        {transaction.tripId && (
-          <Tooltip content={transaction.tripName ?? t('trips.badge')}>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center gap-0.5">
-              <Plane className="h-2.5 w-2.5" aria-hidden="true" />
-            </span>
-          </Tooltip>
-        )}
-        {transaction.fiscalDocumentId != null && (
-          <Tooltip content={t('transactions.fiscal-doc-badge')}>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
-              <FileCheck className="h-2.5 w-2.5" aria-hidden="true" />
-            </span>
-          </Tooltip>
-        )}
-        {isShared && (
-          <Tooltip content={t('transactions.shared-badge')}>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
-              {t('transactions.shared-badge')}
-            </span>
-          </Tooltip>
-        )}
-        <div
-          className={cn('text-sm font-semibold', {
-            'text-guard-success': isIncome,
-            'text-guard-danger': !isIncome,
-          })}
-        >
-          <span className="flex items-center gap-1">
-            {isIncome ? (
-              <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
-            ) : (
-              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+          <div className="flex items-center gap-1.5 text-xs text-guard-muted min-w-0">
+            <span className="flex-shrink-0">{formatDate(transaction.transactionDate)}</span>
+            {transaction.description && (
+              <>
+                <span className="flex-shrink-0">·</span>
+                <span className="truncate">{transaction.description}</span>
+              </>
             )}
-            {isIncome ? '+' : '-'}
-            {formatCurrency(transaction.amountCents)}
-          </span>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-1.5 flex-shrink-0 w-20">
+          {transaction.recurringExpenseId && (
+            <Tooltip content={t('recurring.badge')}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-warning/10 text-guard-warning">
+                <Repeat className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
+          {transaction.tripId && (
+            <Tooltip content={transaction.tripName ?? t('trips.badge')}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                <Plane className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
+          {transaction.fiscalDocumentId != null && (
+            <Tooltip content={t('transactions.fiscal-doc-badge')}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                <FileCheck className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
+          {isShared && (
+            <Tooltip content={t('transactions.shared-badge')}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400">
+                <Users className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
+        </div>
+        {amountEl}
+        <div className="flex items-center justify-end flex-shrink-0 w-16">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(transaction);
+            }}
+            className="p-1.5 rounded-lg transition-all duration-200 ease-out-quart text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-primary/10 hover:text-guard-primary"
+            aria-label={t('category-management.actions.edit')}
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <DeleteButton onDelete={() => onDelete(transaction.transactionId)} isDeleting={isDeleting} />
         </div>
       </div>
 
-      {/* Edit Button */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit(transaction);
-        }}
-        className="p-2 rounded-lg transition-all duration-200 ease-out-quart text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-primary/10 hover:text-guard-primary"
-        aria-label={t('category-management.actions.edit')}
-      >
-        <Pencil className="h-4 w-4" aria-hidden="true" />
-      </button>
-
-      <DeleteButton onDelete={() => onDelete(transaction.transactionId)} isDeleting={isDeleting} />
+      {/* Mobile: two rows */}
+      <div className="sm:hidden">
+        {/* Row 1: Icon + Category + Amount */}
+        <div className="flex items-center gap-2">
+          <div className="flex-shrink-0 p-2 rounded-lg" style={{ backgroundColor: `${iconColor}15` }}>
+            <CategoryIcon icon={transaction.category?.icon} color={iconColor} />
+          </div>
+          <p className="text-sm font-medium text-foreground truncate flex-1 min-w-0">{categoryName}</p>
+          {amountEl}
+        </div>
+        {/* Row 2: Date · Description ... Badges + Edit | Delete */}
+        <div className="flex items-center gap-1 mt-1 ml-11">
+          <span className="text-xs text-guard-muted flex-shrink-0">{formatDate(transaction.transactionDate)}</span>
+          {transaction.description && (
+            <span className="text-xs text-guard-muted truncate min-w-0">
+              {'· '}
+              {transaction.description}
+            </span>
+          )}
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+            {transaction.recurringExpenseId && (
+              <Tooltip content={t('recurring.badge')}>
+                <span className="text-[10px] font-bold p-1 rounded bg-guard-warning/10 text-guard-warning">
+                  <Repeat className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+            {transaction.tripId && (
+              <Tooltip content={transaction.tripName ?? t('trips.badge')}>
+                <span className="text-[10px] font-bold p-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                  <Plane className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+            {transaction.fiscalDocumentId != null && (
+              <Tooltip content={t('transactions.fiscal-doc-badge')}>
+                <span className="text-[10px] font-bold p-1 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                  <FileCheck className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+            {isShared && (
+              <Tooltip content={t('transactions.shared-badge')}>
+                <span className="text-[10px] font-bold p-1 rounded bg-guard-primary/10 text-guard-primary">
+                  <Users className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(transaction);
+              }}
+              className="p-1 rounded-lg text-guard-muted hover:bg-guard-primary/10 hover:text-guard-primary transition-colors"
+              aria-label={t('category-management.actions.edit')}
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <DeleteButton onDelete={() => onDelete(transaction.transactionId)} isDeleting={isDeleting} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -319,10 +383,10 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
         value={searchQuery}
         onChange={setSearchQuery}
         placeholder={t('transactions.search-placeholder')}
-        className="mb-3 -mx-4 px-4"
+        className="mb-3 -mx-3 px-3 sm:-mx-4 sm:px-4"
       />
 
-      <ul className="-mx-4">
+      <ul className="-mx-3 sm:-mx-4">
         {filteredItems.length === 0 && searchQuery ? (
           <li className="text-center py-6 text-sm text-guard-muted">{t('transactions.search-empty')}</li>
         ) : null}

@@ -39,7 +39,7 @@ function SubcategoryRow({ subcategory, parentTotalCents, index }: SubcategoryRow
 
   return (
     <div
-      className="flex items-center gap-3 py-2 pl-12 animate-fade-in"
+      className="flex items-center gap-2 sm:gap-3 py-2 pl-8 sm:pl-12 animate-fade-in"
       style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
     >
       <div className="flex-shrink-0 p-1.5 rounded" style={{ backgroundColor: `${barColor}10` }}>
@@ -47,30 +47,33 @@ function SubcategoryRow({ subcategory, parentTotalCents, index }: SubcategoryRow
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5">
+        <div className="flex items-baseline justify-between gap-2 mb-0.5">
           <span className="text-xs font-medium text-guard-muted truncate">{displayName}</span>
-          <span className="text-xs font-semibold text-foreground ml-2">{formatCurrency(subcategory.totalCents)}</span>
+          <span className="text-xs font-semibold text-foreground flex-shrink-0 tabular-nums">
+            {formatCurrency(subcategory.totalCents)}
+          </span>
         </div>
-        <div
-          className="h-1.5 bg-muted rounded-full overflow-hidden"
-          role="progressbar"
-          aria-valuenow={percentage}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${displayName}: ${percentage}%`}
-        >
+        <div className="flex items-center gap-2">
           <div
-            className="h-full rounded-full transition-all duration-300 ease-out-quart"
-            style={{
-              width: `${Math.min(percentage, 100)}%`,
-              backgroundColor: barColor,
-              opacity: 0.6,
-            }}
-          />
+            className="h-1.5 bg-muted rounded-full overflow-hidden flex-1"
+            role="progressbar"
+            aria-valuenow={percentage}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${displayName}: ${percentage}%`}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-300 ease-out-quart"
+              style={{
+                width: `${Math.min(percentage, 100)}%`,
+                backgroundColor: barColor,
+                opacity: 0.6,
+              }}
+            />
+          </div>
+          <span className="text-[10px] font-medium text-guard-muted w-8 text-right flex-shrink-0">{percentage}%</span>
         </div>
       </div>
-
-      <span className="text-[10px] font-medium text-guard-muted w-8 text-right">{percentage}%</span>
     </div>
   );
 }
@@ -102,7 +105,7 @@ function ExpandableSubcategories({ month, categoryId, parentTotalCents }: Expand
       ))}
       <Link
         href={`/movements?category=${categoryId}`}
-        className="flex items-center gap-2 py-2 pl-12 text-xs text-guard-primary hover:text-guard-primary/80 transition-colors"
+        className="flex items-center gap-2 py-2 pl-8 sm:pl-12 text-xs text-guard-primary hover:text-guard-primary/80 transition-colors"
       >
         <History className="h-3 w-3" aria-hidden="true" />
         {t('category-history.view-link')}
@@ -128,7 +131,7 @@ function CategoryRow({ category, index, isExpanded, onToggle, month }: CategoryR
       <button
         type="button"
         className={cn(
-          'flex items-center gap-4 py-3 w-full text-left animate-slide-up cursor-pointer',
+          'flex items-center gap-2 sm:gap-4 py-3 w-full text-left animate-slide-up cursor-pointer',
           'hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors',
         )}
         style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}
@@ -154,30 +157,32 @@ function CategoryRow({ category, index, isExpanded, onToggle, month }: CategoryR
 
         {/* Category name and progress bar */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-baseline justify-between gap-2 mb-1">
             <span className="text-sm font-medium text-foreground truncate">{category.categoryName}</span>
-            <span className="text-sm font-semibold text-foreground ml-2">{category.total}</span>
+            <span className="text-sm font-semibold text-foreground flex-shrink-0 tabular-nums">{category.total}</span>
           </div>
-          <div
-            className="h-2 bg-muted rounded-full overflow-hidden"
-            role="progressbar"
-            aria-valuenow={category.percentage}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`${category.categoryName}: ${category.percentage}%`}
-          >
+          <div className="flex items-center gap-2">
             <div
-              className="h-full rounded-full transition-all duration-500 ease-out-quart"
-              style={{
-                width: `${Math.min(category.percentage, 100)}%`,
-                backgroundColor: barColor,
-              }}
-            />
+              className="h-2 bg-muted rounded-full overflow-hidden flex-1"
+              role="progressbar"
+              aria-valuenow={category.percentage}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${category.categoryName}: ${category.percentage}%`}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out-quart"
+                style={{
+                  width: `${Math.min(category.percentage, 100)}%`,
+                  backgroundColor: barColor,
+                }}
+              />
+            </div>
+            <span className="text-[10px] sm:text-xs font-medium text-guard-muted w-8 sm:w-10 text-right flex-shrink-0">
+              {category.percentage}%
+            </span>
           </div>
         </div>
-
-        {/* Percentage */}
-        <span className="text-xs font-medium text-guard-muted w-10 text-right">{category.percentage}%</span>
       </button>
 
       {/* Expanded subcategories (lazy loaded) */}

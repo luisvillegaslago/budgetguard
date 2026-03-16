@@ -7,7 +7,7 @@
  */
 
 import * as RadixTooltip from '@radix-ui/react-tooltip';
-import type { ReactNode } from 'react';
+import { type ReactNode, useCallback, useRef, useState } from 'react';
 import { cn } from '@/utils/helpers';
 
 interface TooltipProps {
@@ -19,6 +19,8 @@ interface TooltipProps {
   className?: string;
 }
 
+const TAP_DISMISS_MS = 1500;
+
 export function Tooltip({
   content,
   children,
@@ -27,11 +29,36 @@ export function Tooltip({
   sideOffset = 6,
   className,
 }: TooltipProps) {
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Open on tap (mobile) and auto-dismiss after delay
+  const handleTap = useCallback((e: React.PointerEvent) => {
+    // Only handle touch events — let hover work naturally on desktop
+    if (e.pointerType !== 'touch') return;
+    e.preventDefault();
+    e.stopPropagation();
+    clearTimeout(timerRef.current);
+    setOpen(true);
+    timerRef.current = setTimeout(() => setOpen(false), TAP_DISMISS_MS);
+  }, []);
+
   if (!content) return <>{children}</>;
 
   return (
-    <RadixTooltip.Root delayDuration={0}>
-      <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
+    <RadixTooltip.Root delayDuration={0} open={open} onOpenChange={setOpen}>
+      <RadixTooltip.Trigger asChild>
+        {/* Wrapper intercepts touch taps to open tooltip */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: tooltip tap handler for mobile */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: tooltip trigger, not interactive control */}
+        <span
+          className="inline-flex"
+          onPointerDown={handleTap}
+          onClick={handleTap as unknown as React.MouseEventHandler}
+        >
+          {children}
+        </span>
+      </RadixTooltip.Trigger>
       <RadixTooltip.Portal>
         <RadixTooltip.Content
           side={side}

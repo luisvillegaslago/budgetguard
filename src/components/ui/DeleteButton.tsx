@@ -39,7 +39,7 @@ export function DeleteButton({ onDelete, isDeleting, confirmLabel, defaultLabel,
         'p-2 rounded-lg transition-all duration-200 ease-out-quart',
         showConfirm
           ? 'bg-guard-danger text-white'
-          : 'text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
+          : 'text-guard-muted sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-danger/10 hover:text-guard-danger',
         className,
       )}
       aria-label={showConfirm ? resolvedConfirmLabel : resolvedDefaultLabel}

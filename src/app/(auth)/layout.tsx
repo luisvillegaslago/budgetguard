@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
   useThemeSync();
 
   return (
-    <div className="min-h-screen bg-guard-light dark:bg-guard-dark">
+    <div className="min-h-screen bg-guard-light dark:bg-guard-dark overflow-x-hidden">
       <AppSidebar />
 
       {/* Main content area - shifts right for sidebar */}
