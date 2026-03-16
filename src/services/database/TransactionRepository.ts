@@ -3,6 +3,7 @@
  * Database operations for transactions (PostgreSQL, user-scoped)
  */
 
+import { TRANSACTION_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   CategoryHistorySummary,
@@ -10,6 +11,7 @@ import type {
   MonthlySummary,
   SubcategorySummary,
   Transaction,
+  TransactionStatus,
   TransactionType,
 } from '@/types/finance';
 import { toDateString } from '@/utils/helpers';
@@ -37,6 +39,7 @@ interface TransactionRow {
   DeductionPercent: number | null;
   VendorName: string | null;
   InvoiceNumber: string | null;
+  Status: TransactionStatus;
   CompanyID: number | null;
   FiscalDocumentID: number | null;
   CreatedAt: Date | string;
@@ -108,6 +111,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     description: row.Description,
     transactionDate: toDateString(row.TransactionDate),
     type: row.Type,
+    status: row.Status,
     sharedDivisor: row.SharedDivisor,
     originalAmountCents: row.OriginalAmountCents,
     recurringExpenseId: row.RecurringExpenseID,
@@ -130,7 +134,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
  */
 export async function getTransactionsByMonth(
   month: string,
-  filters?: { type?: TransactionType; categoryId?: number },
+  filters?: { type?: TransactionType; categoryId?: number; status?: TransactionStatus },
 ): Promise<Transaction[]> {
   const userId = await getUserIdOrThrow();
   const params: unknown[] = [month, userId];
@@ -146,7 +150,7 @@ export async function getTransactionsByMonth(
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID",
+      t."Status", t."CompanyID",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
@@ -177,6 +181,12 @@ export async function getTransactionsByMonth(
     paramIndex++;
   }
 
+  if (filters?.status) {
+    params.push(filters.status);
+    sql += ` AND t."Status" = $${paramIndex}`;
+    paramIndex++;
+  }
+
   sql += ' ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC';
 
   const rows = await query<TransactionRow>(sql, params);
@@ -200,7 +210,7 @@ export async function getTransactionById(transactionId: number): Promise<Transac
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID",
+      t."Status", t."CompanyID",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
@@ -236,6 +246,7 @@ export async function createTransaction(data: {
   vendorName?: string | null;
   invoiceNumber?: string | null;
   companyId?: number | null;
+  status?: TransactionStatus;
 }): Promise<Transaction> {
   const userId = await getUserIdOrThrow();
 
@@ -245,9 +256,9 @@ export async function createTransaction(data: {
       "CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
       "SharedDivisor", "OriginalAmountCents", "RecurringExpenseID",
       "TransactionGroupID", "TripID", "VatPercent", "DeductionPercent",
-      "VendorName", "InvoiceNumber", "CompanyID", "UserID"
+      "VendorName", "InvoiceNumber", "CompanyID", "Status", "UserID"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     RETURNING "TransactionID"
   `,
     [
@@ -266,6 +277,7 @@ export async function createTransaction(data: {
       data.vendorName ?? null,
       data.invoiceNumber ?? null,
       data.companyId ?? null,
+      data.status ?? TRANSACTION_STATUS.PAID,
       userId,
     ],
   );
@@ -301,6 +313,7 @@ export async function updateTransaction(
     vendorName: string | null;
     invoiceNumber: string | null;
     companyId: number | null;
+    status: TransactionStatus;
   }>,
 ): Promise<Transaction | null> {
   const userId = await getUserIdOrThrow();
@@ -357,6 +370,10 @@ export async function updateTransaction(
     updates.push(`"CompanyID" = $${paramIndex++}`);
     params.push(data.companyId);
   }
+  if (data.status !== undefined) {
+    updates.push(`"Status" = $${paramIndex++}`);
+    params.push(data.status);
+  }
 
   if (updates.length === 0) {
     return getTransactionById(transactionId);
@@ -393,6 +410,29 @@ export async function deleteTransaction(transactionId: number): Promise<boolean>
   );
 
   return rows.length > 0;
+}
+
+/**
+ * Update only the status of a transaction (lightweight PATCH)
+ */
+export async function updateTransactionStatus(
+  transactionId: number,
+  status: TransactionStatus,
+): Promise<Transaction | null> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<{ TransactionID: number }>(
+    `
+    UPDATE "Transactions"
+    SET "Status" = $1
+    WHERE "TransactionID" = $2 AND "UserID" = $3
+    RETURNING "TransactionID"
+  `,
+    [status, transactionId, userId],
+  );
+
+  if (rows.length === 0) return null;
+  return getTransactionById(transactionId);
 }
 
 /**
@@ -501,6 +541,7 @@ export async function getCategoryHistorySummary(
       AND t."TransactionDate" >= $2
       AND t."TransactionDate" <= $3
       AND t."UserID" = $4
+      AND t."Status" = 'paid'
   `,
     [categoryId, dateFrom, dateTo, userId],
   );
@@ -539,7 +580,7 @@ export async function getCategoryHistoryTransactions(
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID", t."CreatedAt", t."UpdatedAt"
+      t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -573,7 +614,7 @@ export async function getCompanyTransactions(companyId: number, dateFrom: Date, 
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID", t."CreatedAt", t."UpdatedAt"
+      t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -615,6 +656,7 @@ export async function getCompanyTransactionsSummary(
       AND t."TransactionDate" >= $2
       AND t."TransactionDate" <= $3
       AND t."UserID" = $4
+      AND t."Status" = 'paid'
   `,
     [companyId, dateFrom, dateTo, userId],
   );
@@ -726,7 +768,7 @@ export async function getTransactionsByGroupId(groupId: number): Promise<Transac
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."CompanyID", t."CreatedAt", t."UpdatedAt"
+      t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"

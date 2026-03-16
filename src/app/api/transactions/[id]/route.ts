@@ -37,12 +37,16 @@ export const PUT = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(CreateTransactionSchema.partial(), body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, ...rest } = validation.data;
+  const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, status, ...rest } =
+    validation.data;
 
   const updateData: Parameters<typeof updateTransaction>[1] = {
     ...rest,
     description: rest.description ?? undefined,
   };
+
+  // Pass status if provided
+  if (status !== undefined) updateData.status = status;
 
   // Pass fiscal fields if provided
   if (vatPercent !== undefined) updateData.vatPercent = vatPercent ?? null;

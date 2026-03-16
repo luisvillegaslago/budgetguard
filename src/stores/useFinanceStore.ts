@@ -8,12 +8,13 @@
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import { FILTER_TYPE, type FilterType } from '@/constants/finance';
+import { FILTER_TYPE, type FilterType, STATUS_FILTER, type StatusFilter } from '@/constants/finance';
 import { addMonths, getCurrentMonth } from '@/utils/helpers';
 
 interface FinanceFilters {
   type: FilterType;
   categoryId: number | null;
+  status: StatusFilter;
 }
 
 interface FinanceUIState {
@@ -47,6 +48,7 @@ interface FinanceUIState {
 const defaultFilters: FinanceFilters = {
   type: FILTER_TYPE.ALL,
   categoryId: null,
+  status: STATUS_FILTER.ALL,
 };
 
 function getStoredBoolean(key: string, fallback: boolean): boolean {

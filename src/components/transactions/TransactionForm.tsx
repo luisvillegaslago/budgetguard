@@ -14,13 +14,13 @@ import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
-import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateTransactionInput, CreateTransactionSchema } from '@/schemas/transaction';
 import { useSelectedMonth } from '@/stores/useFinanceStore';
-import type { Transaction, TransactionType } from '@/types/finance';
+import type { Transaction, TransactionStatus, TransactionType } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
@@ -72,6 +72,7 @@ export function TransactionForm({
           vendorName: transaction.vendorName,
           invoiceNumber: transaction.invoiceNumber,
           companyId: transaction.companyId,
+          status: transaction.status,
         }
       : {
           type: defaultType,
@@ -85,6 +86,7 @@ export function TransactionForm({
           vendorName: null,
           invoiceNumber: null,
           companyId: null,
+          status: TRANSACTION_STATUS.PAID,
         },
   });
 
@@ -93,6 +95,7 @@ export function TransactionForm({
   const watchedIsShared = useWatch({ control, name: 'isShared' });
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
   const watchedCompanyId = useWatch({ control, name: 'companyId' });
+  const watchedStatus = useWatch({ control, name: 'status' });
 
   // Auto-fill fiscal defaults from category
   const fiscalDefaults = useFiscalDefaults(watchedCategoryId ?? null);
@@ -305,6 +308,40 @@ export function TransactionForm({
               )}
             </div>
           </div>
+
+          {/* Status Selector */}
+          <fieldset className="border-0 p-0 m-0">
+            <legend className="block text-sm font-medium text-foreground mb-1.5">
+              {t('transactions.form.fields.status')}
+            </legend>
+            <div className="flex gap-2">
+              {(
+                [
+                  TRANSACTION_STATUS.PAID,
+                  TRANSACTION_STATUS.PENDING,
+                  ...(isEditing ? [TRANSACTION_STATUS.CANCELLED] : []),
+                ] as TransactionStatus[]
+              ).map((statusOption) => (
+                <button
+                  key={statusOption}
+                  type="button"
+                  onClick={() => setValue('status', statusOption)}
+                  className={cn(
+                    'flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ease-out-quart',
+                    watchedStatus === statusOption
+                      ? statusOption === TRANSACTION_STATUS.PAID
+                        ? 'bg-guard-success text-white'
+                        : statusOption === TRANSACTION_STATUS.PENDING
+                          ? 'bg-guard-warning text-white'
+                          : 'bg-guard-muted text-white'
+                      : 'bg-muted text-foreground/70 hover:text-foreground',
+                  )}
+                >
+                  {t(`transaction-status.${statusOption}`)}
+                </button>
+              ))}
+            </div>
+          </fieldset>
 
           {/* Description Input */}
           <div>

@@ -13,6 +13,7 @@ import type {
   OccurrenceStatus,
   PaymentMethod,
   RecurringFrequency,
+  TransactionStatus,
   TransactionType,
 } from '@/constants/finance';
 
@@ -29,6 +30,8 @@ export type {
   OccurrenceStatus,
   PaymentMethod,
   RecurringFrequency,
+  StatusFilter,
+  TransactionStatus,
   TransactionType,
   VatRate,
 } from '@/constants/finance';
@@ -83,6 +86,7 @@ export interface Transaction {
   description: string | null;
   transactionDate: string; // ISO date "2025-01-15"
   type: TransactionType;
+  status: TransactionStatus;
   sharedDivisor: number;
   originalAmountCents: number | null;
   recurringExpenseId: number | null;

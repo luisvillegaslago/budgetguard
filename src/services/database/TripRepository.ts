@@ -3,7 +3,7 @@
  * Database operations for trips and trip expenses (user-scoped)
  */
 
-import { TRANSACTION_TYPE } from '@/constants/finance';
+import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { Category, Transaction, Trip, TripCategorySummary, TripDetail, TripDisplay } from '@/types/finance';
 import { toDateString } from '@/utils/helpers';
@@ -113,6 +113,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     description: row.Description,
     transactionDate: toDateString(row.TransactionDate),
     type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
     sharedDivisor: row.SharedDivisor,
     originalAmountCents: row.OriginalAmountCents,
     recurringExpenseId: row.RecurringExpenseID,

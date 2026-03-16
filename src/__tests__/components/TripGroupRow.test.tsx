@@ -6,7 +6,7 @@
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import type { Transaction, TripGroupDisplay } from '@/types/finance';
 
 // Mock useTranslate
@@ -108,6 +108,7 @@ const mockTransactions: Transaction[] = [
     description: 'Hotel 2 noches',
     transactionDate: '2025-10-15',
     type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
     sharedDivisor: SHARED_EXPENSE.DIVISOR,
     originalAmountCents: 12000,
     recurringExpenseId: null,
@@ -144,6 +145,7 @@ const mockTransactions: Transaction[] = [
     description: 'Repsol autopista',
     transactionDate: '2025-10-16',
     type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
     sharedDivisor: SHARED_EXPENSE.DEFAULT_DIVISOR,
     originalAmountCents: null,
     recurringExpenseId: null,

@@ -101,6 +101,18 @@
     "no-category": "Sin categoría",
     "shared-badge": "÷2",
     "fiscal-doc-badge": "Tiene documento fiscal",
+    "mark-as-paid": "Marcar como pagado",
+    "mark-as-pending": "Marcar como pendiente",
+    "pending-banner": {
+      "title": "{count} gasto(s) pendiente(s) vencido(s)",
+      "mark-all": "Marcar todos como pagados"
+    },
+    "status-filter": {
+      "all": "Todos",
+      "paid": "Pagados",
+      "pending": "Pendientes",
+      "cancelled": "Cancelados"
+    },
     "groups": {
       "title": "Gasto Agrupado",
       "edit-title": "Editar Gasto Agrupado",
@@ -148,7 +160,8 @@
         "description": "Descripción",
         "description-placeholder": "Ej: Compra semanal",
         "shared": "Gasto compartido (÷2)",
-        "shared-hint": "Total: {total} → Tu parte: {half}"
+        "shared-hint": "Total: {total} → Tu parte: {half}",
+        "status": "Estado de pago"
       },
       "submit": {
         "expense": "Crear Gasto",
@@ -1149,6 +1162,11 @@
     "upload": "Subir",
     "all-quarters": "Todos los trimestres",
     "all-types": "Todos los tipos"
+  },
+  "transaction-status": {
+    "paid": "Pagado",
+    "pending": "Pendiente",
+    "cancelled": "Cancelado"
   },
   "validation": {
     "category-required": "Selecciona una categoría",

@@ -156,6 +156,8 @@ CREATE TABLE "Transactions" (
     "DeductionPercent" NUMERIC(5,2) NULL,
     "VendorName" VARCHAR(150) NULL,
     "InvoiceNumber" VARCHAR(50) NULL,
+    "Status" VARCHAR(15) NOT NULL DEFAULT 'paid'
+        CHECK ("Status" IN ('paid', 'pending', 'cancelled')),
     "CompanyID" INT NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -183,6 +185,7 @@ CREATE INDEX "IX_Transactions_InvoiceNumber" ON "Transactions"("InvoiceNumber")
     WHERE "InvoiceNumber" IS NOT NULL;
 CREATE INDEX "IX_Transactions_UserID" ON "Transactions"("UserID");
 CREATE INDEX "IX_Transactions_CompanyID" ON "Transactions"("CompanyID");
+CREATE INDEX "IX_Transactions_Status" ON "Transactions"("Status");
 
 -- ============================================================
 -- RECURRING EXPENSES
@@ -334,9 +337,10 @@ INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
 LEFT JOIN (
     SELECT "TripID", MIN("TransactionDate") AS "TripStartDate"
-    FROM "Transactions" WHERE "TripID" IS NOT NULL
+    FROM "Transactions" WHERE "TripID" IS NOT NULL AND "Status" = 'paid'
     GROUP BY "TripID"
 ) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
+WHERE t."Status" = 'paid'
 GROUP BY
     t."UserID",
     TO_CHAR(
@@ -380,9 +384,10 @@ FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN (
     SELECT "TripID", MIN("TransactionDate") AS "TripStartDate"
-    FROM "Transactions" WHERE "TripID" IS NOT NULL
+    FROM "Transactions" WHERE "TripID" IS NOT NULL AND "Status" = 'paid'
     GROUP BY "TripID"
 ) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
+WHERE t."Status" = 'paid'
 GROUP BY
     t."UserID",
     TO_CHAR(
@@ -417,8 +422,9 @@ SELECT
 FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
-WHERE t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
-    OR t."InvoiceNumber" IS NOT NULL;
+WHERE t."Status" = 'paid'
+    AND (t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
+    OR t."InvoiceNumber" IS NOT NULL);
 
 -- View: Skydiving statistics (user-scoped)
 CREATE VIEW "vw_SkydivingStats" AS

@@ -18,6 +18,7 @@ export const GET = withApiHandler(async (request) => {
     month: searchParams.get('month') ?? undefined,
     type: searchParams.get('type') ?? undefined,
     categoryId: searchParams.get('categoryId') ?? undefined,
+    status: searchParams.get('status') ?? undefined,
   };
 
   const validation = validateRequest(TransactionFiltersSchema, filters);
@@ -27,6 +28,7 @@ export const GET = withApiHandler(async (request) => {
   const transactions = await getTransactionsByMonth(month, {
     type: validation.data.type,
     categoryId: validation.data.categoryId,
+    status: validation.data.status,
   });
 
   return { data: transactions, meta: { month, count: transactions.length } };
@@ -37,7 +39,8 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(CreateTransactionSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, ...rest } = validation.data;
+  const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, status, ...rest } =
+    validation.data;
 
   // Convert euros to cents for storage
   const fullAmountCents = eurosToCents(amount);
@@ -56,6 +59,7 @@ export const POST = withApiHandler(async (request) => {
     deductionPercent: deductionPercent ?? null,
     vendorName: vendorName ?? null,
     invoiceNumber: invoiceNumber ?? null,
+    status,
   });
 
   return { data: transaction, status: 201 };

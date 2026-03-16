@@ -5,7 +5,20 @@
  * Displays transactions for the selected month, with grouped transactions shown as collapsible rows
  */
 
-import { ArrowDownLeft, ArrowUpRight, FileCheck, Pencil, Plane, Plus, Receipt, Repeat, Users } from 'lucide-react';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Ban,
+  CheckCircle,
+  Clock,
+  FileCheck,
+  Pencil,
+  Plane,
+  Plus,
+  Receipt,
+  Repeat,
+  Users,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
@@ -14,12 +27,12 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { FILTER_TYPE, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import { FILTER_TYPE, SHARED_EXPENSE, STATUS_FILTER, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
-import { useDeleteTransaction, useGroupedTransactions } from '@/hooks/useTransactions';
+import { useDeleteTransaction, useGroupedTransactions, useUpdateTransactionStatus } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useFilters, useSelectedMonth } from '@/stores/useFinanceStore';
-import type { Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
+import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinanceStore';
+import type { StatusFilter, Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { TransactionGroupRow } from './TransactionGroupRow';
@@ -29,14 +42,17 @@ interface TransactionRowProps {
   transaction: Transaction;
   onDelete: (id: number) => void;
   onEdit: (transaction: Transaction) => void;
+  onMarkAsPaid?: (id: number) => void;
   isDeleting: boolean;
   index: number;
 }
 
-function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: TransactionRowProps) {
+function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeleting, index }: TransactionRowProps) {
   const { t } = useTranslate();
   const isIncome = transaction.type === TRANSACTION_TYPE.INCOME;
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
+  const isPending = transaction.status === TRANSACTION_STATUS.PENDING;
+  const isCancelled = transaction.status === TRANSACTION_STATUS.CANCELLED;
   const iconColor = transaction.category?.color ?? (isIncome ? '#10B981' : '#EF4444');
 
   // Build category display name with parent breadcrumb
@@ -48,10 +64,12 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
     <span
       className={cn(
         'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
-        {
-          'text-guard-success': isIncome,
-          'text-guard-danger': !isIncome,
-        },
+        isPending
+          ? 'text-guard-muted/50'
+          : {
+              'text-guard-success': isIncome,
+              'text-guard-danger': !isIncome,
+            },
       )}
     >
       {isIncome ? (
@@ -66,7 +84,10 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
 
   return (
     <div
-      className="py-3 px-3 sm:px-4 hover:bg-muted/50 rounded-lg transition-colors group animate-fade-in"
+      className={cn(
+        'py-3 px-3 sm:px-4 hover:bg-muted/50 rounded-lg transition-colors group animate-fade-in',
+        isCancelled && 'opacity-50',
+      )}
       style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
     >
       {/* Desktop: single row — clickable */}
@@ -91,6 +112,20 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
           </div>
         </div>
         <div className="flex items-center justify-end gap-1.5 flex-shrink-0 w-20">
+          {isPending && (
+            <Tooltip content={t('transaction-status.pending')}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-warning/10 text-guard-warning">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
+          {isCancelled && (
+            <Tooltip content={t('transaction-status.cancelled')}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-muted/10 text-guard-muted">
+                <Ban className="h-3 w-3" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
           {transaction.recurringExpenseId && (
             <Tooltip content={t('recurring.badge')}>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-warning/10 text-guard-warning">
@@ -121,7 +156,22 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
           )}
         </div>
         {amountEl}
-        <div className="flex items-center justify-end flex-shrink-0 w-16">
+        <div className="flex items-center justify-end flex-shrink-0 w-24">
+          {isPending && onMarkAsPaid && (
+            <Tooltip content={t('transactions.mark-as-paid')}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkAsPaid(transaction.transactionId);
+                }}
+                className="p-1.5 rounded-lg transition-all duration-200 ease-out-quart text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-success/10 hover:text-guard-success"
+                aria-label={t('transactions.mark-as-paid')}
+              >
+                <CheckCircle className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </Tooltip>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -157,6 +207,20 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
             </span>
           )}
           <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+            {isPending && (
+              <Tooltip content={t('transaction-status.pending')}>
+                <span className="text-[10px] font-bold p-1 rounded bg-guard-warning/10 text-guard-warning">
+                  <Clock className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+            {isCancelled && (
+              <Tooltip content={t('transaction-status.cancelled')}>
+                <span className="text-[10px] font-bold p-1 rounded bg-guard-muted/10 text-guard-muted">
+                  <Ban className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
             {transaction.recurringExpenseId && (
               <Tooltip content={t('recurring.badge')}>
                 <span className="text-[10px] font-bold p-1 rounded bg-guard-warning/10 text-guard-warning">
@@ -184,6 +248,19 @@ function TransactionRow({ transaction, onDelete, onEdit, isDeleting, index }: Tr
                   <Users className="h-3 w-3" aria-hidden="true" />
                 </span>
               </Tooltip>
+            )}
+            {isPending && onMarkAsPaid && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkAsPaid(transaction.transactionId);
+                }}
+                className="p-1 rounded-lg text-guard-muted hover:bg-guard-success/10 hover:text-guard-success transition-colors"
+                aria-label={t('transactions.mark-as-paid')}
+              >
+                <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
             )}
             <button
               type="button"
@@ -229,13 +306,19 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
   const filters = useFilters();
+  const setFilters = useSetFilters();
   const { isLoading, isError, refetch, grouped } = useGroupedTransactions(selectedMonth);
   const deleteTransaction = useDeleteTransaction();
   const deleteGroup = useDeleteTransactionGroup();
+  const updateStatus = useUpdateTransactionStatus();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleDelete = (id: number) => {
     deleteTransaction.mutate(id);
+  };
+
+  const handleMarkAsPaid = (id: number) => {
+    updateStatus.mutate({ id, status: TRANSACTION_STATUS.PAID });
   };
 
   const handleDeleteGroup = (groupId: number) => {
@@ -291,6 +374,15 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
       });
     }
 
+    // Status filter
+    if (filters.status !== STATUS_FILTER.ALL) {
+      items = items.filter((item) => {
+        if (item.kind === 'transaction') return item.data.status === filters.status;
+        if (item.kind === 'group') return item.data.transactions.some((tx) => tx.status === filters.status);
+        return item.data.transactions.some((tx) => tx.status === filters.status);
+      });
+    }
+
     // Search filter
     if (searchQuery) {
       items = items.filter((item) => {
@@ -313,7 +405,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
     }
 
     return items;
-  }, [sortedItems, searchQuery, filters.type]);
+  }, [sortedItems, searchQuery, filters.type, filters.status]);
 
   if (isLoading) {
     return (
@@ -378,13 +470,29 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
         <span className="text-sm text-guard-muted">{t('common.records', { count: totalCount })}</span>
       </div>
 
-      {/* Search filter */}
-      <SearchInput
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder={t('transactions.search-placeholder')}
-        className="mb-3 -mx-3 px-3 sm:-mx-4 sm:px-4"
-      />
+      {/* Search + Status filter */}
+      <div className="mb-3 -mx-3 px-3 sm:-mx-4 sm:px-4 space-y-2">
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={t('transactions.search-placeholder')} />
+        <div className="flex gap-1.5 overflow-x-auto">
+          {(
+            [STATUS_FILTER.ALL, STATUS_FILTER.PAID, STATUS_FILTER.PENDING, STATUS_FILTER.CANCELLED] as StatusFilter[]
+          ).map((statusOption) => (
+            <button
+              key={statusOption}
+              type="button"
+              onClick={() => setFilters({ status: statusOption })}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap',
+                filters.status === statusOption
+                  ? 'bg-guard-primary text-white'
+                  : 'bg-muted text-guard-muted hover:text-foreground',
+              )}
+            >
+              {t(`transactions.status-filter.${statusOption}`)}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <ul className="-mx-3 sm:-mx-4">
         {filteredItems.length === 0 && searchQuery ? (
@@ -419,6 +527,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
                 transaction={item.data}
                 onDelete={handleDelete}
                 onEdit={onEditTransaction ?? (() => {})}
+                onMarkAsPaid={handleMarkAsPaid}
                 isDeleting={deleteTransaction.isPending}
                 index={index}
               />

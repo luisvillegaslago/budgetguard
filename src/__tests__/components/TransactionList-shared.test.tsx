@@ -5,7 +5,7 @@
 
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { TRANSACTION_TYPE } from '@/constants/finance';
+import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import type { Transaction } from '@/types/finance';
 
 // Build mock transactions
@@ -31,6 +31,7 @@ const mockTransactions: Transaction[] = [
     description: 'Fibra optica',
     transactionDate: '2025-01-15',
     type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
     sharedDivisor: 2,
     originalAmountCents: 5000,
     recurringExpenseId: null,
@@ -67,6 +68,7 @@ const mockTransactions: Transaction[] = [
     description: 'Gasolina',
     transactionDate: '2025-01-14',
     type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
     sharedDivisor: 1,
     originalAmountCents: null,
     recurringExpenseId: null,
@@ -100,6 +102,10 @@ jest.mock('@/hooks/useTransactions', () => ({
     mutate: jest.fn(),
     isPending: false,
   }),
+  useUpdateTransactionStatus: () => ({
+    mutate: jest.fn(),
+    isPending: false,
+  }),
 }));
 
 jest.mock('@/hooks/useTransactionGroups', () => ({
@@ -111,7 +117,8 @@ jest.mock('@/hooks/useTransactionGroups', () => ({
 
 jest.mock('@/stores/useFinanceStore', () => ({
   useSelectedMonth: () => '2025-01',
-  useFilters: () => ({ type: 'all', categoryId: null }),
+  useFilters: () => ({ type: 'all', categoryId: null, status: 'all' }),
+  useSetFilters: () => jest.fn(),
 }));
 
 jest.mock('@/hooks/useTranslations', () => ({

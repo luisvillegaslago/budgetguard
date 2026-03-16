@@ -4,12 +4,27 @@
  */
 
 import { z } from 'zod';
-import { DATE_RANGE_PRESET, MONTH_FORMAT_REGEX, TRANSACTION_TYPE, VALIDATION_KEY } from '@/constants/finance';
+import {
+  DATE_RANGE_PRESET,
+  MONTH_FORMAT_REGEX,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+  VALIDATION_KEY,
+} from '@/constants/finance';
 
 /**
  * Transaction type enum
  */
 export const TransactionTypeSchema = z.enum([TRANSACTION_TYPE.INCOME, TRANSACTION_TYPE.EXPENSE]);
+
+/**
+ * Transaction status enum
+ */
+export const TransactionStatusSchema = z.enum([
+  TRANSACTION_STATUS.PAID,
+  TRANSACTION_STATUS.PENDING,
+  TRANSACTION_STATUS.CANCELLED,
+]);
 
 /**
  * Schema for creating a new transaction
@@ -27,6 +42,7 @@ export const CreateTransactionSchema = z.object({
   vendorName: z.string().max(150).optional().nullable(),
   invoiceNumber: z.string().max(50).optional().nullable(),
   companyId: z.number().int().positive().optional().nullable(),
+  status: TransactionStatusSchema.optional().default(TRANSACTION_STATUS.PAID),
 });
 
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;
@@ -47,6 +63,14 @@ export const TransactionFiltersSchema = z.object({
   month: z.string().regex(MONTH_FORMAT_REGEX, VALIDATION_KEY.INVALID_MONTH_FORMAT).optional(),
   type: TransactionTypeSchema.optional(),
   categoryId: z.coerce.number().int().positive().optional(),
+  status: TransactionStatusSchema.optional(),
+});
+
+/**
+ * Schema for PATCH status update
+ */
+export const UpdateTransactionStatusSchema = z.object({
+  status: TransactionStatusSchema,
 });
 
 export type TransactionFiltersInput = z.infer<typeof TransactionFiltersSchema>;

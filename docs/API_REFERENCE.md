@@ -342,6 +342,7 @@ List transactions for a specific month. Each transaction includes joined `catego
 | `month` | string | No | Current month | Month in `YYYY-MM` format |
 | `type` | `income` \| `expense` | No | all | Filter by transaction type |
 | `categoryId` | number | No | all | Filter by category |
+| `status` | `paid` \| `pending` \| `cancelled` | No | all | Filter by payment status |
 
 **Example Request:**
 ```bash
@@ -375,6 +376,7 @@ GET /api/transactions?month=2025-01&type=expense
       "description": "Alquiler enero",
       "transactionDate": "2025-01-01",
       "type": "expense",
+      "status": "paid",
       "sharedDivisor": 2,
       "originalAmountCents": 83856,
       "recurringExpenseId": 3,
@@ -402,6 +404,7 @@ GET /api/transactions?month=2025-01&type=expense
 | `description` | string \| null | Description text |
 | `transactionDate` | string | ISO date (`YYYY-MM-DD`) |
 | `type` | `income` \| `expense` | Transaction type |
+| `status` | `paid` \| `pending` \| `cancelled` | Payment status. Default `paid`. Pending/cancelled are excluded from summaries |
 | `sharedDivisor` | number | `1` = personal, `2` = shared |
 | `originalAmountCents` | number \| null | Full amount before halving (null if personal) |
 | `recurringExpenseId` | number \| null | FK to RecurringExpenses (if created from a recurring rule) |
@@ -431,6 +434,7 @@ Create a new transaction.
 | `deductionPercent` | number \| null | No | `null` | Tax deduction percentage for this transaction (0-100). Used by fiscal module |
 | `vendorName` | string \| null | No | `null` | Vendor/supplier name for fiscal tracking (max 255 chars) |
 | `invoiceNumber` | string \| null | No | `null` | Invoice or receipt reference number (max 100 chars) |
+| `status` | `paid` \| `pending` \| `cancelled` | No | `paid` | Payment status. Use `pending` for future expenses not yet paid |
 
 **Example Request (personal):**
 ```json
@@ -466,6 +470,7 @@ Create a new transaction.
     "description": "Compra semanal",
     "transactionDate": "2025-01-15",
     "type": "expense",
+    "status": "paid",
     "sharedDivisor": 1,
     "originalAmountCents": null,
     "recurringExpenseId": null,
@@ -566,6 +571,7 @@ Update an existing transaction. All fields are optional. Shared expense logic is
 | `deductionPercent` | number \| null | No | Tax deduction percentage (0-100) |
 | `vendorName` | string \| null | No | Vendor/supplier name |
 | `invoiceNumber` | string \| null | No | Invoice or receipt reference |
+| `status` | `paid` \| `pending` \| `cancelled` | No | Payment status |
 
 **Shared Update Behavior:**
 
@@ -601,6 +607,50 @@ Update an existing transaction. All fields are optional. Shared expense logic is
   }
 }
 ```
+
+---
+
+#### `PATCH /api/transactions/:id/status`
+
+Lightweight endpoint to quickly change a transaction's payment status (e.g., mark as paid).
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | number | Transaction ID |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | `paid` \| `pending` \| `cancelled` | Yes | New payment status |
+
+**Example Request:**
+```json
+{
+  "status": "paid"
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": 42,
+    "categoryId": 2,
+    "amountCents": 4550,
+    "status": "paid",
+    "..."
+  }
+}
+```
+
+**Use Cases:**
+- Mark a pending future expense as paid when the payment occurs
+- Cancel a transaction that will no longer happen
+- Revert a cancelled transaction back to pending
 
 ---
 

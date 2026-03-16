@@ -120,6 +120,7 @@ CREATE TABLE Transactions (
     DeductionPercent DECIMAL(5,2) NULL, -- Tax deduction percentage for fiscal module (0-100)
     VendorName NVARCHAR(255) NULL,   -- Vendor/supplier name for fiscal tracking
     InvoiceNumber NVARCHAR(100) NULL, -- Invoice or receipt reference number
+    Status VARCHAR(15) NOT NULL DEFAULT 'paid' CHECK (Status IN ('paid', 'pending', 'cancelled')),
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
     CONSTRAINT FK_Transactions_TransactionGroup
@@ -148,6 +149,7 @@ CREATE TABLE Transactions (
 | `DeductionPercent` | DECIMAL(5,2) NULL | Tax deduction percentage (0-100). Used by fiscal module for Modelo 130 calculations |
 | `VendorName` | NVARCHAR(255) NULL | Vendor or supplier name. Used for fiscal invoice tracking |
 | `InvoiceNumber` | NVARCHAR(100) NULL | Invoice or receipt reference number. Used to identify invoiced transactions in fiscal reports |
+| `Status` | VARCHAR(15) | Payment status: `'paid'` (default), `'pending'`, or `'cancelled'`. Pending/cancelled transactions are excluded from summary views and fiscal reports |
 
 **Important**: `AmountCents` stores money as integers to avoid floating point precision errors. When a transaction is shared (`SharedDivisor = 2`), `AmountCents` contains the halved amount and `OriginalAmountCents` preserves the full original.
 
@@ -991,6 +993,7 @@ export interface Transaction {
   description: string | null;
   transactionDate: string;           // ISO date "2025-01-15"
   type: TransactionType;
+  status: TransactionStatus;         // 'paid' | 'pending' | 'cancelled'
   sharedDivisor: number;             // 1=personal, 2=split-by-2
   originalAmountCents: number | null; // Full amount before division
   recurringExpenseId: number | null; // FK to RecurringExpenses
@@ -1503,6 +1506,16 @@ Located in `src/schemas/transaction.ts`:
 export const TransactionTypeSchema = z.enum([TRANSACTION_TYPE.INCOME, TRANSACTION_TYPE.EXPENSE]);
 ```
 
+#### TransactionStatusSchema
+
+```typescript
+export const TransactionStatusSchema = z.enum([
+  TRANSACTION_STATUS.PAID,
+  TRANSACTION_STATUS.PENDING,
+  TRANSACTION_STATUS.CANCELLED,
+]);
+```
+
 #### CreateTransactionSchema
 
 ```typescript
@@ -1513,6 +1526,7 @@ export const CreateTransactionSchema = z.object({
   transactionDate: z.coerce.date({ message: 'Fecha invalida' }),
   type: TransactionTypeSchema,
   isShared: z.boolean().optional().default(false),
+  status: TransactionStatusSchema.optional().default(TRANSACTION_STATUS.PAID),
 });
 
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;
@@ -1535,9 +1549,20 @@ export const TransactionFiltersSchema = z.object({
   month: z.string().regex(MONTH_FORMAT_REGEX, 'Formato de mes invalido (YYYY-MM)').optional(),
   type: TransactionTypeSchema.optional(),
   categoryId: z.coerce.number().int().positive().optional(),
+  status: TransactionStatusSchema.optional(),
 });
 
 export type TransactionFiltersInput = z.infer<typeof TransactionFiltersSchema>;
+```
+
+#### UpdateTransactionStatusSchema
+
+Lightweight schema for the PATCH status endpoint:
+
+```typescript
+export const UpdateTransactionStatusSchema = z.object({
+  status: TransactionStatusSchema,
+});
 ```
 
 #### CreateCategorySchema
@@ -2104,6 +2129,23 @@ export const FILTER_TYPE = {
 } as const;
 
 export type FilterType = (typeof FILTER_TYPE)[keyof typeof FILTER_TYPE];
+
+// Transaction Status
+export const TRANSACTION_STATUS = {
+  PAID: 'paid',
+  PENDING: 'pending',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type TransactionStatus = (typeof TRANSACTION_STATUS)[keyof typeof TRANSACTION_STATUS];
+
+// Transaction Status Filter (includes 'all' for UI filtering)
+export const STATUS_FILTER = {
+  ALL: 'all',
+  ...TRANSACTION_STATUS,
+} as const;
+
+export type StatusFilter = (typeof STATUS_FILTER)[keyof typeof STATUS_FILTER];
 
 // Shared Expense Configuration
 export const SHARED_EXPENSE = {

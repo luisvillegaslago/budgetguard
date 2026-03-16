@@ -4,7 +4,7 @@
  * and GET /api/trips/categories
  */
 
-import { TRANSACTION_TYPE } from '@/constants/finance';
+import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import type { Trip, TripDetail, TripDisplay } from '@/types/finance';
 
 // Captured data for assertions
@@ -61,6 +61,7 @@ const mockTripDetail: TripDetail = {
       description: 'Hotel 2 noches',
       transactionDate: '2025-10-15',
       type: TRANSACTION_TYPE.EXPENSE,
+      status: TRANSACTION_STATUS.PAID,
       sharedDivisor: 1,
       originalAmountCents: null,
       recurringExpenseId: null,

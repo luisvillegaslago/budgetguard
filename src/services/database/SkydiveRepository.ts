@@ -3,7 +3,7 @@
  * Database operations for skydive jumps, tunnel sessions, and stats (user-scoped)
  */
 
-import { SHARED_EXPENSE, SKYDIVE_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, SKYDIVE_CATEGORY, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { ImportJumpRow, ImportTunnelRow } from '@/schemas/skydive';
 import type { Category } from '@/types/finance';
@@ -320,8 +320,8 @@ export async function createJump(data: {
     const jumpDate = typeof data.jumpDate === 'string' ? data.jumpDate : toDateString(data.jumpDate);
 
     const txResult = await client.query<{ TransactionID: number }>(
-      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "UserID")
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING "TransactionID"`,
       [
         data.categoryId,
@@ -330,6 +330,7 @@ export async function createJump(data: {
         jumpDate,
         TRANSACTION_TYPE.EXPENSE,
         SHARED_EXPENSE.DEFAULT_DIVISOR,
+        TRANSACTION_STATUS.PAID,
         userId,
       ],
     );
@@ -571,8 +572,8 @@ export async function createTunnelSession(data: {
     const sessionDate = typeof data.sessionDate === 'string' ? data.sessionDate : toDateString(data.sessionDate);
 
     const txResult = await client.query<{ TransactionID: number }>(
-      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "UserID")
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING "TransactionID"`,
       [
         data.categoryId,
@@ -581,6 +582,7 @@ export async function createTunnelSession(data: {
         sessionDate,
         TRANSACTION_TYPE.EXPENSE,
         SHARED_EXPENSE.DEFAULT_DIVISOR,
+        TRANSACTION_STATUS.PAID,
         userId,
       ],
     );
@@ -714,10 +716,19 @@ export async function bulkCreateTunnelSessions(
       sessionsNeedingTx.map(async (session) => {
         const description = session.Location ? `Túnel – ${session.Location}` : 'Túnel de viento';
         const txResult = await query<{ TransactionID: number }>(
-          `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "UserID")
-           VALUES ($1, $2, $3, $4, 'expense', 1, $5)
+          `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "UserID")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING "TransactionID"`,
-          [tunnelCategoryId, session.PriceCents, description, toDateString(session.SessionDate), userId],
+          [
+            tunnelCategoryId,
+            session.PriceCents,
+            description,
+            toDateString(session.SessionDate),
+            TRANSACTION_TYPE.EXPENSE,
+            SHARED_EXPENSE.DEFAULT_DIVISOR,
+            TRANSACTION_STATUS.PAID,
+            userId,
+          ],
         );
         const tx = txResult[0];
         if (tx) {

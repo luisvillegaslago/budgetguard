@@ -12,6 +12,7 @@ import type {
   ApiResponse,
   Transaction,
   TransactionGroupDisplay,
+  TransactionStatus,
   TransactionType,
   TripGroupDisplay,
 } from '@/types/finance';
@@ -26,6 +27,7 @@ interface TransactionsResponse {
 interface TransactionFilters {
   type?: TransactionType;
   categoryId?: number;
+  status?: TransactionStatus;
 }
 
 async function fetchTransactions(month: string, filters?: TransactionFilters): Promise<TransactionsResponse> {
@@ -33,6 +35,7 @@ async function fetchTransactions(month: string, filters?: TransactionFilters): P
 
   if (filters?.type) params.append('type', filters.type);
   if (filters?.categoryId) params.append('categoryId', String(filters.categoryId));
+  if (filters?.status) params.append('status', filters.status);
 
   const response = await fetchApi(`${API_ENDPOINT.TRANSACTIONS}?${params.toString()}`);
 
@@ -78,6 +81,27 @@ async function updateTransactionRequest(id: number, input: Partial<CreateTransac
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData: ApiResponse<never> = await response.json();
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.UPDATE.TRANSACTION));
+  }
+
+  const data: ApiResponse<Transaction> = await response.json();
+
+  if (!data.success || !data.data) {
+    throw new Error(data.error ?? 'Error desconocido');
+  }
+
+  return data.data;
+}
+
+async function updateTransactionStatusRequest(id: number, status: TransactionStatus): Promise<Transaction> {
+  const response = await fetchApi(`${API_ENDPOINT.TRANSACTIONS}/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
   });
 
   if (!response.ok) {
@@ -163,6 +187,25 @@ export function useDeleteTransaction() {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
+    },
+  });
+}
+
+/**
+ * Hook to update a transaction's status (quick mark as paid/pending/cancelled)
+ */
+export function useUpdateTransactionStatus() {
+  const queryClient = useQueryClient();
+
+  return useApiMutation({
+    mutationFn: ({ id, status }: { id: number; status: TransactionStatus }) =>
+      updateTransactionStatusRequest(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUBCATEGORY_SUMMARY] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
     },

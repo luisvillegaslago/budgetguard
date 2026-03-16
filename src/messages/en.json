@@ -101,6 +101,18 @@
     "no-category": "No category",
     "shared-badge": "÷2",
     "fiscal-doc-badge": "Has fiscal document",
+    "mark-as-paid": "Mark as paid",
+    "mark-as-pending": "Mark as pending",
+    "pending-banner": {
+      "title": "{count} pending expense(s) due",
+      "mark-all": "Mark all as paid"
+    },
+    "status-filter": {
+      "all": "All",
+      "paid": "Paid",
+      "pending": "Pending",
+      "cancelled": "Cancelled"
+    },
     "groups": {
       "title": "Grouped Expense",
       "edit-title": "Edit Grouped Expense",
@@ -148,7 +160,8 @@
         "description": "Description",
         "description-placeholder": "Ex: Weekly shopping",
         "shared": "Shared expense (÷2)",
-        "shared-hint": "Total: {total} → Your part: {half}"
+        "shared-hint": "Total: {total} → Your part: {half}",
+        "status": "Payment status"
       },
       "submit": {
         "expense": "Create Expense",
@@ -1149,6 +1162,11 @@
     "upload": "Upload",
     "all-quarters": "All quarters",
     "all-types": "All types"
+  },
+  "transaction-status": {
+    "paid": "Paid",
+    "pending": "Pending",
+    "cancelled": "Cancelled"
   },
   "validation": {
     "category-required": "Please select a category",

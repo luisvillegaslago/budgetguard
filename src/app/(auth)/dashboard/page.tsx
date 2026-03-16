@@ -12,6 +12,7 @@ import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDocumentUpload } from '@/components/fiscal/FiscalDocumentUpload';
 import { RecurringPendingPanel } from '@/components/recurring/RecurringPendingPanel';
+import { PendingTransactionsBanner } from '@/components/transactions/PendingTransactionsBanner';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionGroupForm } from '@/components/transactions/TransactionGroupForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
@@ -92,8 +93,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="space-y-8">
-        {/* Fiscal Deadline Banner */}
+        {/* Banners */}
         <FiscalDeadlineBanner />
+        <PendingTransactionsBanner />
 
         {/* Balance Cards */}
         <section>

@@ -19,6 +19,23 @@ export const FILTER_TYPE = {
 
 export type FilterType = (typeof FILTER_TYPE)[keyof typeof FILTER_TYPE];
 
+// Transaction Status
+export const TRANSACTION_STATUS = {
+  PAID: 'paid',
+  PENDING: 'pending',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type TransactionStatus = (typeof TRANSACTION_STATUS)[keyof typeof TRANSACTION_STATUS];
+
+// Transaction Status Filter (includes 'all' for UI filtering)
+export const STATUS_FILTER = {
+  ALL: 'all',
+  ...TRANSACTION_STATUS,
+} as const;
+
+export type StatusFilter = (typeof STATUS_FILTER)[keyof typeof STATUS_FILTER];
+
 // Shared Expense Configuration
 export const SHARED_EXPENSE = {
   DIVISOR: 2,

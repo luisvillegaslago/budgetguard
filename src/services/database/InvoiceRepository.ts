@@ -4,7 +4,13 @@
  */
 
 import { del } from '@vercel/blob';
-import { API_ERROR, FISCAL_DOCUMENT_TYPE, INVOICE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  API_ERROR,
+  FISCAL_DOCUMENT_TYPE,
+  INVOICE_STATUS,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { BillingProfileInput, CreateInvoiceInput, UpdateInvoiceInput } from '@/schemas/invoice';
 import type {
@@ -711,8 +717,8 @@ export async function updateInvoiceStatus(
       const txResult = await client.query<{ TransactionID: number }>(
         `INSERT INTO "Transactions"
          ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
-          "SharedDivisor", "InvoiceNumber", "CompanyID", "UserID")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          "SharedDivisor", "InvoiceNumber", "CompanyID", "Status", "UserID")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING "TransactionID"`,
         [
           categoryId,
@@ -723,6 +729,7 @@ export async function updateInvoiceStatus(
           1,
           invoiceRow.InvoiceNumber,
           invoiceRow.CompanyID,
+          TRANSACTION_STATUS.PAID,
           userId,
         ],
       );

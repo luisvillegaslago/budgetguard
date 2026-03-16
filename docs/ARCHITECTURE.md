@@ -28,7 +28,9 @@ src/
 │   │   │   └── [id]/route.ts          # GET/PUT/DELETE single category
 │   │   ├── transactions/
 │   │   │   ├── route.ts               # GET/POST
-│   │   │   └── [id]/route.ts          # GET/PUT/DELETE
+│   │   │   └── [id]/
+│   │   │       ├── route.ts           # GET/PUT/DELETE
+│   │   │       └── status/route.ts    # PATCH (quick status change)
 │   │   ├── transaction-groups/
 │   │   │   ├── route.ts               # POST (atomic multi-transaction creation)
 │   │   │   └── [id]/route.ts          # DELETE/PATCH (group operations)
@@ -136,7 +138,7 @@ src/
 │
 ├── hooks/
 │   ├── useCategories.ts               # Categories query hooks (flat + hierarchical)
-│   ├── useTransactions.ts             # Transactions CRUD + useGroupedTransactions
+│   ├── useTransactions.ts             # Transactions CRUD + useGroupedTransactions + useUpdateTransactionStatus
 │   ├── useTransactionGroups.ts        # Group create/update/delete mutations
 │   ├── useMonthlySummary.ts           # Raw summary data (cents)
 │   ├── useFormattedSummary.ts         # Formatted summary (euros)
@@ -336,6 +338,7 @@ interface FinanceUIState {
   filters: {
     type: FilterType;                 // 'all' | 'income' | 'expense'
     categoryId: number | null;
+    status: StatusFilter;             // 'all' | 'paid' | 'pending' | 'cancelled'
   };
   isRecurringPanelCollapsed: boolean; // Recurring panel toggle
 
