@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.11.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.10.0...v0.11.0) (2026-03-16)
+
+
+### Features
+
+* generalize grouped expense button and improve modal layout ([8561f14](https://github.com/luisvillegaslago/budgetguard/commit/8561f1422d6eb4eb587d0ab7e8380cd86bc3104d))
+
+
+### Bug Fixes
+
+* responsive mobile layout for dashboard, transactions, and categories ([4ebee31](https://github.com/luisvillegaslago/budgetguard/commit/4ebee315c90a7a22b5a58aa16ec0a13a9dca5f2a))
+* suppress hydration warning on auth layout wrapper div ([da9496a](https://github.com/luisvillegaslago/budgetguard/commit/da9496a9ab2f596d37e5e4ae4e558f19eb2fb442))
+
 ## [0.10.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.9.0...v0.10.0) (2026-03-15)
 
 
