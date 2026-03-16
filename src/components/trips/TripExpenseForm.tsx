@@ -84,7 +84,7 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="trip-expense-form-title">
-      <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="trip-expense-form-title" className="text-xl font-bold text-foreground">
@@ -144,32 +144,55 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
             )}
           </div>
 
-          {/* Amount Input */}
-          <div>
-            <label htmlFor="trip-amount" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('trips.expense-form.fields.amount')}
-            </label>
-            <input
-              id="trip-amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              autoComplete="off"
-              placeholder={t('trips.expense-form.fields.amount-placeholder')}
-              {...register('amount', { valueAsNumber: true })}
-              onWheel={(e) => e.currentTarget.blur()}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.amount ? 'border-guard-danger' : 'border-input',
+          {/* Amount + Date (side by side on desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="trip-amount" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('trips.expense-form.fields.amount')}
+              </label>
+              <input
+                id="trip-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                autoComplete="off"
+                placeholder={t('trips.expense-form.fields.amount-placeholder')}
+                {...register('amount', { valueAsNumber: true })}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.amount ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.amount && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.amount.message}
+                </p>
               )}
-            />
-            {errors.amount && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.amount.message}
-              </p>
-            )}
+            </div>
+            <div>
+              <label htmlFor="trip-date" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('trips.expense-form.fields.date')}
+              </label>
+              <input
+                id="trip-date"
+                type="date"
+                {...register('transactionDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.transactionDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.transactionDate && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.transactionDate.message}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Shared Expense Toggle */}
@@ -196,29 +219,6 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
                 </p>
               )}
             </div>
-          </div>
-
-          {/* Date Input */}
-          <div>
-            <label htmlFor="trip-date" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('trips.expense-form.fields.date')}
-            </label>
-            <input
-              id="trip-date"
-              type="date"
-              {...register('transactionDate')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.transactionDate ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            {errors.transactionDate && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.transactionDate.message}
-              </p>
-            )}
           </div>
 
           {/* Description Input */}

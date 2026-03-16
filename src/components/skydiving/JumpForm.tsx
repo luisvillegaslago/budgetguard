@@ -80,7 +80,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="jump-form-title">
-      <div className="card w-full max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="jump-form-title" className="text-xl font-bold text-foreground">

@@ -32,16 +32,20 @@ export const POST = withApiHandler(async (request, { params }) => {
 
   const data = validation.data;
   const isShared = data.isShared ?? false;
+  const sharedDivisor = isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR;
+
+  // amountCents is the full invoice amount — divide for shared expenses (same as POST /api/transactions)
+  const effectiveAmount = isShared ? Math.ceil(data.amountCents / sharedDivisor) : data.amountCents;
 
   // Create transaction
   const transaction = await createTransaction({
     categoryId: data.categoryId,
-    amountCents: data.amountCents,
+    amountCents: effectiveAmount,
     description: data.description ?? undefined,
     transactionDate: new Date(data.transactionDate),
     type: data.type as TransactionType,
-    sharedDivisor: isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR,
-    originalAmountCents: isShared ? data.amountCents * SHARED_EXPENSE.DIVISOR : null,
+    sharedDivisor,
+    originalAmountCents: isShared ? data.amountCents : null,
     vatPercent: data.vatPercent ?? null,
     deductionPercent: data.deductionPercent ?? null,
     vendorName: data.vendorName ?? null,
@@ -49,13 +53,10 @@ export const POST = withApiHandler(async (request, { params }) => {
     companyId: data.companyId ?? null,
   });
 
-  // Link and update document with confirmed amount
+  // Link and update document with the full invoice amount (TaxAmountCents = invoice total)
   await linkTransaction(documentId, transaction.transactionId);
-
-  // Store the invoice total (original pre-÷2 amount) as TaxAmountCents
-  const invoiceAmount = isShared ? data.amountCents * SHARED_EXPENSE.DIVISOR : data.amountCents;
   const quarter = data.transactionDate ? Math.ceil((new Date(data.transactionDate).getUTCMonth() + 1) / 3) : null;
-  await updateDocumentAfterLink(documentId, invoiceAmount, quarter, data.companyId ?? null);
+  await updateDocumentAfterLink(documentId, data.amountCents, quarter, data.companyId ?? null);
 
   return {
     data: {

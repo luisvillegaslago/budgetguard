@@ -147,7 +147,7 @@ export function FiscalExtractionConfirm({
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="extraction-confirm-title">
-      <div className="card w-full max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -227,35 +227,35 @@ export function FiscalExtractionConfirm({
             error={categoryError}
           />
 
-          {/* Amount */}
-          <div>
-            <label htmlFor="ext-amount" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.amount')}
-            </label>
-            <input
-              id="ext-amount"
-              type="number"
-              step="0.01"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className={cn(INPUT_CLASSES, lowConfidence && 'border-guard-warning/50')}
-            />
-          </div>
-
-          {/* Date */}
-          <div>
-            <label htmlFor="ext-date" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.date')}
-            </label>
-            <input
-              id="ext-date"
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={INPUT_CLASSES}
-            />
+          {/* Amount + Date (side by side on desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="ext-amount" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.amount')}
+              </label>
+              <input
+                id="ext-amount"
+                type="number"
+                step="0.01"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className={cn(INPUT_CLASSES, lowConfidence && 'border-guard-warning/50')}
+              />
+            </div>
+            <div>
+              <label htmlFor="ext-date" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.date')}
+              </label>
+              <input
+                id="ext-date"
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={INPUT_CLASSES}
+              />
+            </div>
           </div>
 
           {/* Description */}
@@ -272,53 +272,53 @@ export function FiscalExtractionConfirm({
             />
           </div>
 
-          {/* Vendor */}
-          <div>
-            <label htmlFor="ext-vendor" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('fiscal.form.vendor-name')}
-            </label>
-            {detectedVendor && !autoMatchedCompany && (
-              <div className="flex items-center gap-2 mb-1.5">
-                <p className="text-xs text-guard-warning">
-                  {t('fiscal.extraction.detected-vendor')}: {detectedVendor}
+          {/* Vendor + Invoice Number (side by side on desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="ext-vendor" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('fiscal.form.vendor-name')}
+              </label>
+              {detectedVendor && !autoMatchedCompany && (
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-xs text-guard-warning">
+                    {t('fiscal.extraction.detected-vendor')}: {detectedVendor}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={quickCreate.isPending}
+                    onClick={async () => {
+                      const company = await quickCreate.mutateAsync({
+                        name: detectedVendor,
+                        role: COMPANY_ROLE.PROVIDER,
+                      });
+                      setCompanyId(company.companyId);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t('fiscal.extraction.add-vendor')}
+                  </button>
+                </div>
+              )}
+              {detectedVendor && autoMatchedCompany && (
+                <p className="text-xs text-guard-success mb-1.5">
+                  {t('fiscal.extraction.matched-vendor')}: {detectedVendor}
                 </p>
-                <button
-                  type="button"
-                  disabled={quickCreate.isPending}
-                  onClick={async () => {
-                    const company = await quickCreate.mutateAsync({
-                      name: detectedVendor,
-                      role: COMPANY_ROLE.PROVIDER,
-                    });
-                    setCompanyId(company.companyId);
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors disabled:opacity-50"
-                >
-                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t('fiscal.extraction.add-vendor')}
-                </button>
-              </div>
-            )}
-            {detectedVendor && autoMatchedCompany && (
-              <p className="text-xs text-guard-success mb-1.5">
-                {t('fiscal.extraction.matched-vendor')}: {detectedVendor}
-              </p>
-            )}
-            <CompanySelector value={companyId} onChange={(id) => setCompanyId(id)} />
-          </div>
-
-          {/* Invoice Number */}
-          <div>
-            <label htmlFor="ext-invoice-number" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('fiscal.form.invoice-number')}
-            </label>
-            <input
-              id="ext-invoice-number"
-              type="text"
-              value={invoiceNumber}
-              onChange={(e) => setInvoiceNumber(e.target.value)}
-              className={INPUT_CLASSES}
-            />
+              )}
+              <CompanySelector value={companyId} onChange={(id) => setCompanyId(id)} />
+            </div>
+            <div>
+              <label htmlFor="ext-invoice-number" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('fiscal.form.invoice-number')}
+              </label>
+              <input
+                id="ext-invoice-number"
+                type="text"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                className={INPUT_CLASSES}
+              />
+            </div>
           </div>
 
           {/* VAT + Deduction row */}

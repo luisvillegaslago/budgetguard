@@ -160,7 +160,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="recurring-form-title">
-      <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="recurring-form-title" className="text-xl font-bold text-foreground">
@@ -191,53 +191,53 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
             initialCategoryId={expense?.categoryId}
           />
 
-          {/* Amount */}
-          <div>
-            <label htmlFor="re-amount" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('recurring.form.fields.amount')}
-            </label>
-            <input
-              id="re-amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder={t('transactions.form.fields.amount-placeholder')}
-              {...register('amount', { valueAsNumber: true })}
-              onWheel={(e) => e.currentTarget.blur()}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.amount ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            {errors.amount && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.amount.message}
-              </p>
-            )}
-          </div>
-
-          {/* Shared Toggle */}
-          <div className="flex items-start gap-3">
-            <div className="flex items-center h-6 mt-0.5">
-              <input
-                id="re-isShared"
-                type="checkbox"
-                {...register('isShared')}
-                className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
-              />
-            </div>
-            <div className="flex-1">
-              <label htmlFor="re-isShared" className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-guard-primary" aria-hidden="true" />
-                {t('recurring.form.fields.shared')}
+          {/* Amount + Shared (side by side on desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-start">
+            <div>
+              <label htmlFor="re-amount" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('recurring.form.fields.amount')}
               </label>
-              {showSharedHint && (
-                <p className="text-xs text-guard-muted mt-1 animate-fade-in">
-                  {t('transactions.form.fields.shared-hint', { total: sharedHintTotal, half: sharedHintHalf })}
+              <input
+                id="re-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder={t('transactions.form.fields.amount-placeholder')}
+                {...register('amount', { valueAsNumber: true })}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.amount ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.amount && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.amount.message}
                 </p>
               )}
+            </div>
+            <div className="flex items-start gap-3 sm:pt-8">
+              <div className="flex items-center h-6 mt-0.5">
+                <input
+                  id="re-isShared"
+                  type="checkbox"
+                  {...register('isShared')}
+                  className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
+                />
+              </div>
+              <div className="flex-1">
+                <label htmlFor="re-isShared" className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+                  {t('recurring.form.fields.shared')}
+                </label>
+                {showSharedHint && (
+                  <p className="text-xs text-guard-muted mt-1 animate-fade-in">
+                    {t('transactions.form.fields.shared-hint', { total: sharedHintTotal, half: sharedHintHalf })}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -348,45 +348,45 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
             </div>
           )}
 
-          {/* Start Date */}
-          <div>
-            <label htmlFor="re-startDate" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('recurring.form.fields.start-date')}
-            </label>
-            <input
-              id="re-startDate"
-              type="date"
-              {...register('startDate')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.startDate ? 'border-guard-danger' : 'border-input',
+          {/* Start Date + End Date (side by side on desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="re-startDate" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('recurring.form.fields.start-date')}
+              </label>
+              <input
+                id="re-startDate"
+                type="date"
+                {...register('startDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.startDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.startDate && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.startDate.message}
+                </p>
               )}
-            />
-            {errors.startDate && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.startDate.message}
-              </p>
-            )}
-          </div>
-
-          {/* End Date (optional) */}
-          <div>
-            <label htmlFor="re-endDate" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('recurring.form.fields.end-date')} ({t('common.labels.optional')})
-            </label>
-            <input
-              id="re-endDate"
-              type="date"
-              {...register('endDate')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.endDate ? 'border-guard-danger' : 'border-input',
-              )}
-            />
+            </div>
+            <div>
+              <label htmlFor="re-endDate" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('recurring.form.fields.end-date')} ({t('common.labels.optional')})
+              </label>
+              <input
+                id="re-endDate"
+                type="date"
+                {...register('endDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.endDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+            </div>
           </div>
 
           {/* Description */}

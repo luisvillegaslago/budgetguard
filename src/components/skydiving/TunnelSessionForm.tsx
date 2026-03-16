@@ -72,7 +72,7 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="tunnel-session-form-title">
-      <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="tunnel-session-form-title" className="text-xl font-bold text-foreground">
