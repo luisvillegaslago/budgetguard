@@ -17,6 +17,7 @@ interface TooltipProps {
   align?: 'start' | 'center' | 'end';
   sideOffset?: number;
   className?: string;
+  triggerClassName?: string;
 }
 
 const TAP_DISMISS_MS = 1500;
@@ -28,6 +29,7 @@ export function Tooltip({
   align = 'center',
   sideOffset = 6,
   className,
+  triggerClassName,
 }: TooltipProps) {
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -52,7 +54,7 @@ export function Tooltip({
         {/* biome-ignore lint/a11y/noStaticElementInteractions: tooltip tap handler for mobile */}
         {/* biome-ignore lint/a11y/useKeyWithClickEvents: tooltip trigger, not interactive control */}
         <span
-          className="inline-flex"
+          className={cn('inline-flex', triggerClassName)}
           onPointerDown={handleTap}
           onClick={handleTap as unknown as React.MouseEventHandler}
         >
