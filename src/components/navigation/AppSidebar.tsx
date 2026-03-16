@@ -53,7 +53,7 @@ function SidebarNavItem({ item }: { item: NavItem }) {
         'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative',
         isActive ? 'bg-guard-primary/10 text-guard-primary' : 'text-guard-muted hover:text-foreground hover:bg-muted',
         // Collapsed state on desktop: center icon, hide text via CSS
-        !isSidebarOpen && 'lg:justify-center lg:px-2',
+        !isSidebarOpen && 'lg:justify-center lg:w-10 lg:h-10 lg:p-0 lg:mx-auto',
       )}
     >
       <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
@@ -70,7 +70,7 @@ function SidebarNavItem({ item }: { item: NavItem }) {
   // Show tooltip only when sidebar is collapsed (desktop icons-only mode)
   if (!isSidebarOpen) {
     return (
-      <Tooltip content={label} side="right">
+      <Tooltip content={label} side="right" triggerClassName="w-full">
         {link}
       </Tooltip>
     );
@@ -95,7 +95,7 @@ function SidebarGroup({ group }: { group: NavGroup }) {
         {t(group.i18nKey)}
       </p>
       {/* Separator line shown only when collapsed on desktop */}
-      {!isSidebarOpen && <div className="hidden lg:block border-t border-border mx-2 my-2" />}
+      {!isSidebarOpen && <div className="hidden lg:block border-t border-border mx-2 !my-1.5" />}
       {group.items.map((item) => (
         <SidebarNavItem key={item.path} item={item} />
       ))}
@@ -156,7 +156,10 @@ export function AppSidebar() {
         </div>
 
         {/* Navigation groups */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6" aria-label={t('navigation.main')}>
+        <nav
+          className={cn('flex-1 overflow-y-auto py-4 px-2', isSidebarOpen && 'space-y-6')}
+          aria-label={t('navigation.main')}
+        >
           {NAV_GROUPS.map((group) => (
             <SidebarGroup key={group.i18nKey} group={group} />
           ))}
