@@ -166,44 +166,40 @@ describe('POST /api/recurring-expenses', () => {
     expect(response.status).toBe(400);
   });
 
-  it('should return 400 when monthly frequency misses dayOfMonth', async () => {
+  it('should accept monthly without dayOfMonth (derived server-side from startDate)', async () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 100,
       frequency: RECURRING_FREQUENCY.MONTHLY,
-      startDate: '2026-01-01',
-      // missing dayOfMonth
+      startDate: '2026-01-15',
     });
     const response = await POST(request as never);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
   });
 
-  it('should return 400 when weekly frequency misses dayOfWeek', async () => {
+  it('should accept weekly without dayOfWeek (derived server-side from startDate)', async () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 50,
       frequency: RECURRING_FREQUENCY.WEEKLY,
-      startDate: '2026-01-01',
-      // missing dayOfWeek
+      startDate: '2026-01-05',
     });
     const response = await POST(request as never);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
   });
 
-  it('should return 400 when yearly frequency misses monthOfYear', async () => {
+  it('should accept yearly without monthOfYear (derived server-side from startDate)', async () => {
     const request = createMockRequest('http://localhost:3000/api/recurring-expenses', {
       categoryId: 1,
       amount: 200,
       frequency: RECURRING_FREQUENCY.YEARLY,
-      dayOfMonth: 15,
-      startDate: '2026-01-01',
-      // missing monthOfYear
+      startDate: '2026-06-15',
     });
     const response = await POST(request as never);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
   });
 
   it('should create weekly recurring expense with dayOfWeek', async () => {

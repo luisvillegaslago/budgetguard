@@ -60,6 +60,15 @@ export const RECURRING_FREQUENCY = {
 
 export type RecurringFrequency = (typeof RECURRING_FREQUENCY)[keyof typeof RECURRING_FREQUENCY];
 
+// Recurring Expense End Conditions
+export const END_CONDITION = {
+  NEVER: 'never',
+  AFTER_OCCURRENCES: 'after_occurrences',
+  ON_DATE: 'on_date',
+} as const;
+
+export type EndCondition = (typeof END_CONDITION)[keyof typeof END_CONDITION];
+
 // Occurrence Statuses
 export const OCCURRENCE_STATUS = {
   PENDING: 'pending',

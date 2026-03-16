@@ -138,3 +138,63 @@ function incrementMonth(month: string): string {
 export function getMonthFromDate(dateStr: string): string {
   return dateStr.substring(0, 7);
 }
+
+/**
+ * Derive dayOfWeek/dayOfMonth/monthOfYear from startDate based on frequency.
+ * Uses UTC methods to match the app's date convention (PostgreSQL DATE = UTC midnight).
+ */
+export function extractRecurrenceFields(
+  startDate: string,
+  frequency: RecurringFrequency,
+): { dayOfWeek: number | null; dayOfMonth: number | null; monthOfYear: number | null } {
+  const date = new Date(`${startDate}T00:00:00Z`);
+
+  switch (frequency) {
+    case RECURRING_FREQUENCY.WEEKLY:
+      return { dayOfWeek: date.getUTCDay(), dayOfMonth: null, monthOfYear: null };
+    case RECURRING_FREQUENCY.MONTHLY:
+      return { dayOfWeek: null, dayOfMonth: date.getUTCDate(), monthOfYear: null };
+    case RECURRING_FREQUENCY.YEARLY:
+      return { dayOfWeek: null, dayOfMonth: date.getUTCDate(), monthOfYear: date.getUTCMonth() + 1 };
+    default:
+      return { dayOfWeek: null, dayOfMonth: null, monthOfYear: null };
+  }
+}
+
+/**
+ * Compute the date of the Nth occurrence from startDate.
+ * Returns the endDate (inclusive) as YYYY-MM-DD.
+ * count=1 means only the startDate occurrence, count=12 means 12 occurrences total.
+ */
+export function computeEndDateFromOccurrences(startDate: string, frequency: RecurringFrequency, count: number): string {
+  const date = new Date(`${startDate}T00:00:00Z`);
+  const n = count - 1; // startDate is the 1st occurrence
+
+  switch (frequency) {
+    case RECURRING_FREQUENCY.WEEKLY: {
+      date.setUTCDate(date.getUTCDate() + n * 7);
+      break;
+    }
+    case RECURRING_FREQUENCY.MONTHLY: {
+      const targetDay = date.getUTCDate();
+      // Set day to 1 to prevent overflow, then advance month, then clamp
+      date.setUTCDate(1);
+      date.setUTCMonth(date.getUTCMonth() + n);
+      const lastDay = getLastDayOfMonth(date.getUTCFullYear(), date.getUTCMonth() + 1);
+      date.setUTCDate(Math.min(targetDay, lastDay));
+      break;
+    }
+    case RECURRING_FREQUENCY.YEARLY: {
+      const targetDay = date.getUTCDate();
+      const targetMonth = date.getUTCMonth();
+      date.setUTCDate(1);
+      date.setUTCFullYear(date.getUTCFullYear() + n);
+      date.setUTCMonth(targetMonth);
+      const lastDay = getLastDayOfMonth(date.getUTCFullYear(), date.getUTCMonth() + 1);
+      date.setUTCDate(Math.min(targetDay, lastDay));
+      break;
+    }
+  }
+
+  return formatDateISO(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}

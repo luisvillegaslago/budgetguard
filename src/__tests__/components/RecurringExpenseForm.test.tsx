@@ -1,6 +1,7 @@
 /**
  * Component Tests: RecurringExpenseForm
- * Tests the form for creating/editing recurring expense rules
+ * Tests the form for creating/editing recurring expense rules.
+ * Recurrence fields (dayOfWeek, dayOfMonth, monthOfYear) are derived from startDate server-side.
  */
 
 import '@testing-library/jest-dom';
@@ -76,10 +77,15 @@ jest.mock('@/hooks/useTranslations', () => ({
         'recurring.form.fields.description': 'Descripción',
         'recurring.form.fields.frequency': 'Frecuencia',
         'recurring.form.fields.start-date': 'Fecha inicio',
-        'recurring.form.fields.end-date': 'Fecha fin',
-        'recurring.form.fields.day-of-week': 'Día de la semana',
-        'recurring.form.fields.day-of-month': 'Día del mes',
-        'recurring.form.fields.month-of-year': 'Mes del año',
+        'recurring.form.fields.end-condition': 'Finaliza',
+        'recurring.form.fields.end-never': 'Nunca',
+        'recurring.form.fields.end-after': 'Después de',
+        'recurring.form.fields.end-on-date': 'En fecha',
+        'recurring.form.fields.occurrence-count': 'ocurrencias',
+        'recurring.form.fields.end-date-preview': 'Finaliza el {date}',
+        'recurring.form.fields.recurrence-summary-weekly': 'Se repite cada {dayName}',
+        'recurring.form.fields.recurrence-summary-monthly': 'Se repite el día {day} de cada mes',
+        'recurring.form.fields.recurrence-summary-yearly': 'Se repite cada {month} {day}',
         'recurring.form.fields.shared': 'Gasto compartido (÷2)',
         'recurring.form.submit-create': 'Crear',
         'recurring.form.submit-edit': 'Guardar',
@@ -87,25 +93,12 @@ jest.mock('@/hooks/useTranslations', () => ({
         'recurring.frequency.weekly': 'Semanal',
         'recurring.frequency.monthly': 'Mensual',
         'recurring.frequency.yearly': 'Anual',
-        'recurring.days-of-week.0': 'D',
-        'recurring.days-of-week.1': 'L',
-        'recurring.days-of-week.2': 'M',
-        'recurring.days-of-week.3': 'X',
-        'recurring.days-of-week.4': 'J',
-        'recurring.days-of-week.5': 'V',
-        'recurring.days-of-week.6': 'S',
+        'recurring.days-of-week-long.0': 'Domingo',
+        'recurring.days-of-week-long.1': 'Lunes',
+        'recurring.days-of-week-long.4': 'Jueves',
         'recurring.months.1': 'Enero',
-        'recurring.months.2': 'Febrero',
         'recurring.months.3': 'Marzo',
-        'recurring.months.4': 'Abril',
-        'recurring.months.5': 'Mayo',
         'recurring.months.6': 'Junio',
-        'recurring.months.7': 'Julio',
-        'recurring.months.8': 'Agosto',
-        'recurring.months.9': 'Septiembre',
-        'recurring.months.10': 'Octubre',
-        'recurring.months.11': 'Noviembre',
-        'recurring.months.12': 'Diciembre',
         'transactions.form.fields.category': 'Categoría',
         'transactions.form.fields.subcategory': 'Subcategoría',
         'transactions.form.fields.shared-hint': 'Total: {total}, tu parte: {half}',
@@ -214,45 +207,52 @@ describe('RecurringExpenseForm — Create mode', () => {
     expect(screen.getByText('Anual')).toBeInTheDocument();
   });
 
-  it('should default to monthly frequency with day-of-month field', () => {
+  it('should not show dayOfMonth or dayOfWeek inputs (derived from startDate)', () => {
     render(<RecurringExpenseForm onClose={mockOnClose} />);
 
-    expect(screen.getByLabelText('Día del mes')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Día del mes')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Día de la semana')).not.toBeInTheDocument();
   });
 
-  it('should show day-of-week buttons when weekly is selected', () => {
+  it('should show end condition toggle with 3 options', () => {
     render(<RecurringExpenseForm onClose={mockOnClose} />);
 
-    const weeklyButton = screen.getByText('Semanal');
-    fireEvent.click(weeklyButton);
-
-    // Should show day abbreviation buttons
-    expect(screen.getByText('L')).toBeInTheDocument();
-    expect(screen.getByText('V')).toBeInTheDocument();
-    expect(screen.getByText('S')).toBeInTheDocument();
+    expect(screen.getByText('Nunca')).toBeInTheDocument();
+    expect(screen.getByText('Después de')).toBeInTheDocument();
+    expect(screen.getByText('En fecha')).toBeInTheDocument();
   });
 
-  it('should show month selector when yearly is selected', () => {
+  it('should default end condition to Never', () => {
     render(<RecurringExpenseForm onClose={mockOnClose} />);
 
-    const yearlyButton = screen.getByText('Anual');
-    fireEvent.click(yearlyButton);
+    const nuncaButton = screen.getByText('Nunca');
+    expect(nuncaButton.className).toContain('bg-guard-primary');
+  });
 
-    expect(screen.getByLabelText('Mes del año')).toBeInTheDocument();
-    expect(screen.getByLabelText('Día del mes')).toBeInTheDocument();
+  it('should show occurrence count input when After is selected', () => {
+    render(<RecurringExpenseForm onClose={mockOnClose} />);
+
+    const afterButton = screen.getByText('Después de');
+    fireEvent.click(afterButton);
+
+    expect(screen.getByText('ocurrencias')).toBeInTheDocument();
+  });
+
+  it('should show date picker when On date is selected', () => {
+    render(<RecurringExpenseForm onClose={mockOnClose} />);
+
+    const onDateButton = screen.getByText('En fecha');
+    fireEvent.click(onDateButton);
+
+    const dateInputs = screen.getAllByDisplayValue('');
+    const endDateInput = dateInputs.find((input) => input.getAttribute('id') === 're-endDate');
+    expect(endDateInput).toBeInTheDocument();
   });
 
   it('should show start date field', () => {
     render(<RecurringExpenseForm onClose={mockOnClose} />);
 
     expect(screen.getByLabelText('Fecha inicio')).toBeInTheDocument();
-  });
-
-  it('should show end date field', () => {
-    render(<RecurringExpenseForm onClose={mockOnClose} />);
-
-    // Label includes "(optional)" suffix
-    expect(screen.getByLabelText(/Fecha fin/)).toBeInTheDocument();
   });
 
   it('should show close button that calls onClose', () => {
@@ -345,11 +345,19 @@ describe('RecurringExpenseForm — Edit mode', () => {
     expect(descInput.value).toBe('Alquiler mensual');
   });
 
-  it('should pre-fill day of month', () => {
+  it('should default end condition to Never when no endDate', () => {
     render(<RecurringExpenseForm expense={existingExpense} onClose={mockOnClose} />);
 
-    const dayInput = screen.getByLabelText('Día del mes') as HTMLInputElement;
-    expect(dayInput.value).toBe('1');
+    const nuncaButton = screen.getByText('Nunca');
+    expect(nuncaButton.className).toContain('bg-guard-primary');
+  });
+
+  it('should default end condition to On date when endDate exists', () => {
+    const expenseWithEnd = { ...existingExpense, endDate: '2027-01-01' };
+    render(<RecurringExpenseForm expense={expenseWithEnd} onClose={mockOnClose} />);
+
+    const onDateButton = screen.getByText('En fecha');
+    expect(onDateButton.className).toContain('bg-guard-primary');
   });
 
   it('should show save button instead of create', () => {

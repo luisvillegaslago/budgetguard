@@ -2,20 +2,20 @@
 
 /**
  * BudgetGuard Recurring Expense Form
- * Form for creating and editing recurring expense rules
- * Always expense type, with frequency-dependent conditional fields
+ * Form for creating and editing recurring expense rules.
+ * Recurrence fields (dayOfWeek, dayOfMonth, monthOfYear) are derived from startDate server-side.
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronUp, Users, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { CalendarCheck, ChevronDown, ChevronUp, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Resolver, useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
-import { Select } from '@/components/ui/Select';
-import { RECURRING_FREQUENCY, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import type { EndCondition } from '@/constants/finance';
+import { END_CONDITION, RECURRING_FREQUENCY, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateRecurringExpense, useUpdateRecurringExpense } from '@/hooks/useRecurringExpenses';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -23,6 +23,7 @@ import { type CreateRecurringExpenseInput, CreateRecurringExpenseSchema } from '
 import type { RecurringExpense, RecurringFrequency } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
+import { computeEndDateFromOccurrences } from '@/utils/recurring';
 
 interface RecurringExpenseFormValues {
   categoryId: number;
@@ -34,6 +35,8 @@ interface RecurringExpenseFormValues {
   monthOfYear: number | null;
   startDate: string;
   endDate: string | null;
+  endCondition: EndCondition;
+  occurrenceCount: number | null;
   isShared: boolean;
   vatPercent: number | null;
   deductionPercent: number | null;
@@ -52,9 +55,19 @@ const FREQUENCY_OPTIONS: RecurringFrequency[] = [
   RECURRING_FREQUENCY.YEARLY,
 ];
 
-const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
+const END_CONDITIONS: EndCondition[] = [END_CONDITION.NEVER, END_CONDITION.AFTER_OCCURRENCES, END_CONDITION.ON_DATE];
 
-const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+const DEFAULT_OCCURRENCE_COUNT: Record<RecurringFrequency, number> = {
+  [RECURRING_FREQUENCY.WEEKLY]: 52,
+  [RECURRING_FREQUENCY.MONTHLY]: 12,
+  [RECURRING_FREQUENCY.YEARLY]: 5,
+};
+
+const INPUT_CLASSES = cn(
+  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+  'transition-colors duration-200 ease-out-quart',
+);
 
 export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormProps) {
   const { t } = useTranslate();
@@ -63,6 +76,12 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
   const updateMutation = useUpdateRecurringExpense();
 
   const [frequency, setFrequency] = useState<RecurringFrequency>(expense?.frequency ?? RECURRING_FREQUENCY.MONTHLY);
+  const [endCondition, setEndCondition] = useState<EndCondition>(
+    expense?.endDate ? END_CONDITION.ON_DATE : END_CONDITION.NEVER,
+  );
+  const [occurrenceCount, setOccurrenceCount] = useState<number>(
+    DEFAULT_OCCURRENCE_COUNT[expense?.frequency ?? RECURRING_FREQUENCY.MONTHLY],
+  );
   const [showFiscal, setShowFiscal] = useState(
     () => isEditing && (expense.vatPercent !== null || expense.deductionPercent !== null),
   );
@@ -75,7 +94,6 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
     setValue,
     control,
   } = useForm<RecurringExpenseFormValues>({
-    // z.coerce.date() accepts string inputs from date fields and coerces them
     resolver: zodResolver(CreateRecurringExpenseSchema) as unknown as Resolver<RecurringExpenseFormValues>,
     defaultValues: {
       frequency: expense?.frequency ?? RECURRING_FREQUENCY.MONTHLY,
@@ -87,6 +105,8 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
       monthOfYear: expense?.monthOfYear ?? null,
       startDate: expense?.startDate ?? new Date().toISOString().split('T')[0],
       endDate: expense?.endDate ?? null,
+      endCondition: expense?.endDate ? END_CONDITION.ON_DATE : END_CONDITION.NEVER,
+      occurrenceCount: null,
       isShared: expense ? expense.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR : false,
       vatPercent: expense?.vatPercent ?? null,
       deductionPercent: expense?.deductionPercent ?? null,
@@ -97,7 +117,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
 
   const watchedAmount = useWatch({ control, name: 'amount' });
   const watchedIsShared = useWatch({ control, name: 'isShared' });
-  const watchedDayOfWeek = useWatch({ control, name: 'dayOfWeek' });
+  const watchedStartDate = useWatch({ control, name: 'startDate' });
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
   const watchedCompanyId = useWatch({ control, name: 'companyId' });
 
@@ -120,13 +140,65 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
     ? formatCurrency(Math.ceil(eurosToCents(watchedAmount) / SHARED_EXPENSE.DIVISOR))
     : '';
 
+  // Recurrence summary derived from startDate
+  const recurrenceSummary = useMemo(() => {
+    if (!watchedStartDate) return null;
+    const date = new Date(`${watchedStartDate}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const day = date.getUTCDate();
+    const dayOfWeek = date.getUTCDay();
+    const monthNum = date.getUTCMonth() + 1;
+
+    switch (frequency) {
+      case RECURRING_FREQUENCY.WEEKLY:
+        return t('recurring.form.fields.recurrence-summary-weekly', {
+          dayName: t(`recurring.days-of-week-long.${dayOfWeek}`),
+        });
+      case RECURRING_FREQUENCY.MONTHLY:
+        return t('recurring.form.fields.recurrence-summary-monthly', { day: String(day) });
+      case RECURRING_FREQUENCY.YEARLY:
+        return t('recurring.form.fields.recurrence-summary-yearly', {
+          month: t(`recurring.months.${monthNum}`),
+          day: String(day),
+        });
+      default:
+        return null;
+    }
+  }, [watchedStartDate, frequency, t]);
+
+  // Computed end date preview for "After N occurrences"
+  const endDatePreview = useMemo(() => {
+    if (endCondition !== END_CONDITION.AFTER_OCCURRENCES || !watchedStartDate || !occurrenceCount) return null;
+    try {
+      const endDateStr = computeEndDateFromOccurrences(watchedStartDate, frequency, occurrenceCount);
+      return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(`${endDateStr}T00:00:00Z`));
+    } catch {
+      return null;
+    }
+  }, [endCondition, watchedStartDate, frequency, occurrenceCount]);
+
   const handleFrequencyChange = (newFrequency: RecurringFrequency) => {
     setFrequency(newFrequency);
     setValue('frequency', newFrequency);
-    // Reset conditional fields
-    setValue('dayOfWeek', null);
-    setValue('dayOfMonth', null);
-    setValue('monthOfYear', null);
+    setOccurrenceCount(DEFAULT_OCCURRENCE_COUNT[newFrequency]);
+  };
+
+  const handleEndConditionChange = (condition: EndCondition) => {
+    setEndCondition(condition);
+    setValue('endCondition', condition);
+    if (condition === END_CONDITION.NEVER) {
+      setValue('endDate', null);
+      setValue('occurrenceCount', null);
+    } else if (condition === END_CONDITION.AFTER_OCCURRENCES) {
+      setValue('endDate', null);
+      setValue('occurrenceCount', occurrenceCount);
+    }
   };
 
   const handleCategoryChange = (categoryId: number) => {
@@ -139,7 +211,6 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
 
   const onSubmit = async (formData: RecurringExpenseFormValues) => {
     try {
-      // Zod resolver coerces dates from strings — safe to cast
       const data = formData as unknown as CreateRecurringExpenseInput;
       if (isEditing && expense) {
         await updateMutation.mutateAsync({
@@ -180,6 +251,8 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
           {/* Hidden inputs */}
           <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
           <input type="hidden" {...register('frequency')} />
+          <input type="hidden" {...register('endCondition')} />
+          <input type="hidden" {...register('occurrenceCount', { valueAsNumber: true })} />
 
           {/* Category Selector (expense only) */}
           <CategorySelector
@@ -205,12 +278,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                 placeholder={t('transactions.form.fields.amount-placeholder')}
                 {...register('amount', { valueAsNumber: true })}
                 onWheel={(e) => e.currentTarget.blur()}
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                  'transition-colors duration-200 ease-out-quart',
-                  errors.amount ? 'border-guard-danger' : 'border-input',
-                )}
+                className={cn(INPUT_CLASSES, errors.amount ? 'border-guard-danger' : 'border-input')}
               />
               {errors.amount && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
@@ -265,129 +333,98 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
             </div>
           </fieldset>
 
-          {/* Conditional fields based on frequency */}
-          {frequency === RECURRING_FREQUENCY.WEEKLY && (
-            <fieldset>
-              <legend className="block text-sm font-medium text-foreground mb-1.5">
-                {t('recurring.form.fields.day-of-week')}
-              </legend>
-              <div className="flex gap-1.5">
-                {DAYS_OF_WEEK.map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => setValue('dayOfWeek', day, { shouldValidate: true })}
-                    className={cn(
-                      'flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 ease-out-quart',
-                      watchedDayOfWeek === day
-                        ? 'bg-guard-primary text-white'
-                        : 'bg-muted text-guard-muted hover:text-foreground',
-                    )}
-                  >
-                    {t(`recurring.days-of-week.${day}`)}
-                  </button>
-                ))}
-              </div>
-              {errors.dayOfWeek && (
-                <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.dayOfWeek.message}
-                </p>
-              )}
-            </fieldset>
-          )}
-
-          {(frequency === RECURRING_FREQUENCY.MONTHLY || frequency === RECURRING_FREQUENCY.YEARLY) && (
-            <div>
-              <label htmlFor="re-dayOfMonth" className="block text-sm font-medium text-foreground mb-1.5">
-                {t('recurring.form.fields.day-of-month')}
-              </label>
-              <input
-                id="re-dayOfMonth"
-                type="number"
-                min="1"
-                max="31"
-                {...register('dayOfMonth', { valueAsNumber: true })}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                  'transition-colors duration-200 ease-out-quart',
-                  errors.dayOfMonth ? 'border-guard-danger' : 'border-input',
-                )}
-              />
-              {errors.dayOfMonth && (
-                <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.dayOfMonth.message}
-                </p>
-              )}
-            </div>
-          )}
-
-          {frequency === RECURRING_FREQUENCY.YEARLY && (
-            <div>
-              <label htmlFor="re-monthOfYear" className="block text-sm font-medium text-foreground mb-1.5">
-                {t('recurring.form.fields.month-of-year')}
-              </label>
-              <Select
-                id="re-monthOfYear"
-                {...register('monthOfYear', { valueAsNumber: true })}
-                className={cn(errors.monthOfYear && 'border-guard-danger')}
-              >
-                <option value="">{t('recurring.form.fields.month-of-year')}</option>
-                {MONTHS.map((m) => (
-                  <option key={m} value={m}>
-                    {t(`recurring.months.${m}`)}
-                  </option>
-                ))}
-              </Select>
-              {errors.monthOfYear && (
-                <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.monthOfYear.message}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Start Date + End Date (side by side on desktop) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="re-startDate" className="block text-sm font-medium text-foreground mb-1.5">
-                {t('recurring.form.fields.start-date')}
-              </label>
-              <input
-                id="re-startDate"
-                type="date"
-                {...register('startDate')}
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                  'transition-colors duration-200 ease-out-quart',
-                  errors.startDate ? 'border-guard-danger' : 'border-input',
-                )}
-              />
-              {errors.startDate && (
-                <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.startDate.message}
-                </p>
-              )}
-            </div>
-            <div>
-              <label htmlFor="re-endDate" className="block text-sm font-medium text-foreground mb-1.5">
-                {t('recurring.form.fields.end-date')} ({t('common.labels.optional')})
-              </label>
-              <input
-                id="re-endDate"
-                type="date"
-                {...register('endDate')}
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                  'transition-colors duration-200 ease-out-quart',
-                  errors.endDate ? 'border-guard-danger' : 'border-input',
-                )}
-              />
-            </div>
+          {/* Start Date */}
+          <div>
+            <label htmlFor="re-startDate" className="block text-sm font-medium text-foreground mb-1.5">
+              {t('recurring.form.fields.start-date')}
+            </label>
+            <input
+              id="re-startDate"
+              type="date"
+              {...register('startDate')}
+              className={cn(INPUT_CLASSES, errors.startDate ? 'border-guard-danger' : 'border-input')}
+            />
+            {errors.startDate && (
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.startDate.message}
+              </p>
+            )}
+            {/* Recurrence summary */}
+            {recurrenceSummary && (
+              <p className="mt-1.5 text-xs text-guard-primary flex items-center gap-1.5 animate-fade-in">
+                <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                {recurrenceSummary}
+              </p>
+            )}
           </div>
+
+          {/* End Condition */}
+          <fieldset>
+            <legend className="block text-sm font-medium text-foreground mb-1.5">
+              {t('recurring.form.fields.end-condition')}
+            </legend>
+            <div className="flex gap-2">
+              {END_CONDITIONS.map((condition) => (
+                <button
+                  key={condition}
+                  type="button"
+                  onClick={() => handleEndConditionChange(condition)}
+                  className={cn(
+                    'flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ease-out-quart',
+                    endCondition === condition
+                      ? 'bg-guard-primary text-white'
+                      : 'bg-muted text-guard-muted hover:text-foreground',
+                  )}
+                >
+                  {condition === END_CONDITION.NEVER && t('recurring.form.fields.end-never')}
+                  {condition === END_CONDITION.AFTER_OCCURRENCES && t('recurring.form.fields.end-after')}
+                  {condition === END_CONDITION.ON_DATE && t('recurring.form.fields.end-on-date')}
+                </button>
+              ))}
+            </div>
+
+            {/* After N occurrences */}
+            {endCondition === END_CONDITION.AFTER_OCCURRENCES && (
+              <div className="mt-3 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="re-occurrenceCount"
+                    type="number"
+                    min="1"
+                    max="520"
+                    value={occurrenceCount}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (!Number.isNaN(val) && val > 0) {
+                        setOccurrenceCount(val);
+                        setValue('occurrenceCount', val);
+                      }
+                    }}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className={cn(INPUT_CLASSES, 'w-24 border-input')}
+                  />
+                  <span className="text-sm text-guard-muted">{t('recurring.form.fields.occurrence-count')}</span>
+                </div>
+                {endDatePreview && (
+                  <p className="mt-1.5 text-xs text-guard-muted">
+                    {t('recurring.form.fields.end-date-preview', { date: endDatePreview })}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* On specific date */}
+            {endCondition === END_CONDITION.ON_DATE && (
+              <div className="mt-3 animate-fade-in">
+                <input
+                  id="re-endDate"
+                  type="date"
+                  {...register('endDate')}
+                  className={cn(INPUT_CLASSES, errors.endDate ? 'border-guard-danger' : 'border-input')}
+                />
+              </div>
+            )}
+          </fieldset>
 
           {/* Description */}
           <div>
@@ -400,12 +437,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
               autoComplete="off"
               placeholder={t('transactions.form.fields.description-placeholder')}
               {...register('description')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.description ? 'border-guard-danger' : 'border-input',
-              )}
+              className={cn(INPUT_CLASSES, errors.description ? 'border-guard-danger' : 'border-input')}
             />
           </div>
 

@@ -5,7 +5,7 @@
  * DELETE /api/recurring-expenses/[id] - Soft-delete (deactivate)
  */
 
-import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, END_CONDITION, SHARED_EXPENSE } from '@/constants/finance';
 import { UpdateRecurringExpenseSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@/services/database/RecurringExpenseRepository';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
 import { eurosToCents } from '@/utils/money';
+import { computeEndDateFromOccurrences, extractRecurrenceFields } from '@/utils/recurring';
 
 export const GET = withApiHandler(async (_request, { params }) => {
   const { id } = await params;
@@ -37,7 +38,7 @@ export const PUT = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(UpdateRecurringExpenseSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { amount, isShared, ...rest } = validation.data;
+  const { amount, isShared, endCondition, occurrenceCount, ...rest } = validation.data;
 
   const updateData: Parameters<typeof updateRecurringExpense>[1] = { ...rest };
 
@@ -49,6 +50,33 @@ export const PUT = withApiHandler(async (request, { params }) => {
     updateData.amountCents = shared ? Math.ceil(fullAmountCents / sharedDivisor) : fullAmountCents;
     updateData.originalAmountCents = shared ? fullAmountCents : null;
     updateData.sharedDivisor = sharedDivisor;
+  }
+
+  // Derive recurrence fields if startDate or frequency changed
+  if (rest.startDate || rest.frequency) {
+    const existing = await getRecurringExpenseById(recurringExpenseId);
+    if (existing) {
+      const startDateStr = rest.startDate ? rest.startDate.toISOString().split('T')[0]! : existing.startDate;
+      const frequency = rest.frequency ?? existing.frequency;
+      const recurrenceFields = extractRecurrenceFields(startDateStr, frequency);
+      Object.assign(updateData, recurrenceFields);
+    }
+  }
+
+  // Compute endDate from end condition
+  if (endCondition !== undefined) {
+    if (endCondition === END_CONDITION.NEVER) {
+      updateData.endDate = null;
+    } else if (endCondition === END_CONDITION.AFTER_OCCURRENCES && occurrenceCount) {
+      const existing = await getRecurringExpenseById(recurringExpenseId);
+      if (existing) {
+        const startDateStr = rest.startDate ? rest.startDate.toISOString().split('T')[0]! : existing.startDate;
+        const frequency = rest.frequency ?? existing.frequency;
+        const endDateStr = computeEndDateFromOccurrences(startDateStr, frequency, occurrenceCount);
+        updateData.endDate = new Date(endDateStr);
+      }
+    }
+    // ON_DATE: endDate comes from rest.endDate (already in updateData)
   }
 
   const expense = await updateRecurringExpense(recurringExpenseId, updateData);

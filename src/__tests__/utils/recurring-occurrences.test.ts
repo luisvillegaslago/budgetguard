@@ -4,7 +4,12 @@
  */
 
 import { RECURRING_FREQUENCY } from '@/constants/finance';
-import { calculateAllPendingDates, calculateOccurrenceDates } from '@/utils/recurring';
+import {
+  calculateAllPendingDates,
+  calculateOccurrenceDates,
+  computeEndDateFromOccurrences,
+  extractRecurrenceFields,
+} from '@/utils/recurring';
 
 describe('calculateOccurrenceDates', () => {
   describe('monthly frequency', () => {
@@ -287,5 +292,64 @@ describe('calculateAllPendingDates', () => {
     const dates = calculateAllPendingDates(rule, '2026-01', '2026-01');
     // January 2026 Mondays: 5, 12, 19, 26
     expect(dates).toEqual(['2026-01-05', '2026-01-12', '2026-01-19', '2026-01-26']);
+  });
+});
+
+describe('extractRecurrenceFields', () => {
+  it('should extract dayOfWeek for weekly frequency', () => {
+    // 2026-01-05 is a Monday (dayOfWeek=1)
+    const fields = extractRecurrenceFields('2026-01-05', RECURRING_FREQUENCY.WEEKLY);
+    expect(fields).toEqual({ dayOfWeek: 1, dayOfMonth: null, monthOfYear: null });
+  });
+
+  it('should extract dayOfMonth for monthly frequency', () => {
+    const fields = extractRecurrenceFields('2026-03-15', RECURRING_FREQUENCY.MONTHLY);
+    expect(fields).toEqual({ dayOfWeek: null, dayOfMonth: 15, monthOfYear: null });
+  });
+
+  it('should extract dayOfMonth and monthOfYear for yearly frequency', () => {
+    const fields = extractRecurrenceFields('2026-06-20', RECURRING_FREQUENCY.YEARLY);
+    expect(fields).toEqual({ dayOfWeek: null, dayOfMonth: 20, monthOfYear: 6 });
+  });
+
+  it('should handle Sunday (dayOfWeek=0)', () => {
+    // 2026-01-04 is a Sunday
+    const fields = extractRecurrenceFields('2026-01-04', RECURRING_FREQUENCY.WEEKLY);
+    expect(fields.dayOfWeek).toBe(0);
+  });
+});
+
+describe('computeEndDateFromOccurrences', () => {
+  it('should compute monthly end date for 12 occurrences', () => {
+    // 12 occurrences from Jan 15 → Dec 15 (same year)
+    const endDate = computeEndDateFromOccurrences('2026-01-15', RECURRING_FREQUENCY.MONTHLY, 12);
+    expect(endDate).toBe('2026-12-15');
+  });
+
+  it('should compute weekly end date for 4 occurrences', () => {
+    // 4 occurrences = start + 3 weeks
+    const endDate = computeEndDateFromOccurrences('2026-01-05', RECURRING_FREQUENCY.WEEKLY, 4);
+    expect(endDate).toBe('2026-01-26');
+  });
+
+  it('should compute yearly end date for 3 occurrences', () => {
+    const endDate = computeEndDateFromOccurrences('2026-06-15', RECURRING_FREQUENCY.YEARLY, 3);
+    expect(endDate).toBe('2028-06-15');
+  });
+
+  it('should return same date for count=1', () => {
+    const endDate = computeEndDateFromOccurrences('2026-03-15', RECURRING_FREQUENCY.MONTHLY, 1);
+    expect(endDate).toBe('2026-03-15');
+  });
+
+  it('should clamp day for monthly (Jan 31 + 1 month → Feb 28)', () => {
+    const endDate = computeEndDateFromOccurrences('2026-01-31', RECURRING_FREQUENCY.MONTHLY, 2);
+    expect(endDate).toBe('2026-02-28');
+  });
+
+  it('should handle leap year for yearly (Feb 29)', () => {
+    // 2024 is leap year, Feb 29 → 2025 Feb 28 (non-leap)
+    const endDate = computeEndDateFromOccurrences('2024-02-29', RECURRING_FREQUENCY.YEARLY, 2);
+    expect(endDate).toBe('2025-02-28');
   });
 });

@@ -46,46 +46,52 @@ describe('CreateRecurringExpenseSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should reject monthly without dayOfMonth', () => {
+  it('should accept monthly without dayOfMonth (derived server-side)', () => {
     const result = CreateRecurringExpenseSchema.safeParse({
       ...validMonthly,
       dayOfMonth: null,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const dayOfMonthError = result.error.issues.find((i) => i.path.includes('dayOfMonth'));
-      expect(dayOfMonthError).toBeDefined();
-    }
+    expect(result.success).toBe(true);
   });
 
-  it('should reject weekly without dayOfWeek', () => {
+  it('should accept weekly without dayOfWeek (derived server-side)', () => {
     const result = CreateRecurringExpenseSchema.safeParse({
       ...validWeekly,
       dayOfWeek: null,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const dayOfWeekError = result.error.issues.find((i) => i.path.includes('dayOfWeek'));
-      expect(dayOfWeekError).toBeDefined();
-    }
+    expect(result.success).toBe(true);
   });
 
-  it('should reject yearly without monthOfYear', () => {
+  it('should accept yearly without monthOfYear (derived server-side)', () => {
     const result = CreateRecurringExpenseSchema.safeParse({
       ...validYearly,
       monthOfYear: null,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const monthError = result.error.issues.find((i) => i.path.includes('monthOfYear'));
-      expect(monthError).toBeDefined();
-    }
+    expect(result.success).toBe(true);
   });
 
-  it('should reject yearly without dayOfMonth', () => {
+  it('should accept yearly without dayOfMonth (derived server-side)', () => {
     const result = CreateRecurringExpenseSchema.safeParse({
       ...validYearly,
       dayOfMonth: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept endCondition and occurrenceCount', () => {
+    const result = CreateRecurringExpenseSchema.safeParse({
+      ...validMonthly,
+      endCondition: 'after_occurrences',
+      occurrenceCount: 12,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject occurrenceCount above 520', () => {
+    const result = CreateRecurringExpenseSchema.safeParse({
+      ...validMonthly,
+      endCondition: 'after_occurrences',
+      occurrenceCount: 521,
     });
     expect(result.success).toBe(false);
   });
