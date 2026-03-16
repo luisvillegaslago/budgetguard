@@ -29,11 +29,14 @@ export const GET = withApiHandler(async (request) => {
 export const POST = withApiHandler(async (request) => {
   const body = await request.json();
 
-  // Quick create mode: { name: "..." } with only name field
-  const isQuickCreate = Object.keys(body).length === 1 && typeof body.name === 'string';
+  // Quick create mode: { name: "...", role?: "client" | "provider" }
+  const isQuickCreate =
+    typeof body.name === 'string' &&
+    Object.keys(body).length <= 2 &&
+    (!body.role || body.role === 'client' || body.role === 'provider');
 
   if (isQuickCreate) {
-    const company = await findOrCreateByName(body.name);
+    const company = await findOrCreateByName(body.name, body.role);
     return { data: company, status: 201 };
   }
 

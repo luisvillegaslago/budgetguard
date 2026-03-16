@@ -68,11 +68,16 @@ async function createCompanyRequest(input: CreateCompanyInput): Promise<Company>
   return data.data;
 }
 
-async function quickCreateCompanyRequest(name: string): Promise<Company> {
+interface QuickCreateCompanyParams {
+  name: string;
+  role?: CompanyRole;
+}
+
+async function quickCreateCompanyRequest({ name, role }: QuickCreateCompanyParams): Promise<Company> {
   const response = await fetchApi(API_ENDPOINT.COMPANIES, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(role ? { name, role } : { name }),
   });
 
   if (!response.ok) {

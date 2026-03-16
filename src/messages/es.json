@@ -740,6 +740,7 @@
       "low-confidence": "Extracción con baja confianza — revisa todos los campos cuidadosamente.",
       "detected-vendor": "Detectado",
       "matched-vendor": "Coincide",
+      "add-vendor": "Añadir",
       "create-transaction": "Crear Transacción",
       "errors": {
         "category-required": "Selecciona una categoría",

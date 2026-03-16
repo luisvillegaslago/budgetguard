@@ -81,7 +81,7 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
     if (!name) return;
 
     try {
-      const company = await quickCreate.mutateAsync(name);
+      const company = await quickCreate.mutateAsync({ name });
       onChange(company.companyId);
       setIsOpen(false);
       setSearch('');

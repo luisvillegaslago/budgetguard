@@ -134,14 +134,17 @@ export async function createCompany(data: {
  * Find existing company by name or create a new one (atomic, for inline selector)
  * Uses INSERT ... ON CONFLICT DO NOTHING + SELECT to avoid race conditions
  */
-export async function findOrCreateByName(name: string): Promise<Company> {
+export async function findOrCreateByName(name: string, role?: CompanyRole): Promise<Company> {
   const userId = await getUserIdOrThrow();
 
   // Try to insert, ignore if already exists
-  await query(`INSERT INTO "Companies" ("Name", "UserID") VALUES ($1, $2) ON CONFLICT ("Name", "UserID") DO NOTHING`, [
-    name,
-    userId,
-  ]);
+  const insertColumns = role ? '"Name", "UserID", "Role"' : '"Name", "UserID"';
+  const insertValues = role ? '$1, $2, $3' : '$1, $2';
+  const insertParams = role ? [name, userId, role] : [name, userId];
+  await query(
+    `INSERT INTO "Companies" (${insertColumns}) VALUES (${insertValues}) ON CONFLICT ("Name", "UserID") DO NOTHING`,
+    insertParams,
+  );
 
   // Always SELECT to get the company (whether just inserted or already existed)
   const rows = await query<CompanyRow>(

@@ -6,15 +6,15 @@
  * Reuses CategorySelector for consistent category selection behavior.
  */
 
-import { AlertTriangle, FileText, X } from 'lucide-react';
+import { AlertTriangle, FileText, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import type { TransactionType } from '@/constants/finance';
-import { TRANSACTION_TYPE } from '@/constants/finance';
+import { COMPANY_ROLE, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCategories } from '@/hooks/useCategories';
-import { useCompanies } from '@/hooks/useCompanies';
+import { useCompanies, useQuickCreateCompany } from '@/hooks/useCompanies';
 import { useLinkTransaction } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { ExtractedInvoiceData } from '@/types/finance';
@@ -62,6 +62,7 @@ export function FiscalExtractionConfirm({
 
   const { data: categories } = useCategories(type);
   const { data: companies } = useCompanies();
+  const quickCreate = useQuickCreateCompany();
 
   // Auto-match detected vendor with existing companies
   const detectedVendor = extractedData.vendor;
@@ -277,9 +278,26 @@ export function FiscalExtractionConfirm({
               {t('fiscal.form.vendor-name')}
             </label>
             {detectedVendor && !autoMatchedCompany && (
-              <p className="text-xs text-guard-warning mb-1.5">
-                {t('fiscal.extraction.detected-vendor')}: {detectedVendor}
-              </p>
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="text-xs text-guard-warning">
+                  {t('fiscal.extraction.detected-vendor')}: {detectedVendor}
+                </p>
+                <button
+                  type="button"
+                  disabled={quickCreate.isPending}
+                  onClick={async () => {
+                    const company = await quickCreate.mutateAsync({
+                      name: detectedVendor,
+                      role: COMPANY_ROLE.PROVIDER,
+                    });
+                    setCompanyId(company.companyId);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t('fiscal.extraction.add-vendor')}
+                </button>
+              </div>
             )}
             {detectedVendor && autoMatchedCompany && (
               <p className="text-xs text-guard-success mb-1.5">

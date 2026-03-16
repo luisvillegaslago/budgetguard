@@ -740,6 +740,7 @@
       "low-confidence": "Low confidence extraction — please review all fields carefully.",
       "detected-vendor": "Detected",
       "matched-vendor": "Matched",
+      "add-vendor": "Add",
       "create-transaction": "Create Transaction",
       "errors": {
         "category-required": "Please select a category",
