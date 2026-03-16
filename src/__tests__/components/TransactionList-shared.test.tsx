@@ -166,22 +166,38 @@ jest.mock('@/components/ui/LoadingSpinner', () => ({
   LoadingSpinner: () => <span>Loading...</span>,
 }));
 
+// Mock Tooltip to render content as visible text (Radix Portal not available in JSDOM)
+jest.mock('@/components/ui/Tooltip', () => ({
+  Tooltip: ({ content, children }: { content: string; children: React.ReactNode }) => (
+    <span>
+      {children}
+      <span data-testid="tooltip-content">{content}</span>
+    </span>
+  ),
+}));
+
+jest.mock('@/components/ui/OverflowTooltip', () => ({
+  OverflowTooltip: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 import { TransactionList } from '@/components/transactions/TransactionList';
 
 describe('TransactionList — Shared Badge', () => {
-  it('should show ÷2 badge for shared transactions', () => {
+  it('should show shared badge for shared transactions', () => {
     render(<TransactionList />);
 
+    // ÷2 appears in both desktop and mobile layouts for 1 shared transaction
     const badges = screen.getAllByText('÷2');
-    expect(badges).toHaveLength(1); // Only transaction 1 is shared
+    expect(badges.length).toBeGreaterThanOrEqual(1);
   });
 
   it('should NOT show ÷2 badge for non-shared transactions', () => {
     render(<TransactionList />);
 
-    // There should be exactly 1 badge (for the shared transaction)
+    // Only transaction 1 is shared — total badge count comes only from that transaction
     const badges = screen.getAllByText('÷2');
-    expect(badges).toHaveLength(1);
+    // Desktop + mobile = 2 badges from the single shared transaction
+    expect(badges).toHaveLength(2);
   });
 });
 
@@ -190,14 +206,17 @@ describe('TransactionList — Subcategory Breadcrumb', () => {
     render(<TransactionList />);
 
     // Transaction 1 has parentCategory "Vivienda" and category "Internet"
-    expect(screen.getByText('Vivienda › Internet')).toBeInTheDocument();
+    // Appears in both desktop and mobile layouts
+    const breadcrumbs = screen.getAllByText('Vivienda › Internet');
+    expect(breadcrumbs.length).toBeGreaterThanOrEqual(1);
   });
 
   it('should show plain category name for non-subcategory transactions', () => {
     render(<TransactionList />);
 
-    // Transaction 2 has no parent, just "Transporte"
-    expect(screen.getByText('Transporte')).toBeInTheDocument();
+    // Transaction 2 has no parent, just "Transporte" — appears in both layouts
+    const names = screen.getAllByText('Transporte');
+    expect(names.length).toBeGreaterThanOrEqual(1);
   });
 });
 

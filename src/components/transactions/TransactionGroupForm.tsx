@@ -27,7 +27,6 @@ import { eurosToCents, formatCurrency } from '@/utils/money';
 interface TransactionGroupFormProps {
   onClose: () => void;
   defaultType?: TransactionType;
-  defaultParentCategoryId?: number;
 }
 
 // Form schema: description, date, parentCategoryId, and dynamic amounts per subcategory
@@ -41,11 +40,7 @@ const GroupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof GroupFormSchema>;
 
-export function TransactionGroupForm({
-  onClose,
-  defaultType = TRANSACTION_TYPE.EXPENSE,
-  defaultParentCategoryId,
-}: TransactionGroupFormProps) {
+export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENSE }: TransactionGroupFormProps) {
   const { t } = useTranslate();
   const createGroup = useCreateTransactionGroup();
   const { data: categories, isLoading: categoriesLoading } = useCategoriesHierarchical(defaultType);
@@ -67,7 +62,6 @@ export function TransactionGroupForm({
       transactionDate: new Date().toISOString().split('T')[0] as unknown as Date,
       description: '',
       isShared: false,
-      ...(defaultParentCategoryId ? { parentCategoryId: defaultParentCategoryId } : {}),
     },
   });
 
@@ -163,7 +157,10 @@ export function TransactionGroupForm({
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="group-form-title">
-      <div ref={formContainerRef} className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div
+        ref={formContainerRef}
+        className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="group-form-title" className="text-xl font-bold text-foreground">
@@ -180,97 +177,102 @@ export function TransactionGroupForm({
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Description */}
-          <div>
-            <label htmlFor="groupDescription" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.description')}
-            </label>
-            <input
-              id="groupDescription"
-              type="text"
-              autoComplete="off"
-              placeholder={t('transactions.groups.description-placeholder')}
-              {...register('description')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.description ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            {errors.description && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
-
-          {/* Date */}
-          <div>
-            <label htmlFor="groupDate" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.date')}
-            </label>
-            <input
-              id="groupDate"
-              type="date"
-              {...register('transactionDate')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.transactionDate ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            {errors.transactionDate && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.transactionDate.message}
-              </p>
-            )}
-          </div>
-
-          {/* Parent Category Selector */}
-          <div>
-            <label htmlFor="groupParentCategory" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.groups.parent-category')}
-            </label>
-            <Select
-              id="groupParentCategory"
-              value={selectedParentId ?? ''}
-              onChange={handleParentChange}
-              disabled={categoriesLoading}
-              className={cn(errors.parentCategoryId && 'border-guard-danger')}
-            >
-              <option value="">{t('transactions.form.fields.category-placeholder')}</option>
-              {categories
-                ?.filter((cat) => (cat.subcategories?.length ?? 0) > 0)
-                .map((cat) => (
-                  <option key={cat.categoryId} value={cat.categoryId}>
-                    {cat.name}
-                  </option>
-                ))}
-            </Select>
-            {errors.parentCategoryId && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.parentCategoryId.message}
-              </p>
-            )}
-          </div>
-
-          {/* Shared Expense Toggle */}
-          <div className="flex items-start gap-3">
-            <div className="flex items-center h-6 mt-0.5">
-              <input
-                id="groupIsShared"
-                type="checkbox"
-                {...register('isShared')}
-                className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
-              />
-            </div>
-            <div className="flex-1">
-              <label htmlFor="groupIsShared" className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-guard-primary" aria-hidden="true" />
-                {t('transactions.form.fields.shared')}
+          {/* Row 1: Description + Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="groupDescription" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.description')}
               </label>
+              <input
+                id="groupDescription"
+                type="text"
+                autoComplete="off"
+                placeholder={t('transactions.groups.description-placeholder')}
+                {...register('description')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.description ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.description && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {t(errors.description.message ?? '')}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="groupDate" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.date')}
+              </label>
+              <input
+                id="groupDate"
+                type="date"
+                {...register('transactionDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.transactionDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.transactionDate && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {t(errors.transactionDate.message ?? '')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Category + Shared */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4">
+            <div>
+              <label htmlFor="groupParentCategory" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.groups.parent-category')}
+              </label>
+              <Select
+                id="groupParentCategory"
+                value={selectedParentId ?? ''}
+                onChange={handleParentChange}
+                disabled={categoriesLoading}
+                className={cn(errors.parentCategoryId && 'border-guard-danger')}
+              >
+                <option value="">{t('transactions.form.fields.category-placeholder')}</option>
+                {categories
+                  ?.filter((cat) => (cat.subcategories?.length ?? 0) > 0)
+                  .map((cat) => (
+                    <option key={cat.categoryId} value={cat.categoryId}>
+                      {cat.name}
+                    </option>
+                  ))}
+              </Select>
+              {errors.parentCategoryId && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {t(errors.parentCategoryId.message ?? '')}
+                </p>
+              )}
+            </div>
+
+            <div>
+              {/* Spacer to align checkbox with select input */}
+              <span className="hidden sm:block text-sm mb-1.5">&nbsp;</span>
+              <div className="flex items-center gap-2 h-[42px]">
+                <input
+                  id="groupIsShared"
+                  type="checkbox"
+                  {...register('isShared')}
+                  className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
+                />
+                <label
+                  htmlFor="groupIsShared"
+                  className="text-sm font-medium text-foreground flex items-center gap-2 whitespace-nowrap"
+                >
+                  <Users className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+                  {t('transactions.form.fields.shared')}
+                </label>
+              </div>
             </div>
           </div>
 

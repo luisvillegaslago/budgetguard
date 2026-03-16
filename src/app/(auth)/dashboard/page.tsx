@@ -5,8 +5,8 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { Beer, FileInput, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { FileInput, Layers, Plus } from 'lucide-react';
+import { useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
@@ -16,8 +16,6 @@ import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionGroupForm } from '@/components/transactions/TransactionGroupForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
 import { MonthPicker } from '@/components/ui/MonthPicker';
-import { GOING_OUT_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
-import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useDashboardUrlSync } from '@/hooks/useDashboardUrlSync';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useMonthNavigation, useSelectedMonth } from '@/stores/useFinanceStore';
@@ -53,13 +51,6 @@ export default function DashboardPage() {
   // Bidirectional sync: URL ↔ Zustand (month, type filter)
   useDashboardUrlSync();
 
-  // Resolve "Salir" category ID for the going-out shortcut
-  const { data: expenseCategories } = useCategoriesHierarchical(TRANSACTION_TYPE.EXPENSE);
-  const goingOutCategoryId = useMemo(
-    () => expenseCategories?.find((c) => c.name === GOING_OUT_CATEGORY.NAME)?.categoryId,
-    [expenseCategories],
-  );
-
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Month Picker + Actions */}
@@ -72,10 +63,10 @@ export default function DashboardPage() {
             type="button"
             onClick={() => setShowGroupForm(true)}
             className="btn-ghost flex items-center gap-2"
-            aria-label={t('dashboard.actions.going-out')}
+            aria-label={t('dashboard.actions.group-expense')}
           >
-            <Beer className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">{t('dashboard.actions.going-out')}</span>
+            <Layers className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">{t('dashboard.actions.group-expense')}</span>
           </button>
 
           <button
@@ -136,9 +127,7 @@ export default function DashboardPage() {
       {showTransactionForm && !editingTransaction && <TransactionForm onClose={() => setShowTransactionForm(false)} />}
 
       {/* Transaction Group Form Modal */}
-      {showGroupForm && (
-        <TransactionGroupForm onClose={() => setShowGroupForm(false)} defaultParentCategoryId={goingOutCategoryId} />
-      )}
+      {showGroupForm && <TransactionGroupForm onClose={() => setShowGroupForm(false)} />}
 
       {/* Invoice Upload Modal */}
       {showInvoiceUpload && (

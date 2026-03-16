@@ -80,7 +80,7 @@
     },
     "default-currency": "0.00 €",
     "actions": {
-      "going-out": "Going out",
+      "group-expense": "Group",
       "add-invoice": "Invoice",
       "menu": "Menu"
     }
@@ -102,25 +102,25 @@
     "shared-badge": "÷2",
     "fiscal-doc-badge": "Has fiscal document",
     "groups": {
-      "title": "Create Outing",
-      "edit-title": "Edit Outing",
-      "description-placeholder": "Ex: Rico's farewell",
+      "title": "Grouped Expense",
+      "edit-title": "Edit Grouped Expense",
+      "description-placeholder": "Ex: Friday dinner, weekend outing...",
       "parent-category": "Category",
       "subcategories": "Subcategories",
       "running-total": "Total: {amount}",
-      "submit": "Create Outing",
-      "saving": "Creating outing...",
+      "submit": "Create Group",
+      "saving": "Creating...",
       "badge": "Grouped",
       "expand": "Expand breakdown",
       "collapse": "Collapse breakdown",
-      "new": "New Outing",
+      "new": "New Grouped Expense",
       "delete": {
-        "button": "Delete outing",
-        "confirm": "Delete entire outing ({count} transactions)?"
+        "button": "Delete group",
+        "confirm": "Delete entire group ({count} transactions)?"
       },
       "errors": {
-        "create": "Error creating outing. Please try again.",
-        "update": "Error updating outing. Please try again.",
+        "create": "Error creating group. Please try again.",
+        "update": "Error updating group. Please try again.",
         "min-items": "Add at least one amount"
       }
     },

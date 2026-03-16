@@ -127,12 +127,6 @@ export const API_ENDPOINT = {
   FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
 } as const;
 
-// Well-known Category References
-export const GOING_OUT_CATEGORY = {
-  NAME: 'Salir',
-  ICON: 'beer',
-} as const;
-
 // Trip default color (matches guard-trip in Tailwind config)
 export const TRIP_COLOR = '#8B5CF6' as const;
 

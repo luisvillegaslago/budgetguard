@@ -80,7 +80,7 @@
     },
     "default-currency": "0,00 €",
     "actions": {
-      "going-out": "Salir",
+      "group-expense": "Agrupar",
       "add-invoice": "Factura",
       "menu": "Menú"
     }
@@ -102,25 +102,25 @@
     "shared-badge": "÷2",
     "fiscal-doc-badge": "Tiene documento fiscal",
     "groups": {
-      "title": "Crear Salida",
-      "edit-title": "Editar Salida",
-      "description-placeholder": "Ej: Despedida Rico",
+      "title": "Gasto Agrupado",
+      "edit-title": "Editar Gasto Agrupado",
+      "description-placeholder": "Ej: Cena viernes, salida de fin de semana...",
       "parent-category": "Categoría",
       "subcategories": "Subcategorías",
       "running-total": "Total: {amount}",
-      "submit": "Crear Salida",
-      "saving": "Creando salida...",
+      "submit": "Crear Grupo",
+      "saving": "Creando...",
       "badge": "Agrupado",
       "expand": "Expandir desglose",
       "collapse": "Contraer desglose",
-      "new": "Nueva Salida",
+      "new": "Nuevo Gasto Agrupado",
       "delete": {
-        "button": "Eliminar salida",
-        "confirm": "¿Eliminar toda la salida ({count} transacciones)?"
+        "button": "Eliminar grupo",
+        "confirm": "¿Eliminar todo el grupo ({count} transacciones)?"
       },
       "errors": {
-        "create": "Error al crear la salida. Intenta de nuevo.",
-        "update": "Error al actualizar la salida. Intenta de nuevo.",
+        "create": "Error al crear el grupo. Intenta de nuevo.",
+        "update": "Error al actualizar el grupo. Intenta de nuevo.",
         "min-items": "Añade al menos un monto"
       }
     },
