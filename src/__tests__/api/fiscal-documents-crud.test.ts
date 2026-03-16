@@ -26,7 +26,9 @@ const mockDocument: FiscalDocument = {
   transactionGroupId: null,
   companyId: null,
   description: 'IVA Q1',
-  displayName: null,
+  documentDate: null,
+  vendorName: null,
+  displayName: '303 1T 2025.pdf',
   createdAt: '2025-04-20T10:00:00.000Z',
 };
 

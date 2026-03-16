@@ -618,6 +618,11 @@ CREATE TABLE "FiscalDocuments" (
     "ContentType" VARCHAR(100) NOT NULL,
     -- Money (cents convention)
     "TaxAmountCents" INT NULL,
+    -- OCR-extracted metadata (populated after extraction, stored for filtering/display)
+    "DocumentDate" DATE NULL,
+    "VendorName" VARCHAR(255) NULL,
+    -- NOTE: DisplayName is NOT stored. It is computed at query time via SQL COALESCE
+    --   in FiscalDocumentRepository.ts: Company.Name > VendorName > FileName
     -- Traceability
     "TransactionID" INT NULL REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
     "TransactionGroupID" INT NULL,
@@ -652,10 +657,14 @@ CREATE TABLE "FiscalDocuments" (
 | `FileSizeBytes` | INT | File size in bytes |
 | `ContentType` | VARCHAR(100) | MIME type (e.g., `'application/pdf'`) |
 | `TaxAmountCents` | INT NULL | Tax amount in cents (optional) |
+| `DocumentDate` | DATE NULL | Invoice/document date extracted via OCR |
+| `VendorName` | VARCHAR(255) NULL | Vendor name extracted via OCR (fallback when no linked Company) |
 | `TransactionID` | INT NULL | FK to linked Transaction (SET NULL on delete) |
 | `TransactionGroupID` | INT NULL | ID of linked transaction group |
 | `CompanyID` | INT NULL | FK to linked Company (SET NULL on delete) |
 | `Description` | VARCHAR(255) NULL | Optional description |
+
+> **DisplayName (computed, not stored):** All SELECT queries in `FiscalDocumentRepository.ts` compute `DisplayName` at query time via a centralized `DISPLAY_NAME_SQL` constant using `COALESCE(Company.Name, VendorName, FileName)` with an optional ` - DocumentDate` suffix. It is never written to the database.
 
 **Constraint logic:**
 - `DocumentType = 'modelo'` requires `ModeloType` to be set; facturas must NOT have it
@@ -1368,11 +1377,13 @@ export interface FiscalDocument {
   fileSizeBytes: number;
   contentType: string;                 // MIME type
   taxAmountCents: number | null;       // Confirmed amount (single source of truth, set after linking)
+  documentDate: string | null;         // Invoice date extracted via OCR (stored as DATE, returned as ISO string)
+  vendorName: string | null;           // Vendor name extracted via OCR (fallback when no linked Company)
   transactionId: number | null;        // Linked single transaction
   transactionGroupId: number | null;   // Linked transaction group
   companyId: number | null;            // Linked vendor company
   description: string | null;
-  displayName: string | null;          // Generated post-OCR: "Vendor - YYYY-MM-DD.ext"
+  displayName: string;                 // Computed at query time: COALESCE(Company.Name, VendorName, FileName) with optional date suffix
   createdAt: string;
 }
 ```

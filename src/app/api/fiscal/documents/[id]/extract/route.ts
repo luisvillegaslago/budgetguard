@@ -9,7 +9,6 @@ import { NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import type { Locale } from '@/libs/i18n';
 import { DEFAULT_LOCALE, isValidLocale } from '@/libs/i18n';
-import { getCompanyById } from '@/services/database/CompanyRepository';
 import {
   findMatchingTransaction,
   findMatchingTransactionGroup,
@@ -18,12 +17,11 @@ import {
   linkTransaction,
   linkTransactionGroup,
   updateDocumentAfterLink,
-  updateDocumentDisplayName,
+  updateDocumentOcrFields,
 } from '@/services/database/FiscalDocumentRepository';
 import { extractFromDocument } from '@/services/ocr/DocumentExtractor';
 import { notFound, parseIdParam, withApiHandler } from '@/utils/apiHandler';
 import { fetchBlob } from '@/utils/blobFetch';
-import { buildDisplayName } from '@/utils/fiscalDisplayName';
 
 export const POST = withApiHandler(async (request, { params }) => {
   const { id } = await params;
@@ -51,17 +49,8 @@ export const POST = withApiHandler(async (request, { params }) => {
     // Run OCR — returns extracted data without persisting
     const extractedData = await extractFromDocument(buffer, blobInfo.contentType, blobInfo.fileName, validatedLocale);
 
-    // Generate normalized display name — Company.Name takes priority over OCR vendor
-    const company = document.companyId ? await getCompanyById(document.companyId) : null;
-    const displayName = buildDisplayName({
-      vendor: extractedData.vendor,
-      companyName: company?.name,
-      date: extractedData.date,
-      originalFileName: blobInfo.fileName,
-    });
-    if (displayName) {
-      await updateDocumentDisplayName(documentId, displayName);
-    }
+    // Store atomic OCR fields (display name computed at query time via SQL)
+    await updateDocumentOcrFields(documentId, extractedData.date, extractedData.vendor);
 
     // Auto-match: try single transaction, then group
     let matchedTransactionId: number | null = null;
@@ -96,7 +85,6 @@ export const POST = withApiHandler(async (request, { params }) => {
       meta: {
         ...(matchedTransactionId ? { matchedTransactionId } : {}),
         ...(matchedGroupId ? { matchedGroupId } : {}),
-        ...(displayName ? { displayName } : {}),
       },
     };
   } catch (error) {

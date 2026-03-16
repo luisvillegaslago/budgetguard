@@ -216,7 +216,7 @@ src/
 │   ├── fiscal.ts                     # computeFiscalFields utility
 │   ├── fiscalDeadlines.ts            # AEAT deadline computation
 │   ├── fiscalFileParser.ts           # Auto-detect doc metadata from filename
-│   ├── fiscalDisplayName.ts          # Display name generation (vendor + date)
+│   ├── fiscalDisplayName.ts          # (legacy) Display name helper — DisplayName is now computed via SQL COALESCE in FiscalDocumentRepository.ts
 │   ├── blobFetch.ts                  # Vercel Blob download utility
 │   ├── fetchApi.ts                   # Authenticated fetch wrapper (401 → redirect)
 │   ├── apiHandler.ts                 # API route handler wrapper (withApiHandler)
@@ -862,7 +862,10 @@ Document management for tax filings and invoices stored in Vercel Blob with priv
 │  - Auto-detection of document metadata from filenames         │
 │  - Filing status tracking (pending/filed)                     │
 │  - Delete with optional linked transaction cleanup            │
-│  - DisplayName generated post-OCR (vendor + date)             │
+│  - DocumentDate + VendorName stored after OCR extraction      │
+│  - DisplayName computed at query time via SQL COALESCE in     │
+│    FiscalDocumentRepository.ts (Company.Name > VendorName >  │
+│    FileName), never persisted to the database                 │
 │                                                               │
 │  Key design: Extracted data is TRANSIENT (not persisted).     │
 │  TaxAmountCents is the single source of truth after linking.  │
@@ -874,7 +877,7 @@ Document management for tax filings and invoices stored in Vercel Blob with priv
 - `src/services/database/FiscalDocumentRepository.ts`: CRUD + auto-matching + linking
 - `src/schemas/fiscal-document.ts`: Zod validation schemas (upload, link, extraction)
 - `src/utils/fiscalFileParser.ts`: Filename-based metadata auto-detection
-- `src/utils/fiscalDisplayName.ts`: Display name generation (vendor + date)
+- `src/utils/fiscalDisplayName.ts`: (legacy) Display name helper — DisplayName is now computed via the centralized `DISPLAY_NAME_SQL` constant in `FiscalDocumentRepository.ts` using SQL `COALESCE(Company.Name, VendorName, FileName)`
 - `src/utils/blobFetch.ts`: Vercel Blob download utility
 - `src/app/api/fiscal/documents/`: API routes for CRUD, bulk upload, download proxy
 - `src/app/api/fiscal/documents/[id]/extract/`: OCR extraction endpoint

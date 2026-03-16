@@ -55,15 +55,14 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
   try {
     await client.query('BEGIN');
 
-    // 5a. Create FiscalDocument
-    const displayName = `${current.clientName} - ${current.invoiceDate}${fileName.slice(fileName.lastIndexOf('.'))}`;
+    // 5a. Create FiscalDocument (DisplayName computed at query time via SQL JOIN)
     await client.query(
       `INSERT INTO "FiscalDocuments" (
         "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
         "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
         "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
-        "CompanyID", "Description", "DisplayName"
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+        "CompanyID", "Description", "DocumentDate", "VendorName"
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
       [
         userId,
         FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA,
@@ -81,7 +80,8 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
         null,
         current.companyId,
         `Factura ${current.invoiceNumber} - ${current.clientName}`,
-        displayName,
+        current.invoiceDate,
+        null,
       ],
     );
 

@@ -298,6 +298,8 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'TransactionGroupID',
       'CompanyID',
       'Description',
+      'DocumentDate',
+      'VendorName',
       'CreatedAt',
       'UpdatedAt',
     ],

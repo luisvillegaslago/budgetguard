@@ -790,7 +790,8 @@ CREATE TABLE "FiscalDocuments" (
     "TransactionGroupID" INT NULL,
     "CompanyID" INT NULL REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
     "Description" VARCHAR(255) NULL,
-    "DisplayName" VARCHAR(255) NULL,
+    "DocumentDate" DATE NULL,
+    "VendorName" VARCHAR(255) NULL,
     -- OCR extraction
     "ExtractedData" JSONB DEFAULT NULL,
     "ExtractionStatus" VARCHAR(20) DEFAULT 'not_extracted'
@@ -813,6 +814,8 @@ CREATE TABLE "FiscalDocuments" (
 CREATE INDEX "IX_FiscalDocuments_UserYear" ON "FiscalDocuments"("UserID", "FiscalYear");
 CREATE INDEX "IX_FiscalDocuments_Type" ON "FiscalDocuments"("DocumentType");
 CREATE INDEX "IX_FiscalDocuments_Status" ON "FiscalDocuments"("Status");
+CREATE INDEX "idx_fiscal_docs_date" ON "FiscalDocuments"("DocumentDate");
+CREATE INDEX "idx_fiscal_docs_vendor" ON "FiscalDocuments"("VendorName");
 
 CREATE TRIGGER "TR_FiscalDocuments_UpdatedAt"
     BEFORE UPDATE ON "FiscalDocuments"

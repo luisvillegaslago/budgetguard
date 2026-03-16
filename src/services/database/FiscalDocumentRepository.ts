@@ -30,7 +30,9 @@ interface FiscalDocumentRow {
   TransactionGroupID: number | null;
   CompanyID: number | null;
   Description: string | null;
-  DisplayName: string | null;
+  DocumentDate: string | null;
+  VendorName: string | null;
+  DisplayName: string;
   CreatedAt: string;
 }
 
@@ -45,6 +47,38 @@ interface FiledModeloRow {
   FiscalYear: number;
   FiscalQuarter: number | null;
 }
+
+// ============================================================
+// SQL Constants (DRY — shared by all SELECT queries)
+// ============================================================
+
+/** Columns shared by all fiscal document SELECT queries */
+const FISCAL_DOC_COLUMNS = `
+  fd."DocumentID", fd."DocumentType", fd."ModeloType", fd."FiscalYear",
+  fd."FiscalQuarter", fd."Status", fd."BlobUrl", fd."BlobPathname",
+  fd."FileName", fd."FileSizeBytes", fd."ContentType", fd."TaxAmountCents",
+  fd."TransactionID", fd."TransactionGroupID", fd."CompanyID",
+  fd."Description", fd."DocumentDate", fd."VendorName", fd."CreatedAt"`;
+
+/** Computed display name: Company.Name > VendorName > FileName, with optional date */
+const DISPLAY_NAME_SQL = `
+  COALESCE(
+    CASE
+      WHEN COALESCE(c."Name", fd."VendorName") IS NOT NULL AND fd."DocumentDate" IS NOT NULL
+      THEN COALESCE(c."Name", fd."VendorName") || ' - ' || fd."DocumentDate"::text ||
+           CASE WHEN fd."FileName" LIKE '%.%' THEN substring(fd."FileName" from '\\.[^.]+$') ELSE '' END
+      WHEN COALESCE(c."Name", fd."VendorName") IS NOT NULL
+      THEN COALESCE(c."Name", fd."VendorName") ||
+           CASE WHEN fd."FileName" LIKE '%.%' THEN substring(fd."FileName" from '\\.[^.]+$') ELSE '' END
+      ELSE NULL
+    END,
+    fd."FileName"
+  ) AS "DisplayName"`;
+
+/** Shared FROM + JOIN clause */
+const FISCAL_DOC_FROM = `
+  FROM "FiscalDocuments" fd
+  LEFT JOIN "Companies" c ON fd."CompanyID" = c."CompanyID"`;
 
 // ============================================================
 // Transformers
@@ -67,6 +101,8 @@ function rowToFiscalDocument(row: FiscalDocumentRow): FiscalDocument {
     transactionGroupId: row.TransactionGroupID,
     companyId: row.CompanyID,
     description: row.Description,
+    documentDate: row.DocumentDate,
+    vendorName: row.VendorName,
     displayName: row.DisplayName,
     createdAt: row.CreatedAt,
   };
@@ -86,23 +122,27 @@ function rowToDeadlineSettings(row: DeadlineSettingsRow): FiscalDeadlineSettings
 
 export async function getDocuments(year: number, quarter?: number, documentType?: string): Promise<FiscalDocument[]> {
   const userId = await getUserIdOrThrow();
-  const conditions = ['"UserID" = $1', '"FiscalYear" = $2'];
+  const conditions = ['fd."UserID" = $1', 'fd."FiscalYear" = $2'];
   const params: unknown[] = [userId, year];
   let paramIdx = 3;
 
   if (quarter != null) {
-    conditions.push(`"FiscalQuarter" = $${paramIdx}`);
+    conditions.push(`fd."FiscalQuarter" = $${paramIdx}`);
     params.push(quarter);
     paramIdx++;
   }
 
   if (documentType) {
-    conditions.push(`"DocumentType" = $${paramIdx}`);
+    conditions.push(`fd."DocumentType" = $${paramIdx}`);
     params.push(documentType);
   }
 
   const rows = await query<FiscalDocumentRow>(
-    `SELECT * FROM "FiscalDocuments" WHERE ${conditions.join(' AND ')} ORDER BY "CreatedAt" DESC`,
+    `SELECT ${FISCAL_DOC_COLUMNS},
+            ${DISPLAY_NAME_SQL}
+     ${FISCAL_DOC_FROM}
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY fd."CreatedAt" DESC`,
     params,
   );
 
@@ -112,7 +152,10 @@ export async function getDocuments(year: number, quarter?: number, documentType?
 export async function getDocumentById(id: number): Promise<FiscalDocument | null> {
   const userId = await getUserIdOrThrow();
   const rows = await query<FiscalDocumentRow>(
-    'SELECT * FROM "FiscalDocuments" WHERE "DocumentID" = $1 AND "UserID" = $2',
+    `SELECT ${FISCAL_DOC_COLUMNS},
+            ${DISPLAY_NAME_SQL}
+     ${FISCAL_DOC_FROM}
+     WHERE fd."DocumentID" = $1 AND fd."UserID" = $2`,
     [id, userId],
   );
   return rows[0] ? rowToFiscalDocument(rows[0]) : null;
@@ -154,19 +197,26 @@ export interface CreateDocumentInput {
   transactionGroupId: number | null;
   companyId: number | null;
   description: string | null;
-  displayName?: string | null;
+  documentDate?: string | null;
+  vendorName?: string | null;
 }
 
 export async function createDocument(input: CreateDocumentInput): Promise<FiscalDocument> {
   const userId = await getUserIdOrThrow();
   const rows = await query<FiscalDocumentRow>(
-    `INSERT INTO "FiscalDocuments" (
-      "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
-      "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
-      "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
-      "CompanyID", "Description", "DisplayName"
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-    RETURNING *`,
+    `WITH inserted AS (
+      INSERT INTO "FiscalDocuments" (
+        "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
+        "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
+        "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
+        "CompanyID", "Description", "DocumentDate", "VendorName"
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      RETURNING *
+    )
+    SELECT ${FISCAL_DOC_COLUMNS.replace(/fd\./g, 'inserted.')},
+           ${DISPLAY_NAME_SQL.replace(/fd\./g, 'inserted.')}
+    FROM inserted
+    LEFT JOIN "Companies" c ON inserted."CompanyID" = c."CompanyID"`,
     [
       userId,
       input.documentType,
@@ -184,7 +234,8 @@ export async function createDocument(input: CreateDocumentInput): Promise<Fiscal
       input.transactionGroupId,
       input.companyId,
       input.description,
-      input.displayName ?? null,
+      input.documentDate ?? null,
+      input.vendorName ?? null,
     ],
   );
   return rowToFiscalDocument(rows[0]!);
@@ -194,7 +245,7 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
   if (inputs.length === 0) return [];
   const userId = await getUserIdOrThrow();
 
-  const COLS_PER_ROW = 17;
+  const COLS_PER_ROW = 18;
   const values: string[] = [];
   const params: unknown[] = [];
 
@@ -219,18 +270,25 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
       input.transactionGroupId,
       input.companyId,
       input.description,
-      input.displayName ?? null,
+      input.documentDate ?? null,
+      input.vendorName ?? null,
     );
   });
 
   const rows = await query<FiscalDocumentRow>(
-    `INSERT INTO "FiscalDocuments" (
-      "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
-      "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
-      "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
-      "CompanyID", "Description", "DisplayName"
-    ) VALUES ${values.join(', ')}
-    RETURNING *`,
+    `WITH inserted AS (
+      INSERT INTO "FiscalDocuments" (
+        "UserID", "DocumentType", "ModeloType", "FiscalYear", "FiscalQuarter",
+        "Status", "BlobUrl", "BlobPathname", "FileName", "FileSizeBytes",
+        "ContentType", "TaxAmountCents", "TransactionID", "TransactionGroupID",
+        "CompanyID", "Description", "DocumentDate", "VendorName"
+      ) VALUES ${values.join(', ')}
+      RETURNING *
+    )
+    SELECT ${FISCAL_DOC_COLUMNS.replace(/fd\./g, 'inserted.')},
+           ${DISPLAY_NAME_SQL.replace(/fd\./g, 'inserted.')}
+    FROM inserted
+    LEFT JOIN "Companies" c ON inserted."CompanyID" = c."CompanyID"`,
     params,
   );
 
@@ -238,15 +296,18 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
 }
 
 /**
- * Update display name for a document (set after OCR extraction)
+ * Update atomic OCR fields for a document (set after OCR extraction)
  */
-export async function updateDocumentDisplayName(id: number, displayName: string): Promise<void> {
+export async function updateDocumentOcrFields(
+  id: number,
+  documentDate: string | null,
+  vendorName: string | null,
+): Promise<void> {
   const userId = await getUserIdOrThrow();
-  await query('UPDATE "FiscalDocuments" SET "DisplayName" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
-    displayName,
-    id,
-    userId,
-  ]);
+  await query(
+    'UPDATE "FiscalDocuments" SET "DocumentDate" = $1, "VendorName" = $2 WHERE "DocumentID" = $3 AND "UserID" = $4',
+    [documentDate, vendorName, id, userId],
+  );
 }
 
 export async function updateDocumentStatus(id: number, status: string): Promise<FiscalDocument | null> {

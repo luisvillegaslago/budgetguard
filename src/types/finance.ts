@@ -661,7 +661,9 @@ export interface FiscalDocument {
   transactionGroupId: number | null;
   companyId: number | null;
   description: string | null;
-  displayName: string | null;
+  documentDate: string | null;
+  vendorName: string | null;
+  displayName: string;
   createdAt: string;
 }
 
