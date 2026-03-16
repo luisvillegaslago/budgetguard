@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.12.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.11.0...v0.12.0) (2026-03-16)
+
+
+### Features
+
+* add `triggerClassName` prop to Tooltip component ([8c2cf8d](https://github.com/luisvillegaslago/budgetguard/commit/8c2cf8d1f460f51c0330f12cca109ab4ab51c3b3))
+* add quick-create vendor button in OCR extraction modal ([3fbc251](https://github.com/luisvillegaslago/budgetguard/commit/3fbc2519f45748855e06bd28070a2f90ee8ebc80))
+* add transaction status (paid/pending/cancelled) ([83aa10c](https://github.com/luisvillegaslago/budgetguard/commit/83aa10cc063cd9d6541e03180abff15804249f8f))
+* improve AppSidebar collapsed state styling and tooltip behavior ([c9ad35d](https://github.com/luisvillegaslago/budgetguard/commit/c9ad35d2c442d5d8ea3a48cdd0d7d184fc91d033))
+
 ## [0.11.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.10.0...v0.11.0) (2026-03-16)
 
 
