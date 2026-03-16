@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.13.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.12.0...v0.13.0) (2026-03-16)
+
+
+### Features
+
+* simplify recurring expense form UX ([c764db4](https://github.com/luisvillegaslago/budgetguard/commit/c764db4088bb7d1a4fecab5ace6cc1fc9822b282))
+
+
+### Bug Fixes
+
+* shared expense doubling in fiscal link-transaction + improve modal layouts ([aa29a76](https://github.com/luisvillegaslago/budgetguard/commit/aa29a763660331266152e31829e18f97ff06cc1b))
+
 ## [0.12.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.11.0...v0.12.0) (2026-03-16)
 
 
