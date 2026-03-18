@@ -206,4 +206,11 @@ input[type='checkbox'] {
   textarea {
     font-size: 16px !important;
   }
+
+  /* Normalize date input height on iOS (Safari adds extra internal padding) */
+  input[type='date'] {
+    min-height: 0;
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }

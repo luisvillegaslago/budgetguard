@@ -20,12 +20,19 @@ export function ModalBackdrop({ children, onClose, labelledBy, escapeClose = tru
 
   useFocusTrap(dialogRef, escapeClose ? onClose : undefined);
 
-  // Prevent background scroll while modal is open
+  // Prevent background scroll while modal is open (iOS-compatible)
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
     return () => {
-      document.body.style.overflow = originalOverflow;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollY);
     };
   }, []);
 
