@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.13.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.13.0...v0.13.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* prevent background scroll when modal is open and normalize date input size on mobile ([dfbd524](https://github.com/luisvillegaslago/budgetguard/commit/dfbd52408aefbf55a072c5ff705fd09dc528faca))
+
 ## [0.13.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.12.0...v0.13.0) (2026-03-16)
 
 
