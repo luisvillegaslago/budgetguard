@@ -108,12 +108,12 @@ export default function DashboardPage() {
         {/* Two Column Layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
           {/* Category Breakdown */}
-          <section>
+          <section className="order-2 md:order-1">
             <CategoryBreakdown />
           </section>
 
           {/* Transaction List */}
-          <section>
+          <section className="order-1 md:order-2">
             <TransactionList
               onAddTransaction={() => setShowTransactionForm(true)}
               onEditTransaction={setEditingTransaction}
