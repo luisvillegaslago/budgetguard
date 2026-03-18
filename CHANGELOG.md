@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.1...v0.14.2) (2026-03-18)
+
+
+### Bug Fixes
+
+* show transactions before categories on mobile dashboard ([be2f3b6](https://github.com/luisvillegaslago/budgetguard/commit/be2f3b6cbce5155427b83f7ae84429f259d6cea9))
+
 ## [0.14.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.0...v0.14.1) (2026-03-18)
 
 
