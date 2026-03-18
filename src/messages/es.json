@@ -87,7 +87,7 @@
   },
   "transactions": {
     "title": "Transacciones",
-    "new": "Nueva Transacción",
+    "new": "Nueva",
     "search-placeholder": "Buscar por categoría o descripción...",
     "search-empty": "No se encontraron transacciones",
     "empty": {

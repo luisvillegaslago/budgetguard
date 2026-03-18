@@ -87,7 +87,7 @@
   },
   "transactions": {
     "title": "Transactions",
-    "new": "New Transaction",
+    "new": "New",
     "search-placeholder": "Search by category or description...",
     "search-empty": "No transactions found",
     "empty": {

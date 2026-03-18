@@ -67,7 +67,7 @@ export default function DashboardPage() {
             aria-label={t('dashboard.actions.group-expense')}
           >
             <Layers className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">{t('dashboard.actions.group-expense')}</span>
+            <span>{t('dashboard.actions.group-expense')}</span>
           </button>
 
           <button
@@ -77,7 +77,7 @@ export default function DashboardPage() {
             aria-label={t('dashboard.actions.add-invoice')}
           >
             <FileInput className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">{t('dashboard.actions.add-invoice')}</span>
+            <span>{t('dashboard.actions.add-invoice')}</span>
           </button>
 
           <button
@@ -87,7 +87,7 @@ export default function DashboardPage() {
             aria-label={t('transactions.new')}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">{t('transactions.new')}</span>
+            <span>{t('transactions.new')}</span>
           </button>
         </div>
       </div>
