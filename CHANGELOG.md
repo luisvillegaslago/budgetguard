@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.0...v0.14.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* iOS-compatible background scroll lock and date input height normalization ([85ab5aa](https://github.com/luisvillegaslago/budgetguard/commit/85ab5aad52001896ddfb7307bce0f0b09f45882c))
+
 ## [0.14.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.13.1...v0.14.0) (2026-03-18)
 
 
