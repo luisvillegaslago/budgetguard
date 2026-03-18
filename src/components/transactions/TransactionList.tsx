@@ -155,35 +155,41 @@ function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeletin
             </Tooltip>
           )}
         </div>
-        {amountEl}
-        <div className="flex items-center justify-end flex-shrink-0 w-24">
-          {isPending && onMarkAsPaid && (
-            <Tooltip content={t('transactions.mark-as-paid')}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMarkAsPaid(transaction.transactionId);
-                }}
-                className="p-1.5 rounded-lg transition-all duration-200 ease-out-quart text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-success/10 hover:text-guard-success"
-                aria-label={t('transactions.mark-as-paid')}
-              >
-                <CheckCircle className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </Tooltip>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(transaction);
-            }}
-            className="p-1.5 rounded-lg transition-all duration-200 ease-out-quart text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-guard-primary/10 hover:text-guard-primary"
-            aria-label={t('category-management.actions.edit')}
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <DeleteButton onDelete={() => onDelete(transaction.transactionId)} isDeleting={isDeleting} />
+        <div className="flex items-center justify-end flex-shrink-0">
+          {amountEl}
+          <div className="flex items-center overflow-hidden max-w-0 ml-2 group-hover:max-w-[96px] group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart group-hover:delay-300">
+            {isPending && onMarkAsPaid && (
+              <Tooltip content={t('transactions.mark-as-paid')}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarkAsPaid(transaction.transactionId);
+                  }}
+                  className="p-1.5 rounded-lg text-guard-muted hover:bg-guard-success/10 hover:text-guard-success transition-colors"
+                  aria-label={t('transactions.mark-as-paid')}
+                >
+                  <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </Tooltip>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(transaction);
+              }}
+              className="p-1.5 rounded-lg text-guard-muted hover:bg-guard-primary/10 hover:text-guard-primary transition-colors"
+              aria-label={t('category-management.actions.edit')}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <DeleteButton
+              onDelete={() => onDelete(transaction.transactionId)}
+              isDeleting={isDeleting}
+              className="sm:opacity-100"
+            />
+          </div>
         </div>
       </div>
 

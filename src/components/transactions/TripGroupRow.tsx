@@ -59,41 +59,43 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
               </span>
             </Tooltip>
           </div>
-          <span
-            className={cn(
-              'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
-              {
-                'text-guard-success': isIncome,
-                'text-guard-danger': !isIncome,
-              },
-            )}
-          >
-            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tripGroup.totalAmountCents)}
-          </span>
-          <div className="flex items-center justify-end flex-shrink-0 w-16">
-            <button
-              type="button"
-              className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
-              aria-label={isExpanded ? t('transactions.trip-group.collapse') : t('transactions.trip-group.expand')}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsExpanded(!isExpanded);
-              }}
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          <div className="flex items-center justify-end flex-shrink-0">
+            <span
+              className={cn(
+                'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
+                {
+                  'text-guard-success': isIncome,
+                  'text-guard-danger': !isIncome,
+                },
               )}
-            </button>
-            <Link
-              href={`/trips/${tripGroup.tripId}?from=dashboard`}
-              className="p-1.5 rounded-lg text-guard-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-purple-500 hover:bg-purple-500/10 transition-all duration-200 ease-out-quart"
-              aria-label={t('transactions.trip-group.view-detail')}
-              onClick={(e) => e.stopPropagation()}
             >
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </Link>
+              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tripGroup.totalAmountCents)}
+            </span>
+            <div className="flex items-center overflow-hidden max-w-0 ml-2 group-hover:max-w-[96px] group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart group-hover:delay-300">
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={isExpanded ? t('transactions.trip-group.collapse') : t('transactions.trip-group.expand')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(!isExpanded);
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+              <Link
+                href={`/trips/${tripGroup.tripId}?from=dashboard`}
+                className="p-1.5 rounded-lg text-guard-muted hover:text-purple-500 hover:bg-purple-500/10 transition-colors"
+                aria-label={t('transactions.trip-group.view-detail')}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </div>
 

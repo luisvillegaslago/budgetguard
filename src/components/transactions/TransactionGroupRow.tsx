@@ -74,39 +74,42 @@ export function TransactionGroupRow({
               </Tooltip>
             )}
           </div>
-          <span
-            className={cn(
-              'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
-              {
-                'text-guard-success': isIncome,
-                'text-guard-danger': !isIncome,
-              },
-            )}
-          >
-            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(group.totalAmountCents)}
-          </span>
-          <div className="flex items-center justify-end flex-shrink-0 w-16">
-            <button
-              type="button"
-              className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
-              aria-label={isExpanded ? t('transactions.groups.collapse') : t('transactions.groups.expand')}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsExpanded(!isExpanded);
-              }}
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          <div className="flex items-center justify-end flex-shrink-0">
+            <span
+              className={cn(
+                'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
+                {
+                  'text-guard-success': isIncome,
+                  'text-guard-danger': !isIncome,
+                },
               )}
-            </button>
-            <DeleteButton
-              onDelete={() => onDelete(group.transactionGroupId)}
-              isDeleting={isDeleting}
-              confirmLabel={t('transactions.groups.delete.confirm', { count: group.transactions.length })}
-              defaultLabel={t('transactions.groups.delete.button')}
-            />
+            >
+              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(group.totalAmountCents)}
+            </span>
+            <div className="flex items-center overflow-hidden max-w-0 ml-2 group-hover:max-w-[96px] group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart group-hover:delay-300">
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={isExpanded ? t('transactions.groups.collapse') : t('transactions.groups.expand')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(!isExpanded);
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+              <DeleteButton
+                onDelete={() => onDelete(group.transactionGroupId)}
+                isDeleting={isDeleting}
+                confirmLabel={t('transactions.groups.delete.confirm', { count: group.transactions.length })}
+                defaultLabel={t('transactions.groups.delete.button')}
+                className="sm:opacity-100"
+              />
+            </div>
           </div>
         </div>
 
