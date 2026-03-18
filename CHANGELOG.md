@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.2...v0.14.3) (2026-03-18)
+
+
+### Bug Fixes
+
+* show action button labels on all screen sizes ([36f3be8](https://github.com/luisvillegaslago/budgetguard/commit/36f3be88def75cd7c6f6a989d23964d6c843d69b))
+
 ## [0.14.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.1...v0.14.2) (2026-03-18)
 
 
