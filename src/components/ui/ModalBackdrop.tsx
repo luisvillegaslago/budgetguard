@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface ModalBackdropProps {
@@ -19,6 +19,15 @@ export function ModalBackdrop({ children, onClose, labelledBy, escapeClose = tru
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(dialogRef, escapeClose ? onClose : undefined);
+
+  // Prevent background scroll while modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   return (
     <div
