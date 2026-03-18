@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.13.1...v0.14.0) (2026-03-18)
+
+
+### Features
+
+* slide-in action buttons on hover for transaction rows ([ba9d665](https://github.com/luisvillegaslago/budgetguard/commit/ba9d66509d163c29ff76c9c0a1e4468685e9328c))
+
 ## [0.13.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.13.0...v0.13.1) (2026-03-18)
 
 
