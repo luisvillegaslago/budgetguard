@@ -86,12 +86,20 @@ function createMockParams(id: string): { params: Promise<{ id: string }> } {
 // ============================================================
 
 describe('POST /api/invoices/[id]/finalize', () => {
+  const originalConsoleError = console.error;
+
   beforeEach(() => {
     capturedInvoiceId = null;
     shouldThrowNotFound = false;
     shouldThrowInvalidStatus = false;
     shouldThrowBlobError = false;
     jest.clearAllMocks();
+    // Silence expected console.error from withApiHandler on error paths
+    console.error = jest.fn();
+  });
+
+  afterEach(() => {
+    console.error = originalConsoleError;
   });
 
   it('should finalize invoice and return PDF binary', async () => {
