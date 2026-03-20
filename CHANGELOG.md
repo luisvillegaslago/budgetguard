@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.4](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.3...v0.14.4) (2026-03-20)
+
+
+### Bug Fixes
+
+* always display trips as grouped items even with single transaction ([6bec099](https://github.com/luisvillegaslago/budgetguard/commit/6bec09926da820672e491c46182f54bc7221c43e))
+* **test:** silence jsdom and expected error noise in test output ([61e4dc0](https://github.com/luisvillegaslago/budgetguard/commit/61e4dc0d798ef3143d15f573b04b66d359515c0a))
+
 ## [0.14.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.2...v0.14.3) (2026-03-18)
 
 
