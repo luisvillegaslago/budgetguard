@@ -1,9 +1,7 @@
 /**
- * BudgetGuard Database Sync Types
- * Types for comparing and syncing local ↔ remote PostgreSQL databases
+ * BudgetGuard Database Backup Types
+ * Types for comparing and backing up primary → backup PostgreSQL databases
  */
-
-import type { SyncDirection } from '@/constants/finance';
 
 /**
  * Row difference for a single record
@@ -11,8 +9,8 @@ import type { SyncDirection } from '@/constants/finance';
 export interface RowDiff {
   pk: number;
   description: string;
-  localUpdatedAt: string | null;
-  remoteUpdatedAt: string | null;
+  primaryUpdatedAt: string | null;
+  backupUpdatedAt: string | null;
 }
 
 /**
@@ -20,10 +18,10 @@ export interface RowDiff {
  */
 export interface TableDiffSummary {
   table: string;
-  localCount: number;
-  remoteCount: number;
-  onlyInLocal: RowDiff[];
-  onlyInRemote: RowDiff[];
+  primaryCount: number;
+  backupCount: number;
+  onlyInPrimary: RowDiff[];
+  onlyInBackup: RowDiff[];
   modified: RowDiff[];
   unchangedCount: number;
 }
@@ -33,16 +31,15 @@ export interface TableDiffSummary {
  */
 export interface SyncCompareResult {
   tables: TableDiffSummary[];
-  localUrl: string;
-  remoteUrl: string;
+  primaryUrl: string;
+  backupUrl: string;
   comparedAt: string;
 }
 
 /**
- * Result of executing a sync operation
+ * Result of executing a backup operation
  */
 export interface SyncExecutionResult {
-  direction: SyncDirection;
   includeDeletes: boolean;
   tables: Array<{
     table: string;
@@ -54,15 +51,14 @@ export interface SyncExecutionResult {
 }
 
 /**
- * Input for executing a sync
+ * Input for executing a backup
  */
 export interface SyncExecuteInput {
-  direction: SyncDirection;
   includeDeletes: boolean;
 }
 
 /**
- * Progress event emitted during sync execution
+ * Progress event emitted during backup execution
  */
 export interface SyncProgressEvent {
   phase: 'setup' | 'delete' | 'sync' | 'done' | 'error';

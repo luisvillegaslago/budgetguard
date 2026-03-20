@@ -1,11 +1,10 @@
 /**
- * BudgetGuard Database Sync Service
- * Compares local and remote PostgreSQL databases and performs bidirectional sync.
+ * BudgetGuard Database Backup Service
+ * Compares primary and backup PostgreSQL databases and performs one-way backup.
+ * Always copies from primary (DATABASE_URL) to backup (BACKUP_DATABASE_URL).
  * Only available in development mode.
  */
 
-import type { SyncDirection } from '@/constants/finance';
-import { SYNC_DIRECTION } from '@/constants/finance';
 import type {
   RowDiff,
   SyncCompareResult,
@@ -14,7 +13,7 @@ import type {
   TableDiffSummary,
 } from '@/types/sync';
 import { getPool } from './connection';
-import { getRemotePool } from './remoteConnection';
+import { getBackupPool } from './remoteConnection';
 
 // ============================================================
 // Table Configuration
@@ -364,72 +363,72 @@ function maskUrl(url: string): string {
 // ============================================================
 
 export async function computeDiff(): Promise<SyncCompareResult> {
-  const localPool = getPool();
-  const remotePool = getRemotePool();
+  const primaryPool = getPool();
+  const backupPool = getBackupPool();
   const tables: TableDiffSummary[] = [];
 
-  // Build UserID remap so compare ignores UserID differences (local=1, remote=2)
-  const userIdRemap = await buildUserIdRemap(localPool, remotePool);
+  // Build UserID remap so compare ignores UserID differences
+  const userIdRemap = await buildUserIdRemap(primaryPool, backupPool);
 
   const diffPromises = SYNCABLE_TABLES.map(async (config) => {
     const selectAll = `SELECT * FROM "${config.table}" ORDER BY "${config.pk}"`;
     const hasUserIdCol = config.columns.includes('UserID');
 
-    const [localRows, remoteRows] = await Promise.all([
-      localPool.query(selectAll).then((r) => r.rows as RowRecord[]),
-      remotePool.query(selectAll).then((r) => r.rows as RowRecord[]),
+    const [primaryRows, backupRows] = await Promise.all([
+      primaryPool.query(selectAll).then((r) => r.rows as RowRecord[]),
+      backupPool.query(selectAll).then((r) => r.rows as RowRecord[]),
     ]);
 
-    const localMap = new Map<number, RowRecord>();
-    localRows.forEach((row) => {
-      // Remap local UserID to remote equivalent for fair comparison
+    const primaryMap = new Map<number, RowRecord>();
+    primaryRows.forEach((row) => {
+      // Remap primary UserID to backup equivalent for fair comparison
       const normalized = hasUserIdCol ? remapUserIds(row, userIdRemap) : row;
-      localMap.set(Number(row[config.pk]), normalized);
+      primaryMap.set(Number(row[config.pk]), normalized);
     });
 
-    const remoteMap = new Map<number, RowRecord>();
-    remoteRows.forEach((row) => {
-      remoteMap.set(Number(row[config.pk]), row);
+    const backupMap = new Map<number, RowRecord>();
+    backupRows.forEach((row) => {
+      backupMap.set(Number(row[config.pk]), row);
     });
 
-    const onlyInLocal: RowDiff[] = [];
-    const onlyInRemote: RowDiff[] = [];
+    const onlyInPrimary: RowDiff[] = [];
+    const onlyInBackup: RowDiff[] = [];
     const modified: RowDiff[] = [];
     let unchangedCount = 0;
 
-    // Check local rows
-    localMap.forEach((localRow, pk) => {
-      const remoteRow = remoteMap.get(pk);
-      if (!remoteRow) {
-        onlyInLocal.push({
+    // Check primary rows
+    primaryMap.forEach((primaryRow, pk) => {
+      const backupRow = backupMap.get(pk);
+      if (!backupRow) {
+        onlyInPrimary.push({
           pk,
-          description: getDescription(localRow, config),
-          localUpdatedAt: localRow.UpdatedAt ? String(localRow.UpdatedAt) : null,
-          remoteUpdatedAt: null,
+          description: getDescription(primaryRow, config),
+          primaryUpdatedAt: primaryRow.UpdatedAt ? String(primaryRow.UpdatedAt) : null,
+          backupUpdatedAt: null,
         });
       } else if (config.hasUpdatedAt) {
-        const localTime = new Date(String(localRow.UpdatedAt)).getTime();
-        const remoteTime = new Date(String(remoteRow.UpdatedAt)).getTime();
-        if (localTime !== remoteTime) {
+        const primaryTime = new Date(String(primaryRow.UpdatedAt)).getTime();
+        const backupTime = new Date(String(backupRow.UpdatedAt)).getTime();
+        if (primaryTime !== backupTime) {
           modified.push({
             pk,
-            description: getDescription(localRow, config),
-            localUpdatedAt: String(localRow.UpdatedAt),
-            remoteUpdatedAt: String(remoteRow.UpdatedAt),
+            description: getDescription(primaryRow, config),
+            primaryUpdatedAt: String(primaryRow.UpdatedAt),
+            backupUpdatedAt: String(backupRow.UpdatedAt),
           });
         } else {
           unchangedCount++;
         }
       } else {
         // No UpdatedAt — compare by hash
-        const localH = rowHash(localRow, config.columns);
-        const remoteH = rowHash(remoteRow, config.columns);
-        if (localH !== remoteH) {
+        const primaryH = rowHash(primaryRow, config.columns);
+        const backupH = rowHash(backupRow, config.columns);
+        if (primaryH !== backupH) {
           modified.push({
             pk,
-            description: getDescription(localRow, config),
-            localUpdatedAt: null,
-            remoteUpdatedAt: null,
+            description: getDescription(primaryRow, config),
+            primaryUpdatedAt: null,
+            backupUpdatedAt: null,
           });
         } else {
           unchangedCount++;
@@ -437,24 +436,24 @@ export async function computeDiff(): Promise<SyncCompareResult> {
       }
     });
 
-    // Check remote-only rows
-    remoteMap.forEach((remoteRow, pk) => {
-      if (!localMap.has(pk)) {
-        onlyInRemote.push({
+    // Check backup-only rows
+    backupMap.forEach((backupRow, pk) => {
+      if (!primaryMap.has(pk)) {
+        onlyInBackup.push({
           pk,
-          description: getDescription(remoteRow, config),
-          localUpdatedAt: null,
-          remoteUpdatedAt: remoteRow.UpdatedAt ? String(remoteRow.UpdatedAt) : null,
+          description: getDescription(backupRow, config),
+          primaryUpdatedAt: null,
+          backupUpdatedAt: backupRow.UpdatedAt ? String(backupRow.UpdatedAt) : null,
         });
       }
     });
 
     return {
       table: config.table,
-      localCount: localRows.length,
-      remoteCount: remoteRows.length,
-      onlyInLocal,
-      onlyInRemote,
+      primaryCount: primaryRows.length,
+      backupCount: backupRows.length,
+      onlyInPrimary,
+      onlyInBackup,
       modified,
       unchangedCount,
     };
@@ -469,14 +468,14 @@ export async function computeDiff(): Promise<SyncCompareResult> {
 
   return {
     tables,
-    localUrl: maskUrl(process.env.DATABASE_URL ?? ''),
-    remoteUrl: maskUrl(process.env.REMOTE_DATABASE_URL ?? ''),
+    primaryUrl: maskUrl(process.env.DATABASE_URL ?? ''),
+    backupUrl: maskUrl(process.env.BACKUP_DATABASE_URL ?? ''),
     comparedAt: new Date().toISOString(),
   };
 }
 
 // ============================================================
-// Execute Sync
+// Execute Backup (Primary → Backup only)
 // ============================================================
 
 // Build a UserID remap from source → target by matching on email
@@ -515,18 +514,14 @@ function remapUserIds(row: RowRecord, userIdRemap: Map<number, number>): RowReco
   return { ...row, UserID: remapped };
 }
 
-export async function executeSync(
-  direction: SyncDirection,
+export async function executeBackup(
   includeDeletes: boolean,
   onProgress?: (event: SyncProgressEvent) => void,
 ): Promise<SyncExecutionResult> {
-  const localPool = getPool();
-  const remotePool = getRemotePool();
+  const sourcePool = getPool(); // Primary (DATABASE_URL)
+  const targetPool = getBackupPool(); // Backup (BACKUP_DATABASE_URL)
 
-  const sourcePool = direction === SYNC_DIRECTION.PUSH ? localPool : remotePool;
-  const targetPool = direction === SYNC_DIRECTION.PUSH ? remotePool : localPool;
-
-  // Remap UserIDs between source and target by matching email
+  // Remap UserIDs between primary and backup by matching email
   const userIdRemap = await buildUserIdRemap(sourcePool, targetPool);
 
   const targetClient = await targetPool.connect();
@@ -536,7 +531,7 @@ export async function executeSync(
   try {
     await targetClient.query('BEGIN');
 
-    // Disable UpdatedAt triggers so sync preserves original timestamps
+    // Disable UpdatedAt triggers so backup preserves original timestamps
     await Promise.all(
       tablesWithTriggers.map((c) =>
         targetClient.query(`ALTER TABLE "${c.table}" DISABLE TRIGGER "TR_${c.table}_UpdatedAt"`),
@@ -545,7 +540,7 @@ export async function executeSync(
 
     onProgress?.({ phase: 'setup', message: 'Disabling triggers...' });
 
-    // Disable VendorName sync triggers so sync preserves exact data
+    // Disable VendorName sync triggers so backup preserves exact data
     await Promise.all([
       targetClient.query('ALTER TABLE "Transactions" DISABLE TRIGGER "TR_Transactions_SyncVendorName"').catch(() => {}),
       targetClient
@@ -639,7 +634,7 @@ export async function executeSync(
         });
       }
 
-      // Remap UserIDs for target DB
+      // Remap UserIDs for backup DB
       const hasUserIdCol = config.columns.includes('UserID');
       const remappedInserts = hasUserIdCol ? toInsert.map((r) => remapUserIds(r, userIdRemap)) : toInsert;
       const remappedUpdates = hasUserIdCol ? toUpdate.map((r) => remapUserIds(r, userIdRemap)) : toUpdate;
@@ -725,7 +720,6 @@ export async function executeSync(
   });
 
   return {
-    direction,
     includeDeletes,
     tables: orderedResults,
     executedAt: new Date().toISOString(),
@@ -785,7 +779,7 @@ async function batchUpdate(
   config: TableConfig,
   rows: RowRecord[],
 ): Promise<void> {
-  // Update rows one at a time (simpler, sufficient for sync use case)
+  // Update rows one at a time (simpler, sufficient for backup use case)
   const updateCols = config.columns.filter((c) => c !== config.pk);
 
   const setClauses = updateCols.map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');

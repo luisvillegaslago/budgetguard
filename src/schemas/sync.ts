@@ -1,13 +1,11 @@
 /**
- * BudgetGuard Sync Schemas
- * Zod validation for sync API endpoints
+ * BudgetGuard Backup Schemas
+ * Zod validation for backup API endpoints
  */
 
 import { z } from 'zod';
-import { SYNC_DIRECTION } from '@/constants/finance';
 
 export const SyncExecuteSchema = z.object({
-  direction: z.enum([SYNC_DIRECTION.PUSH, SYNC_DIRECTION.PULL]),
   includeDeletes: z.boolean(),
 });
 

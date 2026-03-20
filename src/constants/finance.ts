@@ -121,7 +121,7 @@ export const CACHE_TIME = {
 // Database Pool Configuration
 export const DB_POOL = {
   MAX_CONNECTIONS: 10,
-  MAX_CONNECTIONS_REMOTE: 5,
+  MAX_CONNECTIONS_BACKUP: 5,
   IDLE_TIMEOUT_MS: 30_000,
 } as const;
 
@@ -208,14 +208,6 @@ export const GASTOS_DIFICIL = {
   RATE: 5, // 5% of net income
   MAX_CENTS: 200_000, // 2,000€ annual cap
 } as const;
-
-// Sync Direction
-export const SYNC_DIRECTION = {
-  PUSH: 'push',
-  PULL: 'pull',
-} as const;
-
-export type SyncDirection = (typeof SYNC_DIRECTION)[keyof typeof SYNC_DIRECTION];
 
 // Invoice Statuses
 export const INVOICE_STATUS = {

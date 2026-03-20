@@ -1,6 +1,6 @@
 /**
- * BudgetGuard Database Sync Hooks
- * TanStack Query hooks for comparing and syncing local ↔ remote databases
+ * BudgetGuard Database Backup Hooks
+ * TanStack Query hooks for comparing and backing up primary → backup databases
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -27,7 +27,7 @@ async function fetchSyncCompare(): Promise<SyncCompareResult> {
 }
 
 /**
- * Hook to compare local and remote databases
+ * Hook to compare primary and backup databases
  * Manual refetch only (no automatic polling)
  */
 export function useSyncCompare() {
@@ -47,7 +47,7 @@ interface SyncExecuteState {
 }
 
 /**
- * Hook to execute a sync operation with SSE progress streaming
+ * Hook to execute a backup operation with SSE progress streaming
  */
 export function useSyncExecute() {
   const [state, setState] = useState<SyncExecuteState>({
@@ -74,7 +74,7 @@ export function useSyncExecute() {
       });
 
       if (!response.ok || !response.body) {
-        throw new Error('Error executing sync');
+        throw new Error('Error executing backup');
       }
 
       const reader = response.body.getReader();

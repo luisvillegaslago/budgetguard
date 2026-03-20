@@ -1,28 +1,26 @@
 'use client';
 
 /**
- * Database Sync Panel
- * Compares local and remote PostgreSQL databases and allows bidirectional sync.
+ * Database Backup Panel
+ * Compares primary and backup PostgreSQL databases and performs one-way backup.
+ * Always copies from primary (DATABASE_URL) to backup (BACKUP_DATABASE_URL).
  * Shows diff by table with expandable row details.
  */
 
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
-  ArrowDownToLine,
-  ArrowUpFromLine,
   Check,
   ChevronDown,
   ChevronRight,
   Database,
+  HardDriveDownload,
+  HardDriveUpload,
   Loader2,
-  Minus,
-  Plus,
   RefreshCw,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { SyncDirection } from '@/constants/finance';
-import { QUERY_KEY, SYNC_DIRECTION } from '@/constants/finance';
+import { QUERY_KEY } from '@/constants/finance';
 import { useSyncCompare, useSyncExecute } from '@/hooks/useDbSync';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { SyncProgressEvent, TableDiffSummary } from '@/types/sync';
@@ -46,7 +44,6 @@ export function DbSyncPanel() {
     queryClient.removeQueries({ queryKey: [QUERY_KEY.SYNC_COMPARE] });
   }, [queryClient]);
 
-  const [direction, setDirection] = useState<SyncDirection>(SYNC_DIRECTION.PUSH);
   const [includeDeletes, setIncludeDeletes] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
@@ -58,7 +55,7 @@ export function DbSyncPanel() {
 
   const handleExecute = async () => {
     setShowConfirm(false);
-    await executeSync({ direction, includeDeletes });
+    await executeSync({ includeDeletes });
     refetch();
   };
 
@@ -75,7 +72,7 @@ export function DbSyncPanel() {
   };
 
   const hasDifferences = compareResult?.tables.some(
-    (t) => t.onlyInLocal.length > 0 || t.onlyInRemote.length > 0 || t.modified.length > 0,
+    (t) => t.onlyInPrimary.length > 0 || t.onlyInBackup.length > 0 || t.modified.length > 0,
   );
 
   return (
@@ -95,10 +92,10 @@ export function DbSyncPanel() {
               {compareResult && (
                 <div className="flex items-center gap-4 text-xs text-guard-muted mt-1">
                   <span>
-                    {t('settings.sync.local-label')}: {compareResult.localUrl}
+                    {t('settings.sync.primary-label')}: {compareResult.primaryUrl}
                   </span>
                   <span>
-                    {t('settings.sync.remote-label')}: {compareResult.remoteUrl}
+                    {t('settings.sync.backup-label')}: {compareResult.backupUrl}
                   </span>
                 </div>
               )}
@@ -129,16 +126,18 @@ export function DbSyncPanel() {
             <thead>
               <tr className="bg-muted">
                 <th className="text-left px-4 py-2 font-medium text-foreground">{t('settings.sync.table')}</th>
-                <th className="text-right px-3 py-2 font-medium text-foreground">{t('settings.sync.local-count')}</th>
-                <th className="text-right px-3 py-2 font-medium text-foreground">{t('settings.sync.remote-count')}</th>
+                <th className="text-right px-3 py-2 font-medium text-foreground">{t('settings.sync.primary-count')}</th>
+                <th className="text-right px-3 py-2 font-medium text-foreground">{t('settings.sync.backup-count')}</th>
                 <th className="text-right px-3 py-2 font-medium text-guard-success">
-                  <Plus className="h-3.5 w-3.5 inline" aria-hidden="true" /> {t('settings.sync.new')}
+                  <HardDriveUpload className="h-3.5 w-3.5 inline" aria-hidden="true" />{' '}
+                  {t('settings.sync.only-in-primary')}
                 </th>
                 <th className="text-right px-3 py-2 font-medium text-guard-primary">
                   <RefreshCw className="h-3.5 w-3.5 inline" aria-hidden="true" /> {t('settings.sync.modified')}
                 </th>
                 <th className="text-right px-3 py-2 font-medium text-guard-danger">
-                  <Minus className="h-3.5 w-3.5 inline" aria-hidden="true" /> {t('settings.sync.deleted')}
+                  <HardDriveDownload className="h-3.5 w-3.5 inline" aria-hidden="true" />{' '}
+                  {t('settings.sync.only-in-backup')}
                 </th>
               </tr>
             </thead>
@@ -163,40 +162,12 @@ export function DbSyncPanel() {
         </div>
       )}
 
-      {/* Sync Controls */}
+      {/* Backup Controls */}
       {compareResult && hasDifferences && !isSyncing && (
         <div className="space-y-4 pt-2">
-          {/* Direction */}
-          <div>
-            <span className="block text-sm font-medium text-foreground mb-2">{t('settings.sync.direction')}</span>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setDirection(SYNC_DIRECTION.PUSH)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all',
-                  direction === SYNC_DIRECTION.PUSH
-                    ? 'border-guard-primary bg-guard-primary/10 text-guard-primary'
-                    : 'border-border text-guard-muted hover:text-foreground hover:border-foreground/30',
-                )}
-              >
-                <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
-                {t('settings.sync.push')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDirection(SYNC_DIRECTION.PULL)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all',
-                  direction === SYNC_DIRECTION.PULL
-                    ? 'border-guard-primary bg-guard-primary/10 text-guard-primary'
-                    : 'border-border text-guard-muted hover:text-foreground hover:border-foreground/30',
-                )}
-              >
-                <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
-                {t('settings.sync.pull')}
-              </button>
-            </div>
+          {/* Direction info */}
+          <div className="rounded-lg bg-muted/50 border border-border p-3">
+            <p className="text-sm text-guard-muted">{t('settings.sync.backup-direction-hint')}</p>
           </div>
 
           {/* Include Deletes */}
@@ -270,7 +241,6 @@ export function DbSyncPanel() {
       {/* Confirmation Modal */}
       {showConfirm && (
         <ConfirmModal
-          direction={direction}
           includeDeletes={includeDeletes}
           onConfirm={handleExecute}
           onCancel={() => setShowConfirm(false)}
@@ -294,7 +264,7 @@ function TableRow({
   onToggle: () => void;
 }) {
   const { t } = useTranslate();
-  const hasChanges = diff.onlyInLocal.length > 0 || diff.onlyInRemote.length > 0 || diff.modified.length > 0;
+  const hasChanges = diff.onlyInPrimary.length > 0 || diff.onlyInBackup.length > 0 || diff.modified.length > 0;
 
   return (
     <>
@@ -316,15 +286,15 @@ function TableRow({
             {diff.table}
           </div>
         </td>
-        <td className="text-right px-3 py-2.5 tabular-nums">{diff.localCount}</td>
-        <td className="text-right px-3 py-2.5 tabular-nums">{diff.remoteCount}</td>
+        <td className="text-right px-3 py-2.5 tabular-nums">{diff.primaryCount}</td>
+        <td className="text-right px-3 py-2.5 tabular-nums">{diff.backupCount}</td>
         <td
           className={cn(
             'text-right px-3 py-2.5 tabular-nums',
-            diff.onlyInLocal.length > 0 && 'text-guard-success font-medium',
+            diff.onlyInPrimary.length > 0 && 'text-guard-success font-medium',
           )}
         >
-          {diff.onlyInLocal.length > 0 ? `+${diff.onlyInLocal.length}` : '-'}
+          {diff.onlyInPrimary.length > 0 ? `+${diff.onlyInPrimary.length}` : '-'}
         </td>
         <td
           className={cn(
@@ -337,46 +307,46 @@ function TableRow({
         <td
           className={cn(
             'text-right px-3 py-2.5 tabular-nums',
-            diff.onlyInRemote.length > 0 && 'text-guard-danger font-medium',
+            diff.onlyInBackup.length > 0 && 'text-guard-danger font-medium',
           )}
         >
-          {diff.onlyInRemote.length > 0 ? diff.onlyInRemote.length : '-'}
+          {diff.onlyInBackup.length > 0 ? diff.onlyInBackup.length : '-'}
         </td>
       </tr>
       {isExpanded && hasChanges && (
         <tr>
           <td colSpan={6} className="px-4 py-3 bg-muted/30">
             <div className="space-y-3 text-xs">
-              {diff.onlyInLocal.length > 0 && (
+              {diff.onlyInPrimary.length > 0 && (
                 <div>
                   <span className="font-medium text-guard-success">
-                    {t('settings.sync.only-in-local')} ({diff.onlyInLocal.length})
+                    {t('settings.sync.only-in-primary')} ({diff.onlyInPrimary.length})
                   </span>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {diff.onlyInLocal.slice(0, 20).map((row) => (
+                    {diff.onlyInPrimary.slice(0, 20).map((row) => (
                       <span key={row.pk} className="px-2 py-0.5 rounded bg-guard-success/10 text-guard-success">
                         #{row.pk} {row.description}
                       </span>
                     ))}
-                    {diff.onlyInLocal.length > 20 && (
-                      <span className="px-2 py-0.5 text-guard-muted">+{diff.onlyInLocal.length - 20} more</span>
+                    {diff.onlyInPrimary.length > 20 && (
+                      <span className="px-2 py-0.5 text-guard-muted">+{diff.onlyInPrimary.length - 20} more</span>
                     )}
                   </div>
                 </div>
               )}
-              {diff.onlyInRemote.length > 0 && (
+              {diff.onlyInBackup.length > 0 && (
                 <div>
                   <span className="font-medium text-guard-danger">
-                    {t('settings.sync.only-in-remote')} ({diff.onlyInRemote.length})
+                    {t('settings.sync.only-in-backup')} ({diff.onlyInBackup.length})
                   </span>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {diff.onlyInRemote.slice(0, 20).map((row) => (
+                    {diff.onlyInBackup.slice(0, 20).map((row) => (
                       <span key={row.pk} className="px-2 py-0.5 rounded bg-guard-danger/10 text-guard-danger">
                         #{row.pk} {row.description}
                       </span>
                     ))}
-                    {diff.onlyInRemote.length > 20 && (
-                      <span className="px-2 py-0.5 text-guard-muted">+{diff.onlyInRemote.length - 20} more</span>
+                    {diff.onlyInBackup.length > 20 && (
+                      <span className="px-2 py-0.5 text-guard-muted">+{diff.onlyInBackup.length - 20} more</span>
                     )}
                   </div>
                 </div>
@@ -460,12 +430,10 @@ function SyncProgress({ progress }: { progress: SyncProgressEvent | null }) {
 // ============================================================
 
 function ConfirmModal({
-  direction,
   includeDeletes,
   onConfirm,
   onCancel,
 }: {
-  direction: SyncDirection;
   includeDeletes: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -493,9 +461,7 @@ function ConfirmModal({
           </h3>
         </div>
 
-        <p className="text-sm text-guard-muted">
-          {direction === SYNC_DIRECTION.PUSH ? t('settings.sync.confirm-push') : t('settings.sync.confirm-pull')}
-        </p>
+        <p className="text-sm text-guard-muted">{t('settings.sync.confirm-backup')}</p>
 
         {includeDeletes && (
           <div className="rounded-lg bg-guard-danger/5 border border-guard-danger/20 p-3">

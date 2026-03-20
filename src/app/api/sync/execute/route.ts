@@ -1,12 +1,12 @@
 /**
- * BudgetGuard Sync Execute API
- * POST /api/sync/execute - Execute database sync with SSE progress streaming
+ * BudgetGuard Backup Execute API
+ * POST /api/sync/execute - Execute database backup (primary → backup) with SSE progress streaming
  * Dev-only: Returns 403 in production
  */
 
 import { API_ERROR } from '@/constants/finance';
 import { SyncExecuteSchema } from '@/schemas/sync';
-import { executeSync } from '@/services/database/SyncService';
+import { executeBackup } from '@/services/database/SyncService';
 import type { SyncProgressEvent } from '@/types/sync';
 
 export async function POST(request: Request) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const { direction, includeDeletes } = parsed.data;
+  const { includeDeletes } = parsed.data;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };
 
-      executeSync(direction, includeDeletes, send)
+      executeBackup(includeDeletes, send)
         .then((result) => {
           send({ phase: 'done', message: JSON.stringify(result) });
           controller.close();

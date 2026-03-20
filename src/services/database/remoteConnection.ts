@@ -1,6 +1,6 @@
 /**
- * BudgetGuard Remote Database Connection
- * Connects to the remote Neon PostgreSQL for sync operations.
+ * BudgetGuard Backup Database Connection
+ * Connects to the backup PostgreSQL for backup operations.
  * Only available in development mode.
  */
 
@@ -10,10 +10,10 @@ import { DB_POOL } from '@/constants/finance';
 
 type PoolInstance = NeonPool | PgPool;
 
-function getRemoteDatabaseUrl(): string {
-  const url = process.env.REMOTE_DATABASE_URL;
+function getBackupDatabaseUrl(): string {
+  const url = process.env.BACKUP_DATABASE_URL;
   if (!url) {
-    throw new Error('REMOTE_DATABASE_URL environment variable is not set');
+    throw new Error('BACKUP_DATABASE_URL environment variable is not set');
   }
   return url;
 }
@@ -30,45 +30,45 @@ function isNeonPoolerUrl(url: string): boolean {
 // Remote Connection Pool (single instance)
 // ============================================================
 
-let remotePool: PoolInstance | null = null;
+let backupPool: PoolInstance | null = null;
 
-export function getRemotePool(): PoolInstance {
-  if (!remotePool) {
-    const url = getRemoteDatabaseUrl();
+export function getBackupPool(): PoolInstance {
+  if (!backupPool) {
+    const url = getBackupDatabaseUrl();
     const config = {
       connectionString: url,
-      max: DB_POOL.MAX_CONNECTIONS_REMOTE,
+      max: DB_POOL.MAX_CONNECTIONS_BACKUP,
       idleTimeoutMillis: DB_POOL.IDLE_TIMEOUT_MS,
       // Neon pooler does not support search_path in startup params — only set for unpooled
       ...(isNeonUrl(url) && !isNeonPoolerUrl(url) && { options: '-c search_path=public' }),
     };
 
-    remotePool = isNeonUrl(url) ? new NeonPool(config) : new PgPool(config);
+    backupPool = isNeonUrl(url) ? new NeonPool(config) : new PgPool(config);
 
-    remotePool.on('error', (err: Error) => {
+    backupPool.on('error', (err: Error) => {
       // biome-ignore lint/suspicious/noConsole: Error logging needed for debugging
-      console.error('Remote database pool error:', err);
-      remotePool = null;
+      console.error('Backup database pool error:', err);
+      backupPool = null;
     });
   }
-  return remotePool;
+  return backupPool;
 }
 
 /**
- * Execute a parameterized SQL query on the remote database
+ * Execute a parameterized SQL query on the backup database
  */
-export async function remoteQuery<T>(text: string, params: unknown[] = []): Promise<T[]> {
-  const p = getRemotePool();
+export async function backupQuery<T>(text: string, params: unknown[] = []): Promise<T[]> {
+  const p = getBackupPool();
   const result = await p.query(text, params);
   return result.rows as T[];
 }
 
 /**
- * Close the remote connection pool
+ * Close the backup connection pool
  */
-export async function closeRemoteConnection(): Promise<void> {
-  if (remotePool) {
-    await remotePool.end();
-    remotePool = null;
+export async function closeBackupConnection(): Promise<void> {
+  if (backupPool) {
+    await backupPool.end();
+    backupPool = null;
   }
 }
