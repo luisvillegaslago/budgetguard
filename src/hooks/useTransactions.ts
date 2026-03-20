@@ -289,14 +289,6 @@ export function useGroupedTransactions(month: string, filters?: TransactionFilte
     const tripGroups: TripGroupDisplay[] = [];
 
     tripMap.forEach((txs, tripId) => {
-      // Single-transaction trips are treated as regular rows (consistent with group pattern)
-      if (txs.length <= 1) {
-        txs.forEach((tx) => {
-          nonTrip.push(tx);
-        });
-        return;
-      }
-
       const first = txs[0];
       if (!first) return;
 
