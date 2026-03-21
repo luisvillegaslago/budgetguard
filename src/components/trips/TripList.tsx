@@ -2,7 +2,8 @@
 
 /**
  * BudgetGuard Trip List
- * Displays all trips as card components with loading/error/empty states
+ * Displays all trips as card components with 3-way classification:
+ * in progress, upcoming, and completed
  */
 
 import { MapPin, Plus } from 'lucide-react';
@@ -34,20 +35,24 @@ export function TripList({ onAdd }: TripListProps) {
     return trips.filter((trip) => trip.name.toLowerCase().includes(query));
   }, [trips, searchQuery]);
 
-  const { upcoming, past } = useMemo(() => {
-    const upcomingTrips: TripDisplay[] = [];
-    const pastTrips: TripDisplay[] = [];
+  const { inProgress, upcoming, past } = useMemo(() => {
+    const groups: { inProgress: TripDisplay[]; upcoming: TripDisplay[]; past: TripDisplay[] } = {
+      inProgress: [],
+      upcoming: [],
+      past: [],
+    };
 
     filteredTrips.forEach((trip) => {
-      const isUpcoming = !trip.startDate || trip.startDate > today;
-      if (isUpcoming) {
-        upcomingTrips.push(trip);
+      if (!trip.startDate || trip.startDate > today) {
+        groups.upcoming.push(trip);
+      } else if (!trip.endDate || trip.endDate >= today) {
+        groups.inProgress.push(trip);
       } else {
-        pastTrips.push(trip);
+        groups.past.push(trip);
       }
     });
 
-    return { upcoming: upcomingTrips, past: pastTrips };
+    return groups;
   }, [filteredTrips, today]);
 
   const handleDelete = (tripId: number) => {
@@ -94,16 +99,39 @@ export function TripList({ onAdd }: TripListProps) {
     );
   }
 
+  const hasResults = inProgress.length > 0 || upcoming.length > 0 || past.length > 0;
+
   return (
     <div className="space-y-6">
       {/* Search filter */}
       <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={t('trips.search-placeholder')} />
 
       {/* Empty search result */}
-      {searchQuery && upcoming.length === 0 && past.length === 0 && (
+      {searchQuery && !hasResults && (
         <p className="text-center text-sm text-guard-muted py-6">{t('trips.search-empty')}</p>
       )}
 
+      {/* In Progress section — most relevant, shown first */}
+      {inProgress.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-guard-success uppercase tracking-wider mb-3">
+            {t('trips.in-progress')}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {inProgress.map((trip) => (
+              <TripCard
+                key={trip.tripId}
+                trip={trip}
+                onDelete={handleDelete}
+                isDeleting={deleteTrip.isPending}
+                isInProgress
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming section */}
       {upcoming.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-guard-primary uppercase tracking-wider mb-3">
@@ -123,9 +151,10 @@ export function TripList({ onAdd }: TripListProps) {
         </div>
       )}
 
+      {/* Past section */}
       {past.length > 0 && (
         <div>
-          {upcoming.length > 0 && (
+          {(inProgress.length > 0 || upcoming.length > 0) && (
             <h3 className="text-sm font-semibold text-guard-muted uppercase tracking-wider mb-3">{t('trips.past')}</h3>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

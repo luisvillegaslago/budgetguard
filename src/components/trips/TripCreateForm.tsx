@@ -2,7 +2,7 @@
 
 /**
  * BudgetGuard Trip Create Form
- * Simple modal form for creating a new trip
+ * Modal form for creating a new trip with name and date range
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -90,6 +90,52 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
                 {errors.name.message}
               </p>
             )}
+          </div>
+
+          {/* Date Range */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="trip-start-date" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('trips.create-form.fields.start-date')}
+              </label>
+              <input
+                id="trip-start-date"
+                type="date"
+                {...register('startDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.startDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.startDate && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.startDate.message}
+                </p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="trip-end-date" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('trips.create-form.fields.end-date')}
+              </label>
+              <input
+                id="trip-end-date"
+                type="date"
+                {...register('endDate')}
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  'transition-colors duration-200 ease-out-quart',
+                  errors.endDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              {errors.endDate && (
+                <p role="alert" className="mt-1 text-sm text-guard-danger">
+                  {errors.endDate.message}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Error Message */}

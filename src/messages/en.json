@@ -439,8 +439,10 @@
       "cta": "Create First Trip"
     },
     "upcoming": "Upcoming",
+    "in-progress": "In progress",
     "past": "Past",
     "upcoming-badge": "Upcoming",
+    "in-progress-badge": "In progress",
     "card": {
       "expenses": "{count} expenses",
       "no-expenses": "No expenses",
@@ -452,6 +454,8 @@
       "total": "Total",
       "edit-name": "Edit name",
       "save-name": "Save name",
+      "edit-dates": "Edit dates",
+      "save-dates": "Save dates",
       "cancel-edit": "Cancel edit",
       "empty": {
         "title": "No expenses in this trip",
@@ -484,7 +488,9 @@
       "title": "New Trip",
       "fields": {
         "name": "Trip name",
-        "name-placeholder": "Ex: Sierra Nevada 2026"
+        "name-placeholder": "Ex: Sierra Nevada 2026",
+        "start-date": "Start date",
+        "end-date": "End date"
       },
       "submit": "Create Trip",
       "saving": "Creating..."
@@ -1197,7 +1203,8 @@
     "duration-positive": "Duration must be positive",
     "modelo-type-mismatch": "Modelos require modeloType; invoices must not have it",
     "quarterly-mismatch": "Quarterly modelos require quarter; annual modelos must not",
-    "invalid-month-format": "Invalid month format. Use YYYY-MM"
+    "invalid-month-format": "Invalid month format. Use YYYY-MM",
+    "end-date-before-start": "End date must be on or after start date"
   },
   "api-error": {
     "unauthorized": "You need to sign in to access this resource",

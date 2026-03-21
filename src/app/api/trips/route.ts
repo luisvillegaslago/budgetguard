@@ -20,7 +20,11 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(CreateTripSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const trip = await createTrip(validation.data.name);
+  const trip = await createTrip(
+    validation.data.name,
+    validation.data.startDate.toISOString().split('T')[0] ?? '',
+    validation.data.endDate.toISOString().split('T')[0] ?? '',
+  );
 
   return { data: trip, status: 201 };
 }, 'POST /api/trips');

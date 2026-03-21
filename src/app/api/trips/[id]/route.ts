@@ -1,11 +1,10 @@
 /**
  * BudgetGuard Trips API - Single Resource
  * GET /api/trips/[id] - Get trip with full details
- * PATCH /api/trips/[id] - Update trip name
+ * PATCH /api/trips/[id] - Update trip (name, dates)
  * DELETE /api/trips/[id] - Delete trip and all linked transactions
  */
 
-import { NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { validateRequest } from '@/schemas/transaction';
 import { UpdateTripSchema } from '@/schemas/trip';
@@ -32,11 +31,17 @@ export const PATCH = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(UpdateTripSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  if (!validation.data.name) {
-    return NextResponse.json({ success: false, error: 'Nombre requerido' }, { status: 400 });
+  const updateParams: { name?: string; startDate?: string; endDate?: string } = {};
+
+  if (validation.data.name) updateParams.name = validation.data.name;
+  if (validation.data.startDate) updateParams.startDate = validation.data.startDate.toISOString().split('T')[0] ?? '';
+  if (validation.data.endDate) updateParams.endDate = validation.data.endDate.toISOString().split('T')[0] ?? '';
+
+  if (Object.keys(updateParams).length === 0) {
+    return validationError({ _: [API_ERROR.VALIDATION.NAME_REQUIRED] });
   }
 
-  const trip = await updateTrip(tripId, validation.data.name);
+  const trip = await updateTrip(tripId, updateParams);
   if (!trip) return notFound(API_ERROR.NOT_FOUND.TRIP);
 
   return { data: trip };

@@ -8,13 +8,15 @@ import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import type { Trip, TripDetail, TripDisplay } from '@/types/finance';
 
 // Captured data for assertions
-let capturedCreateName: string | null = null;
-let capturedUpdateData: { tripId: number; name: string } | null = null;
+let capturedCreateData: { name: string; startDate: string; endDate: string } | null = null;
+let capturedUpdateData: { tripId: number; params: Record<string, string> } | null = null;
 let capturedDeleteId: number | null = null;
 
 const mockTrip: Trip = {
   tripId: 1,
   name: 'Sierra Nevada 2025',
+  startDate: '2025-10-15',
+  endDate: '2025-10-17',
   createdAt: '2025-10-01T10:00:00.000Z',
   updatedAt: '2025-10-01T10:00:00.000Z',
 };
@@ -128,13 +130,13 @@ jest.mock('@/services/database/TripRepository', () => ({
     if (id === 1) return mockTripDetail;
     return null;
   }),
-  createTrip: jest.fn(async (name: string) => {
-    capturedCreateName = name;
-    return { ...mockTrip, name };
+  createTrip: jest.fn(async (name: string, startDate: string, endDate: string) => {
+    capturedCreateData = { name, startDate, endDate };
+    return { ...mockTrip, name, startDate, endDate };
   }),
-  updateTrip: jest.fn(async (tripId: number, name: string) => {
-    capturedUpdateData = { tripId, name };
-    if (tripId === 1) return { ...mockTrip, name };
+  updateTrip: jest.fn(async (tripId: number, params: Record<string, string>) => {
+    capturedUpdateData = { tripId, params };
+    if (tripId === 1) return { ...mockTrip, ...params };
     return null;
   }),
   deleteTrip: jest.fn(async (tripId: number) => {
@@ -201,22 +203,24 @@ describe('GET /api/trips', () => {
 // ============================
 describe('POST /api/trips', () => {
   beforeEach(() => {
-    capturedCreateName = null;
+    capturedCreateData = null;
   });
 
-  it('should create a trip with valid name', async () => {
-    const request = createMockRequest({ name: 'Madrid Weekend' });
+  it('should create a trip with valid name and dates', async () => {
+    const request = createMockRequest({ name: 'Madrid Weekend', startDate: '2025-11-01', endDate: '2025-11-03' });
     const response = await POST_TRIP(request as any);
     const data = await response.json();
 
     expect(response.status).toBe(201);
     expect(data.success).toBe(true);
     expect(data.data.name).toBe('Madrid Weekend');
-    expect(capturedCreateName).toBe('Madrid Weekend');
+    expect(capturedCreateData?.name).toBe('Madrid Weekend');
+    expect(capturedCreateData?.startDate).toBe('2025-11-01');
+    expect(capturedCreateData?.endDate).toBe('2025-11-03');
   });
 
   it('should reject empty name', async () => {
-    const request = createMockRequest({ name: '' });
+    const request = createMockRequest({ name: '', startDate: '2025-11-01', endDate: '2025-11-03' });
     const response = await POST_TRIP(request as any);
     const data = await response.json();
 
@@ -226,14 +230,28 @@ describe('POST /api/trips', () => {
   });
 
   it('should reject missing name', async () => {
-    const request = createMockRequest({});
+    const request = createMockRequest({ startDate: '2025-11-01', endDate: '2025-11-03' });
+    const response = await POST_TRIP(request as any);
+
+    expect(response.status).toBe(400);
+  });
+
+  it('should reject missing dates', async () => {
+    const request = createMockRequest({ name: 'Test Trip' });
+    const response = await POST_TRIP(request as any);
+
+    expect(response.status).toBe(400);
+  });
+
+  it('should reject endDate before startDate', async () => {
+    const request = createMockRequest({ name: 'Test Trip', startDate: '2025-11-03', endDate: '2025-11-01' });
     const response = await POST_TRIP(request as any);
 
     expect(response.status).toBe(400);
   });
 
   it('should reject name longer than 100 characters', async () => {
-    const request = createMockRequest({ name: 'A'.repeat(101) });
+    const request = createMockRequest({ name: 'A'.repeat(101), startDate: '2025-11-01', endDate: '2025-11-03' });
     const response = await POST_TRIP(request as any);
 
     expect(response.status).toBe(400);
@@ -294,7 +312,19 @@ describe('PATCH /api/trips/[id]', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.data.name).toBe('Sierra Nevada 2026');
-    expect(capturedUpdateData).toEqual({ tripId: 1, name: 'Sierra Nevada 2026' });
+    expect(capturedUpdateData?.tripId).toBe(1);
+    expect(capturedUpdateData?.params.name).toBe('Sierra Nevada 2026');
+  });
+
+  it('should update trip dates', async () => {
+    const request = createMockRequest({ startDate: '2025-12-01', endDate: '2025-12-05' });
+    const response = await PATCH_TRIP(request as any, createMockParams('1'));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(capturedUpdateData?.params.startDate).toBe('2025-12-01');
+    expect(capturedUpdateData?.params.endDate).toBe('2025-12-05');
   });
 
   it('should return 404 for non-existent trip', async () => {
@@ -318,7 +348,7 @@ describe('PATCH /api/trips/[id]', () => {
     expect(response.status).toBe(400);
   });
 
-  it('should return 400 when name is omitted', async () => {
+  it('should return 400 when no fields provided', async () => {
     const request = createMockRequest({});
     const response = await PATCH_TRIP(request as any, createMockParams('1'));
 

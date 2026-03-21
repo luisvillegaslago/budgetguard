@@ -9,18 +9,38 @@ import { VALIDATION_KEY } from '@/constants/finance';
 /**
  * Schema for creating a new trip
  */
-export const CreateTripSchema = z.object({
-  name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(100, VALIDATION_KEY.NAME_TOO_LONG),
-});
+export const CreateTripSchema = z
+  .object({
+    name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(100, VALIDATION_KEY.NAME_TOO_LONG),
+    startDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
+    endDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
+  })
+  .refine((data) => data.endDate >= data.startDate, {
+    message: VALIDATION_KEY.END_DATE_BEFORE_START,
+    path: ['endDate'],
+  });
 
 export type CreateTripInput = z.infer<typeof CreateTripSchema>;
 
 /**
  * Schema for updating an existing trip
  */
-export const UpdateTripSchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido').max(100, 'El nombre es muy largo').optional(),
-});
+export const UpdateTripSchema = z
+  .object({
+    name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(100, VALIDATION_KEY.NAME_TOO_LONG).optional(),
+    startDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }).optional(),
+    endDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) return data.endDate >= data.startDate;
+      return true;
+    },
+    {
+      message: VALIDATION_KEY.END_DATE_BEFORE_START,
+      path: ['endDate'],
+    },
+  );
 
 export type UpdateTripInput = z.infer<typeof UpdateTripSchema>;
 

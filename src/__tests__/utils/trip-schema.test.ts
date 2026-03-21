@@ -10,8 +10,10 @@ import { CreateTripExpenseSchema, CreateTripSchema, UpdateTripExpenseSchema, Upd
 // CreateTripSchema
 // ============================
 describe('CreateTripSchema', () => {
-  it('should accept a valid trip name', () => {
-    const result = CreateTripSchema.safeParse({ name: 'Sierra Nevada 2025' });
+  const validTrip = { name: 'Sierra Nevada 2025', startDate: '2025-10-15', endDate: '2025-10-17' };
+
+  it('should accept a valid trip with name and dates', () => {
+    const result = CreateTripSchema.safeParse(validTrip);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.name).toBe('Sierra Nevada 2025');
@@ -19,27 +21,42 @@ describe('CreateTripSchema', () => {
   });
 
   it('should reject empty name', () => {
-    const result = CreateTripSchema.safeParse({ name: '' });
+    const result = CreateTripSchema.safeParse({ ...validTrip, name: '' });
     expect(result.success).toBe(false);
   });
 
   it('should reject missing name', () => {
-    const result = CreateTripSchema.safeParse({});
+    const result = CreateTripSchema.safeParse({ startDate: '2025-10-15', endDate: '2025-10-17' });
     expect(result.success).toBe(false);
   });
 
+  it('should reject missing dates', () => {
+    const result = CreateTripSchema.safeParse({ name: 'Test' });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject endDate before startDate', () => {
+    const result = CreateTripSchema.safeParse({ ...validTrip, startDate: '2025-10-17', endDate: '2025-10-15' });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept same startDate and endDate', () => {
+    const result = CreateTripSchema.safeParse({ ...validTrip, startDate: '2025-10-15', endDate: '2025-10-15' });
+    expect(result.success).toBe(true);
+  });
+
   it('should reject name longer than 100 characters', () => {
-    const result = CreateTripSchema.safeParse({ name: 'A'.repeat(101) });
+    const result = CreateTripSchema.safeParse({ ...validTrip, name: 'A'.repeat(101) });
     expect(result.success).toBe(false);
   });
 
   it('should accept name with exactly 100 characters', () => {
-    const result = CreateTripSchema.safeParse({ name: 'A'.repeat(100) });
+    const result = CreateTripSchema.safeParse({ ...validTrip, name: 'A'.repeat(100) });
     expect(result.success).toBe(true);
   });
 
   it('should accept name with 1 character', () => {
-    const result = CreateTripSchema.safeParse({ name: 'X' });
+    const result = CreateTripSchema.safeParse({ ...validTrip, name: 'X' });
     expect(result.success).toBe(true);
   });
 });
@@ -53,7 +70,12 @@ describe('UpdateTripSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should accept empty object (name is optional)', () => {
+  it('should accept date updates', () => {
+    const result = UpdateTripSchema.safeParse({ startDate: '2025-12-01', endDate: '2025-12-05' });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept empty object (all fields optional)', () => {
     const result = UpdateTripSchema.safeParse({});
     expect(result.success).toBe(true);
   });
@@ -65,6 +87,11 @@ describe('UpdateTripSchema', () => {
 
   it('should reject name longer than 100 characters', () => {
     const result = UpdateTripSchema.safeParse({ name: 'B'.repeat(101) });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject endDate before startDate when both provided', () => {
+    const result = UpdateTripSchema.safeParse({ startDate: '2025-12-05', endDate: '2025-12-01' });
     expect(result.success).toBe(false);
   });
 });

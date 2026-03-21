@@ -33,6 +33,7 @@ export type {
   StatusFilter,
   TransactionStatus,
   TransactionType,
+  TripStatus,
   VatRate,
 } from '@/constants/finance';
 
@@ -337,6 +338,8 @@ export interface TransactionFilters {
 export interface Trip {
   tripId: number;
   name: string;
+  startDate: string | null;
+  endDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -359,8 +362,6 @@ export interface TripCategorySummary {
 export interface TripDisplay extends Trip {
   expenseCount: number;
   totalCents: number;
-  startDate: string | null;
-  endDate: string | null;
   categorySummary: TripCategorySummary[];
 }
 

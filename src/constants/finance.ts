@@ -153,6 +153,15 @@ export const API_ENDPOINT = {
   FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
 } as const;
 
+// Trip Status
+export const TRIP_STATUS = {
+  UPCOMING: 'upcoming',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+} as const;
+
+export type TripStatus = (typeof TRIP_STATUS)[keyof typeof TRIP_STATUS];
+
 // Trip default color (matches guard-trip in Tailwind config)
 export const TRIP_COLOR = '#8B5CF6' as const;
 
@@ -424,4 +433,5 @@ export const VALIDATION_KEY = {
   MODELO_TYPE_MISMATCH: 'validation.modelo-type-mismatch',
   QUARTERLY_MISMATCH: 'validation.quarterly-mismatch',
   INVALID_MONTH_FORMAT: 'validation.invalid-month-format',
+  END_DATE_BEFORE_START: 'validation.end-date-before-start',
 } as const;

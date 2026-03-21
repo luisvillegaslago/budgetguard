@@ -6,7 +6,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
-import type { CreateTripInput, UpdateTripInput } from '@/schemas/trip';
+import type { CreateTripInput } from '@/schemas/trip';
 import type { ApiResponse, Trip, TripDetail, TripDisplay } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
@@ -64,7 +64,13 @@ async function createTripRequest(input: CreateTripInput): Promise<Trip> {
   return data.data;
 }
 
-async function updateTripRequest(params: { tripId: number; data: UpdateTripInput }): Promise<Trip> {
+interface UpdateTripData {
+  name?: string;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+async function updateTripRequest(params: { tripId: number; data: UpdateTripData }): Promise<Trip> {
   const response = await fetchApi(`${API_ENDPOINT.TRIPS}/${params.tripId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

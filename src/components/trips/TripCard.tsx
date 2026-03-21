@@ -20,9 +20,10 @@ interface TripCardProps {
   onDelete: (tripId: number) => void;
   isDeleting: boolean;
   isUpcoming?: boolean;
+  isInProgress?: boolean;
 }
 
-export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardProps) {
+export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress }: TripCardProps) {
   const { t } = useTranslate();
 
   // Category color bar: horizontal stacked bar proportional to totals
@@ -34,6 +35,7 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardPro
       className={cn(
         'card hover:shadow-md transition-all duration-200 ease-out-quart group block',
         isUpcoming && 'border-dashed border-guard-primary/40 opacity-80 hover:opacity-100',
+        isInProgress && 'border-guard-success/50 ring-1 ring-guard-success/20',
       )}
     >
       {/* Category color bar */}
@@ -61,6 +63,12 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming }: TripCardPro
             <h3 className="text-lg font-semibold text-foreground truncate">
               {trip.name} {(trip.startDate ?? trip.createdAt).slice(0, 4)}
             </h3>
+            {isInProgress && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-success/10 text-guard-success flex-shrink-0 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-guard-success animate-pulse" />
+                {t('trips.in-progress-badge')}
+              </span>
+            )}
             {isUpcoming && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary flex-shrink-0">
                 {t('trips.upcoming-badge')}

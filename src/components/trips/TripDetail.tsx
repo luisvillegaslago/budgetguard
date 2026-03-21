@@ -5,7 +5,7 @@
  * Main component for the trip detail page showing summary cards and expense list
  */
 
-import { Check, MapPin, Pencil, Plus, Receipt, X } from 'lucide-react';
+import { Calendar, Check, MapPin, Pencil, Plus, Receipt, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -13,7 +13,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteTripExpense } from '@/hooks/useTripExpenses';
 import { useUpdateTrip } from '@/hooks/useTrips';
 import type { Transaction, TripDetail as TripDetailType } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { TripExpenseRow } from './TripExpenseRow';
 import { TripSummaryCards } from './TripSummaryCards';
@@ -28,9 +28,13 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
   const { t } = useTranslate();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(trip.name);
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [editStartDate, setEditStartDate] = useState(trip.startDate ?? '');
+  const [editEndDate, setEditEndDate] = useState(trip.endDate ?? '');
   const updateTrip = useUpdateTrip();
   const deleteExpense = useDeleteTripExpense(trip.tripId);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const startDateInputRef = useRef<HTMLInputElement>(null);
 
   // Focus name input when entering edit mode (accessibility-safe alternative to autoFocus)
   const startEditing = useCallback(() => {
@@ -40,6 +44,16 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
   useEffect(() => {
     if (isEditingName) nameInputRef.current?.focus();
   }, [isEditingName]);
+
+  const startEditingDates = useCallback(() => {
+    setEditStartDate(trip.startDate ?? '');
+    setEditEndDate(trip.endDate ?? '');
+    setIsEditingDates(true);
+  }, [trip.startDate, trip.endDate]);
+
+  useEffect(() => {
+    if (isEditingDates) startDateInputRef.current?.focus();
+  }, [isEditingDates]);
 
   const handleSaveName = async () => {
     if (editName.trim() && editName !== trip.name) {
@@ -51,6 +65,25 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
   const handleCancelEdit = () => {
     setEditName(trip.name);
     setIsEditingName(false);
+  };
+
+  const handleSaveDates = async () => {
+    if (editStartDate && editEndDate && editEndDate >= editStartDate) {
+      const hasChanged = editStartDate !== trip.startDate || editEndDate !== trip.endDate;
+      if (hasChanged) {
+        await updateTrip.mutateAsync({
+          tripId: trip.tripId,
+          data: { startDate: new Date(editStartDate), endDate: new Date(editEndDate) },
+        });
+      }
+    }
+    setIsEditingDates(false);
+  };
+
+  const handleCancelDatesEdit = () => {
+    setEditStartDate(trip.startDate ?? '');
+    setEditEndDate(trip.endDate ?? '');
+    setIsEditingDates(false);
   };
 
   const handleDeleteExpense = (transactionId: number) => {
@@ -118,6 +151,81 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
         </button>
       </div>
 
+      {/* Editable date range */}
+      <div className="-mt-4">
+        {isEditingDates ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Calendar className="h-3.5 w-3.5 text-guard-muted flex-shrink-0" aria-hidden="true" />
+            <input
+              ref={startDateInputRef}
+              type="date"
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveDates();
+                if (e.key === 'Escape') handleCancelDatesEdit();
+              }}
+              className={cn(
+                'px-2 py-1 text-sm rounded border bg-background text-foreground',
+                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                editStartDate && editEndDate && editEndDate < editStartDate ? 'border-guard-danger' : 'border-input',
+              )}
+            />
+            <span className="text-sm text-guard-muted">—</span>
+            <input
+              type="date"
+              value={editEndDate}
+              onChange={(e) => setEditEndDate(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveDates();
+                if (e.key === 'Escape') handleCancelDatesEdit();
+              }}
+              className={cn(
+                'px-2 py-1 text-sm rounded border bg-background text-foreground',
+                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                editStartDate && editEndDate && editEndDate < editStartDate ? 'border-guard-danger' : 'border-input',
+              )}
+            />
+            <button
+              type="button"
+              onClick={handleSaveDates}
+              disabled={updateTrip.isPending || !editStartDate || !editEndDate || editEndDate < editStartDate}
+              className="p-1 text-guard-success hover:bg-guard-success/10 rounded transition-colors disabled:opacity-50"
+              aria-label={t('trips.detail.save-dates')}
+            >
+              {updateTrip.isPending ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelDatesEdit}
+              className="p-1 text-guard-muted hover:bg-muted rounded transition-colors"
+              aria-label={t('trips.detail.cancel-edit')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-sm text-guard-muted group/dates">
+            <Calendar className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+            {trip.startDate && trip.endDate ? (
+              <span>
+                {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+              </span>
+            ) : (
+              <span>{t('trips.card.no-dates')}</span>
+            )}
+            <button
+              type="button"
+              onClick={startEditingDates}
+              className="p-1 text-guard-muted hover:text-foreground hover:bg-muted rounded transition-colors opacity-0 group-hover/dates:opacity-100"
+              aria-label={t('trips.detail.edit-dates')}
+            >
+              <Pencil className="h-3 w-3" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Summary Cards */}
       <TripSummaryCards categorySummary={trip.categorySummary} />
 
@@ -144,7 +252,7 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
             }
           />
         ) : (
-          <ul className="-mx-4">
+          <ul className="-mx-3 sm:-mx-4">
             {trip.expenses.map((expense, index) => (
               <li key={expense.transactionId}>
                 <TripExpenseRow

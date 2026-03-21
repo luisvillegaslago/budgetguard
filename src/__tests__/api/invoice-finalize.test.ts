@@ -86,6 +86,7 @@ function createMockParams(id: string): { params: Promise<{ id: string }> } {
 // ============================================================
 
 describe('POST /api/invoices/[id]/finalize', () => {
+  // biome-ignore lint/suspicious/noConsole: save/restore console.error to silence expected errors in tests
   const originalConsoleError = console.error;
 
   beforeEach(() => {

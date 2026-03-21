@@ -439,8 +439,10 @@
       "cta": "Crear Primer Viaje"
     },
     "upcoming": "Próximos",
+    "in-progress": "En curso",
     "past": "Realizados",
     "upcoming-badge": "Próximo",
+    "in-progress-badge": "En curso",
     "card": {
       "expenses": "{count} gastos",
       "no-expenses": "Sin gastos",
@@ -452,6 +454,8 @@
       "total": "Total",
       "edit-name": "Editar nombre",
       "save-name": "Guardar nombre",
+      "edit-dates": "Editar fechas",
+      "save-dates": "Guardar fechas",
       "cancel-edit": "Cancelar edición",
       "empty": {
         "title": "No hay gastos en este viaje",
@@ -484,7 +488,9 @@
       "title": "Nuevo Viaje",
       "fields": {
         "name": "Nombre del viaje",
-        "name-placeholder": "Ej: Sierra Nevada 2026"
+        "name-placeholder": "Ej: Sierra Nevada 2026",
+        "start-date": "Fecha de inicio",
+        "end-date": "Fecha de fin"
       },
       "submit": "Crear Viaje",
       "saving": "Creando..."
@@ -1197,7 +1203,8 @@
     "duration-positive": "La duración debe ser positiva",
     "modelo-type-mismatch": "Los modelos requieren tipo de modelo; las facturas no deben tenerlo",
     "quarterly-mismatch": "Los modelos trimestrales requieren trimestre; los anuales no",
-    "invalid-month-format": "Formato de mes inválido. Usa YYYY-MM"
+    "invalid-month-format": "Formato de mes inválido. Usa YYYY-MM",
+    "end-date-before-start": "La fecha de fin debe ser igual o posterior a la de inicio"
   },
   "api-error": {
     "unauthorized": "Necesitas iniciar sesión para acceder a este recurso",

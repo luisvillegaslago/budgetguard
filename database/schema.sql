@@ -126,6 +126,8 @@ CREATE INDEX "IX_Companies_Role" ON "Companies"("Role");
 CREATE TABLE "Trips" (
     "TripID" SERIAL PRIMARY KEY,
     "Name" VARCHAR(100) NOT NULL,
+    "StartDate" DATE,
+    "EndDate" DATE,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -322,7 +324,7 @@ CREATE VIEW "vw_MonthlySummary" AS
 SELECT
     t."UserID",
     TO_CHAR(
-      CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
+      CASE WHEN t."TripID" IS NOT NULL THEN tr."StartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
     ) AS "Month",
     t."Type",
@@ -335,16 +337,12 @@ SELECT
 FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
-LEFT JOIN (
-    SELECT "TripID", MIN("TransactionDate") AS "TripStartDate"
-    FROM "Transactions" WHERE "TripID" IS NOT NULL AND "Status" = 'paid'
-    GROUP BY "TripID"
-) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
+LEFT JOIN "Trips" tr ON t."TripID" = tr."TripID"
 WHERE t."Status" = 'paid'
 GROUP BY
     t."UserID",
     TO_CHAR(
-      CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
+      CASE WHEN t."TripID" IS NOT NULL THEN tr."StartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
     ),
     t."Type",
@@ -369,7 +367,7 @@ CREATE VIEW "vw_SubcategorySummary" AS
 SELECT
     t."UserID",
     TO_CHAR(
-      CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
+      CASE WHEN t."TripID" IS NOT NULL THEN tr."StartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
     ) AS "Month",
     COALESCE(c."ParentCategoryID", c."CategoryID") AS "ParentCategoryID",
@@ -382,16 +380,12 @@ SELECT
     COUNT(*) AS "TransactionCount"
 FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
-LEFT JOIN (
-    SELECT "TripID", MIN("TransactionDate") AS "TripStartDate"
-    FROM "Transactions" WHERE "TripID" IS NOT NULL AND "Status" = 'paid'
-    GROUP BY "TripID"
-) "tripAgg" ON t."TripID" = "tripAgg"."TripID"
+LEFT JOIN "Trips" tr ON t."TripID" = tr."TripID"
 WHERE t."Status" = 'paid'
 GROUP BY
     t."UserID",
     TO_CHAR(
-      CASE WHEN t."TripID" IS NOT NULL THEN "tripAgg"."TripStartDate" ELSE t."TransactionDate" END,
+      CASE WHEN t."TripID" IS NOT NULL THEN tr."StartDate" ELSE t."TransactionDate" END,
       'YYYY-MM'
     ),
     COALESCE(c."ParentCategoryID", c."CategoryID"),

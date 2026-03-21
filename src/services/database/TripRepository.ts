@@ -21,6 +21,8 @@ function toISOString(val: Date | string): string {
 interface TripRow {
   TripID: number;
   Name: string;
+  StartDate: Date | null;
+  EndDate: Date | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -28,8 +30,6 @@ interface TripRow {
 interface TripAggregateRow extends TripRow {
   ExpenseCount: number;
   TotalCents: number;
-  StartDate: Date | null;
-  EndDate: Date | null;
 }
 
 interface TripCategorySummaryRow {
@@ -84,6 +84,8 @@ function rowToTrip(row: TripRow): Trip {
   return {
     tripId: row.TripID,
     name: row.Name,
+    startDate: row.StartDate ? toDateString(row.StartDate) : null,
+    endDate: row.EndDate ? toDateString(row.EndDate) : null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -154,17 +156,15 @@ export async function getAllTrips(): Promise<TripDisplay[]> {
 
   const tripsResult = await query<TripAggregateRow>(
     `SELECT
-      tr."TripID", tr."Name", tr."CreatedAt", tr."UpdatedAt",
+      tr."TripID", tr."Name", tr."StartDate", tr."EndDate",
+      tr."CreatedAt", tr."UpdatedAt",
       COALESCE(agg."ExpenseCount", 0) AS "ExpenseCount",
-      COALESCE(agg."TotalCents", 0) AS "TotalCents",
-      agg."StartDate", agg."EndDate"
+      COALESCE(agg."TotalCents", 0) AS "TotalCents"
     FROM "Trips" tr
     LEFT JOIN (
       SELECT "TripID",
         COUNT(*) AS "ExpenseCount",
-        SUM("AmountCents") AS "TotalCents",
-        MIN("TransactionDate") AS "StartDate",
-        MAX("TransactionDate") AS "EndDate"
+        SUM("AmountCents") AS "TotalCents"
       FROM "Transactions"
       WHERE "TripID" IS NOT NULL
       GROUP BY "TripID"
@@ -203,14 +203,9 @@ export async function getAllTrips(): Promise<TripDisplay[]> {
 
   return tripsResult.map(
     (row): TripDisplay => ({
-      tripId: row.TripID,
-      name: row.Name,
-      createdAt: toISOString(row.CreatedAt),
-      updatedAt: toISOString(row.UpdatedAt),
+      ...rowToTrip(row),
       expenseCount: Number(row.ExpenseCount),
       totalCents: Number(row.TotalCents),
-      startDate: row.StartDate ? toDateString(row.StartDate) : null,
-      endDate: row.EndDate ? toDateString(row.EndDate) : null,
       categorySummary: categoryMap.get(row.TripID) ?? [],
     }),
   );
@@ -223,7 +218,7 @@ export async function getTripById(tripId: number): Promise<TripDetail | null> {
   const userId = await getUserIdOrThrow();
 
   const tripResult = await query<TripRow>(
-    `SELECT "TripID", "Name", "CreatedAt", "UpdatedAt"
+    `SELECT "TripID", "Name", "StartDate", "EndDate", "CreatedAt", "UpdatedAt"
     FROM "Trips"
     WHERE "TripID" = $1 AND "UserID" = $2`,
     [tripId, userId],
@@ -284,14 +279,14 @@ export async function getTripById(tripId: number): Promise<TripDetail | null> {
 /**
  * Create a new trip (user-scoped)
  */
-export async function createTrip(name: string): Promise<Trip> {
+export async function createTrip(name: string, startDate: string, endDate: string): Promise<Trip> {
   const userId = await getUserIdOrThrow();
 
   const result = await query<TripRow>(
-    `INSERT INTO "Trips" ("Name", "UserID")
-    VALUES ($1, $2)
-    RETURNING "TripID", "Name", "CreatedAt", "UpdatedAt"`,
-    [name, userId],
+    `INSERT INTO "Trips" ("Name", "StartDate", "EndDate", "UserID")
+    VALUES ($1, $2, $3, $4)
+    RETURNING "TripID", "Name", "StartDate", "EndDate", "CreatedAt", "UpdatedAt"`,
+    [name, startDate, endDate, userId],
   );
 
   const row = result[0];
@@ -300,17 +295,46 @@ export async function createTrip(name: string): Promise<Trip> {
   return rowToTrip(row);
 }
 
+interface UpdateTripParams {
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
 /**
- * Update a trip name (verifies ownership)
+ * Update a trip (verifies ownership)
  */
-export async function updateTrip(tripId: number, name: string): Promise<Trip | null> {
+export async function updateTrip(tripId: number, params: UpdateTripParams): Promise<Trip | null> {
   const userId = await getUserIdOrThrow();
 
+  const setClauses: string[] = [];
+  const values: (string | number)[] = [];
+  let paramIndex = 1;
+
+  if (params.name !== undefined) {
+    setClauses.push(`"Name" = $${paramIndex++}`);
+    values.push(params.name);
+  }
+  if (params.startDate !== undefined) {
+    setClauses.push(`"StartDate" = $${paramIndex++}`);
+    values.push(params.startDate);
+  }
+  if (params.endDate !== undefined) {
+    setClauses.push(`"EndDate" = $${paramIndex++}`);
+    values.push(params.endDate);
+  }
+
+  if (setClauses.length === 0) return null;
+
+  values.push(tripId, userId);
+  const tripIdParam = paramIndex++;
+  const userIdParam = paramIndex;
+
   const result = await query<TripRow>(
-    `UPDATE "Trips" SET "Name" = $1
-    WHERE "TripID" = $2 AND "UserID" = $3
-    RETURNING "TripID", "Name", "CreatedAt", "UpdatedAt"`,
-    [name, tripId, userId],
+    `UPDATE "Trips" SET ${setClauses.join(', ')}
+    WHERE "TripID" = $${tripIdParam} AND "UserID" = $${userIdParam}
+    RETURNING "TripID", "Name", "StartDate", "EndDate", "CreatedAt", "UpdatedAt"`,
+    values,
   );
 
   const row = result[0];
