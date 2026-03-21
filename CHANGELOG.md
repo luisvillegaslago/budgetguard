@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.15.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.4...v0.15.0) (2026-03-21)
+
+
+### Features
+
+* **trips:** add explicit StartDate/EndDate with 3-way classification ([7453ddf](https://github.com/luisvillegaslago/budgetguard/commit/7453ddfc65d4dd60b9821a3ddb9053f47c70ef6f))
+
 ## [0.14.4](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.3...v0.14.4) (2026-03-20)
 
 
