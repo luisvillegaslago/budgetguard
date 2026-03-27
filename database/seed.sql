@@ -143,8 +143,6 @@ BEGIN
   ('Comida', 'expense', 'utensils', '#F59E0B', 3, v_id, FALSE),
   ('Restaurante', 'expense', 'chef-hat', '#06B6D4', 4, v_id, FALSE),
   ('Actividades', 'expense', 'ticket', '#10B981', 5, v_id, FALSE),
-  ('Esquí', 'expense', 'mountain-snow', '#3B82F6', 6, v_id, FALSE),
-  ('Otros', 'expense', 'ellipsis', '#64748B', 7, v_id, FALSE),
-  ('Skydive', 'expense', 'cloud', '#14B8A6', 8, v_id, FALSE),
-  ('Copas', 'expense', 'wine', '#EC4899', 9, v_id, FALSE);
+  ('Copas', 'expense', 'wine', '#EC4899', 6, v_id, FALSE),
+  ('Otros', 'expense', 'ellipsis', '#64748B', 7, v_id, FALSE);
 END $$;
