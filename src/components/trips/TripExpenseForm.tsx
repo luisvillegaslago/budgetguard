@@ -101,49 +101,6 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Category Selector (trip-specific categories) */}
-          <div>
-            <label htmlFor="trip-category" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('trips.expense-form.fields.category')}
-            </label>
-            {categoriesLoading ? (
-              <div className="flex items-center justify-center py-3">
-                <LoadingSpinner size="sm" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {categories?.map((cat) => {
-                  const isSelected = watchedCategoryId === cat.categoryId;
-                  const color = cat.color ?? TRIP_COLOR;
-                  return (
-                    <button
-                      key={cat.categoryId}
-                      type="button"
-                      onClick={() => setValue('categoryId', cat.categoryId, { shouldValidate: true })}
-                      className={cn(
-                        'flex items-center gap-2 p-2.5 rounded-lg border transition-all duration-200 ease-out-quart text-left',
-                        isSelected
-                          ? 'border-guard-primary bg-guard-primary/5 ring-1 ring-guard-primary'
-                          : 'border-border hover:border-guard-muted',
-                      )}
-                    >
-                      <div className="flex-shrink-0 p-1 rounded" style={{ backgroundColor: `${color}15` }}>
-                        <CategoryIcon icon={cat.icon} color={color} className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="text-sm text-foreground truncate">{cat.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
-            {errors.categoryId && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.categoryId.message}
-              </p>
-            )}
-          </div>
-
           {/* Amount + Date (side by side on desktop) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -242,6 +199,49 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
             {errors.description && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
                 {errors.description.message}
+              </p>
+            )}
+          </div>
+
+          {/* Category Selector (trip-specific categories) */}
+          <div>
+            <label htmlFor="trip-category" className="block text-sm font-medium text-foreground mb-1.5">
+              {t('trips.expense-form.fields.category')}
+            </label>
+            {categoriesLoading ? (
+              <div className="flex items-center justify-center py-3">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {categories?.map((cat) => {
+                  const isSelected = watchedCategoryId === cat.categoryId;
+                  const color = cat.color ?? TRIP_COLOR;
+                  return (
+                    <button
+                      key={cat.categoryId}
+                      type="button"
+                      onClick={() => setValue('categoryId', cat.categoryId, { shouldValidate: true })}
+                      className={cn(
+                        'flex items-center gap-2 p-2.5 rounded-lg border transition-all duration-200 ease-out-quart text-left',
+                        isSelected
+                          ? 'border-guard-primary bg-guard-primary/5 ring-1 ring-guard-primary'
+                          : 'border-border hover:border-guard-muted',
+                      )}
+                    >
+                      <div className="flex-shrink-0 p-1 rounded" style={{ backgroundColor: `${color}15` }}>
+                        <CategoryIcon icon={cat.icon} color={color} className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="text-sm text-foreground truncate">{cat.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
+            {errors.categoryId && (
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.categoryId.message}
               </p>
             )}
           </div>

@@ -374,10 +374,8 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
         ['Comida', 'utensils', '#F59E0B', 3, false],
         ['Restaurante', 'chef-hat', '#06B6D4', 4, false],
         ['Actividades', 'ticket', '#10B981', 5, false],
-        ['Esquí', 'mountain-snow', '#3B82F6', 6, false],
+        ['Copas', 'wine', '#EC4899', 6, false],
         ['Otros', 'ellipsis', '#64748B', 7, false],
-        ['Skydive', 'cloud', '#14B8A6', 8, false],
-        ['Copas', 'wine', '#EC4899', 9, false],
       ],
     },
   ];
