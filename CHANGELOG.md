@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.15.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.15.0...v0.15.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **seed:** reorder and clean up default expense categories ([7fa59a1](https://github.com/luisvillegaslago/budgetguard/commit/7fa59a1d261dc177a67ab0580141ed15fd8cdba8))
+* **trips:** ensure category selector renders correctly in TripExpenseForm ([c8eacd4](https://github.com/luisvillegaslago/budgetguard/commit/c8eacd4872940737640f744751c0f90d3f13d23e))
+
 ## [0.15.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.14.4...v0.15.0) (2026-03-21)
 
 
