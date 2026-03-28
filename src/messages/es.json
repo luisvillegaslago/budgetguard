@@ -82,7 +82,13 @@
     "actions": {
       "group-expense": "Agrupar",
       "add-invoice": "Factura",
+      "trip-expense": "Gasto viaje",
       "menu": "Menú"
+    },
+    "active-trip": {
+      "banner-title": "Viaje en curso",
+      "add-expense": "Añadir gasto",
+      "expenses-count": "{count} gastos · {total}"
     }
   },
   "transactions": {

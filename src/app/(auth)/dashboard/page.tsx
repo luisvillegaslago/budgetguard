@@ -5,7 +5,7 @@
  * Main page showing monthly overview, category breakdown, and transactions
  */
 
-import { FileInput, Layers, Plus } from 'lucide-react';
+import { FileInput, Layers, Plane, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
@@ -16,7 +16,10 @@ import { PendingTransactionsBanner } from '@/components/transactions/PendingTran
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionGroupForm } from '@/components/transactions/TransactionGroupForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
+import { ActiveTripBanner } from '@/components/trips/ActiveTripBanner';
+import { TripExpenseForm } from '@/components/trips/TripExpenseForm';
 import { MonthPicker } from '@/components/ui/MonthPicker';
+import { useActiveTrips } from '@/hooks/useActiveTrips';
 import { useDashboardUrlSync } from '@/hooks/useDashboardUrlSync';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useMonthNavigation, useSelectedMonth } from '@/stores/useFinanceStore';
@@ -48,6 +51,9 @@ export default function DashboardPage() {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [tripExpenseForTripId, setTripExpenseForTripId] = useState<number | null>(null);
+  const { activeTrips } = useActiveTrips();
+  const firstActiveTrip = activeTrips[0];
 
   // Bidirectional sync: URL ↔ Zustand (month, type filter)
   useDashboardUrlSync();
@@ -80,6 +86,18 @@ export default function DashboardPage() {
             <span>{t('dashboard.actions.add-invoice')}</span>
           </button>
 
+          {firstActiveTrip != null && (
+            <button
+              type="button"
+              onClick={() => setTripExpenseForTripId(firstActiveTrip.tripId)}
+              className="btn-ghost flex items-center gap-2"
+              aria-label={t('dashboard.actions.trip-expense')}
+            >
+              <Plane className="h-4 w-4" aria-hidden="true" />
+              <span>{t('dashboard.actions.trip-expense')}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowTransactionForm(true)}
@@ -94,6 +112,7 @@ export default function DashboardPage() {
 
       <div className="space-y-8">
         {/* Banners */}
+        <ActiveTripBanner onAddExpense={setTripExpenseForTripId} />
         <FiscalDeadlineBanner />
         <PendingTransactionsBanner />
 
@@ -134,6 +153,11 @@ export default function DashboardPage() {
       {/* Invoice Upload Modal */}
       {showInvoiceUpload && (
         <FiscalDocumentUpload year={new Date().getFullYear()} onClose={() => setShowInvoiceUpload(false)} />
+      )}
+
+      {/* Trip Expense Modal */}
+      {tripExpenseForTripId !== null && (
+        <TripExpenseForm tripId={tripExpenseForTripId} onClose={() => setTripExpenseForTripId(null)} />
       )}
     </div>
   );
