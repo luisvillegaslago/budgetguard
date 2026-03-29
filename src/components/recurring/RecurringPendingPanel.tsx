@@ -59,65 +59,68 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
   };
 
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-guard-warning/5 transition-colors">
-      {/* Category Icon */}
-      <div className="flex-shrink-0 p-1.5 rounded-md" style={{ backgroundColor: `${iconColor}15` }}>
-        <CategoryIcon icon={occurrence.recurringExpense.category?.icon} color={iconColor} />
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{occurrence.recurringExpense.category?.name}</p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-guard-muted">{formatDate(occurrence.occurrenceDate)}</span>
-          {occurrence.recurringExpense.description && (
-            <span className="text-xs text-guard-muted truncate">{occurrence.recurringExpense.description}</span>
-          )}
+    <div className="py-2.5 px-3 rounded-lg hover:bg-guard-warning/5 transition-colors">
+      {/* Desktop: single row. Mobile: two rows */}
+      <div className="flex items-center gap-3">
+        {/* Category Icon */}
+        <div className="flex-shrink-0 p-1.5 rounded-md" style={{ backgroundColor: `${iconColor}15` }}>
+          <CategoryIcon icon={occurrence.recurringExpense.category?.icon} color={iconColor} />
         </div>
-      </div>
 
-      {/* Amount / Modify input */}
-      {isModifying ? (
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            value={modifiedAmount}
-            onChange={(e) => setModifiedAmount(e.target.value)}
-            placeholder={String(centsToEuros(occurrence.recurringExpense.amountCents))}
-            className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
-            aria-label={t('recurring.pending.modified-amount')}
-          />
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isProcessing}
-            className="p-1 rounded text-guard-success hover:bg-guard-success/10"
-            aria-label={t('recurring.pending.confirm')}
-          >
-            <Check className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsModifying(false);
-              setModifiedAmount('');
-            }}
-            className="p-1 rounded text-guard-muted hover:bg-muted"
-            aria-label={t('common.buttons.cancel')}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{occurrence.recurringExpense.category?.name}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-guard-muted">{formatDate(occurrence.occurrenceDate)}</span>
+            {occurrence.recurringExpense.description && (
+              <span className="text-xs text-guard-muted truncate">{occurrence.recurringExpense.description}</span>
+            )}
+          </div>
         </div>
-      ) : (
-        <>
+
+        {/* Amount (always visible in row) */}
+        {!isModifying && (
           <span className="text-sm font-semibold text-guard-danger flex-shrink-0">
             {formatCurrency(occurrence.recurringExpense.amountCents)}
           </span>
+        )}
 
-          {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Desktop actions */}
+        {isModifying ? (
+          <div className="hidden sm:flex items-center gap-1.5">
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={modifiedAmount}
+              onChange={(e) => setModifiedAmount(e.target.value)}
+              placeholder={String(centsToEuros(occurrence.recurringExpense.amountCents))}
+              className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              aria-label={t('recurring.pending.modified-amount')}
+            />
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isProcessing}
+              className="p-1 rounded text-guard-success hover:bg-guard-success/10"
+              aria-label={t('recurring.pending.confirm')}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsModifying(false);
+                setModifiedAmount('');
+              }}
+              className="p-1 rounded text-guard-muted hover:bg-muted"
+              aria-label={t('common.buttons.cancel')}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
             <Tooltip content={t('recurring.pending.modify')}>
               <button
                 type="button"
@@ -148,8 +151,78 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
               {skipMutation.isPending ? <LoadingSpinner size="sm" /> : t('recurring.pending.skip')}
             </button>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      {/* Mobile actions row */}
+      <div className="flex sm:hidden items-center justify-end gap-1.5 mt-2 pl-10">
+        {isModifying ? (
+          <>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={modifiedAmount}
+              onChange={(e) => setModifiedAmount(e.target.value)}
+              placeholder={String(centsToEuros(occurrence.recurringExpense.amountCents))}
+              className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              aria-label={t('recurring.pending.modified-amount')}
+            />
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isProcessing}
+              className="p-1 rounded text-guard-success hover:bg-guard-success/10"
+              aria-label={t('recurring.pending.confirm')}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsModifying(false);
+                setModifiedAmount('');
+              }}
+              className="p-1 rounded text-guard-muted hover:bg-muted"
+              aria-label={t('common.buttons.cancel')}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        ) : (
+          <>
+            <Tooltip content={t('recurring.pending.modify')}>
+              <button
+                type="button"
+                onClick={() => setIsModifying(true)}
+                disabled={isProcessing}
+                className="p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={t('recurring.pending.modify')}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isProcessing}
+              className="px-2.5 py-1 rounded-md text-xs font-medium bg-guard-success/10 text-guard-success hover:bg-guard-success/20 transition-colors"
+              aria-label={t('recurring.pending.confirm')}
+            >
+              {confirmMutation.isPending ? <LoadingSpinner size="sm" /> : t('recurring.pending.confirm')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={isProcessing}
+              className="px-2.5 py-1 rounded-md text-xs font-medium bg-muted text-guard-muted hover:text-foreground transition-colors"
+              aria-label={t('recurring.pending.skip')}
+            >
+              {skipMutation.isPending ? <LoadingSpinner size="sm" /> : t('recurring.pending.skip')}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -253,7 +326,7 @@ export function RecurringPendingPanel() {
       <button
         type="button"
         onClick={togglePanel}
-        className="w-full flex items-center justify-between px-5 py-4 text-left"
+        className="w-full flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 text-left"
         aria-expanded={!isCollapsed}
       >
         <div className="flex items-center gap-3">
@@ -274,33 +347,38 @@ export function RecurringPendingPanel() {
       </button>
 
       {/* Content */}
-      {!isCollapsed && (
-        <div className="px-4 pb-4 space-y-3">
-          {data.months.map((monthData) => (
-            <MonthSection key={monthData.month} monthData={monthData} />
-          ))}
+      <div
+        className={cn('grid', isCollapsed ? 'animate-collapse-close' : 'animate-collapse-open')}
+        style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4 space-y-3">
+            {data.months.map((monthData) => (
+              <MonthSection key={monthData.month} monthData={monthData} />
+            ))}
 
-          {/* Global confirm all */}
-          {data.months.length > 1 && (
-            <div className="pt-2 border-t border-guard-warning/20">
-              <button
-                type="button"
-                onClick={handleConfirmAll}
-                disabled={confirmAllMutation.isPending}
-                className={cn(
-                  'w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200',
-                  'bg-guard-success/10 text-guard-success hover:bg-guard-success/20',
-                  'disabled:opacity-50 disabled:cursor-not-allowed',
-                )}
-              >
-                {confirmAllMutation.isPending
-                  ? t('recurring.pending.processing')
-                  : t('recurring.pending.confirm-all', { count: data.totalCount })}
-              </button>
-            </div>
-          )}
+            {/* Global confirm all */}
+            {data.months.length > 1 && (
+              <div className="pt-2 border-t border-guard-warning/20">
+                <button
+                  type="button"
+                  onClick={handleConfirmAll}
+                  disabled={confirmAllMutation.isPending}
+                  className={cn(
+                    'w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200',
+                    'bg-guard-success/10 text-guard-success hover:bg-guard-success/20',
+                    'disabled:opacity-50 disabled:cursor-not-allowed',
+                  )}
+                >
+                  {confirmAllMutation.isPending
+                    ? t('recurring.pending.processing')
+                    : t('recurring.pending.confirm-all', { count: data.totalCount })}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

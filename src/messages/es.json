@@ -82,7 +82,7 @@
     "actions": {
       "group-expense": "Agrupar",
       "add-invoice": "Factura",
-      "trip-expense": "Gasto viaje",
+
       "menu": "Menú"
     },
     "active-trip": {

@@ -154,55 +154,59 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
       {/* Editable date range */}
       <div className="-mt-4">
         {isEditingDates ? (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Calendar className="h-3.5 w-3.5 text-guard-muted flex-shrink-0" aria-hidden="true" />
-            <input
-              ref={startDateInputRef}
-              type="date"
-              value={editStartDate}
-              onChange={(e) => setEditStartDate(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveDates();
-                if (e.key === 'Escape') handleCancelDatesEdit();
-              }}
-              className={cn(
-                'px-2 py-1 text-sm rounded border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                editStartDate && editEndDate && editEndDate < editStartDate ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            <span className="text-sm text-guard-muted">—</span>
-            <input
-              type="date"
-              value={editEndDate}
-              onChange={(e) => setEditEndDate(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveDates();
-                if (e.key === 'Escape') handleCancelDatesEdit();
-              }}
-              className={cn(
-                'px-2 py-1 text-sm rounded border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                editStartDate && editEndDate && editEndDate < editStartDate ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            <button
-              type="button"
-              onClick={handleSaveDates}
-              disabled={updateTrip.isPending || !editStartDate || !editEndDate || editEndDate < editStartDate}
-              className="p-1 text-guard-success hover:bg-guard-success/10 rounded transition-colors disabled:opacity-50"
-              aria-label={t('trips.detail.save-dates')}
-            >
-              {updateTrip.isPending ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={handleCancelDatesEdit}
-              className="p-1 text-guard-muted hover:bg-muted rounded transition-colors"
-              aria-label={t('trips.detail.cancel-edit')}
-            >
-              <X className="h-4 w-4" />
-            </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 text-guard-muted flex-shrink-0" aria-hidden="true" />
+              <input
+                ref={startDateInputRef}
+                type="date"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveDates();
+                  if (e.key === 'Escape') handleCancelDatesEdit();
+                }}
+                className={cn(
+                  'px-2 py-1 text-sm rounded border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  editStartDate && editEndDate && editEndDate < editStartDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              <span className="text-sm text-guard-muted">—</span>
+            </div>
+            <div className="flex items-center gap-2 pl-5 sm:pl-0">
+              <input
+                type="date"
+                value={editEndDate}
+                onChange={(e) => setEditEndDate(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveDates();
+                  if (e.key === 'Escape') handleCancelDatesEdit();
+                }}
+                className={cn(
+                  'px-2 py-1 text-sm rounded border bg-background text-foreground',
+                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                  editStartDate && editEndDate && editEndDate < editStartDate ? 'border-guard-danger' : 'border-input',
+                )}
+              />
+              <button
+                type="button"
+                onClick={handleSaveDates}
+                disabled={updateTrip.isPending || !editStartDate || !editEndDate || editEndDate < editStartDate}
+                className="p-1 text-guard-success hover:bg-guard-success/10 rounded transition-colors disabled:opacity-50"
+                aria-label={t('trips.detail.save-dates')}
+              >
+                {updateTrip.isPending ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelDatesEdit}
+                className="p-1 text-guard-muted hover:bg-muted rounded transition-colors"
+                aria-label={t('trips.detail.cancel-edit')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-sm text-guard-muted group/dates">

@@ -2,16 +2,15 @@
 
 /**
  * Fiscal Deadline Banner
- * Shows upcoming/due/overdue AEAT deadlines as a horizontal banner.
- * Displayed on dashboard and fiscal page.
- * Dismissable per session via local state.
+ * Shows upcoming/due/overdue AEAT deadlines as a collapsible panel.
+ * Displayed on dashboard. Collapsed by default, toggleable via Zustand.
  */
 
-import { AlertTriangle, Bell, Calendar, X } from 'lucide-react';
-import { useState } from 'react';
+import { AlertTriangle, Bell, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { FILING_STATUS } from '@/constants/finance';
 import { useUpcomingDeadlines } from '@/hooks/useFiscalDeadlines';
 import { useTranslate } from '@/hooks/useTranslations';
+import { useIsFiscalPanelCollapsed, useToggleFiscalPanel } from '@/stores/useFinanceStore';
 import type { FiscalDeadline } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 
@@ -30,7 +29,7 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 text-sm',
+        'flex flex-wrap items-center gap-x-2 gap-y-1 text-sm',
         isOverdue && 'text-guard-danger',
         isDue && 'text-guard-warning',
         !isOverdue && !isDue && 'text-foreground',
@@ -41,14 +40,16 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
       ) : (
         <Calendar className="h-4 w-4 shrink-0" aria-hidden="true" />
       )}
-      <span className="font-medium">
+      <span className="font-medium whitespace-nowrap">
         {getModeloLabel(deadline.modeloType, deadline.fiscalQuarter)} {deadline.fiscalYear}
       </span>
-      <span className="text-guard-muted">{t('fiscal.deadlines.due-date', { date: deadline.endDate })}</span>
+      <span className="text-guard-muted whitespace-nowrap">
+        {t('fiscal.deadlines.due-date', { date: deadline.endDate })}
+      </span>
       {deadline.daysRemaining != null && deadline.daysRemaining >= 0 && (
         <span
           className={cn(
-            'text-xs px-1.5 py-0.5 rounded-full font-medium',
+            'text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap',
             isOverdue
               ? 'bg-guard-danger/10 text-guard-danger'
               : isDue
@@ -60,12 +61,14 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
         </span>
       )}
       {isOverdue && (
-        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-guard-danger/10 text-guard-danger">
+        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-guard-danger/10 text-guard-danger whitespace-nowrap">
           {t('fiscal.deadlines.overdue')}
         </span>
       )}
       {deadline.needsPostponement && (
-        <span className="text-xs text-guard-muted">{t('fiscal.deadlines.aplazamiento-available')}</span>
+        <span className="text-xs text-guard-muted whitespace-nowrap">
+          {t('fiscal.deadlines.aplazamiento-available')}
+        </span>
       )}
     </div>
   );
@@ -74,27 +77,50 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
 export function FiscalDeadlineBanner() {
   const { t } = useTranslate();
   const { data: deadlines } = useUpcomingDeadlines();
-  const [isDismissed, setIsDismissed] = useState(false);
+  const isCollapsed = useIsFiscalPanelCollapsed();
+  const togglePanel = useToggleFiscalPanel();
 
-  if (isDismissed || !deadlines || deadlines.length === 0) return null;
+  if (!deadlines || deadlines.length === 0) return null;
 
   const hasOverdue = deadlines.some((d) => d.status === FILING_STATUS.OVERDUE);
 
   return (
     <div
       className={cn(
-        'rounded-lg border p-4 mb-6',
+        'rounded-[var(--radius)] border transition-colors duration-200',
         hasOverdue ? 'bg-guard-danger/5 border-guard-danger/20' : 'bg-guard-warning/5 border-guard-warning/20',
       )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
+      {/* Header (always visible, clickable) */}
+      <button
+        type="button"
+        onClick={togglePanel}
+        className="w-full flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 text-left"
+        aria-expanded={!isCollapsed}
+      >
+        <div className="flex items-center gap-3">
           <Bell
-            className={cn('h-5 w-5 mt-0.5 shrink-0', hasOverdue ? 'text-guard-danger' : 'text-guard-warning')}
+            className={cn('h-5 w-5 shrink-0', hasOverdue ? 'text-guard-danger' : 'text-guard-warning')}
             aria-hidden="true"
           />
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">{t('fiscal.deadlines.banner-title')}</p>
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('fiscal.deadlines.banner-title')} ({deadlines.length})
+          </h3>
+        </div>
+        {isCollapsed ? (
+          <ChevronDown className="h-4 w-4 text-guard-muted" />
+        ) : (
+          <ChevronUp className="h-4 w-4 text-guard-muted" />
+        )}
+      </button>
+
+      {/* Collapsible content */}
+      <div
+        className={cn('grid', isCollapsed ? 'animate-collapse-close' : 'animate-collapse-open')}
+        style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-3 sm:px-5 sm:pb-4 pl-12 sm:pl-14 space-y-2">
             {deadlines.map((deadline) => (
               <DeadlineItem
                 key={`${deadline.modeloType}-${deadline.fiscalYear}-${deadline.fiscalQuarter}`}
@@ -103,14 +129,6 @@ export function FiscalDeadlineBanner() {
             ))}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsDismissed(true)}
-          className="p-1 text-guard-muted hover:text-foreground transition-colors"
-          aria-label={t('common.buttons.close')}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
       </div>
     </div>
   );

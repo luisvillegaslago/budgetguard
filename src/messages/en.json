@@ -82,7 +82,7 @@
     "actions": {
       "group-expense": "Group",
       "add-invoice": "Invoice",
-      "trip-expense": "Trip expense",
+
       "menu": "Menu"
     },
     "active-trip": {

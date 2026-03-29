@@ -100,6 +100,14 @@ module.exports = {
           from: { opacity: '0', transform: 'translateY(16px) scale(0.98)' },
           to: { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        'collapse-open': {
+          from: { 'grid-template-rows': '0fr', opacity: '0' },
+          to: { 'grid-template-rows': '1fr', opacity: '1' },
+        },
+        'collapse-close': {
+          from: { 'grid-template-rows': '1fr', opacity: '1' },
+          to: { 'grid-template-rows': '0fr', opacity: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -108,6 +116,8 @@ module.exports = {
         'slide-up': 'slide-up 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
         'backdrop-in': 'backdrop-in 0.2s cubic-bezier(0.25, 1, 0.5, 1)',
         'modal-in': 'modal-in 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+        'collapse-open': 'collapse-open 0.25s cubic-bezier(0.25, 1, 0.5, 1) forwards',
+        'collapse-close': 'collapse-close 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards',
       },
       transitionTimingFunction: {
         'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
