@@ -52,8 +52,15 @@ export function TransactionGroupRow({
             <CategoryIcon icon={group.parentCategoryIcon} color={iconColor} />
           </div>
           <div className="flex-1 min-w-0">
-            <OverflowTooltip content={group.parentCategoryName}>
-              <p className="text-sm font-medium text-foreground truncate">{group.parentCategoryName}</p>
+            <OverflowTooltip
+              content={
+                group.description ? `${group.parentCategoryName} · ${group.description}` : group.parentCategoryName
+              }
+            >
+              <p className="text-sm font-medium text-foreground truncate">
+                {group.parentCategoryName}
+                {group.description && <span className="text-guard-muted font-normal"> · {group.description}</span>}
+              </p>
             </OverflowTooltip>
             <p className="text-xs text-guard-muted truncate">
               {formatDate(group.transactionDate)} · {group.transactions.length}{' '}
@@ -120,7 +127,10 @@ export function TransactionGroupRow({
             <div className="flex-shrink-0 p-2 rounded-lg" style={{ backgroundColor: `${iconColor}15` }}>
               <CategoryIcon icon={group.parentCategoryIcon} color={iconColor} />
             </div>
-            <p className="text-sm font-medium text-foreground truncate flex-1 min-w-0">{group.parentCategoryName}</p>
+            <p className="text-sm font-medium text-foreground truncate flex-1 min-w-0">
+              {group.parentCategoryName}
+              {group.description && <span className="text-guard-muted font-normal"> · {group.description}</span>}
+            </p>
             <span
               className={cn(
                 'text-sm font-semibold flex-shrink-0 flex items-center justify-end gap-1 tabular-nums min-w-[90px] text-right',
