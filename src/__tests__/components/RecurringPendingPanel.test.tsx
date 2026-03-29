@@ -290,8 +290,10 @@ describe('RecurringPendingPanel', () => {
 
     // Header should still be visible
     expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument();
-    // But confirm/skip buttons should not
-    expect(screen.queryByText('Confirmar')).not.toBeInTheDocument();
+    // Content is hidden via CSS (gridTemplateRows: 0fr), not removed from DOM
+    // Verify the panel is visually collapsed via grid style
+    const contentGrid = screen.getByRole('button', { expanded: false }).nextElementSibling as HTMLElement;
+    expect(contentGrid.style.gridTemplateRows).toBe('0fr');
   });
 
   it('should show confirm-all button when multiple months exist', () => {
@@ -319,8 +321,9 @@ describe('RecurringPendingPanel', () => {
   it('should show modify button for each occurrence', () => {
     render(<RecurringPendingPanel />);
 
+    // Each occurrence has desktop + mobile modify buttons (hidden via CSS)
     const modifyButtons = screen.getAllByLabelText('Modificar');
-    expect(modifyButtons).toHaveLength(2);
+    expect(modifyButtons).toHaveLength(4);
   });
 
   it('should show input field when modify is clicked', () => {
@@ -329,6 +332,8 @@ describe('RecurringPendingPanel', () => {
     const modifyButtons = screen.getAllByLabelText('Modificar');
     fireEvent.click(modifyButtons[0]!);
 
-    expect(screen.getByLabelText('Monto modificado')).toBeInTheDocument();
+    // Both desktop and mobile inputs render (hidden via CSS), so use getAllByLabelText
+    const inputs = screen.getAllByLabelText('Monto modificado');
+    expect(inputs.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -39,7 +39,7 @@ export function AppTopBar() {
           <button
             type="button"
             onClick={toggleSidebar}
-            className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors xl:hidden"
             aria-label={t('navigation.toggle-menu')}
           >
             <Menu className="h-5 w-5" aria-hidden="true" />

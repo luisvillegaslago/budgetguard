@@ -9,11 +9,11 @@ import type { ReactNode } from 'react';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { AppTopBar } from '@/components/navigation/AppTopBar';
 import { useThemeSync } from '@/stores/themeStore';
-import { useSidebarOpen } from '@/stores/useFinanceStore';
+import { useSidebarExpanded } from '@/stores/useFinanceStore';
 import { cn } from '@/utils/helpers';
 
 export default function AuthLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const isSidebarOpen = useSidebarOpen();
+  const isExpanded = useSidebarExpanded();
   useThemeSync();
 
   return (
@@ -24,7 +24,7 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
       <div
         className={cn(
           'flex flex-col min-h-screen transition-all duration-200 ease-out',
-          isSidebarOpen ? 'lg:ml-56' : 'lg:ml-16',
+          isExpanded ? 'lg:ml-56' : 'lg:ml-16',
         )}
       >
         <AppTopBar />

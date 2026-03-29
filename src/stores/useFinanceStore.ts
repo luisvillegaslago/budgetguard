@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { FILTER_TYPE, type FilterType, STATUS_FILTER, type StatusFilter } from '@/constants/finance';
+import { useIsLargeScreen } from '@/hooks/useMediaQuery';
 import { addMonths, getCurrentMonth } from '@/utils/helpers';
 
 interface FinanceFilters {
@@ -24,8 +25,9 @@ interface FinanceUIState {
   // Transaction filters
   filters: FinanceFilters;
 
-  // Recurring panel state
+  // Collapsible panel states
   isRecurringPanelCollapsed: boolean;
+  isFiscalPanelCollapsed: boolean;
 
   // Sidebar state
   isSidebarOpen: boolean;
@@ -41,6 +43,7 @@ interface FinanceUIState {
   setFilters: (filters: Partial<FinanceFilters>) => void;
   resetFilters: () => void;
   toggleRecurringPanel: () => void;
+  toggleFiscalPanel: () => void;
   toggleSidebar: () => void;
   toggleGroupByMonth: () => void;
 }
@@ -60,7 +63,8 @@ function getStoredBoolean(key: string, fallback: boolean): boolean {
 export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   selectedMonth: getCurrentMonth(),
   filters: defaultFilters,
-  isRecurringPanelCollapsed: false,
+  isRecurringPanelCollapsed: true,
+  isFiscalPanelCollapsed: true,
   isSidebarOpen: false,
   groupByMonth: getStoredBoolean('bg-group-by-month', true),
 
@@ -92,6 +96,10 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
 
   toggleRecurringPanel: () => {
     set((state) => ({ isRecurringPanelCollapsed: !state.isRecurringPanelCollapsed }));
+  },
+
+  toggleFiscalPanel: () => {
+    set((state) => ({ isFiscalPanelCollapsed: !state.isFiscalPanelCollapsed }));
   },
 
   toggleSidebar: () => {
@@ -128,8 +136,22 @@ export const useResetFilters = () => useFinanceStore((s) => s.resetFilters);
 export const useIsRecurringPanelCollapsed = () => useFinanceStore((s) => s.isRecurringPanelCollapsed);
 export const useToggleRecurringPanel = () => useFinanceStore((s) => s.toggleRecurringPanel);
 
+export const useIsFiscalPanelCollapsed = () => useFinanceStore((s) => s.isFiscalPanelCollapsed);
+export const useToggleFiscalPanel = () => useFinanceStore((s) => s.toggleFiscalPanel);
+
 export const useSidebarOpen = () => useFinanceStore((s) => s.isSidebarOpen);
 export const useToggleSidebar = () => useFinanceStore((s) => s.toggleSidebar);
+
+/**
+ * Returns true when the sidebar should render as expanded:
+ * - On xl+ screens (≥1280px): always expanded
+ * - On smaller screens: follows the toggle state
+ */
+export const useSidebarExpanded = () => {
+  const isSidebarOpen = useFinanceStore((s) => s.isSidebarOpen);
+  const isLargeScreen = useIsLargeScreen();
+  return isLargeScreen || isSidebarOpen;
+};
 
 export const useGroupByMonth = () => useFinanceStore((s) => s.groupByMonth);
 export const useToggleGroupByMonth = () => useFinanceStore((s) => s.toggleGroupByMonth);
