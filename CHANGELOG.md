@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.0...v0.17.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **dashboard:** show description in grouped transaction headers ([40f0cd4](https://github.com/luisvillegaslago/budgetguard/commit/40f0cd4e15c6510a557ffee0dd4a31cba94b9865))
+
 ## [0.17.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.16.0...v0.17.0) (2026-03-29)
 
 
