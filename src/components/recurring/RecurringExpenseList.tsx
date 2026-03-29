@@ -10,6 +10,7 @@ import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE } from '@/constants/finance';
 import {
   useDeleteRecurringExpense,
@@ -91,41 +92,49 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
     </span>
   );
 
+  const toggleLabel = expense.isActive
+    ? t('recurring.management.actions.deactivate')
+    : t('recurring.management.actions.activate');
+
   const actionsEl = (
     <>
-      <button
-        type="button"
-        onClick={() => onEdit(expense)}
-        className="p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
-        aria-label={t('recurring.management.actions.edit')}
-      >
-        <Pencil className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={handleToggleActive}
-        disabled={isProcessing}
-        className={cn(
-          'p-1.5 rounded-md transition-colors',
-          expense.isActive
-            ? 'text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10'
-            : 'text-guard-success hover:bg-guard-success/10',
-        )}
-        aria-label={
-          expense.isActive ? t('recurring.management.actions.deactivate') : t('recurring.management.actions.activate')
-        }
-      >
-        {isProcessing ? <LoadingSpinner size="sm" /> : <Power className="h-4 w-4" />}
-      </button>
-      <button
-        type="button"
-        onClick={handleHardDelete}
-        disabled={isProcessing}
-        className="p-1.5 rounded-md text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 transition-colors"
-        aria-label={t('recurring.management.actions.delete')}
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
+      <Tooltip content={t('recurring.management.actions.edit')}>
+        <button
+          type="button"
+          onClick={() => onEdit(expense)}
+          className="p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+          aria-label={t('recurring.management.actions.edit')}
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+      </Tooltip>
+      <Tooltip content={toggleLabel}>
+        <button
+          type="button"
+          onClick={handleToggleActive}
+          disabled={isProcessing}
+          className={cn(
+            'p-1.5 rounded-md transition-colors',
+            expense.isActive
+              ? 'text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10'
+              : 'text-guard-success hover:bg-guard-success/10',
+          )}
+          aria-label={toggleLabel}
+        >
+          {isProcessing ? <LoadingSpinner size="sm" /> : <Power className="h-4 w-4" />}
+        </button>
+      </Tooltip>
+      <Tooltip content={t('recurring.management.actions.delete')}>
+        <button
+          type="button"
+          onClick={handleHardDelete}
+          disabled={isProcessing}
+          className="p-1.5 rounded-md text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 transition-colors"
+          aria-label={t('recurring.management.actions.delete')}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </Tooltip>
     </>
   );
 

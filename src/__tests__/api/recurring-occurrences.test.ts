@@ -69,6 +69,7 @@ jest.mock('@/services/database/RecurringExpenseRepository', () => ({
   confirmOccurrence: jest.fn(async (occurrenceId: number, modifiedAmountCents?: number) => {
     if (occurrenceId === 999) throw new Error('Occurrence not found');
     if (occurrenceId === 888) throw new Error('Occurrence is not pending');
+    if (occurrenceId === 777) throw new Error(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
     return {
       ...mockOccurrence,
       occurrenceId,
@@ -77,6 +78,7 @@ jest.mock('@/services/database/RecurringExpenseRepository', () => ({
   }),
   skipOccurrence: jest.fn(async (occurrenceId: number) => {
     if (occurrenceId === 999) return false;
+    if (occurrenceId === 777) throw new Error(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
     return true;
   }),
 }));
@@ -204,6 +206,16 @@ describe('POST /api/recurring-expenses/occurrences/[id]/confirm', () => {
 
     expect(response.status).toBe(400);
   });
+
+  it('should return 409 when confirming a future occurrence', async () => {
+    const request = createMockRequest('http://localhost:3000/api/recurring-expenses/occurrences/777/confirm');
+    const response = await CONFIRM(request as never, createMockParams('777'));
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.success).toBe(false);
+    expect(data.error).toBe(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
+  });
 });
 
 // ── POST /api/recurring-expenses/occurrences/[id]/skip ──
@@ -239,5 +251,15 @@ describe('POST /api/recurring-expenses/occurrences/[id]/skip', () => {
     const response = await SKIP(request as never, createMockParams('0'));
 
     expect(response.status).toBe(400);
+  });
+
+  it('should return 409 when skipping a future occurrence', async () => {
+    const request = createMockRequest('http://localhost:3000/api/recurring-expenses/occurrences/777/skip');
+    const response = await SKIP(request as never, createMockParams('777'));
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.success).toBe(false);
+    expect(data.error).toBe(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
   });
 });

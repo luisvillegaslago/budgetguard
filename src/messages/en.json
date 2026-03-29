@@ -1236,7 +1236,8 @@
     "conflict": {
       "has-transactions": "This category has linked transactions",
       "has-subcategories": "This category has subcategories",
-      "prefix-in-use": "This prefix has invoices and cannot be deleted"
+      "prefix-in-use": "This prefix has invoices and cannot be deleted",
+      "future-occurrence": "Cannot process a future occurrence"
     },
     "invoice": {
       "category-required-for-paid": "An income category is required to mark as paid",

@@ -3,7 +3,7 @@
  * Database operations for recurring expense rules and occurrences (user-scoped)
  */
 
-import { OCCURRENCE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, OCCURRENCE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   OccurrenceStatus,
@@ -627,6 +627,12 @@ export async function confirmOccurrence(
     throw new Error('Occurrence is not pending');
   }
 
+  const occDateStr = toDateString(row.OccurrenceDate);
+  const todayStr = toDateString(new Date());
+  if (occDateStr > todayStr) {
+    throw new Error(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
+  }
+
   const amountCents = modifiedAmountCents ?? row.RE_AmountCents;
 
   const transaction = await createTransaction({
@@ -663,18 +669,34 @@ export async function confirmOccurrence(
 export async function skipOccurrence(occurrenceId: number): Promise<boolean> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await query<{ OccurrenceID: number }>(
+  const rows = await query<{ OccurrenceID: number; OccurrenceDate: Date; Status: string }>(
+    `SELECT o."OccurrenceID", o."OccurrenceDate", o."Status"
+         FROM "RecurringExpenseOccurrences" o
+                  INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
+         WHERE o."OccurrenceID" = $1
+           AND re."UserID" = $2`,
+    [occurrenceId, userId],
+  );
+
+  const row = rows[0];
+  if (!row || row.Status !== OCCURRENCE_STATUS.PENDING) return false;
+
+  const occDateStr = toDateString(row.OccurrenceDate);
+  const todayStr = toDateString(new Date());
+  if (occDateStr > todayStr) {
+    throw new Error(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
+  }
+
+  const updated = await query<{ OccurrenceID: number }>(
     `UPDATE "RecurringExpenseOccurrences"
          SET "Status" = $1,
              "ProcessedAt" = $2
          WHERE "OccurrenceID" = $3
            AND "Status" = 'pending'
-           AND "RecurringExpenseID" IN (SELECT "RecurringExpenseID"
-                                        FROM "RecurringExpenses"
-                                        WHERE "UserID" = $4)
+           AND "OccurrenceDate" <= CURRENT_DATE
              RETURNING "OccurrenceID"`,
-    [OCCURRENCE_STATUS.SKIPPED, new Date(), occurrenceId, userId],
+    [OCCURRENCE_STATUS.SKIPPED, new Date(), occurrenceId],
   );
 
-  return rows.length > 0;
+  return updated.length > 0;
 }

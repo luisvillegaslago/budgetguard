@@ -325,6 +325,7 @@ export const API_ERROR = {
     HAS_TRANSACTIONS: 'api-error.conflict.has-transactions',
     HAS_SUBCATEGORIES: 'api-error.conflict.has-subcategories',
     PREFIX_IN_USE: 'api-error.conflict.prefix-in-use',
+    FUTURE_OCCURRENCE: 'api-error.conflict.future-occurrence',
   },
   INVOICE: {
     CATEGORY_REQUIRED_FOR_PAID: 'api-error.invoice.category-required-for-paid',

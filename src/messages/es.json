@@ -1236,7 +1236,8 @@
     "conflict": {
       "has-transactions": "Esta categoría tiene transacciones vinculadas",
       "has-subcategories": "Esta categoría tiene subcategorías",
-      "prefix-in-use": "Este prefijo tiene facturas y no se puede eliminar"
+      "prefix-in-use": "Este prefijo tiene facturas y no se puede eliminar",
+      "future-occurrence": "No se puede procesar una ocurrencia futura"
     },
     "invoice": {
       "category-required-for-paid": "Se requiere una categoría de ingreso para marcar como pagada",
