@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.16.0...v0.17.0) (2026-03-29)
+
+
+### Features
+
+* **dashboard:** improve mobile responsiveness and collapsible panels ([8c07bc6](https://github.com/luisvillegaslago/budgetguard/commit/8c07bc63f6af8d3ab054dfae62f875badf0436bf))
+* **nav:** always show expanded sidebar on xl+ screens ([e0c03e6](https://github.com/luisvillegaslago/budgetguard/commit/e0c03e6aa114fbf192e5df85316a3d0a0035a588))
+
+
+### Bug Fixes
+
+* **fiscal:** add bottom margin to deadline banner ([89b58a5](https://github.com/luisvillegaslago/budgetguard/commit/89b58a5ec47b056d3afce122708d8b4a0bd9b13d))
+* **recurring:** prevent skip/confirm of future occurrences and add action tooltips ([7c5e190](https://github.com/luisvillegaslago/budgetguard/commit/7c5e19051258ffbf0b4f94cc653c7b558ec8f6e7))
+
 ## [0.16.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.15.1...v0.16.0) (2026-03-28)
 
 
