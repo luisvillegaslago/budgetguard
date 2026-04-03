@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.1...v0.17.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* **dashboard:** convert pending expenses banner to collapsible panel ([f860247](https://github.com/luisvillegaslago/budgetguard/commit/f860247c8270c8fce31734e03a57bd944ec53dfc))
+
 ## [0.17.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.0...v0.17.1) (2026-03-29)
 
 
