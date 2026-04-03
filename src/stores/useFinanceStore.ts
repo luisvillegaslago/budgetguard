@@ -26,6 +26,7 @@ interface FinanceUIState {
   filters: FinanceFilters;
 
   // Collapsible panel states
+  isPendingPanelCollapsed: boolean;
   isRecurringPanelCollapsed: boolean;
   isFiscalPanelCollapsed: boolean;
 
@@ -42,6 +43,7 @@ interface FinanceUIState {
   goToCurrentMonth: () => void;
   setFilters: (filters: Partial<FinanceFilters>) => void;
   resetFilters: () => void;
+  togglePendingPanel: () => void;
   toggleRecurringPanel: () => void;
   toggleFiscalPanel: () => void;
   toggleSidebar: () => void;
@@ -63,6 +65,7 @@ function getStoredBoolean(key: string, fallback: boolean): boolean {
 export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   selectedMonth: getCurrentMonth(),
   filters: defaultFilters,
+  isPendingPanelCollapsed: true,
   isRecurringPanelCollapsed: true,
   isFiscalPanelCollapsed: true,
   isSidebarOpen: false,
@@ -92,6 +95,10 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
 
   resetFilters: () => {
     set({ filters: defaultFilters });
+  },
+
+  togglePendingPanel: () => {
+    set((state) => ({ isPendingPanelCollapsed: !state.isPendingPanelCollapsed }));
   },
 
   toggleRecurringPanel: () => {
@@ -132,6 +139,9 @@ export const useMonthNavigation = () =>
 export const useFilters = () => useFinanceStore(useShallow((s) => s.filters));
 export const useSetFilters = () => useFinanceStore((s) => s.setFilters);
 export const useResetFilters = () => useFinanceStore((s) => s.resetFilters);
+
+export const useIsPendingPanelCollapsed = () => useFinanceStore((s) => s.isPendingPanelCollapsed);
+export const useTogglePendingPanel = () => useFinanceStore((s) => s.togglePendingPanel);
 
 export const useIsRecurringPanelCollapsed = () => useFinanceStore((s) => s.isRecurringPanelCollapsed);
 export const useToggleRecurringPanel = () => useFinanceStore((s) => s.toggleRecurringPanel);

@@ -87,7 +87,7 @@ export function FiscalDeadlineBanner() {
   return (
     <div
       className={cn(
-        'rounded-[var(--radius)] border transition-colors duration-200 mb-6',
+        'rounded-[var(--radius)] border transition-colors duration-200',
         hasOverdue ? 'bg-guard-danger/5 border-guard-danger/20' : 'bg-guard-warning/5 border-guard-warning/20',
       )}
     >

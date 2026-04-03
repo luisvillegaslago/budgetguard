@@ -98,7 +98,6 @@ export default function DashboardPage() {
       <div className="space-y-8">
         {/* Banners */}
         <ActiveTripBanner onAddExpense={setTripExpenseForTripId} />
-        <PendingTransactionsBanner />
 
         {/* Balance Cards */}
         <section>
@@ -107,6 +106,7 @@ export default function DashboardPage() {
 
         {/* Collapsible panels */}
         <div className="space-y-3">
+          <PendingTransactionsBanner />
           <FiscalDeadlineBanner />
           <RecurringPendingPanel />
         </div>
