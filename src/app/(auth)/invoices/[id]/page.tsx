@@ -16,7 +16,7 @@ import { useDeleteInvoice, useFinalizeInvoice, useInvoice, useUpdateInvoiceStatu
 import { useTranslate } from '@/hooks/useTranslations';
 import type { InvoiceStatus } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
-import { getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
+import { formatInvoiceLabel, getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
 import { centsToEuros, formatCurrency } from '@/utils/money';
 
 const STATUS_STYLES: Record<InvoiceStatus, string> = {
@@ -120,7 +120,7 @@ export default function InvoiceDetailPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${invoice.invoiceNumber}.pdf`;
+      a.download = `${invoice.invoiceNumber ?? `draft-${invoiceId}`}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -294,7 +294,7 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="text-right">
             <p className="text-xs text-guard-muted uppercase tracking-wide">{l.invoiceNumber}</p>
-            <p className="text-lg font-bold text-guard-primary">{invoice.invoiceNumber}</p>
+            <p className="text-lg font-bold text-guard-primary">{formatInvoiceLabel(invoice.invoiceNumber)}</p>
           </div>
         </div>
 

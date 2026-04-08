@@ -7,7 +7,7 @@ import { put } from '@vercel/blob';
 import { API_ERROR, FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, INVOICE_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { getPool } from '@/services/database/connection';
-import { getInvoiceById } from '@/services/database/InvoiceRepository';
+import { assignInvoiceNumber, getInvoiceById } from '@/services/database/InvoiceRepository';
 import type { Invoice } from '@/types/finance';
 import { prepareInvoicePdf } from '@/utils/invoicePdf';
 
@@ -36,7 +36,10 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
     userId,
   ]);
 
-  // 3. Generate PDF (handles snapshot refresh internally)
+  // 3. Assign invoice number atomically (idempotent — skips if already assigned)
+  await assignInvoiceNumber(invoiceId);
+
+  // 4. Generate PDF (handles snapshot refresh internally)
   const { invoice: current, pdfBuffer, fileName } = await prepareInvoicePdf(invoiceId);
 
   // 4. Upload to Vercel Blob (outside transaction — if this fails, invoice stays draft)

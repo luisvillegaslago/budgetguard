@@ -77,6 +77,11 @@ export function getInvoiceLabels(lang?: string | null): InvoiceLabels {
   return DEFAULT_LABELS;
 }
 
+/** Format invoice number for display — returns the number or a dash for drafts without one */
+export function formatInvoiceLabel(invoiceNumber: string | null): string {
+  return invoiceNumber ?? '—';
+}
+
 /** Get the Intl locale string for a given invoice language code */
 export function getInvoiceLocale(lang?: string | null): string {
   if (lang && lang in LOCALE_MAP) return LOCALE_MAP[lang] as string;

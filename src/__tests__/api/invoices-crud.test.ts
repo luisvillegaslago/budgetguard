@@ -30,7 +30,7 @@ const mockLineItems = [
 const mockInvoice: Invoice = {
   invoiceId: 1,
   prefixId: 1,
-  invoiceNumber: 'DW-08',
+  invoiceNumber: null,
   invoiceDate: '2026-03-09',
   companyId: 2,
   transactionId: null,
@@ -62,7 +62,7 @@ const mockInvoice: Invoice = {
 
 const mockListItem: InvoiceListItem = {
   invoiceId: 1,
-  invoiceNumber: 'DW-08',
+  invoiceNumber: null,
   invoiceDate: '2026-03-09',
   clientName: 'RMCI Alerts Pty Ltd',
   clientTradingName: 'No1 Property Guide',
@@ -74,12 +74,14 @@ const mockListItem: InvoiceListItem = {
 const mockFinalizedInvoice: Invoice = {
   ...mockInvoice,
   invoiceId: 2,
+  invoiceNumber: 'DW-08',
   status: INVOICE_STATUS.FINALIZED,
 };
 
 const mockPaidInvoice: Invoice = {
   ...mockInvoice,
   invoiceId: 3,
+  invoiceNumber: 'DW-09',
   status: INVOICE_STATUS.PAID,
   transactionId: 100,
 };
@@ -149,7 +151,7 @@ describe('GET /api/invoices', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.data).toHaveLength(1);
-    expect(data.data[0].invoiceNumber).toBe('DW-08');
+    expect(data.data[0].invoiceNumber).toBeNull();
   });
 
   it('should pass status filter', async () => {
@@ -207,7 +209,7 @@ describe('POST /api/invoices', () => {
 
     expect(response.status).toBe(201);
     expect(data.success).toBe(true);
-    expect(data.data.invoiceNumber).toBe('DW-08');
+    expect(data.data.invoiceNumber).toBeNull();
   });
 
   it('should reject missing line items', async () => {

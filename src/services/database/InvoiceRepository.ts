@@ -70,7 +70,7 @@ interface InvoicePrefixRow {
 interface InvoiceRow {
   InvoiceID: number;
   PrefixID: number;
-  InvoiceNumber: string;
+  InvoiceNumber: string | null;
   InvoiceDate: Date;
   CompanyID: number | null;
   TransactionID: number | null;
@@ -101,7 +101,7 @@ interface InvoiceRow {
 
 interface InvoiceListRow {
   InvoiceID: number;
-  InvoiceNumber: string;
+  InvoiceNumber: string | null;
   InvoiceDate: Date;
   ClientName: string;
   ClientTradingName: string | null;
@@ -453,19 +453,12 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
   try {
     await client.query('BEGIN');
 
-    // 1. Lock prefix and get next number
-    const prefixResult = await client.query<InvoicePrefixRow>(
-      `SELECT "PrefixID", "Prefix", "NextNumber", "Description", "CompanyID", "IsActive", "CreatedAt"
-       FROM "InvoicePrefixes"
-       WHERE "PrefixID" = $1 AND "UserID" = $2
-       FOR UPDATE`,
+    // 1. Verify prefix exists
+    const prefixResult = await client.query<Pick<InvoicePrefixRow, 'PrefixID'>>(
+      `SELECT "PrefixID" FROM "InvoicePrefixes" WHERE "PrefixID" = $1 AND "UserID" = $2`,
       [data.prefixId, userId],
     );
-
-    const prefixRow = prefixResult.rows[0];
-    if (!prefixRow) throw new Error('Invoice prefix not found');
-
-    const invoiceNumber = `${prefixRow.Prefix}-${String(prefixRow.NextNumber).padStart(2, '0')}`;
+    if (!prefixResult.rows[0]) throw new Error('Invoice prefix not found');
 
     // 2. Get billing profile snapshot
     const profileResult = await client.query<BillingProfileRow>(
@@ -497,23 +490,22 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
 
     const invoiceResult = await client.query<InvoiceRow>(
       `INSERT INTO "Invoices" (
-        "PrefixID", "InvoiceNumber", "InvoiceDate", "CompanyID", "TotalCents", "Status",
+        "PrefixID", "InvoiceDate", "CompanyID", "TotalCents", "Status",
         "BillerName", "BillerNif", "BillerAddress", "BillerPhone", "BillerPaymentMethod",
         "BillerBankName", "BillerIban", "BillerSwift", "BillerBankAddress",
         "ClientName", "ClientTradingName", "ClientTaxId", "ClientAddress",
         "ClientCity", "ClientPostalCode", "ClientCountry",
         "Notes", "UserID"
       ) VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10, $11,
-        $12, $13, $14, $15,
-        $16, $17, $18, $19,
-        $20, $21, $22,
-        $23, $24
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14,
+        $15, $16, $17, $18,
+        $19, $20, $21,
+        $22, $23
       ) RETURNING *`,
       [
         data.prefixId,
-        invoiceNumber,
         invoiceDate,
         data.companyId,
         totalCents,
@@ -568,15 +560,67 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
       lineItemParams,
     );
 
-    // 7. Increment prefix next number
-    await client.query(`UPDATE "InvoicePrefixes" SET "NextNumber" = "NextNumber" + 1 WHERE "PrefixID" = $1`, [
-      data.prefixId,
-    ]);
-
     await client.query('COMMIT');
 
     const lineItems = lineItemResult.rows.map(rowToLineItem);
     return rowToInvoice(invoiceRow, lineItems);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Assign a sequential invoice number atomically (used during finalization).
+ * Locks the prefix row with FOR UPDATE to serialize concurrent assignments.
+ * Idempotent: returns existing number if already assigned.
+ */
+export async function assignInvoiceNumber(invoiceId: number): Promise<string> {
+  const userId = await getUserIdOrThrow();
+  const pool = getPool();
+
+  // Check if number is already assigned (idempotency guard for retry after partial failure)
+  const existing = await query<Pick<InvoiceRow, 'InvoiceNumber'>>(
+    `SELECT "InvoiceNumber" FROM "Invoices" WHERE "InvoiceID" = $1 AND "UserID" = $2`,
+    [invoiceId, userId],
+  );
+  const existingNumber = existing[0]?.InvoiceNumber;
+  if (existingNumber) return existingNumber;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock prefix row (FOR UPDATE) — serializes concurrent assignments
+    const prefixResult = await client.query<Pick<InvoicePrefixRow, 'PrefixID' | 'Prefix' | 'NextNumber'>>(
+      `SELECT p."PrefixID", p."Prefix", p."NextNumber"
+       FROM "InvoicePrefixes" p
+       INNER JOIN "Invoices" i ON i."PrefixID" = p."PrefixID"
+       WHERE i."InvoiceID" = $1 AND i."UserID" = $2
+       FOR UPDATE OF p`,
+      [invoiceId, userId],
+    );
+    const prefix = prefixResult.rows[0];
+    if (!prefix) throw new Error('Invoice prefix not found');
+
+    const invoiceNumber = `${prefix.Prefix}-${String(prefix.NextNumber).padStart(2, '0')}`;
+
+    // 2. Assign number to invoice
+    await client.query(`UPDATE "Invoices" SET "InvoiceNumber" = $1 WHERE "InvoiceID" = $2 AND "UserID" = $3`, [
+      invoiceNumber,
+      invoiceId,
+      userId,
+    ]);
+
+    // 3. Increment counter
+    await client.query(`UPDATE "InvoicePrefixes" SET "NextNumber" = "NextNumber" + 1 WHERE "PrefixID" = $1`, [
+      prefix.PrefixID,
+    ]);
+
+    await client.query('COMMIT');
+    return invoiceNumber;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

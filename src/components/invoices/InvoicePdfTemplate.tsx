@@ -264,7 +264,7 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
           </View>
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>{l.invoiceNumber}</Text>
-            <Text style={styles.invoiceNumberValue}>{invoice.invoiceNumber}</Text>
+            <Text style={styles.invoiceNumberValue}>{invoice.invoiceNumber ?? 'BORRADOR'}</Text>
           </View>
         </View>
 

@@ -11,6 +11,7 @@ import { INVOICE_STATUS } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { InvoiceListItem, InvoiceStatus } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
+import { formatInvoiceLabel } from '@/utils/invoiceLabels';
 import { formatCurrency } from '@/utils/money';
 
 interface InvoiceListProps {
@@ -61,7 +62,7 @@ export function InvoiceList({ invoices, isLoading }: InvoiceListProps) {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       {/* Header */}
-      <div className="hidden sm:grid sm:grid-cols-[1fr_1fr_1fr_auto_auto] gap-4 px-4 py-3 bg-muted/30 text-xs font-medium text-guard-muted uppercase tracking-wide">
+      <div className="hidden sm:grid sm:grid-cols-[8rem_1fr_1fr_auto_auto] gap-4 px-4 py-3 bg-muted/30 text-xs font-medium text-guard-muted uppercase tracking-wide">
         <span>{t('invoices.table.number')}</span>
         <span>{t('invoices.table.client')}</span>
         <span>{t('invoices.table.date')}</span>
@@ -74,10 +75,12 @@ export function InvoiceList({ invoices, isLoading }: InvoiceListProps) {
         <Link
           key={invoice.invoiceId}
           href={`/invoices/${invoice.invoiceId}`}
-          className="grid sm:grid-cols-[1fr_1fr_1fr_auto_auto] gap-2 sm:gap-4 px-4 py-3 border-t border-border hover:bg-muted/30 transition-colors items-center"
+          className="grid sm:grid-cols-[8rem_1fr_1fr_auto_auto] gap-2 sm:gap-4 px-4 py-3 border-t border-border hover:bg-muted/30 transition-colors items-center"
         >
-          <span className="font-medium text-foreground">{invoice.invoiceNumber}</span>
-          <span className="text-sm text-foreground truncate">{invoice.clientTradingName ?? invoice.clientName}</span>
+          <span className="font-medium text-foreground">{formatInvoiceLabel(invoice.invoiceNumber)}</span>
+          <span className="text-sm text-foreground truncate min-w-0">
+            {invoice.clientTradingName ?? invoice.clientName}
+          </span>
           <span className="text-sm text-guard-muted">{formatDate(invoice.invoiceDate, 'long')}</span>
           <span className="text-sm font-medium text-foreground text-right">{formatCurrency(invoice.totalCents)}</span>
           <span className="text-center w-28">

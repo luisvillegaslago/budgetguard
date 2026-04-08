@@ -13,7 +13,7 @@ import type { Invoice } from '@/types/finance';
 const mockDraftInvoice: Invoice = {
   invoiceId: 1,
   prefixId: 1,
-  invoiceNumber: 'INV-01',
+  invoiceNumber: null,
   invoiceDate: '2025-07-15',
   companyId: 10,
   transactionId: null,
@@ -55,6 +55,7 @@ const mockDraftInvoice: Invoice = {
 
 const mockFinalizedInvoice: Invoice = {
   ...mockDraftInvoice,
+  invoiceNumber: 'INV-01',
   status: INVOICE_STATUS.FINALIZED,
 };
 
@@ -93,6 +94,7 @@ jest.mock('@/services/database/InvoiceRepository', () => ({
     if (id === 2) return mockFinalizedInvoice;
     return null;
   }),
+  assignInvoiceNumber: jest.fn(async () => 'INV-01'),
 }));
 
 jest.mock('@/services/database/connection', () => ({
@@ -109,9 +111,9 @@ jest.mock('@/utils/invoicePdf', () => ({
   prepareInvoicePdf: jest.fn(async (id: number) => {
     if (id === 1) {
       return {
-        invoice: { ...mockDraftInvoice, billerName: 'Updated Biller' },
+        invoice: { ...mockDraftInvoice, invoiceNumber: 'INV-01', billerName: 'Updated Biller' },
         pdfBuffer: mockPdfBuffer,
-        fileName: `invoice_${mockDraftInvoice.invoiceNumber}.pdf`,
+        fileName: 'invoice_INV-01.pdf',
       };
     }
     throw new Error(API_ERROR.NOT_FOUND.INVOICE);

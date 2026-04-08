@@ -686,7 +686,7 @@ CREATE INDEX "IX_InvoicePrefixes_UserID" ON "InvoicePrefixes"("UserID");
 CREATE TABLE "Invoices" (
     "InvoiceID" SERIAL PRIMARY KEY,
     "PrefixID" INT NOT NULL,
-    "InvoiceNumber" VARCHAR(20) NOT NULL,
+    "InvoiceNumber" VARCHAR(20) NULL,
     "InvoiceDate" DATE NOT NULL,
     "CompanyID" INT NULL,
     "TransactionID" INT NULL,
@@ -725,9 +725,11 @@ CREATE TABLE "Invoices" (
         FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
     CONSTRAINT "FK_Invoices_User"
         FOREIGN KEY ("UserID") REFERENCES "Users"("UserID"),
-    CONSTRAINT "UQ_InvoiceNumber_User" UNIQUE ("InvoiceNumber", "UserID")
 );
 
+-- Partial unique index: only enforced when InvoiceNumber is assigned (at finalization)
+CREATE UNIQUE INDEX "UQ_InvoiceNumber_User" ON "Invoices" ("InvoiceNumber", "UserID")
+    WHERE "InvoiceNumber" IS NOT NULL;
 CREATE INDEX "IX_Invoices_UserID" ON "Invoices"("UserID");
 CREATE INDEX "IX_Invoices_CompanyID" ON "Invoices"("CompanyID");
 CREATE INDEX "IX_Invoices_Status" ON "Invoices"("Status");

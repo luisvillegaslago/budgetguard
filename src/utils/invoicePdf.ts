@@ -12,8 +12,8 @@ import { INVOICE_STATUS } from '@/constants/finance';
 import { getInvoiceById, refreshDraftSnapshot } from '@/services/database/InvoiceRepository';
 import type { Invoice } from '@/types/finance';
 
-export function getInvoicePdfFileName(invoiceNumber: string): string {
-  return `invoice_${invoiceNumber}.pdf`;
+export function getInvoicePdfFileName(invoiceNumber: string | null): string {
+  return `invoice_${invoiceNumber ?? 'draft'}.pdf`;
 }
 
 interface InvoicePdfResult {

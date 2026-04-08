@@ -580,7 +580,7 @@ export interface InvoiceLineItem {
 export interface Invoice {
   invoiceId: number;
   prefixId: number;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
   invoiceDate: string;
   companyId: number | null;
   transactionId: number | null;
@@ -615,7 +615,7 @@ export interface Invoice {
  */
 export interface InvoiceListItem {
   invoiceId: number;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
   invoiceDate: string;
   clientName: string;
   clientTradingName: string | null;

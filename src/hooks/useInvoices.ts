@@ -335,8 +335,9 @@ export function useFinalizeInvoice() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      // Invalidate caches
+      // Invalidate caches so UI refetches updated data (number assigned at finalization)
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
     },
