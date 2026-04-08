@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.18.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.4...v0.18.0) (2026-04-08)
+
+
+### Features
+
+* **invoices:** defer invoice number assignment to finalization ([560c64b](https://github.com/luisvillegaslago/budgetguard/commit/560c64b5913908a84e85fbafaf08e792174f79d4))
+
+
+### Bug Fixes
+
+* **ui:** normalize RecurringPendingPanel style to match other dashboard banners ([75fa6a8](https://github.com/luisvillegaslago/budgetguard/commit/75fa6a83436ec00eb53c1c97597f5eb6ddf8c5c2))
+
 ## [0.17.4](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.3...v0.17.4) (2026-04-08)
 
 
