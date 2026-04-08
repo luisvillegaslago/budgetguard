@@ -178,6 +178,7 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
               <input
                 type="date"
                 value={editEndDate}
+                min={editStartDate || undefined}
                 onChange={(e) => setEditEndDate(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveDates();

@@ -244,9 +244,7 @@ describe('RecurringExpenseForm — Create mode', () => {
     const onDateButton = screen.getByText('En fecha');
     fireEvent.click(onDateButton);
 
-    const dateInputs = screen.getAllByDisplayValue('');
-    const endDateInput = dateInputs.find((input) => input.getAttribute('id') === 're-endDate');
-    expect(endDateInput).toBeInTheDocument();
+    expect(document.getElementById('re-endDate')).toBeInTheDocument();
   });
 
   it('should show start date field', () => {

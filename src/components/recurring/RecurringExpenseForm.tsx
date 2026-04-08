@@ -198,6 +198,8 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
     } else if (condition === END_CONDITION.AFTER_OCCURRENCES) {
       setValue('endDate', null);
       setValue('occurrenceCount', occurrenceCount);
+    } else if (condition === END_CONDITION.ON_DATE) {
+      setValue('endDate', watchedStartDate ?? new Date().toISOString().split('T')[0]);
     }
   };
 
@@ -419,6 +421,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                 <input
                   id="re-endDate"
                   type="date"
+                  min={watchedStartDate || undefined}
                   {...register('endDate')}
                   className={cn(INPUT_CLASSES, errors.endDate ? 'border-guard-danger' : 'border-input')}
                 />

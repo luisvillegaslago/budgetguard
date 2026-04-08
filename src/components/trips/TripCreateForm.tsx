@@ -8,7 +8,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -29,10 +29,20 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
   const {
     register,
     handleSubmit,
+    control,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateTripInput>({
     resolver: zodResolver(CreateTripSchema),
   });
+
+  const startDate = useWatch({ control, name: 'startDate' });
+
+  useEffect(() => {
+    if (startDate) {
+      setValue('endDate', startDate);
+    }
+  }, [startDate, setValue]);
 
   const onSubmit = async (data: CreateTripInput) => {
     try {
@@ -122,6 +132,7 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
               <input
                 id="trip-end-date"
                 type="date"
+                min={startDate ? String(startDate) : undefined}
                 {...register('endDate')}
                 className={cn(
                   'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
