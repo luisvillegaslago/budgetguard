@@ -289,9 +289,7 @@ export function RecurringPendingPanel() {
       <div className="rounded-[var(--radius)] border border-guard-danger/20 bg-guard-danger/5 px-5 py-4" role="alert">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-guard-danger/10">
-              <Repeat className="h-4 w-4 text-guard-danger" aria-hidden="true" />
-            </div>
+            <Repeat className="h-5 w-5 shrink-0 text-guard-danger" aria-hidden="true" />
             <p className="text-sm text-guard-danger">{t('recurring.pending.error')}</p>
           </div>
           <button
@@ -330,14 +328,10 @@ export function RecurringPendingPanel() {
         aria-expanded={!isCollapsed}
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-guard-warning/10">
-            <Repeat className="h-4 w-4 text-guard-warning" aria-hidden="true" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              {t('recurring.pending.title')} {t('recurring.pending.count', { count: data.totalCount })}
-            </h3>
-          </div>
+          <Repeat className="h-5 w-5 shrink-0 text-guard-warning" aria-hidden="true" />
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('recurring.pending.title')} {t('recurring.pending.count', { count: data.totalCount })}
+          </h3>
         </div>
         {isCollapsed ? (
           <ChevronDown className="h-4 w-4 text-guard-muted" />
@@ -352,7 +346,7 @@ export function RecurringPendingPanel() {
         style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
       >
         <div className="overflow-hidden">
-          <div className="px-4 pb-4 space-y-3">
+          <div className="px-4 pb-3 sm:px-5 sm:pb-4 pl-12 sm:pl-14 space-y-3">
             {data.months.map((monthData) => (
               <MonthSection key={monthData.month} monthData={monthData} />
             ))}
