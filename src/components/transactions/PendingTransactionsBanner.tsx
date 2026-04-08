@@ -58,7 +58,7 @@ export function PendingTransactionsBanner() {
           <h3 className="text-sm font-semibold text-foreground">
             {t('transactions.pending-banner.title', { count: duePending.length })}
           </h3>
-          <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-guard-warning/10 text-guard-warning">
+          <span className="text-xs text-nowrap px-1.5 py-0.5 rounded-full font-medium bg-guard-warning/10 text-guard-warning">
             {formatCurrency(totalCents)}
           </span>
         </div>

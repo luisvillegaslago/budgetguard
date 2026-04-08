@@ -39,7 +39,8 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress 
     >
       {/* Category color bar */}
       <div className="flex h-1.5 rounded-full overflow-hidden mb-4 bg-muted/50">
-        {trip.categorySummary.length > 0 && totalForBar > 0 &&
+        {trip.categorySummary.length > 0 &&
+          totalForBar > 0 &&
           trip.categorySummary.map((cat) => (
             <div
               key={cat.categoryId}
