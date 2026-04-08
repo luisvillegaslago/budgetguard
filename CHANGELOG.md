@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.4](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.3...v0.17.4) (2026-04-08)
+
+
+### Bug Fixes
+
+* **trips:** fix category color bar not visible and inconsistent card alignment ([8a86e7b](https://github.com/luisvillegaslago/budgetguard/commit/8a86e7b41028d1fe110bb3eb78e7192f989802d5))
+* **ui:** improve text wrapping and category bar rendering ([e04641d](https://github.com/luisvillegaslago/budgetguard/commit/e04641d21e46a9da046c6eea5de8b6397f07aca8))
+
 ## [0.17.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.2...v0.17.3) (2026-04-08)
 
 
