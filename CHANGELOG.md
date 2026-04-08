@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.2...v0.17.3) (2026-04-08)
+
+
+### Bug Fixes
+
+* **forms:** default end date from start date in date range pickers ([7fa5535](https://github.com/luisvillegaslago/budgetguard/commit/7fa5535656f6b527b04a531f0736293bff8a3566))
+
 ## [0.17.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.1...v0.17.2) (2026-04-03)
 
 
