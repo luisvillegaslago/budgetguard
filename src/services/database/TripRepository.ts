@@ -170,7 +170,7 @@ export async function getAllTrips(): Promise<TripDisplay[]> {
       GROUP BY "TripID"
     ) agg ON tr."TripID" = agg."TripID"
     WHERE tr."UserID" = $1
-    ORDER BY tr."CreatedAt" DESC`,
+    ORDER BY tr."StartDate" DESC NULLS LAST, tr."CreatedAt" DESC`,
     [userId],
   );
 
