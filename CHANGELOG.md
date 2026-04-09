@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.18.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.18.0...v0.18.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **trips:** order trips by StartDate instead of CreatedAt ([bac3b6b](https://github.com/luisvillegaslago/budgetguard/commit/bac3b6bf40eff890ac8053367fec827ecb479869))
+
 ## [0.18.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.17.4...v0.18.0) (2026-04-08)
 
 
