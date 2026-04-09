@@ -13,6 +13,25 @@ export function cn(...inputs: ClassValue[]): string {
  * @param date - Date string or Date object
  * @param format - Format type: 'short' | 'long' | 'month'
  */
+export function formatTripPeriod(startDate: string | null, endDate: string | null, locale = 'es-ES'): string {
+  const ref = startDate ?? endDate;
+  if (!ref) return '';
+
+  const start = new Date(ref);
+  const year = new Intl.DateTimeFormat(locale, { year: 'numeric', timeZone: 'UTC' }).format(start);
+  const startMonth = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(start);
+
+  if (!endDate || !startDate) return `${startMonth} ${year}`;
+
+  const end = new Date(endDate);
+  const endMonth = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(end);
+  const endYear = new Intl.DateTimeFormat(locale, { year: 'numeric', timeZone: 'UTC' }).format(end);
+
+  if (year === endYear && startMonth === endMonth) return `${startMonth} ${year}`;
+  if (year === endYear) return `${startMonth}–${endMonth} ${year}`;
+  return `${startMonth} ${year}–${endMonth} ${endYear}`;
+}
+
 export function formatDate(
   date: string | Date,
   format: 'short' | 'long' | 'month' = 'short',

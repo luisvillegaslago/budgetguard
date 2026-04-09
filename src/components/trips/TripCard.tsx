@@ -11,7 +11,7 @@ import { DeleteButton } from '@/components/ui/DeleteButton';
 import { TRIP_COLOR } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { TripDisplay } from '@/types/finance';
-import { cn, formatDate } from '@/utils/helpers';
+import { cn, formatDate, formatTripPeriod } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
 interface TripCardProps {
@@ -60,7 +60,7 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress 
           <div className="flex items-center gap-2 mb-1">
             <MapPin className="h-4 w-4 text-guard-primary flex-shrink-0" aria-hidden="true" />
             <h3 className="text-lg font-semibold text-foreground truncate">
-              {trip.name} {(trip.startDate ?? trip.createdAt).slice(0, 4)}
+              {trip.name} {formatTripPeriod(trip.startDate, trip.endDate)}
             </h3>
             {isInProgress && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-success/10 text-guard-success flex-shrink-0 flex items-center gap-1">
