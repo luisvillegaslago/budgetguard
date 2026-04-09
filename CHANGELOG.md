@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.18.1...v0.19.0) (2026-04-09)
+
+
+### Features
+
+* **trips:** show month(s) and year in trip card titles ([a3a0cce](https://github.com/luisvillegaslago/budgetguard/commit/a3a0cce3da7e580523d4d0db3d7d0effbe6f1b9c))
+
 ## [0.18.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.18.0...v0.18.1) (2026-04-09)
 
 
