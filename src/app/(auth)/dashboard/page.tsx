@@ -50,7 +50,7 @@ export default function DashboardPage() {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [tripExpenseForTripId, setTripExpenseForTripId] = useState<number | null>(null);
+  const [tripExpenseTarget, setTripExpenseTarget] = useState<{ tripId: number; startDate: string | null } | null>(null);
 
   // Bidirectional sync: URL ↔ Zustand (month, type filter)
   useDashboardUrlSync();
@@ -97,7 +97,7 @@ export default function DashboardPage() {
 
       <div className="space-y-8">
         {/* Banners */}
-        <ActiveTripBanner onAddExpense={setTripExpenseForTripId} />
+        <ActiveTripBanner onAddExpense={setTripExpenseTarget} />
 
         {/* Balance Cards */}
         <section>
@@ -143,8 +143,12 @@ export default function DashboardPage() {
       )}
 
       {/* Trip Expense Modal */}
-      {tripExpenseForTripId !== null && (
-        <TripExpenseForm tripId={tripExpenseForTripId} onClose={() => setTripExpenseForTripId(null)} />
+      {tripExpenseTarget !== null && (
+        <TripExpenseForm
+          tripId={tripExpenseTarget.tripId}
+          tripStartDate={tripExpenseTarget.startDate}
+          onClose={() => setTripExpenseTarget(null)}
+        />
       )}
     </div>
   );

@@ -25,15 +25,19 @@ interface TripExpenseFormProps {
   tripId: number;
   onClose: () => void;
   transaction?: Transaction;
+  tripStartDate?: string | null;
 }
 
-export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFormProps) {
+export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }: TripExpenseFormProps) {
   const { t } = useTranslate();
   const isEditing = !!transaction;
   const { data: categories, isLoading: categoriesLoading } = useTripCategories();
   const createExpense = useCreateTripExpense(tripId);
   const updateExpense = useUpdateTripExpense(tripId);
   const mutation = isEditing ? updateExpense : createExpense;
+
+  const today = new Date().toISOString().split('T')[0] as string;
+  const defaultDate = (tripStartDate && tripStartDate > today ? tripStartDate : today) as unknown as Date;
 
   const {
     register,
@@ -52,7 +56,7 @@ export function TripExpenseForm({ tripId, onClose, transaction }: TripExpenseFor
           isShared: transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR,
         }
       : {
-          transactionDate: new Date().toISOString().split('T')[0] as unknown as Date,
+          transactionDate: defaultDate,
           description: '',
           isShared: false,
         },

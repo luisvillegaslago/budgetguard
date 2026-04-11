@@ -16,11 +16,22 @@ import type { TripDisplay } from '@/types/finance';
 import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
-interface ActiveTripBannerProps {
-  onAddExpense: (tripId: number) => void;
+interface TripExpenseTarget {
+  tripId: number;
+  startDate: string | null;
 }
 
-function ActiveTripItem({ trip, onAddExpense }: { trip: TripDisplay; onAddExpense: (tripId: number) => void }) {
+interface ActiveTripBannerProps {
+  onAddExpense: (target: TripExpenseTarget) => void;
+}
+
+function ActiveTripItem({
+  trip,
+  onAddExpense,
+}: {
+  trip: TripDisplay;
+  onAddExpense: (target: TripExpenseTarget) => void;
+}) {
   const { t } = useTranslate();
 
   const expenseBadge = trip.expenseCount > 0 && (
@@ -67,7 +78,7 @@ function ActiveTripItem({ trip, onAddExpense }: { trip: TripDisplay; onAddExpens
       </div>
       <button
         type="button"
-        onClick={() => onAddExpense(trip.tripId)}
+        onClick={() => onAddExpense({ tripId: trip.tripId, startDate: trip.startDate })}
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-md transition-colors shrink-0"
         style={{ backgroundColor: TRIP_COLOR }}
       >

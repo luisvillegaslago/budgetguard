@@ -73,10 +73,15 @@ export default function TripDetailPage() {
 
       {/* Expense Form Modals */}
       {editingExpense && (
-        <TripExpenseForm tripId={tripId} transaction={editingExpense} onClose={() => setEditingExpense(null)} />
+        <TripExpenseForm
+          tripId={tripId}
+          transaction={editingExpense}
+          onClose={() => setEditingExpense(null)}
+          tripStartDate={trip.startDate}
+        />
       )}
       {showExpenseForm && !editingExpense && (
-        <TripExpenseForm tripId={tripId} onClose={() => setShowExpenseForm(false)} />
+        <TripExpenseForm tripId={tripId} onClose={() => setShowExpenseForm(false)} tripStartDate={trip.startDate} />
       )}
     </div>
   );
