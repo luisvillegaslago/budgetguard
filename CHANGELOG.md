@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.20.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.19.0...v0.20.0) (2026-04-11)
+
+
+### Features
+
+* **trips:** default expense date to trip start date for future trips ([853aaa6](https://github.com/luisvillegaslago/budgetguard/commit/853aaa655be2af3bea555ac5f09a0de4b0057122))
+
 ## [0.19.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.18.1...v0.19.0) (2026-04-09)
 
 
