@@ -52,6 +52,8 @@ export function TripList({ onAdd }: TripListProps) {
       }
     });
 
+    groups.upcoming.sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
+
     return groups;
   }, [filteredTrips, today]);
 
