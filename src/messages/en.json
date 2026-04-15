@@ -891,6 +891,11 @@
       "edit-title": "Edit Invoice",
       "total": "Total",
       "add-line": "Add line",
+      "billing-mode": {
+        "label": "Billing mode",
+        "hourly": "By hours",
+        "flat": "Single concept"
+      },
       "fields": {
         "prefix": "Series",
         "select-prefix": "Select series...",

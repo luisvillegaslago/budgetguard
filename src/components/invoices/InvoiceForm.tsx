@@ -6,12 +6,13 @@
  */
 
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
-import { VALIDATION_KEY } from '@/constants/finance';
+import { INVOICE_BILLING_MODE, type InvoiceBillingMode, VALIDATION_KEY } from '@/constants/finance';
 import { useBillingProfile, useCreateInvoice, useInvoicePrefixes, useUpdateInvoice } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
@@ -34,6 +35,12 @@ const InvoiceFormSchema = z.object({
 });
 
 type InvoiceFormValues = z.infer<typeof InvoiceFormSchema>;
+
+function detectBillingMode(invoice?: Invoice): InvoiceBillingMode {
+  if (!invoice) return INVOICE_BILLING_MODE.HOURLY;
+  const hasHourly = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
+  return hasHourly ? INVOICE_BILLING_MODE.HOURLY : INVOICE_BILLING_MODE.FLAT;
+}
 
 interface InvoiceFormProps {
   onClose: () => void;
@@ -91,6 +98,9 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' });
 
+  const [billingMode, setBillingMode] = useState<InvoiceBillingMode>(detectBillingMode(invoice));
+  const isFlat = billingMode === INVOICE_BILLING_MODE.FLAT;
+
   const watchedPrefixId = useWatch({ control, name: 'prefixId' });
   const watchedCompanyId = useWatch({ control, name: 'companyId' });
   const watchedLineItems = useWatch({ control, name: 'lineItems' });
@@ -126,7 +136,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
     const rate = toNum(item.hourlyRate);
     const amount = toNum(item.amount);
 
-    if (hours != null && rate != null) return sum + hours * rate;
+    if (!isFlat && hours != null && rate != null) return sum + hours * rate;
     if (amount != null) return sum + amount;
     return sum;
   }, 0);
@@ -137,7 +147,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
       const hourlyRate = typeof item.hourlyRate === 'number' && item.hourlyRate > 0 ? item.hourlyRate : null;
       const directAmount = typeof item.amount === 'number' && item.amount > 0 ? item.amount : null;
 
-      if (hours != null && hourlyRate != null) {
+      if (!isFlat && hours != null && hourlyRate != null) {
         const hourlyRateCents = eurosToCents(hourlyRate);
         return {
           description: item.description,
@@ -181,6 +191,17 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
       onClose();
     } catch {
       // Error handled by mutation state
+    }
+  };
+
+  const handleBillingModeChange = (next: InvoiceBillingMode) => {
+    if (next === billingMode) return;
+    setBillingMode(next);
+    if (next === INVOICE_BILLING_MODE.FLAT) {
+      fields.forEach((_, idx) => {
+        setValue(`lineItems.${idx}.hours`, '' as unknown as number);
+        setValue(`lineItems.${idx}.hourlyRate`, '' as unknown as number);
+      });
     }
   };
 
@@ -270,6 +291,33 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
             </div>
           </div>
 
+          {/* Billing mode toggle */}
+          <fieldset className="border-0 p-0 m-0">
+            <legend className="block text-sm font-medium text-foreground mb-1">
+              {t('invoices.form.billing-mode.label')}
+            </legend>
+            <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
+              <button
+                type="button"
+                onClick={() => handleBillingModeChange(INVOICE_BILLING_MODE.HOURLY)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  !isFlat ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground'
+                }`}
+              >
+                {t('invoices.form.billing-mode.hourly')}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBillingModeChange(INVOICE_BILLING_MODE.FLAT)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  isFlat ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground'
+                }`}
+              >
+                {t('invoices.form.billing-mode.flat')}
+              </button>
+            </div>
+          </fieldset>
+
           {/* Line Items */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -281,7 +329,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                     description: '',
                     hours: '',
                     hourlyRate:
-                      billingProfile?.defaultHourlyRateCents != null
+                      !isFlat && billingProfile?.defaultHourlyRateCents != null
                         ? centsToEuros(billingProfile.defaultHourlyRateCents)
                         : '',
                     amount: '',
@@ -317,33 +365,39 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                     )}
                   </div>
                   {/* Numeric fields row */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <span className="block text-xs text-guard-muted mb-0.5">{t('invoices.form.fields.hours')}</span>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        placeholder="-"
-                        {...register(`lineItems.${index}.hours`, { valueAsNumber: true })}
-                        onChange={(e) => handleLineItemChange(index, 'hours', e.target.value)}
-                        className="w-full input-sm"
-                      />
-                    </div>
-                    <div>
-                      <span className="block text-xs text-guard-muted mb-0.5">
-                        {t('invoices.form.fields.hourly-rate')}
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="-"
-                        {...register(`lineItems.${index}.hourlyRate`, { valueAsNumber: true })}
-                        onChange={(e) => handleLineItemChange(index, 'hourlyRate', e.target.value)}
-                        className="w-full input-sm"
-                      />
-                    </div>
+                  <div className={isFlat ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-3 gap-2'}>
+                    {!isFlat && (
+                      <>
+                        <div>
+                          <span className="block text-xs text-guard-muted mb-0.5">
+                            {t('invoices.form.fields.hours')}
+                          </span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            placeholder="-"
+                            {...register(`lineItems.${index}.hours`, { valueAsNumber: true })}
+                            onChange={(e) => handleLineItemChange(index, 'hours', e.target.value)}
+                            className="w-full input-sm"
+                          />
+                        </div>
+                        <div>
+                          <span className="block text-xs text-guard-muted mb-0.5">
+                            {t('invoices.form.fields.hourly-rate')}
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="-"
+                            {...register(`lineItems.${index}.hourlyRate`, { valueAsNumber: true })}
+                            onChange={(e) => handleLineItemChange(index, 'hourlyRate', e.target.value)}
+                            className="w-full input-sm"
+                          />
+                        </div>
+                      </>
+                    )}
                     <div>
                       <span className="block text-xs text-guard-muted mb-0.5">{t('invoices.form.fields.amount')}</span>
                       <input

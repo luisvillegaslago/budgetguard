@@ -142,6 +142,8 @@ const styles = StyleSheet.create({
   colHours: { width: '15%', textAlign: 'center' },
   colRate: { width: '20%', textAlign: 'right' },
   colAmount: { width: '20%', textAlign: 'right' },
+  colDescriptionFlat: { width: '75%' },
+  colAmountFlat: { width: '25%', textAlign: 'right' },
   cellText: {
     fontSize: 10,
     color: '#334155',
@@ -214,6 +216,7 @@ interface InvoicePdfDocumentProps {
 export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
   const l = getInvoiceLabels(invoice.invoiceLanguage);
   const invoiceLocale = getInvoiceLocale(invoice.invoiceLanguage);
+  const showHourlyColumns = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
 
   const paymentLabel =
     invoice.billerPaymentMethod === PAYMENT_METHOD.BANK_TRANSFER
@@ -270,23 +273,39 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
 
         {/* Table Header */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.colDescription]}>{l.description}</Text>
-          <Text style={[styles.tableHeaderText, styles.colHours]}>{l.hours}</Text>
-          <Text style={[styles.tableHeaderText, styles.colRate]}>{l.hourlyRate}</Text>
-          <Text style={[styles.tableHeaderText, styles.colAmount]}>{l.balance}</Text>
+          <Text style={[styles.tableHeaderText, showHourlyColumns ? styles.colDescription : styles.colDescriptionFlat]}>
+            {l.description}
+          </Text>
+          {showHourlyColumns && (
+            <>
+              <Text style={[styles.tableHeaderText, styles.colHours]}>{l.hours}</Text>
+              <Text style={[styles.tableHeaderText, styles.colRate]}>{l.hourlyRate}</Text>
+            </>
+          )}
+          <Text style={[styles.tableHeaderText, showHourlyColumns ? styles.colAmount : styles.colAmountFlat]}>
+            {l.balance}
+          </Text>
         </View>
 
         {/* Table Rows */}
         {invoice.lineItems.map((item) => (
           <View key={item.lineItemId} style={styles.tableRow}>
-            <Text style={[styles.cellText, styles.colDescription]}>{item.description}</Text>
-            <Text style={[item.hours != null ? styles.cellText : styles.cellMuted, styles.colHours]}>
-              {item.hours != null ? item.hours.toString() : '-'}
+            <Text style={[styles.cellText, showHourlyColumns ? styles.colDescription : styles.colDescriptionFlat]}>
+              {item.description}
             </Text>
-            <Text style={[item.hourlyRateCents != null ? styles.cellText : styles.cellMuted, styles.colRate]}>
-              {item.hourlyRateCents != null ? formatPdfRate(item.hourlyRateCents) : '-'}
+            {showHourlyColumns && (
+              <>
+                <Text style={[item.hours != null ? styles.cellText : styles.cellMuted, styles.colHours]}>
+                  {item.hours != null ? item.hours.toString() : '-'}
+                </Text>
+                <Text style={[item.hourlyRateCents != null ? styles.cellText : styles.cellMuted, styles.colRate]}>
+                  {item.hourlyRateCents != null ? formatPdfRate(item.hourlyRateCents) : '-'}
+                </Text>
+              </>
+            )}
+            <Text style={[styles.cellText, showHourlyColumns ? styles.colAmount : styles.colAmountFlat]}>
+              {formatPdfCurrency(item.amountCents)}
             </Text>
-            <Text style={[styles.cellText, styles.colAmount]}>{formatPdfCurrency(item.amountCents)}</Text>
           </View>
         ))}
 

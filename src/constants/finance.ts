@@ -237,6 +237,14 @@ export const PAYMENT_METHOD = {
 
 export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];
 
+// Invoice Billing Modes (UI-only: drives form render + PDF layout)
+export const INVOICE_BILLING_MODE = {
+  HOURLY: 'hourly',
+  FLAT: 'flat',
+} as const;
+
+export type InvoiceBillingMode = (typeof INVOICE_BILLING_MODE)[keyof typeof INVOICE_BILLING_MODE];
+
 // Company Roles
 export const COMPANY_ROLE = {
   CLIENT: 'client',

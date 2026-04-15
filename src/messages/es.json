@@ -891,6 +891,11 @@
       "edit-title": "Editar Factura",
       "total": "Total",
       "add-line": "Añadir línea",
+      "billing-mode": {
+        "label": "Modo de facturación",
+        "hourly": "Por horas",
+        "flat": "Concepto único"
+      },
       "fields": {
         "prefix": "Serie",
         "select-prefix": "Seleccionar serie...",
