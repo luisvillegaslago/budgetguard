@@ -133,6 +133,8 @@ export default function InvoiceDetailPage() {
 
   const l = getInvoiceLabels(invoice.invoiceLanguage);
   const invoiceLocale = getInvoiceLocale(invoice.invoiceLanguage);
+  const showHourlyColumns = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
+  const tableGridClass = showHourlyColumns ? 'grid-cols-[2fr_1fr_1fr_1fr]' : 'grid-cols-[3fr_1fr]';
 
   const formatRate = (cents: number) => {
     const euros = centsToEuros(cents);
@@ -300,29 +302,41 @@ export default function InvoiceDetailPage() {
 
         {/* Table */}
         <div className="mb-6">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-3 py-2 bg-guard-dark text-white rounded-t-lg text-xs font-medium uppercase tracking-wide">
+          <div
+            className={`grid ${tableGridClass} gap-4 px-3 py-2 bg-guard-dark text-white rounded-t-lg text-xs font-medium uppercase tracking-wide`}
+          >
             <span>{l.description}</span>
-            <span className="text-center">{l.hours}</span>
-            <span className="text-right">{l.hourlyRate}</span>
+            {showHourlyColumns && (
+              <>
+                <span className="text-center">{l.hours}</span>
+                <span className="text-right">{l.hourlyRate}</span>
+              </>
+            )}
             <span className="text-right">{l.balance}</span>
           </div>
 
           {invoice.lineItems.map((item) => (
             <div
               key={item.lineItemId}
-              className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-3 py-3 border-b border-border text-sm"
+              className={`grid ${tableGridClass} gap-4 px-3 py-3 border-b border-border text-sm`}
             >
               <span className="text-foreground whitespace-pre-line">{item.description}</span>
-              <span className="text-center text-guard-muted">{item.hours != null ? item.hours : '-'}</span>
-              <span className="text-right text-guard-muted">
-                {item.hourlyRateCents != null ? formatRate(item.hourlyRateCents) : '-'}
-              </span>
+              {showHourlyColumns && (
+                <>
+                  <span className="text-center text-guard-muted">{item.hours != null ? item.hours : '-'}</span>
+                  <span className="text-right text-guard-muted">
+                    {item.hourlyRateCents != null ? formatRate(item.hourlyRateCents) : '-'}
+                  </span>
+                </>
+              )}
               <span className="text-right font-medium text-foreground">{formatCurrency(item.amountCents)}</span>
             </div>
           ))}
 
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-3 py-3 border-t-2 border-guard-dark">
-            <span className="col-span-3 text-right font-bold text-foreground">{l.total}</span>
+          <div className={`grid ${tableGridClass} gap-4 px-3 py-3 border-t-2 border-guard-dark`}>
+            <span className={`${showHourlyColumns ? 'col-span-3' : 'col-span-1'} text-right font-bold text-foreground`}>
+              {l.total}
+            </span>
             <span className="text-right font-bold text-foreground">{formatCurrency(invoice.totalCents)}</span>
           </div>
         </div>
