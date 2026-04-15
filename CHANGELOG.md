@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.22.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.21.0...v0.22.0) (2026-04-15)
+
+
+### Features
+
+* **invoices:** add flat-rate billing mode to emit single-concept invoices ([b3e5c64](https://github.com/luisvillegaslago/budgetguard/commit/b3e5c6426f52b20afdfb569a28aa9e15046631db))
+
 ## [0.21.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.20.0...v0.21.0) (2026-04-13)
 
 
