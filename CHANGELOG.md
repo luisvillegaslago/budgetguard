@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.22.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.22.0...v0.22.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **invoices:** hide hours columns in invoice preview for flat-rate invoices ([06becce](https://github.com/luisvillegaslago/budgetguard/commit/06beccef510c0005cd83b53ce0a9ab0840a61812))
+
 ## [0.22.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.21.0...v0.22.0) (2026-04-15)
 
 
