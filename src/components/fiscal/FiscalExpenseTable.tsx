@@ -74,7 +74,9 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
                     <div className="truncate">{expense.vendorName ?? expense.parentCategoryName}</div>
                     {expense.companyTaxId && <span className="text-xs text-guard-muted">{expense.companyTaxId}</span>}
                   </td>
-                  <td className="px-4 py-2 text-foreground/80 truncate max-w-[180px]">{expense.description ?? '—'}</td>
+                  <td className="px-4 py-2 text-foreground/80 truncate max-w-[180px]">
+                    {expense.description || `${expense.parentCategoryName} – ${expense.categoryName}`}
+                  </td>
                   <td className="px-4 py-2 text-right tabular-nums font-medium">
                     {formatCurrency(expense.fullAmountCents)}
                   </td>
@@ -115,7 +117,9 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
                 <p className="text-sm font-medium text-foreground truncate">
                   {expense.vendorName ?? expense.parentCategoryName}
                 </p>
-                {expense.description && <p className="text-xs text-foreground/80 truncate">{expense.description}</p>}
+                <p className="text-xs text-foreground/80 truncate">
+                    {expense.description || `${expense.parentCategoryName} – ${expense.categoryName}`}
+                  </p>
               </div>
               <span className="text-sm font-medium tabular-nums shrink-0 ml-2">
                 {formatCurrency(expense.fullAmountCents)}
