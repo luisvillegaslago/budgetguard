@@ -10,7 +10,13 @@
  * All calculations happen in TypeScript (not SQL) for consistent rounding with the frontend.
  */
 
-import { INVOICE_STATUS, IRPF_RATE, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  INVOICE_STATUS,
+  IRPF_RATE,
+  MODELO_100_DEFAULT_CASILLA,
+  PROFESSIONAL_INCOME_CATEGORY,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   FiscalTransaction,
@@ -410,20 +416,28 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
 export async function getModelo100Summary(year: number): Promise<Modelo100Section> {
   const userId = await getUserIdOrThrow();
 
+  type Modelo100Row = FiscalViewRow & { Modelo100CasillaCode: string | null };
+
   const [viewRows, invoiceRows] = await Promise.all([
-    query<FiscalViewRow>(
-      `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-      FROM "vw_FiscalQuarterly"
-      WHERE "FiscalYear" = $1 AND "UserID" = $2`,
+    query<Modelo100Row>(
+      `SELECT v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
+              v."CategoryName", v."ParentCategoryName", v."TransactionDate",
+              v."VendorName", v."InvoiceNumber", v."Description",
+              v."FullAmountCents", v."VatPercent", v."DeductionPercent",
+              NULL AS "CompanyTaxId", cat."Modelo100CasillaCode"
+      FROM "vw_FiscalQuarterly" v
+      INNER JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID"
+      WHERE v."FiscalYear" = $1 AND v."UserID" = $2`,
       [year, userId],
     ),
     getUnpaidInvoiceRows(userId, year),
   ]);
 
-  const rows = [...viewRows, ...invoiceRows];
+  const rows: Modelo100Row[] = [...viewRows, ...invoiceRows.map((r) => ({ ...r, Modelo100CasillaCode: null }))];
 
   let ingresosCents = 0;
   let gastosDeducCents = 0;
+  const casillaMap = new Map<string, number>();
 
   rows.forEach((row) => {
     const { baseCents, baseDeducibleCents } = computeFiscalFields(
@@ -435,8 +449,10 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     if (isProfessionalIncome(row)) {
       ingresosCents += baseCents;
     }
-    if (row.Type === TRANSACTION_TYPE.EXPENSE) {
+    if (row.Type === TRANSACTION_TYPE.EXPENSE && baseDeducibleCents > 0) {
       gastosDeducCents += baseDeducibleCents;
+      const casilla = row.Modelo100CasillaCode ?? MODELO_100_DEFAULT_CASILLA;
+      casillaMap.set(casilla, (casillaMap.get(casilla) ?? 0) + baseDeducibleCents);
     }
   });
 
@@ -448,6 +464,10 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
   const casilla0223 = casilla0218 + casilla0222;
   const casilla0224 = casilla0180 - casilla0223;
 
+  const gastosPorCasilla = [...casillaMap.entries()]
+    .map(([casilla, cents]) => ({ casilla, cents }))
+    .sort((a, b) => a.casilla.localeCompare(b.casilla));
+
   return {
     fiscalYear: year,
     casilla0171Cents: casilla0171,
@@ -457,5 +477,6 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     casilla0222Cents: casilla0222,
     casilla0223Cents: casilla0223,
     casilla0224Cents: casilla0224,
+    gastosPorCasilla,
   };
 }

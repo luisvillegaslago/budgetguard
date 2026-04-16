@@ -97,6 +97,11 @@ function CategoryRow({
               {t('category-management.badges.shared')}
             </span>
           )}
+          {category.modelo100CasillaCode && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-guard-warning/10 text-guard-warning tabular-nums">
+              [{category.modelo100CasillaCode}]
+            </span>
+          )}
         </div>
 
         {/* Type badge */}

@@ -51,15 +51,15 @@ DECLARE
 BEGIN
   SELECT "CategoryID" INTO v_id FROM "Categories" WHERE "Name" = 'Vivienda' AND "ParentCategoryID" IS NULL;
 
-  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared") VALUES
-  ('Internet', 'expense', 'wifi', '#EF4444', 1, v_id, TRUE),
-  ('Asistenta', 'expense', 'spray-can', '#EF4444', 2, v_id, TRUE),
-  ('Calefaccion', 'expense', 'flame', '#EF4444', 3, v_id, TRUE),
-  ('Luz', 'expense', 'zap', '#EF4444', 4, v_id, TRUE),
-  ('Garaje', 'expense', 'warehouse', '#EF4444', 5, v_id, TRUE),
-  ('Comunidad', 'expense', 'building-2', '#EF4444', 6, v_id, TRUE),
-  ('Compras Casa', 'expense', 'package', '#EF4444', 7, v_id, TRUE),
-  ('Otros', 'expense', 'alert-circle', '#EF4444', 8, v_id, TRUE);
+  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode") VALUES
+  ('Internet', 'expense', 'wifi', '#EF4444', 1, v_id, TRUE, '0194'),
+  ('Asistenta', 'expense', 'spray-can', '#EF4444', 2, v_id, TRUE, NULL),
+  ('Calefaccion', 'expense', 'flame', '#EF4444', 3, v_id, TRUE, '0194'),
+  ('Luz', 'expense', 'zap', '#EF4444', 4, v_id, TRUE, '0194'),
+  ('Garaje', 'expense', 'warehouse', '#EF4444', 5, v_id, TRUE, NULL),
+  ('Comunidad', 'expense', 'building-2', '#EF4444', 6, v_id, TRUE, '0217'),
+  ('Compras Casa', 'expense', 'package', '#EF4444', 7, v_id, TRUE, NULL),
+  ('Otros', 'expense', 'alert-circle', '#EF4444', 8, v_id, TRUE, NULL);
 END $$;
 
 -- ============================================================
@@ -121,11 +121,12 @@ DECLARE
 BEGIN
   SELECT "CategoryID" INTO v_id FROM "Categories" WHERE "Name" = 'Trabajo' AND "ParentCategoryID" IS NULL;
 
-  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared") VALUES
-  ('Seguridad Social', 'expense', 'shield', '#F59E0B', 1, v_id, FALSE),
-  ('Impuestos', 'expense', 'landmark', '#F59E0B', 2, v_id, FALSE),
-  ('Anthropic', 'expense', 'cpu', '#F59E0B', 3, v_id, FALSE),
-  ('General', 'expense', 'alert-circle', '#F59E0B', 4, v_id, FALSE);
+  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode") VALUES
+  ('Seguridad Social', 'expense', 'shield', '#F59E0B', 1, v_id, FALSE, '0186'),
+  ('Regularización RETA', 'expense', 'shield-alert', '#F59E0B', 2, v_id, FALSE, '0196'),
+  ('Impuestos', 'expense', 'landmark', '#F59E0B', 3, v_id, FALSE, NULL),
+  ('Anthropic', 'expense', 'cpu', '#F59E0B', 4, v_id, FALSE, '0217'),
+  ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, NULL);
 END $$;
 
 -- ============================================================

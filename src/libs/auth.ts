@@ -303,79 +303,83 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
   });
 
   // Insert subcategories
-  const subcategories: Array<{ parent: string; entries: Array<[string, string, string, number, boolean]> }> = [
+  const subcategories: Array<{
+    parent: string;
+    entries: Array<[string, string, string, number, boolean, string | null]>;
+  }> = [
     {
       parent: 'Vivienda',
       entries: [
-        ['Internet', 'wifi', '#EF4444', 1, true],
-        ['Asistenta', 'spray-can', '#EF4444', 2, true],
-        ['Calefaccion', 'flame', '#EF4444', 3, true],
-        ['Luz', 'zap', '#EF4444', 4, true],
-        ['Garaje', 'warehouse', '#EF4444', 5, true],
-        ['Comunidad', 'building-2', '#EF4444', 6, true],
-        ['Compras Casa', 'package', '#EF4444', 7, true],
-        ['Otros', 'alert-circle', '#EF4444', 8, true],
+        ['Internet', 'wifi', '#EF4444', 1, true, '0194'],
+        ['Asistenta', 'spray-can', '#EF4444', 2, true, null],
+        ['Calefaccion', 'flame', '#EF4444', 3, true, '0194'],
+        ['Luz', 'zap', '#EF4444', 4, true, '0194'],
+        ['Garaje', 'warehouse', '#EF4444', 5, true, null],
+        ['Comunidad', 'building-2', '#EF4444', 6, true, '0217'],
+        ['Compras Casa', 'package', '#EF4444', 7, true, null],
+        ['Otros', 'alert-circle', '#EF4444', 8, true, null],
       ],
     },
     {
       parent: 'Salir',
       entries: [
-        ['Comida', 'utensils', '#3B82F6', 1, false],
-        ['Copas', 'wine', '#3B82F6', 2, false],
-        ['Transporte', 'car', '#3B82F6', 3, false],
-        ['Ropero', 'shirt', '#3B82F6', 4, false],
-        ['Otros', 'alert-circle', '#3B82F6', 5, false],
+        ['Comida', 'utensils', '#3B82F6', 1, false, null],
+        ['Copas', 'wine', '#3B82F6', 2, false, null],
+        ['Transporte', 'car', '#3B82F6', 3, false, null],
+        ['Ropero', 'shirt', '#3B82F6', 4, false, null],
+        ['Otros', 'alert-circle', '#3B82F6', 5, false, null],
       ],
     },
     {
       parent: 'Transporte',
       entries: [
-        ['Gasolina', 'fuel', '#14B8A6', 1, false],
-        ['Peaje', 'landmark', '#14B8A6', 2, false],
-        ['Taxi', 'car', '#14B8A6', 3, false],
-        ['Parking', 'square-parking', '#14B8A6', 4, false],
-        ['Transporte Publico', 'train-front', '#14B8A6', 5, false],
+        ['Gasolina', 'fuel', '#14B8A6', 1, false, null],
+        ['Peaje', 'landmark', '#14B8A6', 2, false, null],
+        ['Taxi', 'car', '#14B8A6', 3, false, null],
+        ['Parking', 'square-parking', '#14B8A6', 4, false, null],
+        ['Transporte Publico', 'train-front', '#14B8A6', 5, false, null],
       ],
     },
     {
       parent: 'Deporte',
       entries: [
-        ['Padel', 'trophy', '#EAB308', 1, false],
-        ['Gimnasio', 'dumbbell', '#EAB308', 2, false],
-        ['Carreras', 'flag', '#EAB308', 3, false],
-        ['General', 'alert-circle', '#EAB308', 4, false],
+        ['Padel', 'trophy', '#EAB308', 1, false, null],
+        ['Gimnasio', 'dumbbell', '#EAB308', 2, false, null],
+        ['Carreras', 'flag', '#EAB308', 3, false, null],
+        ['General', 'alert-circle', '#EAB308', 4, false, null],
       ],
     },
     {
       parent: 'Trabajo',
       entries: [
-        ['Seguridad Social', 'shield', '#F59E0B', 1, false],
-        ['Impuestos', 'landmark', '#F59E0B', 2, false],
-        ['Anthropic', 'cpu', '#F59E0B', 3, false],
-        ['General', 'alert-circle', '#F59E0B', 4, false],
+        ['Seguridad Social', 'shield', '#F59E0B', 1, false, '0186'],
+        ['Regularización RETA', 'shield-alert', '#F59E0B', 2, false, '0196'],
+        ['Impuestos', 'landmark', '#F59E0B', 3, false, null],
+        ['Anthropic', 'cpu', '#F59E0B', 4, false, '0217'],
+        ['General', 'alert-circle', '#F59E0B', 5, false, null],
       ],
     },
     {
       parent: 'Paracaidismo',
       entries: [
-        ['Túnel de viento', 'wind', '#84CC16', 1, false],
-        ['Saltos', 'cloud', '#84CC16', 2, false],
-        ['Seguro', 'shield', '#84CC16', 3, false],
-        ['Material', 'backpack', '#84CC16', 4, false],
-        ['Eventos', 'calendar', '#84CC16', 5, false],
-        ['General', 'alert-circle', '#84CC16', 6, false],
+        ['Túnel de viento', 'wind', '#84CC16', 1, false, null],
+        ['Saltos', 'cloud', '#84CC16', 2, false, null],
+        ['Seguro', 'shield', '#84CC16', 3, false, null],
+        ['Material', 'backpack', '#84CC16', 4, false, null],
+        ['Eventos', 'calendar', '#84CC16', 5, false, null],
+        ['General', 'alert-circle', '#84CC16', 6, false, null],
       ],
     },
     {
       parent: 'Viajes',
       entries: [
-        ['Alojamiento', 'bed', '#8B5CF6', 1, false],
-        ['Transporte', 'car', '#EF4444', 2, false],
-        ['Comida', 'utensils', '#F59E0B', 3, false],
-        ['Restaurante', 'chef-hat', '#06B6D4', 4, false],
-        ['Actividades', 'ticket', '#10B981', 5, false],
-        ['Copas', 'wine', '#EC4899', 6, false],
-        ['Otros', 'ellipsis', '#64748B', 7, false],
+        ['Alojamiento', 'bed', '#8B5CF6', 1, false, null],
+        ['Transporte', 'car', '#EF4444', 2, false, null],
+        ['Comida', 'utensils', '#F59E0B', 3, false, null],
+        ['Restaurante', 'chef-hat', '#06B6D4', 4, false, null],
+        ['Actividades', 'ticket', '#10B981', 5, false, null],
+        ['Copas', 'wine', '#EC4899', 6, false, null],
+        ['Otros', 'ellipsis', '#64748B', 7, false, null],
       ],
     },
   ];
@@ -388,21 +392,22 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
       const values = entries
         .map(
           (_, i) =>
-            `($${i * 6 + 1}, 'expense', $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`,
+            `($${i * 7 + 1}, 'expense', $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`,
         )
         .join(', ');
 
-      const params = entries.flatMap(([name, icon, color, sortOrder, shared]) => [
+      const params = entries.flatMap(([name, icon, color, sortOrder, shared, casilla]) => [
         name,
         icon,
         color,
         sortOrder,
         parentId,
         shared,
+        casilla,
       ]);
 
       return query(
-        `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared")
+        `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode")
          VALUES ${values}`,
         params,
       );

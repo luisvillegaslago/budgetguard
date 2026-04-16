@@ -85,6 +85,7 @@ CREATE TABLE "Categories" (
     "DefaultShared" BOOLEAN DEFAULT FALSE NOT NULL,
     "DefaultVatPercent" NUMERIC(5,2) NULL,
     "DefaultDeductionPercent" NUMERIC(5,2) NULL,
+    "Modelo100CasillaCode" VARCHAR(4) NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

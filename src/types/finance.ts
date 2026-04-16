@@ -71,6 +71,7 @@ export interface Category {
   defaultShared: boolean;
   defaultVatPercent: number | null;
   defaultDeductionPercent: number | null;
+  modelo100CasillaCode?: string | null;
   subcategories?: Category[];
 }
 
@@ -493,6 +494,11 @@ export interface Modelo390Summary {
  * Modelo 100 — Economic activities section (Estimación Directa Simplificada)
  * Only covers the professional activities section; user completes the rest in Renta Web
  */
+export interface Modelo100GastoCasilla {
+  casilla: string;
+  cents: number;
+}
+
 export interface Modelo100Section {
   fiscalYear: number;
   casilla0171Cents: number; // Ingresos de explotación
@@ -502,6 +508,7 @@ export interface Modelo100Section {
   casilla0222Cents: number; // Gastos difícil justificación (5%, max 2000€)
   casilla0223Cents: number; // Total gastos deducibles (C0218 + C0222)
   casilla0224Cents: number; // Rendimiento neto (C0180 - C0223)
+  gastosPorCasilla: Modelo100GastoCasilla[]; // Desglose de gastos por casilla AEAT
 }
 
 /**

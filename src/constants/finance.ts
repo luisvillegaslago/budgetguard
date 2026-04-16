@@ -218,6 +218,17 @@ export const GASTOS_DIFICIL = {
   MAX_CENTS: 200_000, // 2,000€ annual cap
 } as const;
 
+// Modelo 100 — AEAT casilla codes for expense breakdown
+export const MODELO_100_CASILLA = {
+  C0186: '0186', // Seguridad Social del titular
+  C0194: '0194', // Suministros (electricidad, agua, gas, telefonía, internet)
+  C0196: '0196', // Regularización cuotas RETA (a ingresar)
+  C0202: '0202', // Otros servicios exteriores (fallback)
+  C0217: '0217', // Otros conceptos fiscalmente deducibles
+} as const;
+
+export const MODELO_100_DEFAULT_CASILLA = MODELO_100_CASILLA.C0202;
+
 // Invoice Statuses
 export const INVOICE_STATUS = {
   DRAFT: 'draft',

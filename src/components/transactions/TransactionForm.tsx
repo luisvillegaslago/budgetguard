@@ -460,6 +460,19 @@ export function TransactionForm({
                   />
                 </div>
               </div>
+
+              {/* Modelo 100 casilla (readonly, from category) */}
+              {fiscalDefaults?.modelo100CasillaCode && (
+                <div>
+                  <span className="block text-xs font-medium text-foreground mb-1">
+                    {t('fiscal.category-defaults.modelo100-casilla')}
+                  </span>
+                  <div className="w-full px-3 py-2 rounded-lg border border-input bg-muted/50 text-sm text-guard-muted tabular-nums">
+                    ({fiscalDefaults.modelo100CasillaCode}){' '}
+                    {t(`fiscal.modelo100.casilla${fiscalDefaults.modelo100CasillaCode}`)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

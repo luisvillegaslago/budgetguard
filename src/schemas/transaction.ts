@@ -92,6 +92,7 @@ export const CreateCategorySchema = z.object({
   defaultShared: z.boolean().optional().default(false),
   defaultVatPercent: z.number().min(0).max(100).optional().nullable(),
   defaultDeductionPercent: z.number().min(0).max(100).optional().nullable(),
+  modelo100CasillaCode: z.string().max(4).optional().nullable(),
 });
 
 export type CreateCategoryInput = z.infer<typeof CreateCategorySchema>;
@@ -113,6 +114,7 @@ export const UpdateCategorySchema = z.object({
   defaultShared: z.boolean().optional(),
   defaultVatPercent: z.number().min(0).max(100).optional().nullable(),
   defaultDeductionPercent: z.number().min(0).max(100).optional().nullable(),
+  modelo100CasillaCode: z.string().max(4).optional().nullable(),
 });
 
 export type UpdateCategoryInput = z.infer<typeof UpdateCategorySchema>;

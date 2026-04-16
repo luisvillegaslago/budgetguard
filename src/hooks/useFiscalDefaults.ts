@@ -10,6 +10,7 @@ import { useCategories } from '@/hooks/useCategories';
 interface FiscalDefaults {
   vatPercent: number;
   deductionPercent: number;
+  modelo100CasillaCode: string | null;
 }
 
 /**
@@ -31,6 +32,7 @@ export function useFiscalDefaults(categoryId: number | null): FiscalDefaults | n
     return {
       vatPercent: category.defaultVatPercent ?? 0,
       deductionPercent: category.defaultDeductionPercent ?? 100,
+      modelo100CasillaCode: category.modelo100CasillaCode ?? null,
     };
   }, [categoryId, categories]);
 }

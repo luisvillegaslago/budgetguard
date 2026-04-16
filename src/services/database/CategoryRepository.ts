@@ -19,6 +19,7 @@ interface CategoryRow {
   DefaultShared: boolean;
   DefaultVatPercent: number | null;
   DefaultDeductionPercent: number | null;
+  Modelo100CasillaCode: string | null;
 }
 
 /**
@@ -37,6 +38,7 @@ function rowToCategory(row: CategoryRow): Category {
     defaultShared: row.DefaultShared,
     defaultVatPercent: row.DefaultVatPercent,
     defaultDeductionPercent: row.DefaultDeductionPercent,
+    modelo100CasillaCode: row.Modelo100CasillaCode,
   };
 }
 
@@ -66,7 +68,7 @@ export async function getCategories(type?: TransactionType, includeInactive = fa
 
   let sqlText = `
     SELECT "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
-           "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"
+           "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "Modelo100CasillaCode"
     FROM "Categories"
     WHERE "UserID" = $1
   `;
@@ -98,7 +100,7 @@ export async function getCategoryById(categoryId: number): Promise<Category | nu
 
   const result = await query<CategoryRow>(
     `SELECT "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
-            "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"
+            "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "Modelo100CasillaCode"
      FROM "Categories"
      WHERE "CategoryID" = $1 AND "UserID" = $2`,
     [categoryId, userId],
@@ -121,14 +123,15 @@ export async function createCategory(data: {
   defaultShared?: boolean;
   defaultVatPercent?: number | null;
   defaultDeductionPercent?: number | null;
+  modelo100CasillaCode?: string | null;
 }): Promise<Category> {
   const userId = await getUserIdOrThrow();
 
   const result = await query<CategoryRow>(
-    `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "UserID")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "Modelo100CasillaCode", "UserID")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
-               "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"`,
+               "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "Modelo100CasillaCode"`,
     [
       data.name,
       data.type,
@@ -139,6 +142,7 @@ export async function createCategory(data: {
       data.defaultShared ?? false,
       data.defaultVatPercent ?? null,
       data.defaultDeductionPercent ?? null,
+      data.modelo100CasillaCode ?? null,
       userId,
     ],
   );
@@ -165,6 +169,7 @@ export async function updateCategory(
     defaultShared: boolean;
     defaultVatPercent: number | null;
     defaultDeductionPercent: number | null;
+    modelo100CasillaCode: string | null;
   }>,
 ): Promise<Category | null> {
   const userId = await getUserIdOrThrow();
@@ -205,6 +210,10 @@ export async function updateCategory(
     updates.push(`"DefaultDeductionPercent" = $${paramIndex++}`);
     params.push(data.defaultDeductionPercent);
   }
+  if (data.modelo100CasillaCode !== undefined) {
+    updates.push(`"Modelo100CasillaCode" = $${paramIndex++}`);
+    params.push(data.modelo100CasillaCode);
+  }
 
   if (updates.length === 0) {
     return getCategoryById(categoryId);
@@ -215,7 +224,7 @@ export async function updateCategory(
      SET ${updates.join(', ')}
      WHERE "CategoryID" = $1 AND "UserID" = $2
      RETURNING "CategoryID", "Name", "Type", "Icon", "Color", "SortOrder", "IsActive",
-               "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent"`,
+               "ParentCategoryID", "DefaultShared", "DefaultVatPercent", "DefaultDeductionPercent", "Modelo100CasillaCode"`,
     params,
   );
 
