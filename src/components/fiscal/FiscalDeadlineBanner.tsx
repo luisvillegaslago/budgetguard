@@ -74,7 +74,7 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
   );
 }
 
-export function FiscalDeadlineBanner() {
+export function FiscalDeadlineBanner({ className }: { className?: string }) {
   const { t } = useTranslate();
   const { data: deadlines } = useUpcomingDeadlines();
   const isCollapsed = useIsFiscalPanelCollapsed();
@@ -89,6 +89,7 @@ export function FiscalDeadlineBanner() {
       className={cn(
         'rounded-[var(--radius)] border transition-colors duration-200',
         hasOverdue ? 'bg-guard-danger/5 border-guard-danger/20' : 'bg-guard-warning/5 border-guard-warning/20',
+        className,
       )}
     >
       {/* Header (always visible, clickable) */}
