@@ -118,8 +118,8 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
                   {expense.vendorName ?? expense.parentCategoryName}
                 </p>
                 <p className="text-xs text-foreground/80 truncate">
-                    {expense.description || `${expense.parentCategoryName} – ${expense.categoryName}`}
-                  </p>
+                  {expense.description || `${expense.parentCategoryName} – ${expense.categoryName}`}
+                </p>
               </div>
               <span className="text-sm font-medium tabular-nums shrink-0 ml-2">
                 {formatCurrency(expense.fullAmountCents)}
