@@ -616,6 +616,11 @@
       "resultado": "Result",
       "casilla0171": "Operating income",
       "casilla0180": "Total computable income",
+      "casilla0186": "Social Security (self-employed)",
+      "casilla0194": "Utilities",
+      "casilla0196": "RETA regularization",
+      "casilla0202": "Other external services",
+      "casilla0217": "Other deductible expenses",
       "casilla0218": "Total deductible expenses",
       "casilla0221": "Difference (income − expenses)",
       "casilla0222": "Difficult-to-justify expenses (5%, max €2,000)",
@@ -665,7 +670,9 @@
     },
     "category-defaults": {
       "vat-percent": "Default VAT (%)",
-      "deduction-percent": "Default deduction (%)"
+      "deduction-percent": "Default deduction (%)",
+      "modelo100-casilla": "Modelo 100 casilla",
+      "modelo100-none": "Not assigned"
     },
     "documents": {
       "title": "Documents",
@@ -720,6 +727,11 @@
         "size": "Size",
         "actions": "Actions"
       }
+    },
+    "deferral-reminder": {
+      "title": "Debt deferral request",
+      "description": "Remember to submit the tax debt deferral request at the Agencia Tributaria electronic office.",
+      "open-link": "Go to Sede Electrónica (RB01)"
     },
     "deadlines": {
       "panel-title": "AEAT Deadlines",

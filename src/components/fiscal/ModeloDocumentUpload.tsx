@@ -5,12 +5,12 @@
  * Used from the fiscal page with pre-filled modelo type.
  */
 
-import { Upload, X } from 'lucide-react';
+import { ExternalLink, Upload, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
 import type { ModeloType } from '@/constants/finance';
-import { FISCAL_STATUS } from '@/constants/finance';
+import { FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
 import { useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
@@ -36,6 +36,7 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
   const [status, setStatus] = useState<string>(FISCAL_STATUS.FILED);
   const [taxAmount, setTaxAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [showDeferralReminder, setShowDeferralReminder] = useState(false);
   const uploadMutation = useUploadFiscalDocument(year);
 
   const isAnnual = modeloType === '390' || modeloType === '100';
@@ -71,8 +72,45 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
     };
 
     await uploadMutation.mutateAsync({ file: selectedFile, metadata });
+
+    if (modeloType === MODELO_TYPE.M130) {
+      setShowDeferralReminder(true);
+      return;
+    }
     onClose();
   };
+
+  if (showDeferralReminder) {
+    return (
+      <ModalBackdrop onClose={onClose} labelledBy="deferral-reminder-title">
+        <div className="card w-full max-w-md animate-modal-in">
+          <h2 id="deferral-reminder-title" className="text-xl font-bold text-foreground mb-3">
+            {t('fiscal.deferral-reminder.title')}
+          </h2>
+          <p className="text-sm text-foreground/80 mb-4">{t('fiscal.deferral-reminder.description')}</p>
+          <a
+            href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/RB01.shtml"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              'flex items-center justify-center gap-2 w-full py-3 rounded-lg font-semibold text-white mb-3',
+              'bg-guard-primary hover:bg-guard-primary/90 transition-all duration-200 ease-out-quart active:scale-[0.98]',
+            )}
+          >
+            {t('fiscal.deferral-reminder.open-link')}
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+          >
+            {t('common.buttons.close')}
+          </button>
+        </div>
+      </ModalBackdrop>
+    );
+  }
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="modelo-upload-title">

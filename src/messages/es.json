@@ -616,6 +616,11 @@
       "resultado": "Resultado",
       "casilla0171": "Ingresos de explotación",
       "casilla0180": "Total ingresos computables",
+      "casilla0186": "Seguridad Social del titular",
+      "casilla0194": "Suministros",
+      "casilla0196": "Regularización cuotas RETA",
+      "casilla0202": "Otros servicios exteriores",
+      "casilla0217": "Otros conceptos fisc. deducibles",
       "casilla0218": "Suma gastos deducibles",
       "casilla0221": "Diferencia (ingresos − gastos)",
       "casilla0222": "Gastos difícil justificación (5%, máx. 2.000€)",
@@ -665,7 +670,9 @@
     },
     "category-defaults": {
       "vat-percent": "IVA por defecto (%)",
-      "deduction-percent": "Deducción por defecto (%)"
+      "deduction-percent": "Deducción por defecto (%)",
+      "modelo100-casilla": "Casilla Modelo 100",
+      "modelo100-none": "Sin asignar"
     },
     "documents": {
       "title": "Documentos",
@@ -720,6 +727,11 @@
         "size": "Tamaño",
         "actions": "Acciones"
       }
+    },
+    "deferral-reminder": {
+      "title": "Solicitud de aplazamiento",
+      "description": "Recuerda solicitar el aplazamiento de deuda tributaria en la Sede Electrónica de la Agencia Tributaria.",
+      "open-link": "Ir a Sede Electrónica (RB01)"
     },
     "deadlines": {
       "panel-title": "Plazos AEAT",
