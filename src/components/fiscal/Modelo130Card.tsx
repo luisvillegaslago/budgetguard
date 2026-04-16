@@ -58,7 +58,8 @@ function CasillaRow({ number, label, cents, highlight = false, indent = false, m
               : 'text-sm font-medium',
         )}
       >
-        {formatCurrency(cents)}
+        {formatCurrency(cents, false)}
+        <span className="ml-1">€</span>
       </span>
     </div>
   );

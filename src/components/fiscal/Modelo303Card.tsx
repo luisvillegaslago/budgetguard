@@ -36,7 +36,8 @@ function CasillaRow({ number, label, cents, isTotal = false }: CasillaRowProps) 
         </Tooltip>
       </div>
       <span className={cn('text-sm tabular-nums shrink-0', isTotal ? 'font-bold text-foreground' : 'font-medium')}>
-        {formatCurrency(cents)}
+        {formatCurrency(cents, false)}
+        <span className="ml-1">€</span>
       </span>
     </div>
   );
@@ -103,7 +104,8 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
               isPositiveResult ? 'text-guard-danger' : 'text-guard-success',
             )}
           >
-            {formatCurrency(data.resultCents)}
+            {formatCurrency(data.resultCents, false)}
+            <span className="ml-1">€</span>
           </span>
           <p className={cn('text-xs mt-0.5', isPositiveResult ? 'text-guard-danger/70' : 'text-guard-success/70')}>
             {resultLabel}
