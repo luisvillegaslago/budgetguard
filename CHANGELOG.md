@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.23.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.22.1...v0.23.0) (2026-04-16)
+
+
+### Features
+
+* **fiscal:** add Modelo 100 expense breakdown by AEAT casilla ([7bfd784](https://github.com/luisvillegaslago/budgetguard/commit/7bfd78455ead608ee63b787811b4d6b92b8756e4))
+* **fiscal:** show deferral reminder popup after filing Modelo 130 ([6d59943](https://github.com/luisvillegaslago/budgetguard/commit/6d59943cbad5a5f64b769fe5b5ff96ce1da73e7d))
+
+
+### Bug Fixes
+
+* **fiscal:** add spacing between deadline banner and quarter selector ([5be77ac](https://github.com/luisvillegaslago/budgetguard/commit/5be77ac605897ee635bd3315f3e64afad7f07865))
+* **fiscal:** fix label truncation and double-click selection in modelo cards ([f50a7d8](https://github.com/luisvillegaslago/budgetguard/commit/f50a7d89c76cf0cf98bdacc54871cc033434991c))
+* **fiscal:** fix label truncation in annual modelo cards ([87f0726](https://github.com/luisvillegaslago/budgetguard/commit/87f0726b3c9afafcafafb4cb919519342a7bebb6))
+* **fiscal:** separate currency symbol from value for clean double-click selection ([b840792](https://github.com/luisvillegaslago/budgetguard/commit/b840792eab55ae75d73b67789168985a1a074409))
+* **fiscal:** show category as fallback when expense description is empty ([fb1720d](https://github.com/luisvillegaslago/budgetguard/commit/fb1720de034e0f87e52e1a00eb0a679a40c6e2b8))
+* **fiscal:** use casilla 120/110 instead of 60/104 for non-EU services ([b0039a7](https://github.com/luisvillegaslago/budgetguard/commit/b0039a71e9a4e47248f6e0fd2704268b23f97907))
+
 ## [0.22.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.22.0...v0.22.1) (2026-04-15)
 
 
