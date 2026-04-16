@@ -36,10 +36,10 @@ function CasillaRow({ number, label, cents, isTotal = false, highlight = false }
     >
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="text-xs text-guard-muted tabular-nums shrink-0">[{number}]</span>
-        <Tooltip content={label} side="bottom">
+        <Tooltip content={label} side="bottom" triggerClassName="min-w-0 overflow-hidden">
           <span
             className={cn(
-              'text-sm truncate',
+              'text-sm truncate block',
               highlight
                 ? 'font-semibold text-foreground'
                 : isTotal
@@ -61,7 +61,8 @@ function CasillaRow({ number, label, cents, isTotal = false, highlight = false }
               : 'text-sm font-medium',
         )}
       >
-        {formatCurrency(cents)}
+        {formatCurrency(cents, false)}
+        <span className="ml-1">€</span>
       </span>
     </div>
   );
@@ -77,7 +78,7 @@ export function Modelo100Card({ data }: Modelo100CardProps) {
         <p className="text-xs text-guard-muted mt-0.5">{t('fiscal.modelo100.subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Income */}
         <div>
           <h4 className="text-sm font-semibold text-guard-muted uppercase tracking-wider mb-2">
@@ -95,7 +96,15 @@ export function Modelo100Card({ data }: Modelo100CardProps) {
             {t('fiscal.modelo100.gastos')}
           </h4>
           <div className="space-y-0.5">
-            <CasillaRow number="0218" label={t('fiscal.modelo100.casilla0218')} cents={data.casilla0218Cents} />
+            {data.gastosPorCasilla.map((g) => (
+              <CasillaRow
+                key={g.casilla}
+                number={g.casilla}
+                label={t(`fiscal.modelo100.casilla${g.casilla}`)}
+                cents={g.cents}
+              />
+            ))}
+            <CasillaRow number="0218" label={t('fiscal.modelo100.casilla0218')} cents={data.casilla0218Cents} isTotal />
             <CasillaRow number="0221" label={t('fiscal.modelo100.casilla0221')} cents={data.casilla0221Cents} isTotal />
             <CasillaRow number="0222" label={t('fiscal.modelo100.casilla0222')} cents={data.casilla0222Cents} />
             <CasillaRow number="0223" label={t('fiscal.modelo100.casilla0223')} cents={data.casilla0223Cents} isTotal />

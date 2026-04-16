@@ -37,10 +37,10 @@ function CasillaRow({ number, label, cents, highlight = false, indent = false, m
     >
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="text-xs text-guard-muted tabular-nums shrink-0">[{number}]</span>
-        <Tooltip content={label} side="bottom">
+        <Tooltip content={label} side="bottom" triggerClassName="min-w-0 overflow-hidden">
           <span
             className={cn(
-              'text-sm truncate',
+              'text-sm truncate block',
               highlight ? 'font-semibold text-foreground' : muted ? 'text-guard-muted' : 'text-foreground/80',
             )}
           >
