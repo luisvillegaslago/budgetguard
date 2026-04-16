@@ -3,7 +3,7 @@
 /**
  * BudgetGuard Modelo 303 Card
  * Displays IVA (VAT) summary: Devengado vs Deducible in a two-column grid
- * Includes C60 for exempt/export operations when applicable
+ * Includes C120 for non-subject operations by localization rules when applicable
  * Mimics the Agencia Tributaria PDF layout
  */
 
@@ -48,7 +48,7 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
   const isPositiveResult = data.resultCents > 0;
   const resultLabel = isPositiveResult ? t('fiscal.modelo303.to-pay') : t('fiscal.modelo303.to-compensate');
   const hasDevengado = data.casilla07Cents > 0 || data.casilla09Cents > 0;
-  const hasExempt = data.casilla60Cents > 0;
+  const hasExempt = data.casilla120Cents > 0;
 
   return (
     <div className="card border-l-4 border-l-guard-primary">
@@ -84,10 +84,10 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
         </div>
       </div>
 
-      {/* C60 — Exempt/export operations */}
+      {/* C120 — Operations not subject by localization rules */}
       {hasExempt && (
         <div className="mt-4 pt-4 border-t border-border">
-          <CasillaRow number="60" label={t('fiscal.modelo303.casilla60')} cents={data.casilla60Cents} />
+          <CasillaRow number="120" label={t('fiscal.modelo303.casilla120')} cents={data.casilla120Cents} />
         </div>
       )}
 

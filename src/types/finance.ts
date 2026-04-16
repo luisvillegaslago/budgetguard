@@ -450,7 +450,7 @@ export interface Modelo303Summary {
   casilla28Cents: number; // Base deducciones
   casilla29Cents: number; // Cuota IVA deducible
   casilla45Cents: number; // Total IVA deducible
-  casilla60Cents: number; // Exportaciones / operaciones exentas con derecho a deducción (VatPercent = 0)
+  casilla120Cents: number; // Operaciones no sujetas por reglas de localización (VatPercent = 0)
   resultCents: number;
 }
 
@@ -485,8 +485,8 @@ export interface Modelo390Summary {
   casilla84Cents: number; // Suma resultados (= C65)
   casilla86Cents: number; // Resultado liquidación (= C84)
   casilla97Cents: number; // A compensar (abs(C86) if negative, else 0)
-  casilla104Cents: number; // Exportaciones/exentas con deducción (sum of C60)
-  casilla108Cents: number; // Total volumen operaciones (= C104)
+  casilla110Cents: number; // Op. no sujetas por reglas de localización (sum of C120)
+  casilla108Cents: number; // Total volumen operaciones (= C110)
 }
 
 /**

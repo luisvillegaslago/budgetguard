@@ -575,7 +575,7 @@
       "casilla28": "Base deducciones",
       "casilla29": "Cuota IVA deducible",
       "casilla45": "Total IVA deducible",
-      "casilla60": "Exportaciones / op. exentas con derecho a deducción",
+      "casilla120": "Op. no sujetas por reglas de localización",
       "result": "Resultado",
       "to-pay": "A ingresar",
       "to-compensate": "A compensar"
@@ -605,7 +605,7 @@
       "casilla64": "Total deducciones",
       "casilla65": "Resultado",
       "casilla97": "A compensar",
-      "casilla104": "Exportaciones / op. exentas",
+      "casilla110": "Op. no sujetas por reglas de localización",
       "casilla108": "Total vol. operaciones"
     },
     "modelo100": {

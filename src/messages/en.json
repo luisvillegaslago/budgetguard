@@ -575,7 +575,7 @@
       "casilla28": "Deductible base",
       "casilla29": "Deductible VAT",
       "casilla45": "Total VAT deductible",
-      "casilla60": "Exports / exempt operations with deduction rights",
+      "casilla120": "Operations not subject by localization rules",
       "result": "Result",
       "to-pay": "To pay",
       "to-compensate": "To offset"
@@ -605,7 +605,7 @@
       "casilla64": "Total deductions",
       "casilla65": "Result",
       "casilla97": "To offset",
-      "casilla104": "Exports / exempt operations",
+      "casilla110": "Operations not subject by localization rules",
       "casilla108": "Total volume of operations"
     },
     "modelo100": {

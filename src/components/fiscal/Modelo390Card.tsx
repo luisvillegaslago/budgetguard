@@ -104,7 +104,7 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
           {t('fiscal.modelo390.operaciones')}
         </h4>
         <div className="space-y-0.5">
-          <CasillaRow number="104" label={t('fiscal.modelo390.casilla104')} cents={data.casilla104Cents} />
+          <CasillaRow number="110" label={t('fiscal.modelo390.casilla110')} cents={data.casilla110Cents} />
           <CasillaRow number="108" label={t('fiscal.modelo390.casilla108')} cents={data.casilla108Cents} isTotal />
         </div>
       </div>

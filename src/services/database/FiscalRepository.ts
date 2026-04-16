@@ -222,7 +222,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
 
   let casilla07 = 0;
   let casilla09 = 0;
-  let casilla60 = 0;
+  let casilla120 = 0;
   let casilla28 = 0;
   let casilla29 = 0;
 
@@ -238,7 +238,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
         casilla07 += baseCents;
         casilla09 += ivaCents;
       } else {
-        casilla60 += baseCents;
+        casilla120 += baseCents;
       }
     } else if (row.Type === TRANSACTION_TYPE.EXPENSE && row.VatPercent > 0) {
       casilla28 += baseDeducibleCents;
@@ -259,7 +259,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
     casilla28Cents: casilla28,
     casilla29Cents: casilla29,
     casilla45Cents: casilla45,
-    casilla60Cents: casilla60,
+    casilla120Cents: casilla120,
     resultCents,
   };
 }
@@ -357,7 +357,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   let totalC09 = 0;
   let totalC28 = 0;
   let totalC29 = 0;
-  let totalC60 = 0;
+  let totalC120 = 0;
 
   rows.forEach((row) => {
     const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
@@ -370,7 +370,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
       if (row.VatPercent > 0) {
         totalC09 += ivaCents;
       } else {
-        totalC60 += baseCents;
+        totalC120 += baseCents;
       }
     } else if (row.Type === TRANSACTION_TYPE.EXPENSE && row.VatPercent > 0) {
       totalC28 += baseDeducibleCents;
@@ -399,8 +399,8 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
     casilla84Cents: casilla84,
     casilla86Cents: casilla86,
     casilla97Cents: casilla97,
-    casilla104Cents: totalC60,
-    casilla108Cents: totalC60,
+    casilla110Cents: totalC120,
+    casilla108Cents: totalC120,
   };
 }
 
