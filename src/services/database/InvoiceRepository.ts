@@ -272,6 +272,30 @@ export async function upsertBillingProfile(data: BillingProfileInput): Promise<B
 
   const row = result[0];
   if (!row) throw new Error('Failed to upsert billing profile');
+
+  // Propagate biller data to all draft invoices. Finalized/paid/cancelled invoices
+  // keep their frozen snapshot (required for fiscal integrity).
+  await query(
+    `UPDATE "Invoices" SET
+       "BillerName" = $1, "BillerNif" = $2, "BillerAddress" = $3, "BillerPhone" = $4,
+       "BillerPaymentMethod" = $5, "BillerBankName" = $6, "BillerIban" = $7,
+       "BillerSwift" = $8, "BillerBankAddress" = $9
+     WHERE "UserID" = $10 AND "Status" = $11`,
+    [
+      row.FullName,
+      row.Nif,
+      row.Address,
+      row.Phone,
+      row.PaymentMethod,
+      row.BankName,
+      row.Iban,
+      row.Swift,
+      row.BankAddress,
+      userId,
+      INVOICE_STATUS.DRAFT,
+    ],
+  );
+
   return rowToBillingProfile(row);
 }
 

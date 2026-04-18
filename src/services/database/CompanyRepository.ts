@@ -4,6 +4,7 @@
  */
 
 import type { CompanyRole } from '@/constants/finance';
+import { INVOICE_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { Company } from '@/types/finance';
 import { query } from './connection';
@@ -238,7 +239,41 @@ export async function updateCompany(
   );
 
   const row = rows[0];
-  return row ? rowToCompany(row) : null;
+  if (!row) return null;
+
+  // Propagate client snapshot fields to draft invoices that reference this company.
+  // Non-draft invoices keep their frozen snapshot (required for fiscal integrity).
+  const clientFieldMap: Array<[keyof typeof data, string, string | null]> = [
+    ['name', 'ClientName', data.name ?? null],
+    ['tradingName', 'ClientTradingName', data.tradingName ?? null],
+    ['taxId', 'ClientTaxId', data.taxId ?? null],
+    ['address', 'ClientAddress', data.address ?? null],
+    ['city', 'ClientCity', data.city ?? null],
+    ['postalCode', 'ClientPostalCode', data.postalCode ?? null],
+    ['country', 'ClientCountry', data.country ?? null],
+  ];
+  const clientUpdates: string[] = [];
+  const clientParams: unknown[] = [];
+  clientFieldMap.forEach(([key, column, value]) => {
+    if (data[key] !== undefined) {
+      clientUpdates.push(`"${column}" = $${clientParams.length + 1}`);
+      clientParams.push(value);
+    }
+  });
+
+  if (clientUpdates.length > 0) {
+    const companyIdParam = clientParams.length + 1;
+    const userIdParam = clientParams.length + 2;
+    const statusParam = clientParams.length + 3;
+    clientParams.push(id, userId, INVOICE_STATUS.DRAFT);
+    await query(
+      `UPDATE "Invoices" SET ${clientUpdates.join(', ')}
+       WHERE "CompanyID" = $${companyIdParam} AND "UserID" = $${userIdParam} AND "Status" = $${statusParam}`,
+      clientParams,
+    );
+  }
+
+  return rowToCompany(row);
 }
 
 /**
