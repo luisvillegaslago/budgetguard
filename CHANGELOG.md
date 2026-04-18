@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.23.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.23.0...v0.23.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* **invoices:** propagate billing profile and company changes to draft invoices ([94ccdb3](https://github.com/luisvillegaslago/budgetguard/commit/94ccdb3565feb5193914bf4a49cd4ea9314179ac))
+
 ## [0.23.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.22.1...v0.23.0) (2026-04-16)
 
 
