@@ -92,3 +92,27 @@ export function parseDocumentFilename(filename: string): ParsedFileMetadata {
     description: nameWithoutExt,
   };
 }
+
+/**
+ * Build a normalized filename for modelo documents following Spanish convention.
+ * Quarterly (303, 130): "130 1T 2026.pdf"
+ * Annual (390, 100): "390 2026.pdf"
+ * Returns the original filename unchanged if required metadata is missing.
+ */
+export function buildModeloFileName(
+  modeloType: ModeloType | null,
+  fiscalQuarter: number | null,
+  fiscalYear: number | null,
+  originalFilename: string,
+): string {
+  if (!modeloType || !fiscalYear) return originalFilename;
+
+  const extMatch = originalFilename.match(/\.[^.]+$/);
+  const ext = extMatch ? extMatch[0] : '';
+
+  const isAnnual = modeloType === MODELO_TYPE.M390 || modeloType === MODELO_TYPE.M100;
+  if (isAnnual) return `${modeloType} ${fiscalYear}${ext}`;
+
+  if (!fiscalQuarter) return originalFilename;
+  return `${modeloType} ${fiscalQuarter}T ${fiscalYear}${ext}`;
+}

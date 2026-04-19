@@ -4,12 +4,13 @@
  */
 
 import { put } from '@vercel/blob';
-import { API_ERROR } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { FiscalDocumentsFiltersSchema, FiscalDocumentUploadSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
 import { createDocument, getDocuments } from '@/services/database/FiscalDocumentRepository';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
+import { buildModeloFileName } from '@/utils/fiscalFileParser';
 
 export const GET = withApiHandler(async (request) => {
   const { searchParams } = new URL(request.url);
@@ -45,8 +46,19 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(FiscalDocumentUploadSchema, metadata);
   if (!validation.success) return validationError(validation.errors);
 
+  // Normalize filename for modelos: "130 1T 2026.pdf" / "390 2026.pdf"
+  const finalFileName =
+    validation.data.documentType === FISCAL_DOCUMENT_TYPE.MODELO
+      ? buildModeloFileName(
+          validation.data.modeloType ?? null,
+          validation.data.fiscalQuarter ?? null,
+          validation.data.fiscalYear,
+          file.name,
+        )
+      : file.name;
+
   // Upload to Vercel Blob
-  const pathname = `fiscal/${userId}/${validation.data.fiscalYear}/${file.name}`;
+  const pathname = `fiscal/${userId}/${validation.data.fiscalYear}/${finalFileName}`;
   const blob = await put(pathname, file, { access: 'private', addRandomSuffix: true });
 
   // Insert into DB
@@ -58,7 +70,7 @@ export const POST = withApiHandler(async (request) => {
     status: validation.data.status ?? 'pending',
     blobUrl: blob.url,
     blobPathname: blob.pathname,
-    fileName: file.name,
+    fileName: finalFileName,
     fileSizeBytes: file.size,
     contentType: file.type || 'application/octet-stream',
     taxAmountCents: validation.data.taxAmountCents ?? null,

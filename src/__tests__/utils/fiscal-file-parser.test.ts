@@ -4,7 +4,7 @@
  */
 
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
-import { parseDocumentFilename } from '@/utils/fiscalFileParser';
+import { buildModeloFileName, parseDocumentFilename } from '@/utils/fiscalFileParser';
 
 describe('parseDocumentFilename', () => {
   describe('quarterly modelo patterns', () => {
@@ -125,5 +125,43 @@ describe('parseDocumentFilename', () => {
 
       expect(result.documentType).toBe(FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA);
     });
+  });
+});
+
+describe('buildModeloFileName', () => {
+  it('builds quarterly modelo name with Spanish convention', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M130, 1, 2026, 'CotejoDocIdSv.pdf')).toBe('130 1T 2026.pdf');
+  });
+
+  it('preserves uppercase extension', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M303, 4, 2025, 'archivo.PDF')).toBe('303 4T 2025.PDF');
+  });
+
+  it('builds annual modelo name without quarter (390)', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M390, null, 2024, 'foo.pdf')).toBe('390 2024.pdf');
+  });
+
+  it('builds annual modelo name without quarter (100)', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M100, null, 2024, 'foo.pdf')).toBe('100 2024.pdf');
+  });
+
+  it('ignores quarter for annual modelos even if provided', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M390, 2, 2024, 'foo.pdf')).toBe('390 2024.pdf');
+  });
+
+  it('returns original filename when modeloType is null', () => {
+    expect(buildModeloFileName(null, 1, 2026, 'foo.pdf')).toBe('foo.pdf');
+  });
+
+  it('returns original filename when fiscalYear is null', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M130, 1, null, 'foo.pdf')).toBe('foo.pdf');
+  });
+
+  it('returns original filename when quarterly modelo lacks quarter', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M130, null, 2026, 'foo.pdf')).toBe('foo.pdf');
+  });
+
+  it('handles files without extension', () => {
+    expect(buildModeloFileName(MODELO_TYPE.M130, 1, 2026, 'CotejoDocIdSv')).toBe('130 1T 2026');
   });
 });
