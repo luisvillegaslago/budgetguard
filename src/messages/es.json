@@ -803,6 +803,7 @@
       "companies": "Empresas",
       "billing": "Facturación",
       "reminders": "Recordatorios",
+      "crypto": "Criptomonedas",
       "database": "Base de Datos"
     },
     "theme": {
@@ -872,6 +873,40 @@
       "payment-methods": {
         "bank-transfer": "Transferencia Bancaria",
         "other": "Otro"
+      }
+    },
+    "crypto": {
+      "title": "Conexión con Binance",
+      "subtitle": "Conecta tu cuenta de Binance vía API para importar operaciones, recompensas y airdrops, y calcular automáticamente las casillas del Modelo 100 (1804, 0304, 0033).",
+      "not-connected": "No hay conexión activa",
+      "connected-as": "Conectado como API key ****{last4}",
+      "last-validated": "Última validación: {at}",
+      "permissions-title": "Permisos detectados",
+      "permission": {
+        "reading": "Lectura",
+        "withdrawals": "Retiradas",
+        "spot-trading": "Trading spot/margen",
+        "futures": "Futuros",
+        "margin": "Margen",
+        "ip-restrict": "IP whitelist activa"
+      },
+      "permission-safe": "Solo lectura",
+      "permission-unsafe": "Permisos peligrosos detectados",
+      "fields": {
+        "api-key": "API Key",
+        "api-secret": "API Secret"
+      },
+      "form": {
+        "title": "Conectar nueva cuenta",
+        "instructions": "Crea una API key en Binance con SOLO el permiso \"Enable Reading\" activado. Nunca actives \"Enable Withdrawals\" ni \"Enable Spot & Margin Trading\".",
+        "submit": "Validar y conectar",
+        "submitting": "Validando con Binance...",
+        "success": "Cuenta de Binance conectada",
+        "secret-warning": "El secreto se cifra con AES-256-GCM antes de guardarse. No podrás verlo de nuevo: si lo pierdes, regenera la API key en Binance."
+      },
+      "actions": {
+        "disconnect": "Desconectar",
+        "disconnect-confirm": "¿Desconectar la cuenta de Binance? Tus datos sincronizados se conservarán."
       }
     }
   },
@@ -1252,7 +1287,8 @@
       "prefix": "Prefijo de factura no encontrado",
       "document": "Documento no encontrado",
       "document-blob": "Archivo del documento no encontrado",
-      "billing-profile": "Perfil de facturación no encontrado"
+      "billing-profile": "Perfil de facturación no encontrado",
+      "crypto-credentials": "No hay credenciales de exchange conectadas"
     },
     "conflict": {
       "has-transactions": "Esta categoría tiene transacciones vinculadas",
@@ -1274,6 +1310,15 @@
       "extraction-failed": "No se pudo analizar el documento",
       "download-failed": "No se pudo descargar el documento"
     },
+    "crypto": {
+      "unsafe-permissions": "La API key tiene permisos peligrosos. Crea una nueva key con SOLO \"Enable Reading\".",
+      "invalid-signature": "Binance rechazó las credenciales. Verifica la API key, el secret y la lista de IPs permitidas.",
+      "rate-limited": "Binance ha limitado las peticiones. Espera unos minutos e inténtalo de nuevo.",
+      "exchange-unavailable": "Binance no está respondiendo. Inténtalo de nuevo más tarde.",
+      "price-not-found": "No se ha podido obtener el precio histórico en EUR para esta operación.",
+      "decrypt-failed": "No se han podido descifrar las credenciales almacenadas.",
+      "master-key-missing": "Falta la clave maestra de cifrado en el servidor (CRYPTO_MASTER_KEY)."
+    },
     "validation": {
       "invalid-month": "Formato de mes inválido. Usa YYYY-MM",
       "category-id-required": "Se requiere el ID de categoría",
@@ -1292,7 +1337,8 @@
         "trip-expense": "Error al crear el gasto de viaje",
         "jump": "Error al crear el salto",
         "tunnel-session": "Error al crear la sesión de túnel",
-        "group": "Error al crear el grupo de transacciones"
+        "group": "Error al crear el grupo de transacciones",
+        "crypto-credentials": "Error al guardar las credenciales de Binance"
       },
       "update": {
         "transaction": "Error al actualizar la transacción",
@@ -1320,7 +1366,8 @@
         "trip-expense": "Error al eliminar el gasto de viaje",
         "jump": "Error al eliminar el salto",
         "tunnel-session": "Error al eliminar la sesión de túnel",
-        "fiscal-document": "Error al eliminar el documento"
+        "fiscal-document": "Error al eliminar el documento",
+        "crypto-credentials": "Error al desconectar Binance"
       },
       "import": {
         "jumps": "Error al importar saltos",

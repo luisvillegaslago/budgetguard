@@ -26,6 +26,7 @@ DROP TRIGGER IF EXISTS "TR_RecurringExpenses_SyncVendorName" ON "RecurringExpens
 DROP TRIGGER IF EXISTS "TR_Companies_PropagateNameChange" ON "Companies";
 DROP TRIGGER IF EXISTS "TR_FiscalDocuments_UpdatedAt" ON "FiscalDocuments";
 DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineSettings";
+DROP TRIGGER IF EXISTS "TR_ExchangeCredentials_UpdatedAt" ON "ExchangeCredentials";
 
 -- Drop sync trigger functions
 DROP FUNCTION IF EXISTS sync_vendor_name_from_company();
@@ -44,6 +45,8 @@ DROP VIEW IF EXISTS "vw_SubcategorySummary";
 DROP VIEW IF EXISTS "vw_MonthlySummary";
 
 -- Drop tables with foreign keys first
+DROP TABLE IF EXISTS "ExchangeApiCallLog";
+DROP TABLE IF EXISTS "ExchangeCredentials";
 DROP TABLE IF EXISTS "FiscalDeadlineSettings";
 DROP TABLE IF EXISTS "FiscalDocuments";
 DROP TABLE IF EXISTS "InvoiceLineItems";
@@ -833,6 +836,57 @@ CREATE TABLE "FiscalDeadlineSettings" (
 CREATE TRIGGER "TR_FiscalDeadlineSettings_UpdatedAt"
     BEFORE UPDATE ON "FiscalDeadlineSettings"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- CRYPTO MODULE (Phase 1: encrypted exchange credentials + audit log)
+-- ============================================================
+
+-- Encrypted API credentials for connected crypto exchanges (1 row per user × exchange).
+-- ApiKey/ApiSecret are encrypted with AES-256-GCM using CRYPTO_MASTER_KEY.
+-- Permissions JSONB caches the result of the exchange's apiRestrictions endpoint
+-- so we can display "Connected (read-only)" without re-validating on every request.
+-- Each encrypted blob has the format "<iv-base64>.<authTag-base64>.<cipher-base64>"
+-- so a single TEXT column carries the cipher plus its (per-encryption) GCM
+-- metadata. This avoids ever reusing an IV across two encryptions with the
+-- same key (which would defeat AES-GCM's confidentiality guarantee).
+CREATE TABLE "ExchangeCredentials" (
+    "CredentialID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "Exchange" VARCHAR(20) NOT NULL CHECK ("Exchange" IN ('binance')),
+    "ApiKeyEncrypted" TEXT NOT NULL,
+    "ApiSecretEncrypted" TEXT NOT NULL,
+    "EncryptionKeyVersion" VARCHAR(10) NOT NULL DEFAULT 'v1',
+    "Permissions" JSONB NOT NULL,
+    "ApiKeyLast4" VARCHAR(4) NOT NULL,
+    "LastValidatedAt" TIMESTAMPTZ,
+    "IsActive" BOOLEAN NOT NULL DEFAULT TRUE,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UQ_ExchangeCredentials_UserExchange" UNIQUE ("UserID", "Exchange")
+);
+
+CREATE INDEX "IX_ExchangeCredentials_UserActive" ON "ExchangeCredentials"("UserID", "IsActive");
+
+CREATE TRIGGER "TR_ExchangeCredentials_UpdatedAt"
+    BEFORE UPDATE ON "ExchangeCredentials"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Audit log of every outgoing call to an exchange API (rate-limit detection,
+-- 429/418 forensics, weight tracking). Append-only; periodically pruned.
+CREATE TABLE "ExchangeApiCallLog" (
+    "LogID" BIGSERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "Exchange" VARCHAR(20) NOT NULL,
+    "Endpoint" VARCHAR(120) NOT NULL,
+    "StatusCode" INT,
+    "WeightUsed" INT,
+    "DurationMs" INT,
+    "ErrorCode" VARCHAR(60),
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX "IX_ExchangeApiCallLog_UserCreated" ON "ExchangeApiCallLog"("UserID", "CreatedAt" DESC);
+CREATE INDEX "IX_ExchangeApiCallLog_Status" ON "ExchangeApiCallLog"("StatusCode") WHERE "StatusCode" >= 400;
 
 -- ============================================================
 -- SCHEMA COMPLETE

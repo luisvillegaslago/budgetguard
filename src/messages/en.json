@@ -803,6 +803,7 @@
       "companies": "Companies",
       "billing": "Billing",
       "reminders": "Reminders",
+      "crypto": "Crypto",
       "database": "Database"
     },
     "theme": {
@@ -872,6 +873,40 @@
       "payment-methods": {
         "bank-transfer": "Bank Transfer",
         "other": "Other"
+      }
+    },
+    "crypto": {
+      "title": "Binance connection",
+      "subtitle": "Connect your Binance account via API to import trades, rewards and airdrops, and automatically compute Modelo 100 boxes (1804, 0304, 0033).",
+      "not-connected": "No active connection",
+      "connected-as": "Connected as API key ****{last4}",
+      "last-validated": "Last validated: {at}",
+      "permissions-title": "Detected permissions",
+      "permission": {
+        "reading": "Reading",
+        "withdrawals": "Withdrawals",
+        "spot-trading": "Spot/margin trading",
+        "futures": "Futures",
+        "margin": "Margin",
+        "ip-restrict": "IP whitelist enabled"
+      },
+      "permission-safe": "Read-only",
+      "permission-unsafe": "Unsafe permissions detected",
+      "fields": {
+        "api-key": "API Key",
+        "api-secret": "API Secret"
+      },
+      "form": {
+        "title": "Connect a new account",
+        "instructions": "Create a Binance API key with ONLY the \"Enable Reading\" permission. Never enable \"Enable Withdrawals\" or \"Enable Spot & Margin Trading\".",
+        "submit": "Validate and connect",
+        "submitting": "Validating with Binance...",
+        "success": "Binance account connected",
+        "secret-warning": "The secret is encrypted with AES-256-GCM before being stored. You will not see it again — if you lose it, regenerate the API key in Binance."
+      },
+      "actions": {
+        "disconnect": "Disconnect",
+        "disconnect-confirm": "Disconnect Binance? Your synchronised data will be kept."
       }
     }
   },
@@ -1252,7 +1287,8 @@
       "prefix": "Invoice prefix not found",
       "document": "Document not found",
       "document-blob": "Document file not found",
-      "billing-profile": "Billing profile not found"
+      "billing-profile": "Billing profile not found",
+      "crypto-credentials": "No exchange credentials connected"
     },
     "conflict": {
       "has-transactions": "This category has linked transactions",
@@ -1274,6 +1310,15 @@
       "extraction-failed": "Could not analyze the document",
       "download-failed": "Could not download the document"
     },
+    "crypto": {
+      "unsafe-permissions": "The API key has unsafe permissions. Create a new key with \"Enable Reading\" only.",
+      "invalid-signature": "Binance rejected the credentials. Verify the API key, secret and IP whitelist.",
+      "rate-limited": "Binance has rate-limited the requests. Wait a few minutes and retry.",
+      "exchange-unavailable": "Binance is not responding. Please try again later.",
+      "price-not-found": "Could not fetch the historical EUR price for this trade.",
+      "decrypt-failed": "Could not decrypt the stored credentials.",
+      "master-key-missing": "The encryption master key is missing on the server (CRYPTO_MASTER_KEY)."
+    },
     "validation": {
       "invalid-month": "Invalid month format. Use YYYY-MM",
       "category-id-required": "Category ID is required",
@@ -1292,7 +1337,8 @@
         "trip-expense": "Error creating trip expense",
         "jump": "Error creating jump",
         "tunnel-session": "Error creating tunnel session",
-        "group": "Error creating transaction group"
+        "group": "Error creating transaction group",
+        "crypto-credentials": "Error saving Binance credentials"
       },
       "update": {
         "transaction": "Error updating transaction",
@@ -1320,7 +1366,8 @@
         "trip-expense": "Error deleting trip expense",
         "jump": "Error deleting jump",
         "tunnel-session": "Error deleting tunnel session",
-        "fiscal-document": "Error deleting document"
+        "fiscal-document": "Error deleting document",
+        "crypto-credentials": "Error disconnecting Binance"
       },
       "import": {
         "jumps": "Error importing jumps",

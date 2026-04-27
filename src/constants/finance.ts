@@ -105,6 +105,11 @@ export const QUERY_KEY = {
   FISCAL_DOCUMENTS: 'fiscal-documents',
   FISCAL_DEADLINES: 'fiscal-deadlines',
   FISCAL_DEADLINE_SETTINGS: 'fiscal-deadline-settings',
+  CRYPTO_CREDENTIALS: 'crypto-credentials',
+  CRYPTO_SYNC_STATUS: 'crypto-sync-status',
+  CRYPTO_EVENTS: 'crypto-events',
+  CRYPTO_DISPOSALS: 'crypto-disposals',
+  CRYPTO_MODELO: 'crypto-modelo',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -151,6 +156,14 @@ export const API_ENDPOINT = {
   FISCAL_DOCUMENTS: '/api/fiscal/documents',
   FISCAL_DEADLINES: '/api/fiscal/deadlines',
   FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
+  CRYPTO_CREDENTIALS: '/api/crypto/credentials',
+  CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
+  CRYPTO_SYNC: '/api/crypto/sync',
+  CRYPTO_EVENTS: '/api/crypto/events',
+  CRYPTO_FISCAL_MODELO: '/api/crypto/fiscal/modelo100',
+  CRYPTO_FISCAL_RECOMPUTE: '/api/crypto/fiscal/recompute',
+  CRYPTO_FISCAL_EXPORT: '/api/crypto/fiscal/export',
+  CRYPTO_IMPORT_CSV: '/api/crypto/import/csv',
 } as const;
 
 // Trip Status
@@ -324,6 +337,74 @@ export const EXTRACTION_STATUS = {
 
 export type ExtractionStatus = (typeof EXTRACTION_STATUS)[keyof typeof EXTRACTION_STATUS];
 
+// ============================================================
+// CRYPTO MODULE
+// ============================================================
+
+// Supported exchanges
+export const CRYPTO_EXCHANGE = {
+  BINANCE: 'binance',
+} as const;
+
+export type CryptoExchange = (typeof CRYPTO_EXCHANGE)[keyof typeof CRYPTO_EXCHANGE];
+
+// Raw event types ingested from exchanges (one per Binance endpoint family)
+export const CRYPTO_EVENT_TYPE = {
+  SPOT_TRADE: 'spot_trade',
+  CONVERT: 'convert',
+  EARN_FLEX: 'earn_flex',
+  EARN_LOCKED: 'earn_locked',
+  ETH_STAKING: 'eth_staking',
+  STAKING_INTEREST: 'staking_interest',
+  DIVIDEND: 'dividend',
+  DEPOSIT: 'deposit',
+  WITHDRAW: 'withdraw',
+  FIAT_ORDER: 'fiat_order',
+  FIAT_PAYMENT: 'fiat_payment',
+  DUST: 'dust',
+  C2C: 'c2c',
+  CSV_IMPORT: 'csv_import',
+} as const;
+
+export type CryptoEventType = (typeof CRYPTO_EVENT_TYPE)[keyof typeof CRYPTO_EVENT_TYPE];
+
+// Normalised taxable event kinds (output of the EventNormalizer)
+export const CRYPTO_TAXABLE_KIND = {
+  DISPOSAL: 'disposal',
+  ACQUISITION: 'acquisition',
+  AIRDROP: 'airdrop',
+  STAKING_REWARD: 'staking_reward',
+  TRANSFER_IN: 'transfer_in',
+  TRANSFER_OUT: 'transfer_out',
+} as const;
+
+export type CryptoTaxableKind = (typeof CRYPTO_TAXABLE_KIND)[keyof typeof CRYPTO_TAXABLE_KIND];
+
+// Contraprestación type for Modelo 100 casilla 1804 (F = fiat, N = non-fiat / crypto-to-crypto)
+export const CRYPTO_CONTRAPRESTACION = {
+  FIAT: 'F',
+  NON_FIAT: 'N',
+} as const;
+
+export type CryptoContraprestacion = (typeof CRYPTO_CONTRAPRESTACION)[keyof typeof CRYPTO_CONTRAPRESTACION];
+
+// Sync job status
+export const CRYPTO_SYNC_STATUS = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const;
+
+export type CryptoSyncStatus = (typeof CRYPTO_SYNC_STATUS)[keyof typeof CRYPTO_SYNC_STATUS];
+
+// Modelo 100 crypto casillas
+export const MODELO_100_CRYPTO_CASILLA = {
+  C1804: '1804', // Ganancias/pérdidas patrimoniales por transmisión de cripto
+  C0304: '0304', // Otras ganancias patrimoniales (airdrops)
+  C0033: '0033', // Rendimientos del capital mobiliario (staking/Earn)
+} as const;
+
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
 
@@ -351,6 +432,7 @@ export const API_ERROR = {
     DOCUMENT: 'api-error.not-found.document',
     DOCUMENT_BLOB: 'api-error.not-found.document-blob',
     BILLING_PROFILE: 'api-error.not-found.billing-profile',
+    CRYPTO_CREDENTIALS: 'api-error.not-found.crypto-credentials',
   },
   CONFLICT: {
     HAS_TRANSACTIONS: 'api-error.conflict.has-transactions',
@@ -372,6 +454,15 @@ export const API_ERROR = {
     EXTRACTION_FAILED: 'api-error.fiscal.extraction-failed',
     DOWNLOAD_FAILED: 'api-error.fiscal.download-failed',
   },
+  CRYPTO: {
+    UNSAFE_PERMISSIONS: 'api-error.crypto.unsafe-permissions',
+    INVALID_SIGNATURE: 'api-error.crypto.invalid-signature',
+    RATE_LIMITED: 'api-error.crypto.rate-limited',
+    EXCHANGE_UNAVAILABLE: 'api-error.crypto.exchange-unavailable',
+    PRICE_NOT_FOUND: 'api-error.crypto.price-not-found',
+    DECRYPT_FAILED: 'api-error.crypto.decrypt-failed',
+    MASTER_KEY_MISSING: 'api-error.crypto.master-key-missing',
+  },
   VALIDATION: {
     INVALID_MONTH: 'api-error.validation.invalid-month',
     CATEGORY_ID_REQUIRED: 'api-error.validation.category-id-required',
@@ -391,6 +482,7 @@ export const API_ERROR = {
       JUMP: 'api-error.mutation.create.jump',
       TUNNEL_SESSION: 'api-error.mutation.create.tunnel-session',
       GROUP: 'api-error.mutation.create.group',
+      CRYPTO_CREDENTIALS: 'api-error.mutation.create.crypto-credentials',
     },
     UPDATE: {
       TRANSACTION: 'api-error.mutation.update.transaction',
@@ -419,6 +511,7 @@ export const API_ERROR = {
       JUMP: 'api-error.mutation.delete.jump',
       TUNNEL_SESSION: 'api-error.mutation.delete.tunnel-session',
       FISCAL_DOCUMENT: 'api-error.mutation.delete.fiscal-document',
+      CRYPTO_CREDENTIALS: 'api-error.mutation.delete.crypto-credentials',
     },
     IMPORT: {
       JUMPS: 'api-error.mutation.import.jumps',
