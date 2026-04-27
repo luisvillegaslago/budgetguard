@@ -936,6 +936,8 @@
       "mark-paid": "Mark as Paid",
       "cancel": "Cancel Invoice",
       "select-category": "Select income category",
+      "bank-fee-label": "Bank fee (€)",
+      "bank-fee-help": "If the bank charged a fee for the transfer, enter it here. A deductible expense linked to this invoice will be created.",
       "confirm-cancel-title": "Cancel Invoice?",
       "confirm-cancel-paid": "This will delete the associated income transaction.",
       "confirm-cancel-finalized": "This invoice will be marked as cancelled.",
@@ -1003,7 +1005,9 @@
         "invoice-language": "Invoice language",
         "invoice-language-default": "Default (Spanish)",
         "invoice-language-es": "Spanish",
-        "invoice-language-en": "English"
+        "invoice-language-en": "English",
+        "default-bank-fee": "Default bank fee (€)",
+        "default-bank-fee-help": "If the bank charges a fee when receiving transfers from this client, enter it here. It will pre-fill when marking invoices as paid."
       },
       "submit-create": "Create Company",
       "submit-edit": "Save Changes",
@@ -1261,7 +1265,8 @@
       "cannot-finalize": "Only draft invoices can be finalized",
       "only-draft-editable": "Only draft invoices can be edited",
       "only-draft-deletable": "Only draft invoices can be deleted",
-      "invalid-status-transition": "Invalid status transition"
+      "invalid-status-transition": "Invalid status transition",
+      "bank-fee-category-not-found": "Subcategory 'Comisiones bancarias' not found. Create it under 'Trabajo' before recording bank fees."
     },
     "fiscal": {
       "file-required": "A file is required",

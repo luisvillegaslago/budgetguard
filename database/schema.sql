@@ -111,6 +111,7 @@ CREATE TABLE "Companies" (
     "Country" VARCHAR(100) NULL,
     "InvoiceLanguage" VARCHAR(5) NULL DEFAULT 'es',
     "Role" VARCHAR(10) NOT NULL DEFAULT 'client',
+    "DefaultBankFeeCents" INT NULL,
     "UserID" INT NULL,
     "IsActive" BOOLEAN DEFAULT TRUE,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

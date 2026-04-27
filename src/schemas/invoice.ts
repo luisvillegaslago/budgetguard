@@ -91,6 +91,7 @@ export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>;
 export const UpdateInvoiceStatusSchema = z.object({
   status: z.enum([INVOICE_STATUS.DRAFT, INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED]),
   categoryId: z.number().int().positive().optional(),
+  bankFeeCents: z.number().int().nonnegative().optional(),
 });
 
 export type UpdateInvoiceStatusInput = z.infer<typeof UpdateInvoiceStatusSchema>;

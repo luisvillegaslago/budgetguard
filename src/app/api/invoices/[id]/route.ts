@@ -50,14 +50,14 @@ export const PATCH = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(UpdateInvoiceStatusSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { status, categoryId } = validation.data;
+  const { status, categoryId, bankFeeCents } = validation.data;
 
   // categoryId required when marking as paid
   if (status === INVOICE_STATUS.PAID && !categoryId) {
     return validationError({ categoryId: ['categoryId is required when marking as paid'] });
   }
 
-  const invoice = await updateInvoiceStatus(invoiceId, status, categoryId);
+  const invoice = await updateInvoiceStatus(invoiceId, status, { categoryId, bankFeeCents });
   return { data: invoice };
 }, 'PATCH /api/invoices/[id]');
 

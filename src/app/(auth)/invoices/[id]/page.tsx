@@ -10,14 +10,15 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { InvoiceForm } from '@/components/invoices/InvoiceForm';
-import { INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
+import { COMPANY_ROLE, INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
 import { useCategories } from '@/hooks/useCategories';
+import { useCompanies } from '@/hooks/useCompanies';
 import { useDeleteInvoice, useFinalizeInvoice, useInvoice, useUpdateInvoiceStatus } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { InvoiceStatus } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatInvoiceLabel, getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
-import { centsToEuros, formatCurrency } from '@/utils/money';
+import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 const STATUS_STYLES: Record<InvoiceStatus, string> = {
   [INVOICE_STATUS.DRAFT]: 'bg-guard-muted/20 text-guard-muted',
@@ -34,11 +35,13 @@ export default function InvoiceDetailPage() {
 
   const { data: invoice, isLoading, error } = useInvoice(invoiceId);
   const { data: categories } = useCategories('income');
+  const { data: clients } = useCompanies(COMPANY_ROLE.CLIENT);
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
   const finalizeInvoice = useFinalizeInvoice();
 
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [bankFeeEuros, setBankFeeEuros] = useState<string>('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [confirmRevert, setConfirmRevert] = useState(false);
@@ -65,14 +68,29 @@ export default function InvoiceDetailPage() {
     );
   }
 
+  const invoiceClient = clients?.find((c) => c.companyId === invoice.companyId);
+
+  const handleOpenCategoryPicker = () => {
+    setBankFeeEuros(
+      invoiceClient?.defaultBankFeeCents != null ? centsToEuros(invoiceClient.defaultBankFeeCents).toString() : '',
+    );
+    setShowCategoryPicker(true);
+  };
+
   const handleFinalize = async () => {
     await finalizeInvoice.mutateAsync(invoiceId);
     setConfirmFinalize(false);
   };
 
   const handleMarkPaid = async (categoryId: number) => {
-    await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.PAID, categoryId } });
+    const parsedFee = bankFeeEuros.trim() ? parseFloat(bankFeeEuros.replace(',', '.')) : 0;
+    const bankFeeCents = parsedFee > 0 ? eurosToCents(parsedFee) : undefined;
+    await updateStatus.mutateAsync({
+      invoiceId,
+      data: { status: INVOICE_STATUS.PAID, categoryId, bankFeeCents },
+    });
     setShowCategoryPicker(false);
+    setBankFeeEuros('');
   };
 
   const handleCancel = async () => {
@@ -216,7 +234,7 @@ export default function InvoiceDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowCategoryPicker(true)}
+                onClick={handleOpenCategoryPicker}
                 disabled={updateStatus.isPending}
                 className="btn-primary flex items-center gap-2"
               >
@@ -388,6 +406,22 @@ export default function InvoiceDetailPage() {
         <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold text-foreground mb-4">{t('invoices.actions.select-category')}</h3>
+
+            <label className="block mb-4">
+              <span className="text-sm font-medium text-foreground">{t('invoices.actions.bank-fee-label')}</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={bankFeeEuros}
+                onChange={(e) => setBankFeeEuros(e.target.value)}
+                placeholder="0,00"
+                className="mt-1 block w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-guard-primary"
+              />
+              <span className="mt-1 block text-xs text-guard-muted">{t('invoices.actions.bank-fee-help')}</span>
+            </label>
+
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {categories?.map((cat) => (
                 <button
@@ -402,7 +436,14 @@ export default function InvoiceDetailPage() {
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setShowCategoryPicker(false)} className="mt-4 w-full btn-secondary">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCategoryPicker(false);
+                setBankFeeEuros('');
+              }}
+              className="mt-4 w-full btn-secondary"
+            >
               {t('common.buttons.cancel')}
             </button>
           </div>

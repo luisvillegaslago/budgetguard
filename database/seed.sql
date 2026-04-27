@@ -126,7 +126,8 @@ BEGIN
   ('Regularización RETA', 'expense', 'shield-alert', '#F59E0B', 2, v_id, FALSE, '0196'),
   ('Impuestos', 'expense', 'landmark', '#F59E0B', 3, v_id, FALSE, NULL),
   ('Anthropic', 'expense', 'cpu', '#F59E0B', 4, v_id, FALSE, '0217'),
-  ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, NULL);
+  ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, NULL),
+  ('Comisiones bancarias', 'expense', 'landmark', '#F59E0B', 6, v_id, FALSE, NULL);
 END $$;
 
 -- ============================================================

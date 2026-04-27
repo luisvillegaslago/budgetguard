@@ -20,6 +20,7 @@ interface CompanyRow {
   Country: string | null;
   InvoiceLanguage: string | null;
   Role: string;
+  DefaultBankFeeCents: number | null;
   IsActive: boolean;
   CreatedAt: Date | string;
   UpdatedAt: Date | string;
@@ -42,13 +43,14 @@ function rowToCompany(row: CompanyRow): Company {
     country: row.Country,
     invoiceLanguage: row.InvoiceLanguage,
     role: row.Role as CompanyRole,
+    defaultBankFeeCents: row.DefaultBankFeeCents,
     isActive: row.IsActive,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
 }
 
-const COMPANY_COLUMNS = `"CompanyID", "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "Role", "IsActive", "CreatedAt", "UpdatedAt"`;
+const COMPANY_COLUMNS = `"CompanyID", "Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "Role", "DefaultBankFeeCents", "IsActive", "CreatedAt", "UpdatedAt"`;
 
 /**
  * Get all companies for the current user
@@ -102,12 +104,13 @@ export async function createCompany(data: {
   country?: string | null;
   invoiceLanguage?: string | null;
   role?: string;
+  defaultBankFeeCents?: number | null;
 }): Promise<Company> {
   const userId = await getUserIdOrThrow();
 
   const rows = await query<CompanyRow>(
-    `INSERT INTO "Companies" ("Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "Role", "UserID")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO "Companies" ("Name", "TradingName", "TaxId", "Address", "City", "PostalCode", "Country", "InvoiceLanguage", "Role", "DefaultBankFeeCents", "UserID")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING ${COMPANY_COLUMNS}`,
     [
       data.name,
@@ -119,6 +122,7 @@ export async function createCompany(data: {
       data.country ?? null,
       data.invoiceLanguage ?? null,
       data.role ?? 'client',
+      data.defaultBankFeeCents ?? null,
       userId,
     ],
   );
@@ -176,6 +180,7 @@ export async function updateCompany(
     country: string | null;
     invoiceLanguage: string | null;
     role: string;
+    defaultBankFeeCents: number | null;
     isActive: boolean;
   }>,
 ): Promise<Company | null> {
@@ -220,6 +225,10 @@ export async function updateCompany(
   if (data.role !== undefined) {
     updates.push(`"Role" = $${paramIndex++}`);
     params.push(data.role);
+  }
+  if (data.defaultBankFeeCents !== undefined) {
+    updates.push(`"DefaultBankFeeCents" = $${paramIndex++}`);
+    params.push(data.defaultBankFeeCents);
   }
   if (data.isActive !== undefined) {
     updates.push(`"IsActive" = $${paramIndex++}`);

@@ -7,6 +7,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { CompanyPrefixSection } from '@/components/settings/CompanyPrefixSection';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -19,6 +20,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateCompanyInput, CreateCompanySchema } from '@/schemas/company';
 import type { Company } from '@/types/finance';
 import { cn } from '@/utils/helpers';
+import { centsToEuros, eurosToCents } from '@/utils/money';
 
 interface CompanyFormModalProps {
   onClose: () => void;
@@ -31,6 +33,10 @@ export function CompanyFormModal({ onClose, company, role }: CompanyFormModalPro
   const isEditing = !!company;
   const createMutation = useCreateCompany();
   const updateMutation = useUpdateCompany();
+
+  const [bankFeeEuros, setBankFeeEuros] = useState<string>(
+    company?.defaultBankFeeCents != null ? centsToEuros(company.defaultBankFeeCents).toString() : '',
+  );
 
   const {
     register,
@@ -49,17 +55,24 @@ export function CompanyFormModal({ onClose, company, role }: CompanyFormModalPro
       country: company?.country ?? null,
       invoiceLanguage: company?.invoiceLanguage ?? null,
       role,
+      defaultBankFeeCents: company?.defaultBankFeeCents ?? null,
     },
   });
 
   const watchedRole = watch('role');
 
   const onSubmit = async (data: CreateCompanyInput) => {
+    const parsedFee = bankFeeEuros.trim() ? parseFloat(bankFeeEuros.replace(',', '.')) : Number.NaN;
+    const payload: CreateCompanyInput = {
+      ...data,
+      defaultBankFeeCents: Number.isFinite(parsedFee) && parsedFee >= 0 ? eurosToCents(parsedFee) : null,
+    };
+
     try {
       if (isEditing && company) {
-        await updateMutation.mutateAsync({ id: company.companyId, data });
+        await updateMutation.mutateAsync({ id: company.companyId, data: payload });
       } else {
-        await createMutation.mutateAsync(data);
+        await createMutation.mutateAsync(payload);
       }
       onClose();
     } catch {
@@ -234,6 +247,28 @@ export function CompanyFormModal({ onClose, company, role }: CompanyFormModalPro
               </Select>
             </div>
           </div>
+
+          {/* Default Bank Fee (clients only) */}
+          {currentIsClient && (
+            <div>
+              <label htmlFor="company-defaultBankFee" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('companies.form.fields.default-bank-fee')} ({t('common.labels.optional')})
+              </label>
+              <input
+                id="company-defaultBankFee"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                placeholder="0,00"
+                autoComplete="off"
+                value={bankFeeEuros}
+                onChange={(e) => setBankFeeEuros(e.target.value)}
+                className={inputClass(false)}
+              />
+              <p className="mt-1 text-xs text-guard-muted">{t('companies.form.fields.default-bank-fee-help')}</p>
+            </div>
+          )}
 
           {/* Error */}
           {isError && (

@@ -51,6 +51,7 @@ export interface Company {
   country: string | null;
   invoiceLanguage: string | null;
   role: CompanyRole;
+  defaultBankFeeCents: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

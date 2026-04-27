@@ -6,6 +6,7 @@
 import { del } from '@vercel/blob';
 import {
   API_ERROR,
+  BANK_FEE_CATEGORY,
   FISCAL_DOCUMENT_TYPE,
   INVOICE_STATUS,
   TRANSACTION_STATUS,
@@ -729,19 +730,39 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
   }
 }
 
+// Look up the user's "Comisiones bancarias" subcategory using a tx-scoped client.
+// Mirrors findSkydiveSubcategoryId() but operates inside an open transaction so the
+// caller can fail-fast and rollback if the subcategory is missing.
+async function findBankFeeSubcategoryIdInTx(
+  client: { query: (text: string, params: unknown[]) => Promise<{ rows: Array<{ CategoryID: number }> }> },
+  userId: number,
+): Promise<number | null> {
+  const result = await client.query(
+    `SELECT sub."CategoryID"
+     FROM "Categories" sub
+     INNER JOIN "Categories" parent ON sub."ParentCategoryID" = parent."CategoryID"
+     WHERE parent."Name" = $1 AND sub."Name" = $2
+       AND parent."ParentCategoryID" IS NULL AND sub."UserID" = $3
+     LIMIT 1`,
+    [BANK_FEE_CATEGORY.PARENT_NAME, BANK_FEE_CATEGORY.SUBCATEGORY_NAME, userId],
+  );
+  return result.rows[0]?.CategoryID ?? null;
+}
+
 /**
  * Update invoice status with state machine validation (TRANSACTIONAL)
  * Valid transitions:
  *   draft → finalized
- *   finalized → paid (creates income transaction)
+ *   finalized → paid (creates income transaction; optionally a bank fee expense)
  *   finalized → cancelled
- *   paid → cancelled (deletes associated transaction)
+ *   paid → cancelled (deletes income + bank fee transactions)
  */
 export async function updateInvoiceStatus(
   invoiceId: number,
   newStatus: InvoiceStatus,
-  categoryId?: number,
+  options: { categoryId?: number; bankFeeCents?: number } = {},
 ): Promise<Invoice> {
+  const { categoryId, bankFeeCents } = options;
   const userId = await getUserIdOrThrow();
   const pool = getPool();
   const client = await pool.connect();
@@ -778,6 +799,8 @@ export async function updateInvoiceStatus(
     const blobUrlsToDelete: string[] = [];
 
     // Handle paid → creates income transaction with today's date (payment date)
+    // Optionally creates a second EXPENSE transaction for bank transfer fees
+    // (100% deductible, linked via CompanyID + InvoiceNumber for cancel cleanup).
     if (newStatus === INVOICE_STATUS.PAID) {
       if (!categoryId) throw new Error(API_ERROR.INVOICE.CATEGORY_REQUIRED_FOR_PAID);
 
@@ -803,6 +826,33 @@ export async function updateInvoiceStatus(
       );
 
       transactionId = txResult.rows[0]?.TransactionID ?? null;
+
+      if (bankFeeCents != null && bankFeeCents > 0) {
+        const bankFeeCategoryId = await findBankFeeSubcategoryIdInTx(client, userId);
+        if (bankFeeCategoryId == null) {
+          throw new Error(API_ERROR.INVOICE.BANK_FEE_CATEGORY_NOT_FOUND);
+        }
+
+        await client.query(
+          `INSERT INTO "Transactions"
+           ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
+            "SharedDivisor", "InvoiceNumber", "CompanyID", "Status", "DeductionPercent", "UserID")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            bankFeeCategoryId,
+            bankFeeCents,
+            `Comisión bancaria - Factura ${invoiceRow.InvoiceNumber}`,
+            paymentDate,
+            TRANSACTION_TYPE.EXPENSE,
+            1,
+            invoiceRow.InvoiceNumber,
+            invoiceRow.CompanyID,
+            TRANSACTION_STATUS.PAID,
+            BANK_FEE_CATEGORY.DEDUCTION_PERCENT,
+            userId,
+          ],
+        );
+      }
     }
 
     // Handle cancellation or revert to draft → clean up FiscalDocument + blob
@@ -814,6 +864,20 @@ export async function updateInvoiceStatus(
           userId,
         ]);
         transactionId = null;
+
+        // Also delete the bank fee expense transaction if one was created at payment time.
+        // Identified by InvoiceNumber + Type=expense + the bank fee subcategory.
+        const bankFeeCategoryId = await findBankFeeSubcategoryIdInTx(client, userId);
+        if (bankFeeCategoryId != null) {
+          await client.query(
+            `DELETE FROM "Transactions"
+             WHERE "UserID" = $1
+               AND "InvoiceNumber" = $2
+               AND "Type" = $3
+               AND "CategoryID" = $4`,
+            [userId, invoiceRow.InvoiceNumber, TRANSACTION_TYPE.EXPENSE, bankFeeCategoryId],
+          );
+        }
       }
 
       // Delete associated FiscalDocument (created when finalized)

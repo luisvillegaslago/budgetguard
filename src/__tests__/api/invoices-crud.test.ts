@@ -102,11 +102,14 @@ jest.mock('@/services/database/InvoiceRepository', () => ({
     if (id === 999) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
     return { ...mockInvoice, notes: 'Updated notes' };
   }),
-  updateInvoiceStatus: jest.fn(async (id: number, status: string) => {
-    if (id === 999) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
-    if (id === 1 && status === 'paid') throw new Error('Invalid status transition');
-    return { ...mockInvoice, status };
-  }),
+  updateInvoiceStatus: jest.fn(
+    async (id: number, status: string, options?: { categoryId?: number; bankFeeCents?: number }) => {
+      if (id === 999) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
+      if (id === 1 && status === 'paid') throw new Error('Invalid status transition');
+      // Echo options into the returned payload so tests can assert what was forwarded.
+      return { ...mockInvoice, status, _options: options };
+    },
+  ),
   deleteInvoice: jest.fn(async (id: number) => {
     if (id === 999) return false;
     if (id === 2) throw new Error(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
@@ -296,6 +299,42 @@ describe('PATCH /api/invoices/[id]', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
+  });
+
+  it('should forward bankFeeCents to the repository when marking as paid', async () => {
+    const request = createMockRequest('http://localhost:3000/api/invoices/2', {
+      status: INVOICE_STATUS.PAID,
+      categoryId: 5,
+      bankFeeCents: 1500,
+    });
+    const response = await PATCH(request as never, createMockParams('2'));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.data._options).toEqual({ categoryId: 5, bankFeeCents: 1500 });
+  });
+
+  it('should accept paid without bankFeeCents (backward compatible)', async () => {
+    const request = createMockRequest('http://localhost:3000/api/invoices/2', {
+      status: INVOICE_STATUS.PAID,
+      categoryId: 5,
+    });
+    const response = await PATCH(request as never, createMockParams('2'));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.data._options).toEqual({ categoryId: 5, bankFeeCents: undefined });
+  });
+
+  it('should reject negative bankFeeCents', async () => {
+    const request = createMockRequest('http://localhost:3000/api/invoices/2', {
+      status: INVOICE_STATUS.PAID,
+      categoryId: 5,
+      bankFeeCents: -100,
+    });
+    const response = await PATCH(request as never, createMockParams('2'));
+
+    expect(response.status).toBe(400);
   });
 
   it('should accept cancel for finalized invoice', async () => {

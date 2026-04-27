@@ -357,6 +357,7 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
         ['Impuestos', 'landmark', '#F59E0B', 3, false, null],
         ['Anthropic', 'cpu', '#F59E0B', 4, false, '0217'],
         ['General', 'alert-circle', '#F59E0B', 5, false, null],
+        ['Comisiones bancarias', 'landmark', '#F59E0B', 6, false, null],
       ],
     },
     {

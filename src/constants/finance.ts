@@ -176,6 +176,18 @@ export const SKYDIVE_CATEGORY = {
   },
 } as const;
 
+// Well-known Bank Fee Subcategory (under "Trabajo")
+// Used when marking an invoice as paid with a bank transfer fee — auto-creates
+// a 100% deductible expense for fiscal reporting (Modelo 130 / Modelo 100).
+export const BANK_FEE_CATEGORY = {
+  PARENT_NAME: 'Trabajo',
+  SUBCATEGORY_NAME: 'Comisiones bancarias',
+  ICON: 'landmark',
+  COLOR: '#F59E0B',
+  SORT_ORDER: 6,
+  DEDUCTION_PERCENT: 100,
+} as const;
+
 // Date Range Presets (for category history)
 export const DATE_RANGE_PRESET = {
   THREE_MONTHS: '3m',
@@ -352,6 +364,7 @@ export const API_ERROR = {
     ONLY_DRAFT_EDITABLE: 'api-error.invoice.only-draft-editable',
     ONLY_DRAFT_DELETABLE: 'api-error.invoice.only-draft-deletable',
     INVALID_STATUS_TRANSITION: 'api-error.invoice.invalid-status-transition',
+    BANK_FEE_CATEGORY_NOT_FOUND: 'api-error.invoice.bank-fee-category-not-found',
   },
   FISCAL: {
     FILE_REQUIRED: 'api-error.fiscal.file-required',

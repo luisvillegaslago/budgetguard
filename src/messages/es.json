@@ -936,6 +936,8 @@
       "mark-paid": "Marcar como Pagada",
       "cancel": "Cancelar Factura",
       "select-category": "Selecciona categoría de ingreso",
+      "bank-fee-label": "Comisión bancaria (€)",
+      "bank-fee-help": "Si el banco te cobró comisión por la transferencia, indícala. Se creará un gasto deducible vinculado a esta factura.",
       "confirm-cancel-title": "¿Cancelar factura?",
       "confirm-cancel-paid": "Esto eliminará la transacción de ingreso asociada.",
       "confirm-cancel-finalized": "Esta factura se marcará como cancelada.",
@@ -1003,7 +1005,9 @@
         "invoice-language": "Idioma factura",
         "invoice-language-default": "Por defecto (Español)",
         "invoice-language-es": "Español",
-        "invoice-language-en": "Inglés"
+        "invoice-language-en": "Inglés",
+        "default-bank-fee": "Comisión bancaria por defecto (€)",
+        "default-bank-fee-help": "Si el banco te cobra comisión al recibir transferencias de este cliente, indícala. Se autorrellenará al marcar facturas como pagadas."
       },
       "submit-create": "Crear Empresa",
       "submit-edit": "Guardar Cambios",
@@ -1261,7 +1265,8 @@
       "cannot-finalize": "Solo se pueden emitir facturas en estado borrador",
       "only-draft-editable": "Solo se pueden editar facturas en estado borrador",
       "only-draft-deletable": "Solo se pueden eliminar facturas en estado borrador",
-      "invalid-status-transition": "Transición de estado inválida"
+      "invalid-status-transition": "Transición de estado inválida",
+      "bank-fee-category-not-found": "No existe la subcategoría 'Comisiones bancarias'. Créala bajo 'Trabajo' antes de registrar comisiones bancarias."
     },
     "fiscal": {
       "file-required": "Se requiere un archivo",

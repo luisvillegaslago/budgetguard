@@ -20,6 +20,7 @@ export const CreateCompanySchema = z.object({
   country: z.string().max(100).nullable().optional().default(null),
   invoiceLanguage: z.string().max(5).nullable().optional().default(null),
   role: z.enum([COMPANY_ROLE.CLIENT, COMPANY_ROLE.PROVIDER]).default(COMPANY_ROLE.CLIENT),
+  defaultBankFeeCents: z.number().int().nonnegative().nullable().optional().default(null),
 });
 
 export type CreateCompanyInput = z.infer<typeof CreateCompanySchema>;
@@ -37,6 +38,7 @@ export const UpdateCompanySchema = z.object({
   country: z.string().max(100).nullable().optional(),
   invoiceLanguage: z.string().max(5).nullable().optional(),
   role: z.enum([COMPANY_ROLE.CLIENT, COMPANY_ROLE.PROVIDER]).optional(),
+  defaultBankFeeCents: z.number().int().nonnegative().nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
