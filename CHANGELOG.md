@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.24.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.23.1...v0.24.0) (2026-04-27)
+
+
+### Features
+
+* **fiscal:** normalize modelo filenames to canonical format on upload ([86e502e](https://github.com/luisvillegaslago/budgetguard/commit/86e502e09b9c08fde353220d54eb39f6b0fa4faf))
+* **invoices:** add optional bank fee on mark-as-paid with per-client default ([6ec02a1](https://github.com/luisvillegaslago/budgetguard/commit/6ec02a103faeb86b1508b66d8b0066b6ad8926fe))
+
 ## [0.23.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.23.0...v0.23.1) (2026-04-18)
 
 
