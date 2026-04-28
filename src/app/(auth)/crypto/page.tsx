@@ -12,26 +12,30 @@
  *  - config      — quick link to Settings → Crypto
  */
 
-import { Bitcoin, ListChecks } from 'lucide-react';
+import { Bitcoin, Calculator, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { CryptoDisposalsTable } from '@/components/crypto/CryptoDisposalsTable';
 import { CryptoEventsTable } from '@/components/crypto/CryptoEventsTable';
+import { CryptoModelo100Section } from '@/components/crypto/CryptoModelo100Section';
 import { CryptoSyncPanel } from '@/components/crypto/CryptoSyncPanel';
 import { CRYPTO_EXCHANGE } from '@/constants/finance';
 import { useCryptoCredentialStatus } from '@/hooks/useCryptoCredentials';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
 
-type TabId = 'summary' | 'events';
+type TabId = 'summary' | 'events' | 'fiscal';
 
 export default function CryptoPage() {
   const { t } = useTranslate();
   const [activeTab, setActiveTab] = useState<TabId>('summary');
+  const [fiscalYear, setFiscalYear] = useState<number>(new Date().getUTCFullYear() - 1);
   const status = useCryptoCredentialStatus(CRYPTO_EXCHANGE.BINANCE);
 
   const tabs: { id: TabId; label: string; icon: typeof Bitcoin }[] = [
     { id: 'summary', label: t('crypto.tabs.summary'), icon: Bitcoin },
     { id: 'events', label: t('crypto.tabs.events'), icon: ListChecks },
+    { id: 'fiscal', label: t('crypto.tabs.fiscal'), icon: Calculator },
   ];
 
   if (status.isLoading) {
@@ -80,6 +84,12 @@ export default function CryptoPage() {
 
       {activeTab === 'summary' && <CryptoSyncPanel />}
       {activeTab === 'events' && <CryptoEventsTable />}
+      {activeTab === 'fiscal' && (
+        <div className="space-y-6">
+          <CryptoModelo100Section year={fiscalYear} onYearChange={setFiscalYear} />
+          <CryptoDisposalsTable year={fiscalYear} />
+        </div>
+      )}
     </div>
   );
 }

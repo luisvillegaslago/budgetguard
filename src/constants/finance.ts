@@ -164,6 +164,7 @@ export const API_ENDPOINT = {
   CRYPTO_NORMALIZE: '/api/crypto/normalize',
   CRYPTO_FISCAL_MODELO: '/api/crypto/fiscal/modelo100',
   CRYPTO_FISCAL_RECOMPUTE: '/api/crypto/fiscal/recompute',
+  CRYPTO_FISCAL_DISPOSALS: '/api/crypto/fiscal/disposals',
   CRYPTO_FISCAL_EXPORT: '/api/crypto/fiscal/export',
   CRYPTO_IMPORT_CSV: '/api/crypto/import/csv',
 } as const;

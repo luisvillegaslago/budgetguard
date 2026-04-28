@@ -916,7 +916,48 @@
     "subtitle": "Sincroniza Binance e importa operaciones, recompensas y airdrops para preparar tu Modelo 100.",
     "tabs": {
       "summary": "Resumen",
-      "events": "Movimientos"
+      "events": "Movimientos",
+      "fiscal": "Fiscal"
+    },
+    "fiscal": {
+      "title": "Modelo 100 — Criptomonedas",
+      "subtitle": "Importes calculados con FIFO sobre tu histórico de operaciones. Cópialos a Renta Web cuando declares.",
+      "no-data": "Aún no hay datos sincronizados.",
+      "no-disposals": "No hay transmisiones para este año.",
+      "recompute": "Recalcular FIFO",
+      "recompute-hint": "Vuelve a procesar todas las operaciones desde el inicio (necesario tras añadir nuevos eventos).",
+      "incomplete-warning": "Hay {count} transmisiones donde no se cubrió toda la cantidad con lotes históricos. Revisa la pestaña Movimientos por si te falta algún sync.",
+      "row-count": "{count} operaciones",
+      "casilla-1804-f": "Casilla 1804 (F)",
+      "casilla-1804-f-subtitle": "Transmisiones contra fiat (EUR)",
+      "casilla-1804-n": "Casilla 1804 (N)",
+      "casilla-1804-n-subtitle": "Transmisiones contra cripto (swaps)",
+      "casilla-0304": "Casilla 0304",
+      "casilla-0304-subtitle": "Airdrops y otras ganancias patrimoniales",
+      "casilla-0033": "Casilla 0033",
+      "casilla-0033-subtitle": "Rendimientos del capital mobiliario (staking)",
+      "fields": {
+        "transmission-value": "Importe transmisión",
+        "transmission-fee": "Gastos transmisión",
+        "acquisition-value": "Importe adquisición",
+        "acquisition-fee": "Gastos adquisición",
+        "gain-loss": "Ganancia / pérdida"
+      },
+      "disposals-title": "Detalle de transmisiones (FIFO)",
+      "contraprestacion-all": "Todos",
+      "contraprestacion-f": "F — fiat",
+      "contraprestacion-n": "N — cripto",
+      "lots-title": "{count} lotes consumidos",
+      "lots-expand": "Ver lotes consumidos",
+      "lots-collapse": "Ocultar lotes consumidos",
+      "col": {
+        "date": "Fecha",
+        "asset": "Activo",
+        "contraprestacion": "Tipo",
+        "transmission": "Transmisión",
+        "acquisition": "Adquisición",
+        "gain-loss": "G/P"
+      }
     },
     "empty": {
       "title": "Conecta tu cuenta de Binance",

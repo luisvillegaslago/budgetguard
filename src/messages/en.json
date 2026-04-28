@@ -916,7 +916,48 @@
     "subtitle": "Sync Binance and import trades, rewards and airdrops to prepare your Modelo 100.",
     "tabs": {
       "summary": "Summary",
-      "events": "Movements"
+      "events": "Movements",
+      "fiscal": "Fiscal"
+    },
+    "fiscal": {
+      "title": "Modelo 100 — Crypto",
+      "subtitle": "Amounts computed with FIFO over your full trade history. Copy to Renta Web when filing.",
+      "no-data": "No synced data yet.",
+      "no-disposals": "No disposals for this year.",
+      "recompute": "Recompute FIFO",
+      "recompute-hint": "Re-runs FIFO from the beginning of your history (needed after adding new events).",
+      "incomplete-warning": "{count} disposals couldn't be fully covered by historical lots. Check the Events tab for any missing sync.",
+      "row-count": "{count} disposals",
+      "casilla-1804-f": "Box 1804 (F)",
+      "casilla-1804-f-subtitle": "Disposals against fiat (EUR)",
+      "casilla-1804-n": "Box 1804 (N)",
+      "casilla-1804-n-subtitle": "Disposals against crypto (swaps)",
+      "casilla-0304": "Box 0304",
+      "casilla-0304-subtitle": "Airdrops and other capital gains",
+      "casilla-0033": "Box 0033",
+      "casilla-0033-subtitle": "Capital income (staking rewards)",
+      "fields": {
+        "transmission-value": "Transmission value",
+        "transmission-fee": "Transmission fees",
+        "acquisition-value": "Acquisition value",
+        "acquisition-fee": "Acquisition fees",
+        "gain-loss": "Gain / loss"
+      },
+      "disposals-title": "Disposals detail (FIFO)",
+      "contraprestacion-all": "All",
+      "contraprestacion-f": "F — fiat",
+      "contraprestacion-n": "N — crypto",
+      "lots-title": "{count} lots consumed",
+      "lots-expand": "Show consumed lots",
+      "lots-collapse": "Hide consumed lots",
+      "col": {
+        "date": "Date",
+        "asset": "Asset",
+        "contraprestacion": "Type",
+        "transmission": "Transmission",
+        "acquisition": "Acquisition",
+        "gain-loss": "G/L"
+      }
     },
     "empty": {
       "title": "Connect your Binance account",

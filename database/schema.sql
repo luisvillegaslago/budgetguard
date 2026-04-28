@@ -29,6 +29,7 @@ DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineS
 DROP TRIGGER IF EXISTS "TR_ExchangeCredentials_UpdatedAt" ON "ExchangeCredentials";
 DROP TRIGGER IF EXISTS "TR_CryptoSyncJobs_UpdatedAt" ON "CryptoSyncJobs";
 DROP TRIGGER IF EXISTS "TR_TaxableEvents_UpdatedAt" ON "TaxableEvents";
+DROP TRIGGER IF EXISTS "TR_CryptoDisposals_UpdatedAt" ON "CryptoDisposals";
 
 -- Drop sync trigger functions
 DROP FUNCTION IF EXISTS sync_vendor_name_from_company();
@@ -47,6 +48,7 @@ DROP VIEW IF EXISTS "vw_SubcategorySummary";
 DROP VIEW IF EXISTS "vw_MonthlySummary";
 
 -- Drop tables with foreign keys first
+DROP TABLE IF EXISTS "CryptoDisposals";
 DROP TABLE IF EXISTS "TaxableEvents";
 DROP TABLE IF EXISTS "CryptoPriceCache";
 DROP TABLE IF EXISTS "BinanceRawEvents";
@@ -997,6 +999,44 @@ CREATE INDEX "IX_TaxableEvents_UserContrap" ON "TaxableEvents"("UserID", "Contra
 
 CREATE TRIGGER "TR_TaxableEvents_UpdatedAt"
     BEFORE UPDATE ON "TaxableEvents"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- FIFO disposals: one row per `disposal` TaxableEvent after the FIFO matcher
+-- has consumed lots and computed cost basis. This is what populates Modelo
+-- 100 casilla 1804 (sums by Contraprestacion F/N).
+--
+-- AcquisitionLotsJson stores the lot-by-lot breakdown that produced the
+-- AcquisitionValueCents/AcquisitionFeeCents — required for AEAT
+-- reproducibility ("which historical lots covered this 0.005 BTC sale?").
+CREATE TABLE "CryptoDisposals" (
+    "DisposalID" BIGSERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "TaxableEventID" BIGINT NOT NULL REFERENCES "TaxableEvents"("EventID") ON DELETE CASCADE,
+    "FiscalYear" INT NOT NULL,
+    "OccurredAt" TIMESTAMPTZ NOT NULL,
+    "Asset" VARCHAR(20) NOT NULL,
+    "Contraprestacion" CHAR(1) NOT NULL CHECK ("Contraprestacion" IN ('F', 'N')),
+    "QuantityNative" NUMERIC(38, 18) NOT NULL,
+    "TransmissionValueCents" BIGINT NOT NULL,
+    "TransmissionFeeCents" BIGINT NOT NULL DEFAULT 0,
+    "AcquisitionValueCents" BIGINT NOT NULL,
+    "AcquisitionFeeCents" BIGINT NOT NULL DEFAULT 0,
+    "GainLossCents" BIGINT NOT NULL,
+    "AcquisitionLotsJson" JSONB NOT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- Idempotent: one disposal per TaxableEvent per FiscalYear (a disposal
+    -- always belongs to a single fiscal year, so this dedup is enough).
+    CONSTRAINT "UQ_CryptoDisposals_TaxableYear" UNIQUE ("TaxableEventID", "FiscalYear")
+);
+
+CREATE INDEX "IX_CryptoDisposals_UserYearContrap"
+    ON "CryptoDisposals"("UserID", "FiscalYear", "Contraprestacion");
+CREATE INDEX "IX_CryptoDisposals_UserAsset"
+    ON "CryptoDisposals"("UserID", "Asset", "OccurredAt");
+
+CREATE TRIGGER "TR_CryptoDisposals_UpdatedAt"
+    BEFORE UPDATE ON "CryptoDisposals"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
