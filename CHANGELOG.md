@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.27.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.26.0...v0.27.0) (2026-04-28)
+
+
+### Features
+
+* **crypto:** normalize raw events into TaxableEvents with EUR pricing (Phase 3) ([f38619a](https://github.com/luisvillegaslago/budgetguard/commit/f38619a869f2ae58c8ad57d95d0512211e2da6ec))
+
+
+### Bug Fixes
+
+* **vercel:** limit deployment region to `fra1` in `vercel.json` ([9292902](https://github.com/luisvillegaslago/budgetguard/commit/9292902100c4e193a601420c5cac75ac17c69a80))
+
 ## [0.26.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.25.0...v0.26.0) (2026-04-28)
 
 
