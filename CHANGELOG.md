@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.26.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.25.0...v0.26.0) (2026-04-28)
+
+
+### Features
+
+* **crypto:** add full Binance sync with raw event ingestion (Phase 2) ([4b82613](https://github.com/luisvillegaslago/budgetguard/commit/4b826133f4817062c20297eb0faf1e44251751f2))
+
 ## [0.25.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.24.0...v0.25.0) (2026-04-27)
 
 
