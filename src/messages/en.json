@@ -60,6 +60,7 @@
       "invoices": "Invoices",
       "fiscal": "Fiscal",
       "documents": "Documents",
+      "crypto": "Crypto",
       "settings": "Settings"
     }
   },
@@ -910,6 +911,60 @@
       }
     }
   },
+  "crypto": {
+    "title": "Crypto",
+    "subtitle": "Sync Binance and import trades, rewards and airdrops to prepare your Modelo 100.",
+    "tabs": {
+      "summary": "Summary",
+      "events": "Movements"
+    },
+    "empty": {
+      "title": "Connect your Binance account",
+      "body": "To start importing your trades, connect a read-only API key from Settings.",
+      "cta": "Go to Settings → Crypto"
+    },
+    "sync": {
+      "title": "Binance sync",
+      "subtitle": "Import trades, rewards and airdrops from the Binance API.",
+      "full": "Full sync",
+      "incremental": "Incremental sync",
+      "incremental-hint": "Sync only events after the last successful sync.",
+      "syncing": "Syncing…",
+      "scope-label": "Sync from:",
+      "scope": {
+        "current-year": "Current year",
+        "previous-year": "Previous year",
+        "last-90-days": "Last 90 days",
+        "all-time": "Full history"
+      },
+      "never-synced": "Nothing synced yet. Press \"Full sync\" to start the backfill.",
+      "events-ingested": "events ingested",
+      "overall-progress": "Overall progress",
+      "per-endpoint": "Per-endpoint detail",
+      "finished-at": "Finished: {at}",
+      "status": {
+        "pending": "Queued",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "stop": "Stop",
+      "stop-confirm": "Stop the running sync? Already-imported data is kept.",
+      "error-details": "Technical details"
+    },
+    "events": {
+      "title": "Imported events",
+      "filter-all": "All types",
+      "empty": "No events synced yet.",
+      "col": {
+        "date": "Date",
+        "type": "Type",
+        "external-id": "External ID",
+        "payload": "Details"
+      }
+    }
+  },
   "invoices": {
     "title": "Invoices",
     "new": "New Invoice",
@@ -1288,7 +1343,8 @@
       "document": "Document not found",
       "document-blob": "Document file not found",
       "billing-profile": "Billing profile not found",
-      "crypto-credentials": "No exchange credentials connected"
+      "crypto-credentials": "No exchange credentials connected",
+      "crypto-sync-job": "Sync job not found"
     },
     "conflict": {
       "has-transactions": "This category has linked transactions",
@@ -1317,7 +1373,10 @@
       "exchange-unavailable": "Binance is not responding. Please try again later.",
       "price-not-found": "Could not fetch the historical EUR price for this trade.",
       "decrypt-failed": "Could not decrypt the stored credentials.",
-      "master-key-missing": "The encryption master key is missing on the server (CRYPTO_MASTER_KEY)."
+      "master-key-missing": "The encryption master key is missing on the server (CRYPTO_MASTER_KEY).",
+      "sync-already-running": "A sync is already in progress for this exchange.",
+      "sync-failed": "The sync failed. Check the job details.",
+      "unauthorised-cron": "Cron is not configured correctly on the server."
     },
     "validation": {
       "invalid-month": "Invalid month format. Use YYYY-MM",
@@ -1382,6 +1441,9 @@
       },
       "link": {
         "fiscal-transaction": "Error linking transaction"
+      },
+      "sync": {
+        "crypto": "Error starting Binance sync"
       }
     }
   }

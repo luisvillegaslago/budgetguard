@@ -116,6 +116,18 @@ export async function getActiveCredential(exchange: CryptoExchange): Promise<Exc
  */
 export async function getDecryptedActive(exchange: CryptoExchange): Promise<DecryptedCredentials | null> {
   const userId = await getUserIdOrThrow();
+  return getDecryptedActiveForUser(userId, exchange);
+}
+
+/**
+ * System-level variant for background workers (Phase 2 sync job, cron) that
+ * run without a session and already know the userId. Same security caveats
+ * as `getDecryptedActive`.
+ */
+export async function getDecryptedActiveForUser(
+  userId: number,
+  exchange: CryptoExchange,
+): Promise<DecryptedCredentials | null> {
   const rows = await query<ExchangeCredentialRow>(
     `SELECT ${SELECT_COLUMNS} FROM "ExchangeCredentials"
      WHERE "UserID" = $1 AND "Exchange" = $2 AND "IsActive" = TRUE`,
@@ -202,6 +214,17 @@ export async function listActiveCredentialsForUser(userId: number): Promise<Exch
     [userId],
   );
   return rows.map(rowToPublic);
+}
+
+/**
+ * System-level: returns (userId, exchange) pairs of every active connection.
+ * Used by the cron handler to fan out incremental syncs across all users.
+ */
+export async function listAllActiveCredentials(): Promise<Array<{ userId: number; exchange: CryptoExchange }>> {
+  const rows = await query<{ UserID: number; Exchange: string }>(
+    `SELECT "UserID", "Exchange" FROM "ExchangeCredentials" WHERE "IsActive" = TRUE`,
+  );
+  return rows.map((r) => ({ userId: r.UserID, exchange: r.Exchange as CryptoExchange }));
 }
 
 // Re-export for tests/consumers

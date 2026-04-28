@@ -394,6 +394,7 @@ export const CRYPTO_SYNC_STATUS = {
   RUNNING: 'running',
   COMPLETED: 'completed',
   FAILED: 'failed',
+  CANCELLED: 'cancelled',
 } as const;
 
 export type CryptoSyncStatus = (typeof CRYPTO_SYNC_STATUS)[keyof typeof CRYPTO_SYNC_STATUS];
@@ -404,6 +405,44 @@ export const MODELO_100_CRYPTO_CASILLA = {
   C0304: '0304', // Otras ganancias patrimoniales (airdrops)
   C0033: '0033', // Rendimientos del capital mobiliario (staking/Earn)
 } as const;
+
+// Sync mode: full = backfill desde scopeFrom; incremental = desde LastSyncCompletedAt
+export const CRYPTO_SYNC_MODE = {
+  FULL: 'full',
+  INCREMENTAL: 'incremental',
+} as const;
+
+export type CryptoSyncMode = (typeof CRYPTO_SYNC_MODE)[keyof typeof CRYPTO_SYNC_MODE];
+
+// Maximum window size (days) per Binance endpoint family.
+// Documented limits — going beyond these returns empty arrays or 400.
+export const BINANCE_WINDOW_DAYS = {
+  SPOT_TRADE: 1, // myTrades requires startTime/endTime within 24h
+  CONVERT: 30,
+  EARN_REWARDS: 30, // simple-earn flexible+locked: 30 days max (-6021 otherwise)
+  ETH_STAKING: 90,
+  STAKING_INTEREST: 90,
+  DIVIDEND: 180, // assetDividend: 6 months
+  DEPOSIT: 90,
+  WITHDRAW: 90,
+  FIAT_ORDER: 90,
+  FIAT_PAYMENT: 90,
+  DUST: 30, // dribblet has tighter practical window than docs claim
+  C2C: 30, // C2C only returns last 6 months total in any case
+} as const;
+
+// Per-IP REST weight budget (Binance: 6000 weight/min). We self-throttle
+// at 80% to leave headroom for retries.
+export const BINANCE_WEIGHT_LIMIT = 6000;
+export const BINANCE_WEIGHT_THRESHOLD = 4800;
+export const BINANCE_RETRY_BASE_MS = 2000;
+export const BINANCE_RETRY_MAX_MS = 60_000;
+export const BINANCE_RETRY_MAX_ATTEMPTS = 5;
+export const BINANCE_SYNC_CONCURRENCY = 3;
+
+// Earliest plausible Binance account creation. Used as fallback when we can
+// neither probe the first trade nor read account.createTime.
+export const BINANCE_GENESIS_DATE = '2017-07-14T00:00:00Z';
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
@@ -433,6 +472,7 @@ export const API_ERROR = {
     DOCUMENT_BLOB: 'api-error.not-found.document-blob',
     BILLING_PROFILE: 'api-error.not-found.billing-profile',
     CRYPTO_CREDENTIALS: 'api-error.not-found.crypto-credentials',
+    CRYPTO_SYNC_JOB: 'api-error.not-found.crypto-sync-job',
   },
   CONFLICT: {
     HAS_TRANSACTIONS: 'api-error.conflict.has-transactions',
@@ -462,6 +502,9 @@ export const API_ERROR = {
     PRICE_NOT_FOUND: 'api-error.crypto.price-not-found',
     DECRYPT_FAILED: 'api-error.crypto.decrypt-failed',
     MASTER_KEY_MISSING: 'api-error.crypto.master-key-missing',
+    SYNC_ALREADY_RUNNING: 'api-error.crypto.sync-already-running',
+    SYNC_FAILED: 'api-error.crypto.sync-failed',
+    UNAUTHORISED_CRON: 'api-error.crypto.unauthorised-cron',
   },
   VALIDATION: {
     INVALID_MONTH: 'api-error.validation.invalid-month',
@@ -526,6 +569,9 @@ export const API_ERROR = {
     },
     LINK: {
       FISCAL_TRANSACTION: 'api-error.mutation.link.fiscal-transaction',
+    },
+    SYNC: {
+      CRYPTO: 'api-error.mutation.sync.crypto',
     },
   },
 } as const;

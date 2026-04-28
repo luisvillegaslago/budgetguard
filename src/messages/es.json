@@ -60,6 +60,7 @@
       "invoices": "Facturas",
       "fiscal": "Fiscal",
       "documents": "Documentos",
+      "crypto": "Criptomonedas",
       "settings": "Ajustes"
     }
   },
@@ -910,6 +911,60 @@
       }
     }
   },
+  "crypto": {
+    "title": "Criptomonedas",
+    "subtitle": "Sincroniza Binance e importa operaciones, recompensas y airdrops para preparar tu Modelo 100.",
+    "tabs": {
+      "summary": "Resumen",
+      "events": "Movimientos"
+    },
+    "empty": {
+      "title": "Conecta tu cuenta de Binance",
+      "body": "Para empezar a importar tus operaciones, conecta una API key de solo lectura desde Ajustes.",
+      "cta": "Ir a Ajustes → Criptomonedas"
+    },
+    "sync": {
+      "title": "Sincronización con Binance",
+      "subtitle": "Importa operaciones, recompensas y airdrops desde la API de Binance.",
+      "full": "Sincronización completa",
+      "incremental": "Sincronización incremental",
+      "incremental-hint": "Sincroniza solo los movimientos posteriores a la última sincronización.",
+      "syncing": "Sincronizando…",
+      "scope-label": "Sincronizar desde:",
+      "scope": {
+        "current-year": "Año actual",
+        "previous-year": "Año anterior",
+        "last-90-days": "Últimos 90 días",
+        "all-time": "Todo el histórico"
+      },
+      "never-synced": "Aún no se ha sincronizado nada. Pulsa \"Sincronización completa\" para empezar el backfill.",
+      "events-ingested": "eventos ingeridos",
+      "overall-progress": "Progreso global",
+      "per-endpoint": "Detalle por endpoint",
+      "finished-at": "Finalizado: {at}",
+      "status": {
+        "pending": "En cola",
+        "running": "En curso",
+        "completed": "Completado",
+        "failed": "Fallido",
+        "cancelled": "Cancelado"
+      },
+      "stop": "Detener",
+      "stop-confirm": "¿Detener la sincronización en curso? Los datos ya importados se conservan.",
+      "error-details": "Detalles técnicos"
+    },
+    "events": {
+      "title": "Eventos importados",
+      "filter-all": "Todos los tipos",
+      "empty": "No hay eventos sincronizados todavía.",
+      "col": {
+        "date": "Fecha",
+        "type": "Tipo",
+        "external-id": "ID externo",
+        "payload": "Detalles"
+      }
+    }
+  },
   "invoices": {
     "title": "Facturas",
     "new": "Nueva Factura",
@@ -1288,7 +1343,8 @@
       "document": "Documento no encontrado",
       "document-blob": "Archivo del documento no encontrado",
       "billing-profile": "Perfil de facturación no encontrado",
-      "crypto-credentials": "No hay credenciales de exchange conectadas"
+      "crypto-credentials": "No hay credenciales de exchange conectadas",
+      "crypto-sync-job": "Sincronización no encontrada"
     },
     "conflict": {
       "has-transactions": "Esta categoría tiene transacciones vinculadas",
@@ -1317,7 +1373,10 @@
       "exchange-unavailable": "Binance no está respondiendo. Inténtalo de nuevo más tarde.",
       "price-not-found": "No se ha podido obtener el precio histórico en EUR para esta operación.",
       "decrypt-failed": "No se han podido descifrar las credenciales almacenadas.",
-      "master-key-missing": "Falta la clave maestra de cifrado en el servidor (CRYPTO_MASTER_KEY)."
+      "master-key-missing": "Falta la clave maestra de cifrado en el servidor (CRYPTO_MASTER_KEY).",
+      "sync-already-running": "Ya hay una sincronización en curso para este exchange.",
+      "sync-failed": "La sincronización ha fallado. Revisa el detalle del job.",
+      "unauthorised-cron": "El cron no está configurado correctamente en el servidor."
     },
     "validation": {
       "invalid-month": "Formato de mes inválido. Usa YYYY-MM",
@@ -1382,6 +1441,9 @@
       },
       "link": {
         "fiscal-transaction": "Error al vincular la transacción"
+      },
+      "sync": {
+        "crypto": "Error al iniciar la sincronización con Binance"
       }
     }
   }

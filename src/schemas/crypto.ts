@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { CRYPTO_EXCHANGE } from '@/constants/finance';
+import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, CRYPTO_SYNC_MODE } from '@/constants/finance';
 
 // Binance API key format: 64 alphanumeric characters.
 // Binance API secret format: 64 alphanumeric characters.
@@ -21,3 +21,28 @@ export const CreateCryptoCredentialSchema = z.object({
 });
 
 export type CreateCryptoCredentialInput = z.infer<typeof CreateCryptoCredentialSchema>;
+
+export const StartSyncSchema = z.object({
+  exchange: z.enum([CRYPTO_EXCHANGE.BINANCE]),
+  mode: z.enum([CRYPTO_SYNC_MODE.FULL, CRYPTO_SYNC_MODE.INCREMENTAL]),
+  // Optional caller-provided scope start. When omitted, computeSyncScope
+  // falls back to BINANCE_GENESIS_DATE (full) or the last completed job
+  // (incremental).
+  scopeFrom: z.coerce.date().optional(),
+});
+
+export type StartSyncInput = z.infer<typeof StartSyncSchema>;
+
+const EVENT_TYPE_VALUES = Object.values(CRYPTO_EVENT_TYPE) as [
+  (typeof CRYPTO_EVENT_TYPE)[keyof typeof CRYPTO_EVENT_TYPE],
+  ...(typeof CRYPTO_EVENT_TYPE)[keyof typeof CRYPTO_EVENT_TYPE][],
+];
+
+export const ListEventsQuerySchema = z.object({
+  type: z.enum(EVENT_TYPE_VALUES).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  page: z.coerce.number().int().positive().default(1),
+});
+
+export type ListEventsQuery = z.infer<typeof ListEventsQuerySchema>;

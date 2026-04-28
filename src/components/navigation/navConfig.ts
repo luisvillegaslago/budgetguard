@@ -4,7 +4,18 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import { Calculator, Cloud, FileArchive, FileText, LayoutDashboard, List, Plane, Repeat, Settings } from 'lucide-react';
+import {
+  Bitcoin,
+  Calculator,
+  Cloud,
+  FileArchive,
+  FileText,
+  LayoutDashboard,
+  List,
+  Plane,
+  Repeat,
+  Settings,
+} from 'lucide-react';
 
 export interface NavItem {
   path: string;
@@ -40,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: '/invoices', icon: FileText, i18nKey: 'navigation.items.invoices' },
       { path: '/fiscal', icon: Calculator, i18nKey: 'navigation.items.fiscal', badgeQueryKey: 'fiscal-deadlines' },
       { path: '/documents', icon: FileArchive, i18nKey: 'navigation.items.documents' },
+      { path: '/crypto', icon: Bitcoin, i18nKey: 'navigation.items.crypto' },
     ],
   },
 ];

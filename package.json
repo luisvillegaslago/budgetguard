@@ -45,6 +45,7 @@
     "lucide-react": "^0.479.0",
     "next": "^16.1.6",
     "next-auth": "^4.24.11",
+    "p-limit": "^7.3.0",
     "pg": "^8.20.0",
     "react": "^19.0.0",
     "react-datepicker": "^7.6.0",
