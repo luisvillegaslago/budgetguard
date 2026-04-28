@@ -160,6 +160,8 @@ export const API_ENDPOINT = {
   CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
   CRYPTO_SYNC: '/api/crypto/sync',
   CRYPTO_EVENTS: '/api/crypto/events',
+  CRYPTO_TAXABLE_EVENTS: '/api/crypto/taxable-events',
+  CRYPTO_NORMALIZE: '/api/crypto/normalize',
   CRYPTO_FISCAL_MODELO: '/api/crypto/fiscal/modelo100',
   CRYPTO_FISCAL_RECOMPUTE: '/api/crypto/fiscal/recompute',
   CRYPTO_FISCAL_EXPORT: '/api/crypto/fiscal/export',

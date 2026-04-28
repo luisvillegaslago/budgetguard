@@ -126,7 +126,7 @@ export function CryptoSyncPanel() {
               value={scopePreset}
               onChange={(e) => setScopePreset(e.target.value as ScopePreset)}
               disabled={isBusy}
-              className="w-44"
+              className="w-36 text-sm"
             >
               <option value="current_year">{t('crypto.sync.scope.current-year')}</option>
               <option value="previous_year">{t('crypto.sync.scope.previous-year')}</option>
@@ -135,18 +135,18 @@ export function CryptoSyncPanel() {
             </Select>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {isRunning ? (
               <button
                 type="button"
                 onClick={handleStopRequest}
                 disabled={cancel.isPending}
-                className="btn-primary flex items-center gap-2 bg-guard-danger hover:bg-guard-danger/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-guard-danger hover:bg-guard-danger/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {cancel.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 ) : (
-                  <Ban className="h-4 w-4" aria-hidden="true" />
+                  <Ban className="h-3.5 w-3.5" aria-hidden="true" />
                 )}
                 {t('crypto.sync.stop')}
               </button>
@@ -156,22 +156,23 @@ export function CryptoSyncPanel() {
                   type="button"
                   onClick={() => triggerSync(CRYPTO_SYNC_MODE.INCREMENTAL)}
                   disabled={isBusy}
-                  className="btn-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title={t('crypto.sync.incremental-hint')}
                 >
-                  <RefreshCw className={`h-4 w-4 ${isBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
+                  <RefreshCw className={`h-3.5 w-3.5 ${isBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
                   {t('crypto.sync.incremental')}
                 </button>
                 <button
                   type="button"
                   onClick={() => triggerSync(CRYPTO_SYNC_MODE.FULL)}
                   disabled={isBusy}
-                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-guard-primary hover:bg-guard-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={t('crypto.sync.full-hint')}
                 >
                   {isBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   ) : (
-                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
                   {isBusy ? t('crypto.sync.syncing') : t('crypto.sync.full')}
                 </button>

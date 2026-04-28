@@ -38,6 +38,7 @@ import {
   type DecryptedCredentials,
   getDecryptedActiveForUser,
 } from '@/services/database/ExchangeCredentialsRepository';
+import { countUnnormalisedRawEventsForUser } from '@/services/database/TaxableEventsRepository';
 import {
   BinanceClient,
   BinanceClientError,
@@ -45,6 +46,7 @@ import {
   defaultSyncBaseAssets,
   generateWindows,
 } from './BinanceClient';
+import { normalizeForUser } from './NormalizationService';
 import { syncDebug } from './syncDebug';
 
 export interface RunSyncInput {
@@ -183,6 +185,44 @@ export async function runSync(input: RunSyncInput): Promise<void> {
       await markJobFailed(input.jobId, err.code, err.message);
       syncDebug.jobEnd(input.jobId, 'failed', totalIngested, taskFailures.length);
       return;
+    }
+
+    // Normalise raw → taxable BEFORE marking the job as completed, so the UI
+    // shows the work in progress. Tolerant: failures here are logged but
+    // never demote the sync from 'completed' — the next sync picks up
+    // anything missed thanks to the LEFT-JOIN-on-RawEventID query.
+    try {
+      const totalToNormalize = await countUnnormalisedRawEventsForUser(input.userId);
+      if (totalToNormalize > 0) {
+        // Surface as a synthetic endpoint in the progress map so the
+        // existing UI progress bar covers normalization automatically.
+        progress.normalize = {
+          fetched: 0,
+          totalWindows: totalToNormalize,
+          completedWindows: 0,
+          lastWindowEnd: null,
+        };
+        await updateJobProgress(input.jobId, progress, totalIngested);
+
+        const normalizeResult = await normalizeForUser(input.userId, async (processed, inserted) => {
+          progress.normalize = {
+            fetched: inserted,
+            totalWindows: totalToNormalize,
+            completedWindows: Math.min(processed, totalToNormalize),
+            lastWindowEnd: new Date().toISOString(),
+          };
+          await updateJobProgress(input.jobId, progress, totalIngested + inserted);
+        });
+
+        // biome-ignore lint/suspicious/noConsole: surface normalize summary in dev logs
+        console.log(
+          `Sync job ${input.jobId} normalized ${normalizeResult.inserted} taxable events ` +
+            `(${normalizeResult.processed} processed, ${normalizeResult.skipped} skipped, ${normalizeResult.failed} failed)`,
+        );
+      }
+    } catch (normError) {
+      // biome-ignore lint/suspicious/noConsole: surface in dev logs
+      console.error(`Sync job ${input.jobId} post-sync normalize threw:`, normError);
     }
 
     if (taskFailures.length === 0) {

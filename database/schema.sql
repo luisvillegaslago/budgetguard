@@ -28,6 +28,7 @@ DROP TRIGGER IF EXISTS "TR_FiscalDocuments_UpdatedAt" ON "FiscalDocuments";
 DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineSettings";
 DROP TRIGGER IF EXISTS "TR_ExchangeCredentials_UpdatedAt" ON "ExchangeCredentials";
 DROP TRIGGER IF EXISTS "TR_CryptoSyncJobs_UpdatedAt" ON "CryptoSyncJobs";
+DROP TRIGGER IF EXISTS "TR_TaxableEvents_UpdatedAt" ON "TaxableEvents";
 
 -- Drop sync trigger functions
 DROP FUNCTION IF EXISTS sync_vendor_name_from_company();
@@ -46,6 +47,8 @@ DROP VIEW IF EXISTS "vw_SubcategorySummary";
 DROP VIEW IF EXISTS "vw_MonthlySummary";
 
 -- Drop tables with foreign keys first
+DROP TABLE IF EXISTS "TaxableEvents";
+DROP TABLE IF EXISTS "CryptoPriceCache";
 DROP TABLE IF EXISTS "BinanceRawEvents";
 DROP TABLE IF EXISTS "CryptoSyncJobs";
 DROP TABLE IF EXISTS "ExchangeApiCallLog";
@@ -933,12 +936,68 @@ CREATE TABLE "BinanceRawEvents" (
     "OccurredAt" TIMESTAMPTZ NOT NULL,
     "RawPayload" JSONB NOT NULL,
     "IngestedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "NormalizedAt" TIMESTAMPTZ NULL,
     "JobID" INT REFERENCES "CryptoSyncJobs"("JobID") ON DELETE SET NULL,
     CONSTRAINT "UQ_BinanceRawEvents_UserTypeExternal" UNIQUE ("UserID", "EventType", "ExternalID")
 );
 
 CREATE INDEX "IX_BinanceRawEvents_UserOccurred" ON "BinanceRawEvents"("UserID", "OccurredAt" DESC);
 CREATE INDEX "IX_BinanceRawEvents_TypeOccurred" ON "BinanceRawEvents"("EventType", "OccurredAt" DESC);
+CREATE INDEX "IX_BinanceRawEvents_UnnormalizedFast" ON "BinanceRawEvents"("UserID") WHERE "NormalizedAt" IS NULL;
+
+-- Historical EUR price cache. Inmutable once written: every (Asset, DateUtc)
+-- pair is resolved exactly once, then re-used for any normaliser pass that
+-- needs that price. Source records which path of the cascade produced it
+-- (binance_eur, binance_usdt_cross, coingecko, stablecoin) so AEAT can later
+-- audit the chain of evidence.
+CREATE TABLE "CryptoPriceCache" (
+    "Asset" VARCHAR(20) NOT NULL,
+    "DateUtc" DATE NOT NULL,
+    "EurPriceCents" BIGINT NOT NULL,
+    "Source" VARCHAR(30) NOT NULL,
+    "ResolvedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("Asset", "DateUtc")
+);
+
+-- Normalised, fiscally-relevant events derived from BinanceRawEvents.
+-- One raw event may produce 0, 1, or N taxable events (e.g. a spot trade
+-- BTC→USDT yields a `disposal` of BTC + an `acquisition` of USDT).
+-- RawEventID + Kind are unique together so re-running the normaliser is
+-- idempotent (UPSERT semantics) without losing the multi-leg expansion.
+CREATE TABLE "TaxableEvents" (
+    "EventID" BIGSERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "RawEventID" BIGINT NOT NULL REFERENCES "BinanceRawEvents"("EventID") ON DELETE CASCADE,
+    "Kind" VARCHAR(20) NOT NULL CHECK (
+        "Kind" IN ('disposal', 'acquisition', 'airdrop', 'staking_reward', 'transfer_in', 'transfer_out')
+    ),
+    "OccurredAt" TIMESTAMPTZ NOT NULL,
+    "Asset" VARCHAR(20) NOT NULL,
+    "QuantityNative" NUMERIC(38, 18) NOT NULL,
+    "CounterAsset" VARCHAR(20),
+    "CounterQuantityNative" NUMERIC(38, 18),
+    "FeeAsset" VARCHAR(20),
+    "FeeQuantityNative" NUMERIC(38, 18),
+    "UnitPriceEurCents" BIGINT NOT NULL,
+    "GrossValueEurCents" BIGINT NOT NULL,
+    "FeeEurCents" BIGINT NOT NULL DEFAULT 0,
+    "PriceSource" VARCHAR(30) NOT NULL,
+    "Contraprestacion" CHAR(1) CHECK ("Contraprestacion" IN ('F', 'N')),
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- A single raw event can split into multiple legs of different kinds
+    -- (a spot trade BTC→USDT = disposal of BTC + acquisition of USDT), so the
+    -- idempotency key includes Kind + Asset to keep both legs distinct.
+    CONSTRAINT "UQ_TaxableEvents_RawKindAsset" UNIQUE ("RawEventID", "Kind", "Asset")
+);
+
+CREATE INDEX "IX_TaxableEvents_UserOccurred" ON "TaxableEvents"("UserID", "OccurredAt" DESC);
+CREATE INDEX "IX_TaxableEvents_UserKindAsset" ON "TaxableEvents"("UserID", "Kind", "Asset", "OccurredAt");
+CREATE INDEX "IX_TaxableEvents_UserContrap" ON "TaxableEvents"("UserID", "Contraprestacion") WHERE "Contraprestacion" IS NOT NULL;
+
+CREATE TRIGGER "TR_TaxableEvents_UpdatedAt"
+    BEFORE UPDATE ON "TaxableEvents"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SCHEMA COMPLETE

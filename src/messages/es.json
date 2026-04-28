@@ -926,8 +926,9 @@
     "sync": {
       "title": "Sincronización con Binance",
       "subtitle": "Importa operaciones, recompensas y airdrops desde la API de Binance.",
-      "full": "Sincronización completa",
-      "incremental": "Sincronización incremental",
+      "full": "Completa",
+      "full-hint": "Sincroniza todo el rango seleccionado, incluyendo movimientos antiguos.",
+      "incremental": "Incremental",
       "incremental-hint": "Sincroniza solo los movimientos posteriores a la última sincronización.",
       "syncing": "Sincronizando…",
       "scope-label": "Sincronizar desde:",

@@ -926,8 +926,9 @@
     "sync": {
       "title": "Binance sync",
       "subtitle": "Import trades, rewards and airdrops from the Binance API.",
-      "full": "Full sync",
-      "incremental": "Incremental sync",
+      "full": "Full",
+      "full-hint": "Sync the full selected range, including older events.",
+      "incremental": "Incremental",
       "incremental-hint": "Sync only events after the last successful sync.",
       "syncing": "Syncing…",
       "scope-label": "Sync from:",
