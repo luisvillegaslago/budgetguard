@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.28.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.27.0...v0.28.0) (2026-04-28)
+
+
+### Features
+
+* **crypto:** add fifo engine and Modelo 100 fiscal aggregation (Phase 4) ([00f8e41](https://github.com/luisvillegaslago/budgetguard/commit/00f8e41750418ff7f23a2f6ac953f135e960eb6e))
+
 ## [0.27.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.26.0...v0.27.0) (2026-04-28)
 
 
