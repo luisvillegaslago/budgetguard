@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.29.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.28.0...v0.29.0) (2026-04-28)
+
+
+### Features
+
+* **crypto:** add AEAT guide, CSV importer and disposals export (Phase 5) ([aac20f6](https://github.com/luisvillegaslago/budgetguard/commit/aac20f6497cdb07874a1c5b0f8ea4ded979b25da))
+
 ## [0.28.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.27.0...v0.28.0) (2026-04-28)
 
 
