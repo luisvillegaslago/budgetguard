@@ -926,6 +926,8 @@
       "no-disposals": "No hay transmisiones para este año.",
       "recompute": "Recalcular FIFO",
       "recompute-hint": "Vuelve a procesar todas las operaciones desde el inicio (necesario tras añadir nuevos eventos).",
+      "export-csv": "Exportar CSV",
+      "export-csv-hint": "Descarga el detalle de transmisiones del año para guardarlo como justificante ante AEAT.",
       "incomplete-warning": "Hay {count} transmisiones donde no se cubrió toda la cantidad con lotes históricos. Revisa la pestaña Movimientos por si te falta algún sync.",
       "row-count": "{count} operaciones",
       "casilla-1804-f": "Casilla 1804 (F)",
@@ -957,6 +959,57 @@
         "transmission": "Transmisión",
         "acquisition": "Adquisición",
         "gain-loss": "G/P"
+      }
+    },
+    "aeat": {
+      "title": "Cómo declararlo en Renta Web",
+      "subtitle": "Sigue estos pasos en la AEAT con los importes calculados arriba.",
+      "disclaimer": "Herramienta informativa. Los cálculos se basan en la normativa actual de criptomonedas (Modelo 100 IRPF). Revisa con tu asesor fiscal antes de presentar la declaración.",
+      "amount-to-enter": "Importe a introducir:",
+      "casilla-1804-f": {
+        "title": "Casilla 1804 (F) — Transmisiones contra fiat",
+        "intro": "Ganancias y pérdidas por venta de cripto contra euros u otra moneda fiduciaria.",
+        "steps": [
+          "En Renta Web ve a la página 17 (II) — \"Ganancias y pérdidas patrimoniales por transmisión de monedas virtuales por particulares\".",
+          "Pulsa \"Alta\" para añadir una nueva fila.",
+          "En \"Tipo de contraprestación\" selecciona F (Fiat).",
+          "Introduce el importe de transmisión (suma) y el importe de adquisición (suma) tal como aparecen arriba.",
+          "Renta Web calcula automáticamente la ganancia o pérdida y la traslada a la base imponible del ahorro."
+        ],
+        "note": "Si tienes pérdidas, podrás compensarlas con ganancias del mismo grupo en los próximos 4 ejercicios."
+      },
+      "casilla-1804-n": {
+        "title": "Casilla 1804 (N) — Transmisiones contra otra cripto",
+        "intro": "Permutas de una criptomoneda por otra (BTC↔ETH, swap por USDT, dust, etc.). Se valoran al precio en EUR de cada operación.",
+        "steps": [
+          "En la misma página 17 (II) pulsa \"Alta\" otra vez.",
+          "En \"Tipo de contraprestación\" selecciona N (No fiduciaria).",
+          "Introduce el importe de transmisión y el importe de adquisición.",
+          "Si tienes muchas operaciones puedes agruparlas por activo o cargar todo como una sola fila — la AEAT acepta importes agregados siempre que conserves el detalle."
+        ],
+        "note": "Guarda el desglose por operación (pestaña \"Detalle de transmisiones\" arriba) por si te lo solicitan en una comprobación."
+      },
+      "casilla-0304": {
+        "title": "Casilla 0304 — Otras ganancias patrimoniales",
+        "intro": "Airdrops, recompensas Launchpool no derivadas de staking y promociones recibidas en cripto.",
+        "steps": [
+          "En Renta Web ve a la página 14 — \"Ganancias y pérdidas patrimoniales que no derivan de la transmisión de elementos patrimoniales\".",
+          "Localiza la casilla 0304.",
+          "Introduce el importe en euros (valor de mercado al recibir cada airdrop, sumado para todo el ejercicio).",
+          "Tributa en la base imponible general (escala progresiva del IRPF), no en la del ahorro."
+        ],
+        "note": "Si vendes después esos tokens, la ganancia o pérdida adicional irá a la casilla 1804."
+      },
+      "casilla-0033": {
+        "title": "Casilla 0033 — Rendimientos del capital mobiliario",
+        "intro": "Recompensas de staking, Earn flexible/locked, ETH staking e intereses on-chain. Se declaran al valor de mercado en el momento de recibirlas.",
+        "steps": [
+          "En Renta Web ve a la página 6 — \"Rendimientos del capital mobiliario\".",
+          "Localiza la casilla 0033 (Otros rendimientos del capital mobiliario).",
+          "Introduce el importe total en euros sumando todas las recompensas del año.",
+          "Tributa en la base imponible del ahorro (mismo tipo que dividendos)."
+        ],
+        "note": "El coste de adquisición de los tokens recibidos es ese mismo valor declarado, lo que evita tributar dos veces si después los vendes."
       }
     },
     "empty": {
@@ -1005,6 +1058,29 @@
         "external-id": "ID externo",
         "payload": "Detalles"
       }
+    },
+    "csv": {
+      "title": "Importar CSV de Binance",
+      "subtitle": "Útil para rescatar operaciones C2C antiguas (la API solo devuelve los últimos 6 meses) y para reconciliar datos.",
+      "instructions-title": "Cómo obtener el CSV:",
+      "step-1": "Inicia sesión en Binance.com y ve a Orders → Asset History, luego pulsa el icono de exportar (arriba a la derecha) → Export Transaction Records, o ve directamente {link}.",
+      "step-1-link": "aquí",
+      "step-2": "En Time Range, pulsa Customize y selecciona el periodo completo desde que empezaste a usar Binance hasta hoy.",
+      "step-3": "Selecciona CSV y pulsa Generate. Espera a que el archivo esté listo y descárgalo.",
+      "step-4": "Descomprime el archivo .zip y sube el CSV aquí abajo.",
+      "drop-here": "Arrastra el CSV aquí o haz clic para seleccionar",
+      "selected": "Archivo seleccionado: {name}",
+      "uploading": "Procesando…",
+      "upload": "Importar",
+      "result-title": "Importación completada",
+      "result-rows-read": "Filas leídas: {n}",
+      "result-rows-mapped": "Filas mapeadas: {n}",
+      "result-rows-skipped": "Filas ignoradas: {n}",
+      "result-events-inserted": "Eventos nuevos: {n}",
+      "result-events-duplicate": "Duplicados (ignorados): {n}",
+      "result-taxable-created": "Eventos fiscales generados: {n}",
+      "result-skipped-ops": "Operaciones ignoradas (no soportadas):",
+      "result-recompute-hint": "Pulsa \"Recalcular FIFO\" en la pestaña Fiscal para refrescar las casillas con los nuevos datos."
     }
   },
   "invoices": {
@@ -1418,7 +1494,10 @@
       "master-key-missing": "Falta la clave maestra de cifrado en el servidor (CRYPTO_MASTER_KEY).",
       "sync-already-running": "Ya hay una sincronización en curso para este exchange.",
       "sync-failed": "La sincronización ha fallado. Revisa el detalle del job.",
-      "unauthorised-cron": "El cron no está configurado correctamente en el servidor."
+      "unauthorised-cron": "El cron no está configurado correctamente en el servidor.",
+      "csv-file-required": "Selecciona un archivo CSV.",
+      "csv-invalid-format": "El CSV no tiene el formato esperado de Binance (columnas: UTC_Time, Account, Operation, Coin, Change).",
+      "csv-too-large": "El archivo es demasiado grande. Máximo 10 MB."
     },
     "validation": {
       "invalid-month": "Formato de mes inválido. Usa YYYY-MM",
@@ -1472,7 +1551,8 @@
       },
       "import": {
         "jumps": "Error al importar saltos",
-        "tunnel-sessions": "Error al importar sesiones de túnel"
+        "tunnel-sessions": "Error al importar sesiones de túnel",
+        "crypto-csv": "Error al importar el CSV de Binance"
       },
       "upload": {
         "fiscal-document": "Error al subir el documento",

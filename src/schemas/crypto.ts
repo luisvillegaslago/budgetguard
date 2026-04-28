@@ -46,3 +46,7 @@ export const ListEventsQuerySchema = z.object({
 });
 
 export type ListEventsQuery = z.infer<typeof ListEventsQuerySchema>;
+
+// 10 MB cap on CSV uploads — Binance exports ~1KB per row, so 10MB
+// covers ~10k rows which is well above any realistic single-export size.
+export const CSV_MAX_BYTES = 10 * 1024 * 1024;

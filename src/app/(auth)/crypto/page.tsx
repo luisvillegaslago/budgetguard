@@ -15,6 +15,8 @@
 import { Bitcoin, Calculator, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { CryptoAeatGuide } from '@/components/crypto/CryptoAeatGuide';
+import { CryptoCsvUploader } from '@/components/crypto/CryptoCsvUploader';
 import { CryptoDisposalsTable } from '@/components/crypto/CryptoDisposalsTable';
 import { CryptoEventsTable } from '@/components/crypto/CryptoEventsTable';
 import { CryptoModelo100Section } from '@/components/crypto/CryptoModelo100Section';
@@ -82,11 +84,17 @@ export default function CryptoPage() {
         })}
       </div>
 
-      {activeTab === 'summary' && <CryptoSyncPanel />}
+      {activeTab === 'summary' && (
+        <div className="space-y-6">
+          <CryptoSyncPanel />
+          <CryptoCsvUploader />
+        </div>
+      )}
       {activeTab === 'events' && <CryptoEventsTable />}
       {activeTab === 'fiscal' && (
         <div className="space-y-6">
           <CryptoModelo100Section year={fiscalYear} onYearChange={setFiscalYear} />
+          <CryptoAeatGuide year={fiscalYear} />
           <CryptoDisposalsTable year={fiscalYear} />
         </div>
       )}

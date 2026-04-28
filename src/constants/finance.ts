@@ -508,6 +508,9 @@ export const API_ERROR = {
     SYNC_ALREADY_RUNNING: 'api-error.crypto.sync-already-running',
     SYNC_FAILED: 'api-error.crypto.sync-failed',
     UNAUTHORISED_CRON: 'api-error.crypto.unauthorised-cron',
+    CSV_FILE_REQUIRED: 'api-error.crypto.csv-file-required',
+    CSV_INVALID_FORMAT: 'api-error.crypto.csv-invalid-format',
+    CSV_TOO_LARGE: 'api-error.crypto.csv-too-large',
   },
   VALIDATION: {
     INVALID_MONTH: 'api-error.validation.invalid-month',
@@ -562,6 +565,7 @@ export const API_ERROR = {
     IMPORT: {
       JUMPS: 'api-error.mutation.import.jumps',
       TUNNEL_SESSIONS: 'api-error.mutation.import.tunnel-sessions',
+      CRYPTO_CSV: 'api-error.mutation.import.crypto-csv',
     },
     UPLOAD: {
       FISCAL_DOCUMENT: 'api-error.mutation.upload.fiscal-document',

@@ -926,6 +926,8 @@
       "no-disposals": "No disposals for this year.",
       "recompute": "Recompute FIFO",
       "recompute-hint": "Re-runs FIFO from the beginning of your history (needed after adding new events).",
+      "export-csv": "Export CSV",
+      "export-csv-hint": "Download the disposals detail for the year as an audit trail for AEAT.",
       "incomplete-warning": "{count} disposals couldn't be fully covered by historical lots. Check the Events tab for any missing sync.",
       "row-count": "{count} disposals",
       "casilla-1804-f": "Box 1804 (F)",
@@ -957,6 +959,57 @@
         "transmission": "Transmission",
         "acquisition": "Acquisition",
         "gain-loss": "G/L"
+      }
+    },
+    "aeat": {
+      "title": "How to file in Renta Web",
+      "subtitle": "Follow these steps in the Spanish tax portal with the amounts shown above.",
+      "disclaimer": "Informational tool. Calculations follow the current crypto regulation (Modelo 100 IRPF). Review with your tax advisor before filing.",
+      "amount-to-enter": "Amount to enter:",
+      "casilla-1804-f": {
+        "title": "Box 1804 (F) — Disposals against fiat",
+        "intro": "Capital gains and losses from selling crypto for euros or other fiat currency.",
+        "steps": [
+          "In Renta Web go to page 17 (II) — \"Capital gains and losses from the transmission of virtual currencies by individuals\".",
+          "Click \"Add\" to create a new row.",
+          "In \"Type of consideration\" select F (Fiat).",
+          "Enter the transmission value (sum) and the acquisition value (sum) shown above.",
+          "Renta Web will automatically compute the gain or loss and move it to the savings tax base."
+        ],
+        "note": "If you have losses, they can be offset against gains from the same group during the next 4 fiscal years."
+      },
+      "casilla-1804-n": {
+        "title": "Box 1804 (N) — Disposals against another crypto",
+        "intro": "Swaps from one crypto to another (BTC↔ETH, swap to USDT, dust, etc.). Valued at the EUR price of each operation.",
+        "steps": [
+          "On the same page 17 (II) click \"Add\" again.",
+          "In \"Type of consideration\" select N (Non-fiat).",
+          "Enter the transmission value and the acquisition value.",
+          "If you have many operations you can group them by asset or upload everything as a single row — the AEAT accepts aggregated amounts as long as you keep the detail."
+        ],
+        "note": "Keep the per-operation breakdown (\"Disposals detail\" tab above) in case they ask during an audit."
+      },
+      "casilla-0304": {
+        "title": "Box 0304 — Other capital gains",
+        "intro": "Airdrops, Launchpool rewards not derived from staking, and crypto promotions received.",
+        "steps": [
+          "In Renta Web go to page 14 — \"Capital gains and losses not derived from the transmission of patrimonial elements\".",
+          "Find box 0304.",
+          "Enter the amount in euros (market value when receiving each airdrop, summed for the year).",
+          "Taxed at the general tax base (progressive IRPF scale), not the savings base."
+        ],
+        "note": "If you later sell those tokens, the additional gain or loss goes into box 1804."
+      },
+      "casilla-0033": {
+        "title": "Box 0033 — Capital income (capital mobiliario)",
+        "intro": "Staking rewards, Earn flexible/locked, ETH staking and on-chain interest. Declared at market value at the time of receipt.",
+        "steps": [
+          "In Renta Web go to page 6 — \"Income from movable capital\".",
+          "Find box 0033 (Other income from movable capital).",
+          "Enter the total amount in euros summing all rewards for the year.",
+          "Taxed at the savings base (same rate as dividends)."
+        ],
+        "note": "The acquisition cost of the received tokens equals the declared value, which prevents double taxation if you sell them later."
       }
     },
     "empty": {
@@ -1005,6 +1058,29 @@
         "external-id": "External ID",
         "payload": "Details"
       }
+    },
+    "csv": {
+      "title": "Import Binance CSV",
+      "subtitle": "Useful to recover older C2C trades (the API only returns the last 6 months) and for reconciliation.",
+      "instructions-title": "How to get the CSV:",
+      "step-1": "Sign in to Binance.com and go to Orders → Asset History, then click the export icon (top right) → Export Transaction Records, or go directly {link}.",
+      "step-1-link": "here",
+      "step-2": "Under Time Range, click Customize and select the full period from when you first started using Binance until today.",
+      "step-3": "Select CSV and click Generate. Wait for the file to be ready, then download it.",
+      "step-4": "Unzip the archive and upload the CSV here.",
+      "drop-here": "Drag the CSV here or click to select",
+      "selected": "Selected file: {name}",
+      "uploading": "Processing…",
+      "upload": "Import",
+      "result-title": "Import completed",
+      "result-rows-read": "Rows read: {n}",
+      "result-rows-mapped": "Rows mapped: {n}",
+      "result-rows-skipped": "Rows skipped: {n}",
+      "result-events-inserted": "New events: {n}",
+      "result-events-duplicate": "Duplicates (ignored): {n}",
+      "result-taxable-created": "Taxable events created: {n}",
+      "result-skipped-ops": "Skipped operations (not supported):",
+      "result-recompute-hint": "Press \"Recompute FIFO\" in the Fiscal tab to refresh the boxes with the new data."
     }
   },
   "invoices": {
@@ -1418,7 +1494,10 @@
       "master-key-missing": "The encryption master key is missing on the server (CRYPTO_MASTER_KEY).",
       "sync-already-running": "A sync is already in progress for this exchange.",
       "sync-failed": "The sync failed. Check the job details.",
-      "unauthorised-cron": "Cron is not configured correctly on the server."
+      "unauthorised-cron": "Cron is not configured correctly on the server.",
+      "csv-file-required": "Select a CSV file.",
+      "csv-invalid-format": "The CSV doesn't match the expected Binance format (columns: UTC_Time, Account, Operation, Coin, Change).",
+      "csv-too-large": "File is too large. Max 10 MB."
     },
     "validation": {
       "invalid-month": "Invalid month format. Use YYYY-MM",
@@ -1472,7 +1551,8 @@
       },
       "import": {
         "jumps": "Error importing jumps",
-        "tunnel-sessions": "Error importing tunnel sessions"
+        "tunnel-sessions": "Error importing tunnel sessions",
+        "crypto-csv": "Error importing Binance CSV"
       },
       "upload": {
         "fiscal-document": "Error uploading document",

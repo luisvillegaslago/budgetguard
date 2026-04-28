@@ -9,8 +9,9 @@
  * in the existing /fiscal Modelo100Card.
  */
 
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
+import { API_ENDPOINT } from '@/constants/finance';
 import { useCryptoModelo100Summary, useRecomputeCryptoFiscal } from '@/hooks/useCryptoFiscal';
 import { useTranslate } from '@/hooks/useTranslations';
 import { formatCurrency } from '@/utils/money';
@@ -62,6 +63,14 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
               ))}
             </Select>
           )}
+          <a
+            href={`${API_ENDPOINT.CRYPTO_FISCAL_EXPORT}?year=${year}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            title={t('crypto.fiscal.export-csv-hint')}
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('crypto.fiscal.export-csv')}
+          </a>
           <button
             type="button"
             onClick={handleRecompute}
