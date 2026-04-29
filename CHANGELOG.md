@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.29.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.29.0...v0.29.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* **crypto:** polish module — async CSV import, stuck-job guard, stablecoins as F ([890e705](https://github.com/luisvillegaslago/budgetguard/commit/890e7059c7753cedd599ed356e9d3b9a2db6a524))
+
 ## [0.29.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.28.0...v0.29.0) (2026-04-28)
 
 
