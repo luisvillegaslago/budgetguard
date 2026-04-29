@@ -16,6 +16,14 @@
 
 import { EventEmitter } from 'node:events';
 import { MainClient } from 'binance';
+
+// Bump Node's default max listener cap. The Binance SDK + price service
+// fan out many concurrent HTTPS calls during a sync, each adding a
+// transient `error` listener to the shared TLSSocket. Default is 10 →
+// emits "MaxListenersExceededWarning" without breaking anything; bumping
+// to 50 covers our largest backfills cleanly.
+EventEmitter.defaultMaxListeners = 50;
+
 import {
   API_ERROR,
   BINANCE_RETRY_BASE_MS,

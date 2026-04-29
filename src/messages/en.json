@@ -925,7 +925,7 @@
       "no-data": "No synced data yet.",
       "no-disposals": "No disposals for this year.",
       "recompute": "Recompute FIFO",
-      "recompute-hint": "Re-runs FIFO from the beginning of your history (needed after adding new events).",
+      "recompute-hint": "Recomputes disposals for ALL years from genesis. Needed after importing new events or when classification logic changes (cost basis propagates across years).",
       "export-csv": "Export CSV",
       "export-csv-hint": "Download the disposals detail for the year as an audit trail for AEAT.",
       "incomplete-warning": "{count} disposals couldn't be fully covered by historical lots. Check the Events tab for any missing sync.",
@@ -1079,8 +1079,9 @@
       "result-events-inserted": "New events: {n}",
       "result-events-duplicate": "Duplicates (ignored): {n}",
       "result-taxable-created": "Taxable events created: {n}",
+      "result-normalizing": "Normalizing EUR prices in the background — check progress in the sync panel.",
       "result-skipped-ops": "Skipped operations (not supported):",
-      "result-recompute-hint": "Press \"Recompute FIFO\" in the Fiscal tab to refresh the boxes with the new data."
+      "result-recompute-hint": "When normalization finishes, press \"Recompute FIFO\" in the Fiscal tab to refresh the boxes."
     }
   },
   "invoices": {

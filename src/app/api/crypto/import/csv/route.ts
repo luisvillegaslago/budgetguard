@@ -8,15 +8,24 @@
  * Idempotent: re-uploading the same file inserts 0 duplicates thanks to the
  * UNIQUE(UserID, EventType, ExternalID) constraint and the per-row hash.
  *
- * After ingestion we kick the normalize pipeline so the imported rows show
- * up in /crypto/movimientos and the fiscal calculations immediately.
+ * Returns 202 with the synthetic job id as soon as the raw rows are
+ * persisted. Normalization (which fetches EUR prices and can take minutes
+ * for a large backfill) runs in background via `after()` and updates the
+ * job progress as it goes — same UX pattern as POST /api/crypto/sync.
  */
 
+import { after, NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { CSV_MAX_BYTES } from '@/schemas/crypto';
 import { bulkInsertRawEventsForUser, type RawEventInput } from '@/services/database/BinanceRawEventsRepository';
-import { createSyncJob, markJobCompleted, updateJobProgress } from '@/services/database/CryptoSyncJobsRepository';
+import {
+  createSyncJob,
+  markJobCompleted,
+  markJobFailed,
+  markJobRunning,
+  updateJobProgress,
+} from '@/services/database/CryptoSyncJobsRepository';
 import {
   type BinanceCsvRow,
   type CsvImportSummary,
@@ -57,18 +66,19 @@ export const POST = withApiHandler(async (request) => {
   }
 
   // Wrap the import in a synthetic sync job so the user sees it in the
-  // history alongside API-driven syncs. Using mode='full' since the CSV
-  // can carry events from any historical range.
+  // history alongside API-driven syncs.
   const job = await createSyncJob({
     exchange: 'binance',
     mode: 'full',
     scopeFrom: csvRows[0]?.utcTime ?? new Date(),
     scopeTo: csvRows[csvRows.length - 1]?.utcTime ?? new Date(),
   });
+  await markJobRunning(job.jobId);
 
+  // Insert raw rows synchronously — this is fast (a few hundred ms even
+  // for 10k rows) so the user gets the count back in the response.
   let inserted = 0;
   if (mapResult.events.length > 0) {
-    // Batch into 500-row chunks to stay under PostgreSQL's parameter limit.
     const CHUNK_SIZE = 500;
     const chunkCount = Math.ceil(mapResult.events.length / CHUNK_SIZE);
     const chunkInserts = await Promise.all(
@@ -80,35 +90,70 @@ export const POST = withApiHandler(async (request) => {
     inserted = chunkInserts.reduce((acc, n) => acc + n, 0);
   }
 
-  // Kick normalization so the imports show up in TaxableEvents immediately.
-  // Run inline so the response can report the final counts.
-  const normalizeResult = await normalizeForUser(userId);
-
+  // Stamp progress now so the UI can show "X rows ingested, normalizing…"
+  // immediately. The completedWindows stays at 0 (of 2) until normalize
+  // finishes — see sync orchestrator for the same pattern.
   await updateJobProgress(
     job.jobId,
     {
       'csv-import': {
         fetched: mapResult.summary.rowsRead,
-        totalWindows: 1,
+        totalWindows: 2,
         completedWindows: 1,
         lastWindowEnd: new Date().toISOString(),
       },
     },
     inserted,
   );
-  await markJobCompleted(job.jobId);
 
-  return {
-    data: {
-      jobId: job.jobId,
-      rowsRead: mapResult.summary.rowsRead,
-      rowsMapped: mapResult.summary.rowsMapped,
-      rowsSkipped: mapResult.summary.rowsSkipped,
-      skippedOperations: mapResult.summary.skippedOperations,
-      eventsInserted: inserted,
-      eventsDuplicate: mapResult.events.length - inserted,
-      taxableEventsCreated: normalizeResult.inserted,
+  // Hand off normalization to the background. Doing it here would block
+  // the response for minutes on a large backfill (4-10k rows × price
+  // lookups → easily past Vercel's function timeout).
+  after(async () => {
+    try {
+      const normalizeResult = await normalizeForUser(userId);
+      await updateJobProgress(
+        job.jobId,
+        {
+          'csv-import': {
+            fetched: mapResult.summary.rowsRead,
+            totalWindows: 2,
+            completedWindows: 2,
+            lastWindowEnd: new Date().toISOString(),
+          },
+          normalize: {
+            fetched: normalizeResult.inserted,
+            totalWindows: 1,
+            completedWindows: 1,
+            lastWindowEnd: new Date().toISOString(),
+          },
+        },
+        inserted,
+      );
+      await markJobCompleted(job.jobId);
+    } catch (error) {
+      await markJobFailed(job.jobId, 'normalize-failed', error instanceof Error ? error.message : String(error));
+      // biome-ignore lint/suspicious/noConsole: background worker error logging
+      console.error(`CSV import job ${job.jobId} normalize failed:`, error);
+    }
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        jobId: job.jobId,
+        rowsRead: mapResult.summary.rowsRead,
+        rowsMapped: mapResult.summary.rowsMapped,
+        rowsSkipped: mapResult.summary.rowsSkipped,
+        skippedOperations: mapResult.summary.skippedOperations,
+        eventsInserted: inserted,
+        eventsDuplicate: mapResult.events.length - inserted,
+        // The taxable count is filled by the background normalize — clients
+        // poll GET /api/crypto/sync/:jobId for the final state.
+        normalizing: true,
+      },
     },
-    status: 201,
-  };
+    { status: 202 },
+  );
 }, 'POST /api/crypto/import/csv');

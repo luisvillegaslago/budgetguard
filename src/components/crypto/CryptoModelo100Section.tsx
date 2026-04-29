@@ -26,8 +26,9 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
   const summary = useCryptoModelo100Summary(year);
   const recompute = useRecomputeCryptoFiscal();
 
+  // Recompute every year, not just the selected one — see endpoint docs.
   const handleRecompute = async () => {
-    await recompute.mutateAsync(year);
+    await recompute.mutateAsync(undefined);
   };
 
   if (summary.isLoading) {

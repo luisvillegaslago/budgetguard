@@ -51,7 +51,9 @@ interface ImportResult {
   skippedOperations: Record<string, number>;
   eventsInserted: number;
   eventsDuplicate: number;
-  taxableEventsCreated: number;
+  /** True while the background normalize is still running — UI can point
+   *  the user at the sync panel for live progress. */
+  normalizing: boolean;
 }
 
 async function uploadCsv(file: File): Promise<ImportResult> {
@@ -188,8 +190,10 @@ export function CryptoCsvUploader() {
             <li>{t('crypto.csv.result-rows-skipped', { n: result.rowsSkipped })}</li>
             <li>{t('crypto.csv.result-events-inserted', { n: result.eventsInserted })}</li>
             <li>{t('crypto.csv.result-events-duplicate', { n: result.eventsDuplicate })}</li>
-            <li>{t('crypto.csv.result-taxable-created', { n: result.taxableEventsCreated })}</li>
           </ul>
+          {result.normalizing && (
+            <p className="text-xs text-guard-muted italic">{t('crypto.csv.result-normalizing')}</p>
+          )}
           {skippedEntries.length > 0 && (
             <div className="pt-2 border-t border-guard-success/20 space-y-1">
               <p className="text-xs font-semibold text-foreground">{t('crypto.csv.result-skipped-ops')}</p>

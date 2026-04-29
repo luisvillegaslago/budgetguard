@@ -186,10 +186,43 @@ export async function getJobById(jobId: number): Promise<CryptoSyncJob | null> {
 }
 
 /**
+ * Auto-fail jobs that got stuck in `pending` (StartedAt still null) or
+ * `running` (Progress not updated for too long). These can happen on
+ * `next dev` when an `after()` callback never fires (hot reload, crash)
+ * or a Vercel function instance dies mid-sync.
+ *
+ * Called transparently from findActiveJob so the UI never sees a zombie
+ * job and the user can launch a new sync without manual intervention.
+ *
+ * Defaults are conservative: a real backfill batch never sits in
+ * `pending` more than a few seconds, and `running` jobs touch Progress
+ * after every endpoint window.
+ */
+export async function failStuckJobs(opts: { pendingMinutes?: number; runningMinutes?: number } = {}): Promise<number> {
+  const pendingMinutes = opts.pendingMinutes ?? 5;
+  const runningMinutes = opts.runningMinutes ?? 15;
+
+  const rows = await query<{ JobID: number }>(
+    `UPDATE "CryptoSyncJobs"
+     SET "Status" = 'failed',
+         "FinishedAt" = CURRENT_TIMESTAMP,
+         "ErrorCode" = 'stuck-job',
+         "ErrorMessage" = 'Job never produced progress within the timeout — background worker likely crashed or never started.'
+     WHERE ("Status" = 'pending' AND "StartedAt" IS NULL AND "CreatedAt" < NOW() - ($1::int * INTERVAL '1 minute'))
+        OR ("Status" = 'running' AND "UpdatedAt" < NOW() - ($2::int * INTERVAL '1 minute'))
+     RETURNING "JobID"`,
+    [pendingMinutes, runningMinutes],
+  );
+  return rows.length;
+}
+
+/**
  * Returns the currently running or pending job for the user × exchange, if
- * any. Used to prevent two concurrent syncs from racing.
+ * any. Used to prevent two concurrent syncs from racing. Auto-fails stuck
+ * jobs first so they don't block new runs forever.
  */
 export async function findActiveJob(exchange: CryptoExchange): Promise<CryptoSyncJob | null> {
+  await failStuckJobs();
   const userId = await getUserIdOrThrow();
   const rows = await query<SyncJobRow>(
     `SELECT ${COLUMNS} FROM "CryptoSyncJobs"

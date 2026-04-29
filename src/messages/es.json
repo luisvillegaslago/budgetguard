@@ -925,7 +925,7 @@
       "no-data": "Aún no hay datos sincronizados.",
       "no-disposals": "No hay transmisiones para este año.",
       "recompute": "Recalcular FIFO",
-      "recompute-hint": "Vuelve a procesar todas las operaciones desde el inicio (necesario tras añadir nuevos eventos).",
+      "recompute-hint": "Recalcula los disposals de TODOS los años desde el inicio. Necesario tras importar nuevos eventos o cuando cambia la lógica de clasificación (cost basis se propaga entre años).",
       "export-csv": "Exportar CSV",
       "export-csv-hint": "Descarga el detalle de transmisiones del año para guardarlo como justificante ante AEAT.",
       "incomplete-warning": "Hay {count} transmisiones donde no se cubrió toda la cantidad con lotes históricos. Revisa la pestaña Movimientos por si te falta algún sync.",
@@ -1079,8 +1079,9 @@
       "result-events-inserted": "Eventos nuevos: {n}",
       "result-events-duplicate": "Duplicados (ignorados): {n}",
       "result-taxable-created": "Eventos fiscales generados: {n}",
+      "result-normalizing": "Normalizando precios EUR en segundo plano… consulta el progreso en el panel de sincronización.",
       "result-skipped-ops": "Operaciones ignoradas (no soportadas):",
-      "result-recompute-hint": "Pulsa \"Recalcular FIFO\" en la pestaña Fiscal para refrescar las casillas con los nuevos datos."
+      "result-recompute-hint": "Cuando termine la normalización, pulsa \"Recalcular FIFO\" en la pestaña Fiscal para refrescar las casillas."
     }
   },
   "invoices": {

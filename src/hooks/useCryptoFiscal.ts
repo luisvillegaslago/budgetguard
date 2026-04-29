@@ -87,20 +87,35 @@ export function useCryptoModelo100Summary(year: number) {
 // Recompute
 // ============================================================
 
-async function recomputeRequest(
-  year: number,
-): Promise<{ fiscalYear: number; disposalsInserted: number; incompleteCoverageCount: number }> {
+export interface RecomputeYearSummary {
+  fiscalYear: number;
+  disposalsInserted: number;
+  incompleteCoverageCount: number;
+}
+
+export interface RecomputeResponse {
+  mode: 'all' | 'year';
+  years: RecomputeYearSummary[];
+  totalDisposalsInserted?: number;
+  totalIncompleteCoverage?: number;
+}
+
+/**
+ * Trigger a FIFO recompute. Pass a `year` to limit the run to that fiscal
+ * year, or omit it to recompute every year with data (the recommended
+ * default — see endpoint docs).
+ */
+async function recomputeRequest(year?: number): Promise<RecomputeResponse> {
   const response = await fetchApi(API_ENDPOINT.CRYPTO_FISCAL_RECOMPUTE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ year }),
+    body: JSON.stringify(year != null ? { year } : {}),
   });
   if (!response.ok) {
     const errorData: ApiResponse<never> = await response.json();
     throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.SYNC.CRYPTO));
   }
-  const data: ApiResponse<{ fiscalYear: number; disposalsInserted: number; incompleteCoverageCount: number }> =
-    await response.json();
+  const data: ApiResponse<RecomputeResponse> = await response.json();
   if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
   return data.data;
 }
@@ -109,8 +124,10 @@ export function useRecomputeCryptoFiscal() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: recomputeRequest,
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_MODELO, result.fiscalYear] });
+    onSuccess: () => {
+      // Recompute touches every year — invalidate the entire summary cache,
+      // not just one year.
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_MODELO] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_DISPOSALS] });
     },
   });

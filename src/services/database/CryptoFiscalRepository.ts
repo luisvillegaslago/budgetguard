@@ -99,6 +99,82 @@ export async function recomputeYearForUser(userId: number, fiscalYear: number): 
   };
 }
 
+/**
+ * Recompute every fiscal year that has at least one disposal OR one
+ * disposal-kind taxable event. Single FIFO pass — no point re-reading the
+ * full history once per year — atomically swapping all years' disposals in
+ * a single transaction.
+ *
+ * This is what the UI button calls: a per-year recompute is rarely what
+ * the user wants because changing a normalizer rule (transfer_in basis,
+ * stablecoin contraprestacion, etc.) shifts cost basis across every year.
+ */
+export async function recomputeAllYearsForUser(
+  userId: number,
+): Promise<{ years: RecomputeResult[]; totalDisposalsInserted: number; totalIncompleteCoverage: number }> {
+  // Read EVERY taxable event once.
+  const rows = await query<TaxableEventForFifoRow>(
+    `SELECT "EventID"::text AS "EventID", "Kind", "OccurredAt", "Asset",
+            "QuantityNative", "UnitPriceEurCents", "GrossValueEurCents",
+            "FeeEurCents", "Contraprestacion"
+     FROM "TaxableEvents"
+     WHERE "UserID" = $1
+     ORDER BY "OccurredAt" ASC, "EventID" ASC`,
+    [userId],
+  );
+
+  const fifoEvents: FifoTaxableEvent[] = rows.map((r) => ({
+    taxableEventId: r.EventID,
+    kind: r.Kind as CryptoTaxableKind,
+    occurredAt: r.OccurredAt,
+    asset: r.Asset,
+    quantityNative: r.QuantityNative,
+    unitPriceEurCents: Number(r.UnitPriceEurCents),
+    grossValueEurCents: Number(r.GrossValueEurCents),
+    feeEurCents: Number(r.FeeEurCents),
+    contraprestacion: r.Contraprestacion as CryptoContraprestacion | null,
+  }));
+
+  const allDisposals = runFifo(fifoEvents);
+
+  // Group by fiscal year for the per-year summary.
+  const byYear = new Map<number, CryptoDisposalDraft[]>();
+  allDisposals.forEach((d) => {
+    const list = byYear.get(d.fiscalYear) ?? [];
+    list.push(d);
+    byYear.set(d.fiscalYear, list);
+  });
+
+  // Atomic swap: wipe ALL existing disposals for the user and insert the
+  // fresh set in one transaction so the UI never sees a half-recomputed
+  // state.
+  await query('BEGIN');
+  try {
+    await query(`DELETE FROM "CryptoDisposals" WHERE "UserID" = $1`, [userId]);
+    if (allDisposals.length > 0) {
+      await bulkInsertDisposalsTx(userId, allDisposals);
+    }
+    await query('COMMIT');
+  } catch (error) {
+    await query('ROLLBACK');
+    throw error;
+  }
+
+  const years: RecomputeResult[] = Array.from(byYear.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([year, drafts]) => ({
+      fiscalYear: year,
+      disposalsInserted: drafts.length,
+      incompleteCoverageCount: drafts.filter((d) => d.incompleteCoverage).length,
+    }));
+
+  return {
+    years,
+    totalDisposalsInserted: allDisposals.length,
+    totalIncompleteCoverage: allDisposals.filter((d) => d.incompleteCoverage).length,
+  };
+}
+
 async function bulkInsertDisposalsTx(userId: number, drafts: CryptoDisposalDraft[]): Promise<void> {
   const COLS_PER_ROW = 13;
   const placeholders = drafts

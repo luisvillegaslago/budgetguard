@@ -23,7 +23,11 @@ import {
 const FIXED_DATE = new Date('2025-06-15T10:00:00Z');
 
 describe('normalizeSpotTrade', () => {
-  it('BUY of BTCUSDT → acquisition of BTC + disposal of USDT (both N)', () => {
+  it('BUY of BTCUSDT → acquisition of BTC (F, USD-stablecoin counter) + disposal of USDT (N, BTC counter)', () => {
+    // USD-pegged stablecoins (USDC, USDT, BUSD, FDUSD, DAI, TUSD) are
+    // treated as pseudo-fiat counters per the finbooks alignment: a
+    // disposal whose counter is one of them is routed to box 1804-F.
+    // The other side (USDT disposal vs BTC) keeps N because BTC isn't fiat.
     const legs = normalizeSpotTrade({
       eventType: CRYPTO_EVENT_TYPE.SPOT_TRADE,
       occurredAt: FIXED_DATE,
@@ -46,7 +50,7 @@ describe('normalizeSpotTrade', () => {
       counterQuantityNative: '600',
       feeAsset: 'BTC',
       feeQuantityNative: '0.000005',
-      contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+      contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
     });
     expect(legs[1]).toEqual({
       kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
@@ -93,7 +97,7 @@ describe('normalizeSpotTrade', () => {
 });
 
 describe('normalizeConvert', () => {
-  it('BTC → USDT yields disposal + acquisition (both N)', () => {
+  it('BTC → USDT routes BTC disposal as F (USDT is a USD-stablecoin counter)', () => {
     const legs = normalizeConvert({
       eventType: CRYPTO_EVENT_TYPE.CONVERT,
       occurredAt: FIXED_DATE,
@@ -103,9 +107,10 @@ describe('normalizeConvert', () => {
     expect(legs).toHaveLength(2);
     expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.DISPOSAL);
     expect(legs[0]?.asset).toBe('BTC');
-    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.NON_FIAT);
+    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.FIAT);
     expect(legs[1]?.kind).toBe(CRYPTO_TAXABLE_KIND.ACQUISITION);
     expect(legs[1]?.asset).toBe('USDT');
+    expect(legs[1]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.NON_FIAT);
   });
 
   it('EUR → BTC filters the EUR leg, keeps acquisition of BTC (F)', () => {
@@ -121,6 +126,22 @@ describe('normalizeConvert', () => {
       asset: 'BTC',
       contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
     });
+  });
+
+  it.each([
+    'USDC',
+    'BUSD',
+    'FDUSD',
+    'DAI',
+    'TUSD',
+  ])('BTC → %s routes BTC disposal as F (USD-stablecoin counter)', (stable) => {
+    const legs = normalizeConvert({
+      eventType: CRYPTO_EVENT_TYPE.CONVERT,
+      occurredAt: FIXED_DATE,
+      rawPayload: { fromAsset: 'BTC', toAsset: stable, fromAmount: '0.01', toAmount: '600' },
+    });
+    expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.DISPOSAL);
+    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.FIAT);
   });
 });
 

@@ -56,13 +56,30 @@ export interface NormaliserContext {
 
 const FIAT_CURRENCIES = new Set(['EUR', 'USD', 'GBP', 'CHF', 'TRY', 'ARS', 'BRL', 'MXN', 'AUD', 'CAD', 'JPY']);
 
+/**
+ * USD-pegged stablecoins. Technically AEAT classifies them as crypto
+ * (so a swap into USDC is `N`, not `F`), but tax tools like finbooks
+ * treat them as "pseudo-fiat" because the user economic exposure is to
+ * USD, not to a volatile asset. We follow the finbooks convention: a
+ * disposal whose counter is a USD-stablecoin gets routed to box 1804-F.
+ *
+ * `isFiat` (real fiat only) keeps doing its job — suppressing EUR/USD
+ * legs entirely so we don't emit "disposal of EUR" rows. Stablecoins
+ * remain emittable (USDC dust → BNB is a real disposal of USDC).
+ */
+const STABLECOIN_USD = new Set(['USDC', 'USDT', 'BUSD', 'FDUSD', 'DAI', 'TUSD']);
+
 function isFiat(asset: string | undefined): boolean {
   return !!asset && FIAT_CURRENCIES.has(asset);
 }
 
+function isFiatLikeCounter(asset: string | undefined): boolean {
+  return !!asset && (FIAT_CURRENCIES.has(asset) || STABLECOIN_USD.has(asset));
+}
+
 function contraprestacionFor(counterAsset: string | undefined): CryptoContraprestacion | null {
   if (!counterAsset) return null;
-  return isFiat(counterAsset) ? CRYPTO_CONTRAPRESTACION.FIAT : CRYPTO_CONTRAPRESTACION.NON_FIAT;
+  return isFiatLikeCounter(counterAsset) ? CRYPTO_CONTRAPRESTACION.FIAT : CRYPTO_CONTRAPRESTACION.NON_FIAT;
 }
 
 // ============================================================
@@ -416,6 +433,10 @@ export function normalizeFiatPayment(ctx: NormaliserContext): NormalisedLeg[] {
 /**
  * Dust → BNB. Each detail line is one micro-disposal of a long-tail asset
  * paid in BNB (counter = BNB, contraprestacion = 'N').
+ *
+ * Binance lets the "Convert Small Balances to BNB" tool sweep fiat dust
+ * too (e.g. EUR < 1€). Those rows must be ignored — fiat is not a crypto
+ * disposal under AEAT.
  */
 export function normalizeDust(ctx: NormaliserContext): NormalisedLeg[] {
   const p = ctx.rawPayload;
@@ -426,6 +447,7 @@ export function normalizeDust(ctx: NormaliserContext): NormalisedLeg[] {
   const transferred = String(detail.transferedAmount ?? '0');
   const serviceCharge = String(detail.serviceChargeAmount ?? '0');
   if (!fromAsset || amount === '0') return [];
+  if (isFiat(fromAsset)) return [];
 
   return [
     {
