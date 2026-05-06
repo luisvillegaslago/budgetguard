@@ -309,6 +309,31 @@ export function TransactionForm({
             </div>
           </div>
 
+          {/* Description Input */}
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-foreground mb-1.5">
+              {t('transactions.form.fields.description')} ({t('common.labels.optional')})
+            </label>
+            <input
+              id="description"
+              type="text"
+              autoComplete="off"
+              placeholder={t('transactions.form.fields.description-placeholder')}
+              {...register('description')}
+              className={cn(
+                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                'transition-colors duration-200 ease-out-quart',
+                errors.description ? 'border-guard-danger' : 'border-input',
+              )}
+            />
+            {errors.description && (
+              <p role="alert" className="mt-1 text-sm text-guard-danger">
+                {errors.description.message}
+              </p>
+            )}
+          </div>
+
           {/* Status Selector */}
           <fieldset className="border-0 p-0 m-0">
             <legend className="block text-sm font-medium text-foreground mb-1.5">
@@ -342,31 +367,6 @@ export function TransactionForm({
               ))}
             </div>
           </fieldset>
-
-          {/* Description Input */}
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('transactions.form.fields.description')} ({t('common.labels.optional')})
-            </label>
-            <input
-              id="description"
-              type="text"
-              autoComplete="off"
-              placeholder={t('transactions.form.fields.description-placeholder')}
-              {...register('description')}
-              className={cn(
-                'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                'transition-colors duration-200 ease-out-quart',
-                errors.description ? 'border-guard-danger' : 'border-input',
-              )}
-            />
-            {errors.description && (
-              <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
 
           {/* Fiscal Data Toggle */}
           <div className="flex items-center gap-3">
