@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.30.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.29.1...v0.30.0) (2026-05-11)
+
+
+### Features
+
+* **transactions:** mostrar total original en tooltip del badge ÷2 de gastos compartidos ([12d189b](https://github.com/luisvillegaslago/budgetguard/commit/12d189b99f8aeae1ba8e447213471d4ba65242be))
+
 ## [0.29.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.29.0...v0.29.1) (2026-04-29)
 
 
