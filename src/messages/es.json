@@ -1373,6 +1373,8 @@
     "import": {
       "title": "Importar CSV",
       "select-file": "Seleccionar archivo CSV",
+      "drop-hint": "Arrastra el CSV aquí o haz clic para seleccionar",
+      "format-hint": "Solo archivos .csv",
       "preview": "Vista previa ({count} filas)",
       "confirm": "Importar",
       "importing": "Importando...",

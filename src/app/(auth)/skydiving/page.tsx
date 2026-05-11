@@ -142,20 +142,10 @@ export default function SkydivingPage() {
 
       {/* Import Panel */}
       {importType === 'jumps' && (
-        <ImportPanel
-          type="jumps"
-          onImport={handleImportJumps}
-          onClose={() => setImportType(null)}
-          parseRow={parseJumpRow}
-        />
+        <ImportPanel onImport={handleImportJumps} onClose={() => setImportType(null)} parseRow={parseJumpRow} />
       )}
       {importType === 'tunnel' && (
-        <ImportPanel
-          type="tunnel"
-          onImport={handleImportTunnel}
-          onClose={() => setImportType(null)}
-          parseRow={parseTunnelRow}
-        />
+        <ImportPanel onImport={handleImportTunnel} onClose={() => setImportType(null)} parseRow={parseTunnelRow} />
       )}
     </div>
   );

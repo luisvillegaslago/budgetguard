@@ -10,13 +10,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslate } from '@/hooks/useTranslations';
 
 interface ImportPanelProps {
-  type: 'jumps' | 'tunnel';
   onImport: (rows: Record<string, unknown>[]) => Promise<{ inserted: number; skipped: number; updated?: number }>;
   onClose: () => void;
   parseRow: (row: Record<string, string>) => Record<string, unknown> | null;
 }
 
-export function ImportPanel({ type, onImport, onClose, parseRow }: ImportPanelProps) {
+export function ImportPanel({ onImport, onClose, parseRow }: ImportPanelProps) {
   const { t } = useTranslate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -201,10 +200,8 @@ export function ImportPanel({ type, onImport, onClose, parseRow }: ImportPanelPr
               }`}
             >
               <Upload className="h-6 w-6" aria-hidden="true" />
-              <span className="text-sm font-medium">{fileName ?? t('skydiving.import.select-file')}</span>
-              {!fileName && (
-                <span className="text-xs">{type === 'jumps' ? 'skyduck_jumps.csv' : 'tunnel time.csv'}</span>
-              )}
+              <span className="text-sm font-medium">{fileName ?? t('skydiving.import.drop-hint')}</span>
+              {!fileName && <span className="text-xs">{t('skydiving.import.format-hint')}</span>}
             </button>
           </div>
 
