@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.31.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.30.0...v0.31.0) (2026-05-11)
+
+
+### Features
+
+* **skydiving:** soporte drag-and-drop en modal de importar CSV ([27bac02](https://github.com/luisvillegaslago/budgetguard/commit/27bac022dd439009e14510e9a7a812e9dbc7c7f9))
+
+
+### Bug Fixes
+
+* **skydiving:** texto del dropzone CSV no se confunde con archivo seleccionado ([2abe8a2](https://github.com/luisvillegaslago/budgetguard/commit/2abe8a2fd552087082093da5a1d8c3116fdb5dee))
+
 ## [0.30.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.29.1...v0.30.0) (2026-05-11)
 
 
