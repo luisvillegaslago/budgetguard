@@ -24,6 +24,7 @@ export function ImportPanel({ type, onImport, onClose, parseRow }: ImportPanelPr
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ inserted: number; skipped: number; updated?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Close on Escape
   useEffect(() => {
@@ -34,10 +35,12 @@ export function ImportPanel({ type, onImport, onClose, parseRow }: ImportPanelPr
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const processFile = useCallback(
+    (file: File) => {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        setError(t('skydiving.import.errors.invalid-file'));
+        return;
+      }
 
       setFileName(file.name);
       setError(null);
@@ -110,6 +113,37 @@ export function ImportPanel({ type, onImport, onClose, parseRow }: ImportPanelPr
     [parseRow, t],
   );
 
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) processFile(file);
+    },
+    [processFile],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) processFile(file);
+    },
+    [processFile],
+  );
+
   const handleImport = async () => {
     setImporting(true);
     setError(null);
@@ -154,10 +188,16 @@ export function ImportPanel({ type, onImport, onClose, parseRow }: ImportPanelPr
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               className={`w-full border-2 border-dashed rounded-lg p-6 flex flex-col items-center gap-2 transition-colors ${
-                fileName
-                  ? 'border-guard-primary/50 text-guard-primary'
-                  : 'border-border text-guard-muted hover:border-guard-primary hover:text-guard-primary'
+                isDragging
+                  ? 'border-guard-primary text-guard-primary bg-guard-primary/5'
+                  : fileName
+                    ? 'border-guard-primary/50 text-guard-primary'
+                    : 'border-border text-guard-muted hover:border-guard-primary hover:text-guard-primary'
               }`}
             >
               <Upload className="h-6 w-6" aria-hidden="true" />
