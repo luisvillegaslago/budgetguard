@@ -188,9 +188,19 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
                     </span>
                   </OverflowTooltip>
                   {tx.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR && (
-                    <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
-                      {t('transactions.shared-badge')}
-                    </span>
+                    <Tooltip
+                      content={
+                        tx.originalAmountCents != null
+                          ? t('transactions.shared-tooltip-total', {
+                              total: formatCurrency(tx.originalAmountCents),
+                            })
+                          : t('transactions.shared-badge')
+                      }
+                    >
+                      <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
+                        {t('transactions.shared-badge')}
+                      </span>
+                    </Tooltip>
                   )}
                   <span
                     className={cn('text-xs font-medium flex-shrink-0', {

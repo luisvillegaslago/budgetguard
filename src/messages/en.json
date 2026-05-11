@@ -107,6 +107,7 @@
     },
     "no-category": "No category",
     "shared-badge": "÷2",
+    "shared-tooltip-total": "÷2 · Total: {total}",
     "fiscal-doc-badge": "Has fiscal document",
     "mark-as-paid": "Mark as paid",
     "mark-as-pending": "Mark as pending",

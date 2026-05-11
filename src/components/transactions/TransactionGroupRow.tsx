@@ -36,6 +36,13 @@ export function TransactionGroupRow({
   const [isExpanded, setIsExpanded] = useState(false);
   const isIncome = group.type === TRANSACTION_TYPE.INCOME;
   const iconColor = group.parentCategoryColor ?? (isIncome ? '#10B981' : '#EF4444');
+  const groupOriginalTotalCents = group.isShared
+    ? group.transactions.reduce((sum, tx) => sum + (tx.originalAmountCents ?? tx.amountCents), 0)
+    : null;
+  const groupSharedTooltip =
+    groupOriginalTotalCents != null
+      ? t('transactions.shared-tooltip-total', { total: formatCurrency(groupOriginalTotalCents) })
+      : t('transactions.shared-badge');
 
   return (
     <div className="animate-fade-in" style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}>
@@ -74,7 +81,7 @@ export function TransactionGroupRow({
               </span>
             </Tooltip>
             {group.isShared && (
-              <Tooltip content={t('transactions.shared-badge')}>
+              <Tooltip content={groupSharedTooltip}>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400">
                   <Users className="h-3 w-3" aria-hidden="true" />
                 </span>
@@ -158,7 +165,7 @@ export function TransactionGroupRow({
                 </span>
               </Tooltip>
               {group.isShared && (
-                <Tooltip content={t('transactions.shared-badge')}>
+                <Tooltip content={groupSharedTooltip}>
                   <span className="text-[10px] font-bold p-1 rounded bg-guard-primary/10 text-guard-primary">
                     <Users className="h-3 w-3" aria-hidden="true" />
                   </span>
@@ -230,9 +237,19 @@ export function TransactionGroupRow({
                     </span>
                   </OverflowTooltip>
                   {tx.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR && (
-                    <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
-                      {t('transactions.shared-badge')}
-                    </span>
+                    <Tooltip
+                      content={
+                        tx.originalAmountCents != null
+                          ? t('transactions.shared-tooltip-total', {
+                              total: formatCurrency(tx.originalAmountCents),
+                            })
+                          : t('transactions.shared-badge')
+                      }
+                    >
+                      <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
+                        {t('transactions.shared-badge')}
+                      </span>
+                    </Tooltip>
                   )}
                   <span
                     className={cn('text-xs font-medium flex-shrink-0', {

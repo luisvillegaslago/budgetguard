@@ -54,6 +54,10 @@ function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeletin
   const isPending = transaction.status === TRANSACTION_STATUS.PENDING;
   const isCancelled = transaction.status === TRANSACTION_STATUS.CANCELLED;
   const iconColor = transaction.category?.color ?? (isIncome ? '#10B981' : '#EF4444');
+  const sharedTooltip =
+    isShared && transaction.originalAmountCents != null
+      ? t('transactions.shared-tooltip-total', { total: formatCurrency(transaction.originalAmountCents) })
+      : t('transactions.shared-badge');
 
   // Build category display name with parent breadcrumb
   const categoryName = transaction.parentCategory
@@ -148,7 +152,7 @@ function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeletin
             </Tooltip>
           )}
           {isShared && (
-            <Tooltip content={t('transactions.shared-badge')}>
+            <Tooltip content={sharedTooltip}>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400">
                 <Users className="h-3 w-3" aria-hidden="true" />
               </span>
@@ -249,7 +253,7 @@ function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeletin
               </Tooltip>
             )}
             {isShared && (
-              <Tooltip content={t('transactions.shared-badge')}>
+              <Tooltip content={sharedTooltip}>
                 <span className="text-[10px] font-bold p-1 rounded bg-guard-primary/10 text-guard-primary">
                   <Users className="h-3 w-3" aria-hidden="true" />
                 </span>

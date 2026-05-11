@@ -127,6 +127,7 @@ jest.mock('@/hooks/useTranslations', () => ({
       const translations: Record<string, string> = {
         'transactions.title': 'Transactions',
         'transactions.shared-badge': '÷2',
+        'transactions.shared-tooltip-total': `÷2 · Total: ${params?.total ?? ''}`,
         'transactions.no-category': 'No category',
         'transactions.delete.button': 'Delete transaction',
         'transactions.delete.confirm': 'Confirm deletion',
@@ -190,20 +191,20 @@ jest.mock('@/components/ui/OverflowTooltip', () => ({
 import { TransactionList } from '@/components/transactions/TransactionList';
 
 describe('TransactionList — Shared Badge', () => {
-  it('should show shared badge for shared transactions', () => {
+  it('should show shared badge with total tooltip for shared transactions', () => {
     render(<TransactionList />);
 
-    // ÷2 appears in both desktop and mobile layouts for 1 shared transaction
-    const badges = screen.getAllByText('÷2');
-    expect(badges.length).toBeGreaterThanOrEqual(1);
+    // Shared transaction has originalAmountCents = 5000 → "50.00 €" total in tooltip
+    // Appears in both desktop and mobile layouts
+    const badges = screen.getAllByText('÷2 · Total: 50.00 €');
+    expect(badges).toHaveLength(2);
   });
 
   it('should NOT show ÷2 badge for non-shared transactions', () => {
     render(<TransactionList />);
 
-    // Only transaction 1 is shared — total badge count comes only from that transaction
-    const badges = screen.getAllByText('÷2');
-    // Desktop + mobile = 2 badges from the single shared transaction
+    // Only transaction 1 is shared — only that one renders the shared tooltip
+    const badges = screen.getAllByText('÷2 · Total: 50.00 €');
     expect(badges).toHaveLength(2);
   });
 });
