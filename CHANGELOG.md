@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.32.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.31.0...v0.32.0) (2026-05-18)
+
+
+### Features
+
+* **skydiving:** autocomplete combobox for dropzone and tunnel location ([f4c5a25](https://github.com/luisvillegaslago/budgetguard/commit/f4c5a25382a949d790d844ebfb686a9082aca0c4))
+
+
+### Bug Fixes
+
+* **skydiving:** raise jumps/tunnel limit so old records are not hidden ([b65fdcb](https://github.com/luisvillegaslago/budgetguard/commit/b65fdcb7a421664096a006b3fedefb759970d390))
+
 ## [0.31.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.30.0...v0.31.0) (2026-05-11)
 
 
