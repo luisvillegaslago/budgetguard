@@ -191,7 +191,7 @@ export async function getAllJumps(filters?: {
 
   // Apply pagination
   const page = Math.max(1, filters?.page ?? 1);
-  const limit = Math.min(100, Math.max(1, filters?.limit ?? 50));
+  const limit = Math.min(10000, Math.max(1, filters?.limit ?? 10000));
   const offset = (page - 1) * limit;
 
   params.push(limit, offset);
@@ -497,7 +497,7 @@ export async function getAllTunnelSessions(filters?: {
   const total = Number(countResult[0]?.count ?? 0);
 
   const page = Math.max(1, filters?.page ?? 1);
-  const limit = Math.min(100, Math.max(1, filters?.limit ?? 50));
+  const limit = Math.min(10000, Math.max(1, filters?.limit ?? 10000));
   const offset = (page - 1) * limit;
 
   params.push(limit, offset);
