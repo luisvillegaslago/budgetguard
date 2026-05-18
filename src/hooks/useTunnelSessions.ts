@@ -59,6 +59,7 @@ export function useCreateTunnelSession() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
     },
   });
 }
@@ -86,6 +87,7 @@ export function useUpdateTunnelSession() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
     },
   });
 }
@@ -135,6 +137,7 @@ export function useImportTunnelSessions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
     },

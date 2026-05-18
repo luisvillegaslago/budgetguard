@@ -1253,6 +1253,12 @@
     "title": "Skydiving",
     "subtitle": "Jump log, tunnel sessions, and expense tracking",
     "back": "Back to Dashboard",
+    "suggestion-selector": {
+      "placeholder": "Select or type...",
+      "search": "Search or add new...",
+      "add": "Add",
+      "empty": "No matches"
+    },
     "tabs": {
       "summary": "Summary",
       "jumps": "Jumps",

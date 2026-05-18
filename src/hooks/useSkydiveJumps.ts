@@ -59,6 +59,7 @@ export function useCreateJump() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
     },
   });
 }
@@ -86,6 +87,7 @@ export function useUpdateJump() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
     },
   });
 }
@@ -135,6 +137,7 @@ export function useImportJumps() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
     },
   });
 }

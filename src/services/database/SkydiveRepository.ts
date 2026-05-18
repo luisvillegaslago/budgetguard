@@ -408,6 +408,18 @@ export async function deleteJump(jumpId: number): Promise<boolean> {
   return (result as unknown as { length: number }).length >= 0;
 }
 
+export async function getDistinctDropzones(): Promise<string[]> {
+  const userId = await getUserIdOrThrow();
+  const result = await query<{ Dropzone: string }>(
+    `SELECT DISTINCT "Dropzone"
+     FROM "SkydiveJumps"
+     WHERE "UserID" = $1 AND "Dropzone" IS NOT NULL AND "Dropzone" <> ''
+     ORDER BY "Dropzone" ASC`,
+    [userId],
+  );
+  return result.map((r) => r.Dropzone);
+}
+
 export async function bulkCreateJumps(rows: ImportJumpRow[]): Promise<ImportResult> {
   const userId = await getUserIdOrThrow();
 
@@ -659,6 +671,18 @@ export async function deleteTunnelSession(sessionId: number): Promise<boolean> {
   ]);
 
   return (result as unknown as { length: number }).length >= 0;
+}
+
+export async function getDistinctTunnelLocations(): Promise<string[]> {
+  const userId = await getUserIdOrThrow();
+  const result = await query<{ Location: string }>(
+    `SELECT DISTINCT "Location"
+     FROM "TunnelSessions"
+     WHERE "UserID" = $1 AND "Location" IS NOT NULL AND "Location" <> ''
+     ORDER BY "Location" ASC`,
+    [userId],
+  );
+  return result.map((r) => r.Location);
 }
 
 export async function bulkCreateTunnelSessions(

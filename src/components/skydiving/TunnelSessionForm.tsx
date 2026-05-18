@@ -6,9 +6,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
+import { useTunnelLocations } from '@/hooks/useSkydiveSuggestions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useCreateTunnelSession, useUpdateTunnelSession } from '@/hooks/useTunnelSessions';
 import type { CreateTunnelSessionInput } from '@/schemas/skydive';
@@ -34,10 +36,12 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
   const { t } = useTranslate();
   const createSession = useCreateTunnelSession();
   const updateSession = useUpdateTunnelSession();
+  const { data: locations } = useTunnelLocations();
   const isEditing = !!session;
   const mutation = isEditing ? updateSession : createSession;
 
   const {
+    control,
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
@@ -134,12 +138,18 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
               <label htmlFor="location" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('skydiving.tunnel.form.fields.location')}
               </label>
-              <input
-                id="location"
-                type="text"
-                {...register('location')}
-                placeholder={t('skydiving.tunnel.form.fields.location-placeholder')}
-                className={inputClass(false)}
+              <Controller
+                control={control}
+                name="location"
+                render={({ field }) => (
+                  <StringSuggestionCombobox
+                    id="location"
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                    suggestions={locations ?? []}
+                    placeholder={t('skydiving.tunnel.form.fields.location-placeholder')}
+                  />
+                )}
               />
             </div>
             <div>

@@ -6,10 +6,12 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
 import { useCreateJump, useUpdateJump } from '@/hooks/useSkydiveJumps';
+import { useDropzones } from '@/hooks/useSkydiveSuggestions';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { CreateJumpInput } from '@/schemas/skydive';
 import { CreateJumpSchema } from '@/schemas/skydive';
@@ -34,10 +36,12 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
   const { t } = useTranslate();
   const createJump = useCreateJump();
   const updateJump = useUpdateJump();
+  const { data: dropzones } = useDropzones();
   const isEditing = !!jump;
   const mutation = isEditing ? updateJump : createJump;
 
   const {
+    control,
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
@@ -135,12 +139,18 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
               <label htmlFor="dropzone" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('skydiving.jumps.form.fields.dropzone')}
               </label>
-              <input
-                id="dropzone"
-                type="text"
-                {...register('dropzone')}
-                placeholder={t('skydiving.jumps.form.fields.dropzone-placeholder')}
-                className={inputClass(false)}
+              <Controller
+                control={control}
+                name="dropzone"
+                render={({ field }) => (
+                  <StringSuggestionCombobox
+                    id="dropzone"
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                    suggestions={dropzones ?? []}
+                    placeholder={t('skydiving.jumps.form.fields.dropzone-placeholder')}
+                  />
+                )}
               />
             </div>
             <div>

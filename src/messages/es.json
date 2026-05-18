@@ -1253,6 +1253,12 @@
     "title": "Paracaidismo",
     "subtitle": "Log de saltos, sesiones de túnel y tracking de gastos",
     "back": "Volver al Dashboard",
+    "suggestion-selector": {
+      "placeholder": "Selecciona o escribe...",
+      "search": "Buscar o añadir nuevo...",
+      "add": "Añadir",
+      "empty": "No hay coincidencias"
+    },
     "tabs": {
       "summary": "Resumen",
       "jumps": "Saltos",
