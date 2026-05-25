@@ -22,6 +22,14 @@
     "labels": {
       "optional": "opcional"
     },
+    "amount-sum": {
+      "open": "Sumar varios importes",
+      "title": "Sumar importes",
+      "add": "Añadir",
+      "apply": "Aplicar",
+      "remove": "Quitar valor",
+      "empty": "Añade valores para sumarlos"
+    },
     "months-short": {
       "1": "Ene",
       "2": "Feb",

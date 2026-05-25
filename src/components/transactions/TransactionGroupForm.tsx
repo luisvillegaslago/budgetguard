@@ -11,6 +11,7 @@ import { Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { AmountSumPopover } from '@/components/ui/AmountSumPopover';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
@@ -305,6 +306,7 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
                           'transition-colors duration-200 ease-out-quart border-input',
                         )}
                       />
+                      <AmountSumPopover onApply={(total) => handleAmountChange(sub.categoryId, String(total))} />
                     </div>
                   );
                 })}

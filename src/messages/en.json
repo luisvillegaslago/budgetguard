@@ -22,6 +22,14 @@
     "labels": {
       "optional": "optional"
     },
+    "amount-sum": {
+      "open": "Sum multiple amounts",
+      "title": "Sum amounts",
+      "add": "Add",
+      "apply": "Apply",
+      "remove": "Remove value",
+      "empty": "Add values to sum them"
+    },
     "months-short": {
       "1": "Jan",
       "2": "Feb",
