@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.33.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.32.0...v0.33.0) (2026-05-25)
+
+
+### Features
+
+* **transactions:** amount sum accumulator in grouped expenses ([5771d97](https://github.com/luisvillegaslago/budgetguard/commit/5771d975eb9eba6dccdc1d9729b9e27845fb7e84))
+
 ## [0.32.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.31.0...v0.32.0) (2026-05-18)
 
 
