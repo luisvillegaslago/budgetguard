@@ -7,7 +7,7 @@
 
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { type Control, type UseFormRegister, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
@@ -19,8 +19,13 @@ import type { Invoice } from '@/types/finance';
 import { centsToEuros, eurosToCents } from '@/utils/money';
 
 // Form schema (user enters euros, we convert to cents on submit)
+// SubItems are wrapped in objects so react-hook-form's useFieldArray can manage them
+const SubItemFormSchema = z.object({ text: z.string() });
+
 const LineItemFormSchema = z.object({
-  description: z.string().min(1, VALIDATION_KEY.DESCRIPTION_REQUIRED),
+  title: z.string(),
+  subItems: z.array(SubItemFormSchema),
+  description: z.string(),
   hours: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
   hourlyRate: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
   amount: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
@@ -58,7 +63,7 @@ function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number |
       invoiceDate: today,
       companyId: 0,
       notes: '',
-      lineItems: [{ description: '', hours: '', hourlyRate: defaultRate, amount: '' }],
+      lineItems: [{ title: '', subItems: [], description: '', hours: '', hourlyRate: defaultRate, amount: '' }],
     };
   }
 
@@ -68,12 +73,69 @@ function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number |
     companyId: invoice.companyId ?? 0,
     notes: invoice.notes ?? '',
     lineItems: invoice.lineItems.map((item) => ({
-      description: item.description,
+      title: item.title ?? '',
+      subItems: item.subItems.map((text) => ({ text })),
+      description: item.description ?? '',
       hours: item.hours ?? ('' as const),
       hourlyRate: item.hourlyRateCents != null ? centsToEuros(item.hourlyRateCents) : ('' as const),
       amount: centsToEuros(item.amountCents),
     })),
   };
+}
+
+interface SubItemsEditorProps {
+  control: Control<InvoiceFormValues>;
+  register: UseFormRegister<InvoiceFormValues>;
+  lineItemIndex: number;
+}
+
+function SubItemsEditor({ control, register, lineItemIndex }: SubItemsEditorProps) {
+  const { t } = useTranslate();
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `lineItems.${lineItemIndex}.subItems`,
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="block text-xs text-guard-muted">{t('invoices.form.fields.sub-items')}</span>
+        <button
+          type="button"
+          onClick={() => append({ text: '' })}
+          className="text-xs text-guard-primary hover:text-guard-primary/80 flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" aria-hidden="true" />
+          {t('invoices.form.add-sub-item')}
+        </button>
+      </div>
+      {fields.length === 0 ? (
+        <p className="text-xs text-guard-muted italic">{t('invoices.form.fields.no-sub-items')}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {fields.map((field, subIndex) => (
+            <li key={field.id} className="flex items-center gap-2">
+              <span className="text-guard-muted text-xs">•</span>
+              <input
+                type="text"
+                {...register(`lineItems.${lineItemIndex}.subItems.${subIndex}.text`)}
+                placeholder={t('invoices.form.fields.sub-item-placeholder')}
+                className="flex-1 input-sm"
+              />
+              <button
+                type="button"
+                onClick={() => remove(subIndex)}
+                className="p-1 text-guard-muted hover:text-guard-danger transition-colors"
+                aria-label={t('common.buttons.delete')}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
@@ -147,10 +209,20 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
       const hourlyRate = typeof item.hourlyRate === 'number' && item.hourlyRate > 0 ? item.hourlyRate : null;
       const directAmount = typeof item.amount === 'number' && item.amount > 0 ? item.amount : null;
 
+      const title = item.title.trim();
+      const description = item.description.trim();
+      const subItems = item.subItems.map((sub) => sub.text.trim()).filter((text) => text.length > 0);
+
+      const base = {
+        title: title.length > 0 ? title : null,
+        subItems,
+        description: description.length > 0 ? description : null,
+      };
+
       if (!isFlat && hours != null && hourlyRate != null) {
         const hourlyRateCents = eurosToCents(hourlyRate);
         return {
-          description: item.description,
+          ...base,
           hours,
           hourlyRateCents,
           amountCents: Math.round(hours * hourlyRateCents),
@@ -158,7 +230,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
       }
 
       return {
-        description: item.description,
+        ...base,
         hours: null,
         hourlyRateCents: null,
         amountCents: directAmount ? eurosToCents(directAmount) : 0,
@@ -326,6 +398,8 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                 type="button"
                 onClick={() =>
                   append({
+                    title: '',
+                    subItems: [],
                     description: '',
                     hours: '',
                     hourlyRate:
@@ -344,26 +418,45 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
 
             <div className="space-y-3">
               {fields.map((field, index) => (
-                <div key={field.id} className="rounded-lg border border-border p-3 space-y-2">
-                  {/* Description row */}
+                <div key={field.id} className="rounded-lg border border-border p-3 space-y-3">
+                  {/* Title + remove */}
                   <div className="flex items-start gap-2">
-                    <textarea
-                      {...register(`lineItems.${index}.description`)}
-                      placeholder={t('invoices.form.fields.description')}
-                      rows={3}
-                      className="w-full input-sm resize-none"
-                    />
+                    <div className="flex-1">
+                      <span className="block text-xs text-guard-muted mb-0.5">{t('invoices.form.fields.title')}</span>
+                      <input
+                        type="text"
+                        {...register(`lineItems.${index}.title`)}
+                        placeholder={t('invoices.form.fields.title-placeholder')}
+                        className="w-full input-sm font-medium"
+                      />
+                    </div>
                     {fields.length > 1 && (
                       <button
                         type="button"
                         onClick={() => remove(index)}
-                        className="p-2 text-guard-muted hover:text-guard-danger transition-colors shrink-0"
+                        className="mt-5 p-2 text-guard-muted hover:text-guard-danger transition-colors shrink-0"
                         aria-label={t('common.buttons.delete')}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     )}
                   </div>
+
+                  {/* Sub-items */}
+                  <SubItemsEditor control={control} register={register} lineItemIndex={index} />
+
+                  {/* Optional description */}
+                  <div>
+                    <span className="block text-xs text-guard-muted mb-0.5">
+                      {t('invoices.form.fields.description-optional')}
+                    </span>
+                    <textarea
+                      {...register(`lineItems.${index}.description`)}
+                      rows={2}
+                      className="w-full input-sm resize-none"
+                    />
+                  </div>
+
                   {/* Numeric fields row */}
                   <div className={isFlat ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-3 gap-2'}>
                     {!isFlat && (

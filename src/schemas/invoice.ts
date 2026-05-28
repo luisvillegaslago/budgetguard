@@ -52,15 +52,31 @@ export const UpdateInvoicePrefixSchema = z.object({
 export type UpdateInvoicePrefixInput = z.infer<typeof UpdateInvoicePrefixSchema>;
 
 /**
- * Schema for a single invoice line item
+ * Schema for a single invoice line item.
+ * `title` + `subItems` is the structured representation; `description` is kept
+ * as an optional free-form paragraph and for legacy rows. At least one of
+ * `title` or `description` must be provided.
  */
 const InvoiceLineItemSchema = z
   .object({
-    description: z.string().min(1, VALIDATION_KEY.DESCRIPTION_REQUIRED).max(2000),
+    title: z.string().trim().min(1).max(500, VALIDATION_KEY.TITLE_TOO_LONG).nullable().optional(),
+    subItems: z
+      .array(z.string().trim().min(1).max(500, VALIDATION_KEY.SUB_ITEM_TOO_LONG))
+      .max(20, VALIDATION_KEY.TOO_MANY_SUB_ITEMS)
+      .optional(),
+    description: z.string().trim().min(1).max(2000).nullable().optional(),
     hours: z.number().positive().nullable().optional(),
     hourlyRateCents: z.number().int().positive().nullable().optional(),
     amountCents: z.number().int().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
   })
+  .refine(
+    (item) =>
+      (item.title != null && item.title.length > 0) || (item.description != null && item.description.length > 0),
+    {
+      message: VALIDATION_KEY.TITLE_OR_DESCRIPTION_REQUIRED,
+      path: ['title'],
+    },
+  )
   .refine(
     (item) => {
       if (item.hours != null && item.hourlyRateCents != null) {

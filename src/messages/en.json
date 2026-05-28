@@ -1134,12 +1134,19 @@
         "client": "Client",
         "select-client": "Select client...",
         "line-items": "Line Items",
+        "title": "Concept",
+        "title-placeholder": "e.g. Leads & Marketing Module",
+        "sub-items": "Sub-items",
+        "sub-item-placeholder": "Sub-item detail",
+        "no-sub-items": "No sub-items. Add one to break down the concept.",
         "description": "Description",
+        "description-optional": "Additional description (optional)",
         "hours": "Hours",
         "hourly-rate": "Rate (€)",
         "amount": "Amount (€)",
         "notes": "Notes"
-      }
+      },
+      "add-sub-item": "Add sub-item"
     },
     "detail": {
       "bill-to": "Bill To",
@@ -1437,6 +1444,10 @@
     "amount-positive": "Amount must be greater than 0",
     "description-too-long": "Description is too long",
     "description-required": "Description is required",
+    "title-or-description-required": "Add a concept or a description",
+    "title-too-long": "Concept is too long",
+    "sub-item-too-long": "Sub-item is too long",
+    "too-many-sub-items": "Too many sub-items (max 20)",
     "invalid-date": "Invalid date",
     "name-required": "Name is required",
     "name-too-long": "Name is too long",

@@ -115,7 +115,10 @@ interface LineItemRow {
   LineItemID: number;
   InvoiceID: number;
   SortOrder: number;
-  Description: string;
+  Title: string | null;
+  // node-postgres parses JSONB columns to JS values automatically
+  SubItems: string[] | null;
+  Description: string | null;
   Hours: number | null;
   HourlyRateCents: number | null;
   AmountCents: number;
@@ -195,6 +198,8 @@ function rowToLineItem(row: LineItemRow): InvoiceLineItem {
     lineItemId: row.LineItemID,
     invoiceId: row.InvoiceID,
     sortOrder: row.SortOrder,
+    title: row.Title,
+    subItems: Array.isArray(row.SubItems) ? row.SubItems : [],
     description: row.Description,
     hours: row.Hours != null ? Number(row.Hours) : null,
     hourlyRateCents: row.HourlyRateCents,
@@ -563,7 +568,9 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
     const lineItemValues = data.lineItems.map((item, index) => [
       invoiceRow.InvoiceID,
       index,
-      item.description,
+      item.title ?? null,
+      JSON.stringify(item.subItems ?? []),
+      item.description ?? null,
       item.hours ?? null,
       item.hourlyRateCents ?? null,
       item.amountCents,
@@ -571,15 +578,15 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
 
     const lineItemParams: (string | number | null)[] = [];
     const lineItemPlaceholders = lineItemValues.map((values, rowIndex) => {
-      const offset = rowIndex * 6;
+      const offset = rowIndex * 8;
       values.forEach((v) => {
         lineItemParams.push(v as string | number | null);
       });
-      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`;
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`;
     });
 
     const lineItemResult = await client.query<LineItemRow>(
-      `INSERT INTO "InvoiceLineItems" ("InvoiceID", "SortOrder", "Description", "Hours", "HourlyRateCents", "AmountCents")
+      `INSERT INTO "InvoiceLineItems" ("InvoiceID", "SortOrder", "Title", "SubItems", "Description", "Hours", "HourlyRateCents", "AmountCents")
        VALUES ${lineItemPlaceholders.join(', ')}
        RETURNING *`,
       lineItemParams,
@@ -685,20 +692,22 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
     // 3. Insert new line items
     const lineItemParams: (string | number | null)[] = [];
     const lineItemPlaceholders = data.lineItems.map((item, index) => {
-      const offset = index * 6;
+      const offset = index * 8;
       lineItemParams.push(
         invoiceId,
         index,
-        item.description,
+        item.title ?? null,
+        JSON.stringify(item.subItems ?? []),
+        item.description ?? null,
         item.hours ?? null,
         item.hourlyRateCents ?? null,
         item.amountCents,
       );
-      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`;
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`;
     });
 
     const lineItemResult = await client.query<LineItemRow>(
-      `INSERT INTO "InvoiceLineItems" ("InvoiceID", "SortOrder", "Description", "Hours", "HourlyRateCents", "AmountCents")
+      `INSERT INTO "InvoiceLineItems" ("InvoiceID", "SortOrder", "Title", "SubItems", "Description", "Hours", "HourlyRateCents", "AmountCents")
        VALUES ${lineItemPlaceholders.join(', ')}
        RETURNING *`,
       lineItemParams,

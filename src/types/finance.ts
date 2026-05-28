@@ -570,13 +570,18 @@ export interface InvoicePrefix {
 }
 
 /**
- * Single line item in an invoice
+ * Single line item in an invoice.
+ * `title` + `subItems` are the structured rendering (bold concept + bulleted sub-items).
+ * `description` is kept for legacy rows and as an optional free-form paragraph.
+ * At least one of `title` or `description` is always present.
  */
 export interface InvoiceLineItem {
   lineItemId: number;
   invoiceId: number;
   sortOrder: number;
-  description: string;
+  title: string | null;
+  subItems: string[];
+  description: string | null;
   hours: number | null;
   hourlyRateCents: number | null;
   amountCents: number;

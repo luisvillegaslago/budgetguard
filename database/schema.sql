@@ -749,16 +749,23 @@ CREATE INDEX "IX_Invoices_Status" ON "Invoices"("Status");
 CREATE INDEX "IX_Invoices_InvoiceDate" ON "Invoices"("InvoiceDate");
 
 -- Invoice line items (individual concepts)
+-- Title:       main concept, rendered bold/large in PDF (optional for legacy rows)
+-- SubItems:    JSONB array of strings, rendered as indented bullets under the title
+-- Description: optional free-form paragraph kept for legacy rows and extra notes
 CREATE TABLE "InvoiceLineItems" (
     "LineItemID" SERIAL PRIMARY KEY,
     "InvoiceID" INT NOT NULL,
     "SortOrder" INT NOT NULL DEFAULT 0,
-    "Description" VARCHAR(2000) NOT NULL,
+    "Title" VARCHAR(500) NULL,
+    "SubItems" JSONB NOT NULL DEFAULT '[]'::jsonb,
+    "Description" VARCHAR(2000) NULL,
     "Hours" NUMERIC(8,2) NULL,
     "HourlyRateCents" INT NULL,
     "AmountCents" INT NOT NULL,
     CONSTRAINT "FK_LineItems_Invoice"
-        FOREIGN KEY ("InvoiceID") REFERENCES "Invoices"("InvoiceID") ON DELETE CASCADE
+        FOREIGN KEY ("InvoiceID") REFERENCES "Invoices"("InvoiceID") ON DELETE CASCADE,
+    CONSTRAINT "CK_LineItems_TitleOrDescription"
+        CHECK ("Title" IS NOT NULL OR "Description" IS NOT NULL)
 );
 
 CREATE INDEX "IX_InvoiceLineItems_InvoiceID" ON "InvoiceLineItems"("InvoiceID");

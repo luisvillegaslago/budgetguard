@@ -152,6 +152,35 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#94a3b8',
   },
+  // Structured line item typography
+  lineItemTitle: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  subItemRow: {
+    flexDirection: 'row',
+    marginTop: 2,
+    paddingLeft: 6,
+  },
+  subItemBullet: {
+    fontSize: 9,
+    color: '#64748b',
+    width: 10,
+  },
+  subItemText: {
+    fontSize: 9,
+    color: '#475569',
+    flex: 1,
+    lineHeight: 1.4,
+  },
+  lineItemDescription: {
+    fontSize: 9,
+    color: '#64748b',
+    marginTop: 6,
+    lineHeight: 1.4,
+  },
   // Total
   totalRow: {
     flexDirection: 'row',
@@ -289,10 +318,21 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
 
         {/* Table Rows */}
         {invoice.lineItems.map((item) => (
-          <View key={item.lineItemId} style={styles.tableRow}>
-            <Text style={[styles.cellText, showHourlyColumns ? styles.colDescription : styles.colDescriptionFlat]}>
-              {item.description}
-            </Text>
+          <View key={item.lineItemId} style={styles.tableRow} wrap={false}>
+            <View style={showHourlyColumns ? styles.colDescription : styles.colDescriptionFlat}>
+              {item.title && <Text style={styles.lineItemTitle}>{item.title}</Text>}
+              {item.subItems.map((sub, idx) => (
+                <View key={`${item.lineItemId}-sub-${idx}`} style={styles.subItemRow}>
+                  <Text style={styles.subItemBullet}>•</Text>
+                  <Text style={styles.subItemText}>{sub}</Text>
+                </View>
+              ))}
+              {item.description && (
+                <Text style={item.title || item.subItems.length > 0 ? styles.lineItemDescription : styles.cellText}>
+                  {item.description}
+                </Text>
+              )}
+            </View>
             {showHourlyColumns && (
               <>
                 <Text style={[item.hours != null ? styles.cellText : styles.cellMuted, styles.colHours]}>

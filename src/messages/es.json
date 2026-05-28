@@ -1134,12 +1134,19 @@
         "client": "Cliente",
         "select-client": "Seleccionar cliente...",
         "line-items": "Conceptos",
+        "title": "Concepto",
+        "title-placeholder": "Ej. Módulo de Leads & Marketing",
+        "sub-items": "Subconceptos",
+        "sub-item-placeholder": "Detalle del subconcepto",
+        "no-sub-items": "Sin subconceptos. Añade uno para detallar el concepto.",
         "description": "Descripción",
+        "description-optional": "Descripción adicional (opcional)",
         "hours": "Horas",
         "hourly-rate": "Tarifa (€)",
         "amount": "Importe (€)",
         "notes": "Notas"
-      }
+      },
+      "add-sub-item": "Añadir subconcepto"
     },
     "detail": {
       "bill-to": "Facturar a",
@@ -1437,6 +1444,10 @@
     "amount-positive": "El monto debe ser mayor a 0",
     "description-too-long": "La descripción es muy larga",
     "description-required": "La descripción es requerida",
+    "title-or-description-required": "Añade un concepto o una descripción",
+    "title-too-long": "El concepto es muy largo",
+    "sub-item-too-long": "El subconcepto es muy largo",
+    "too-many-sub-items": "Demasiados subconceptos (máximo 20)",
     "invalid-date": "Fecha inválida",
     "name-required": "El nombre es requerido",
     "name-too-long": "El nombre es muy largo",

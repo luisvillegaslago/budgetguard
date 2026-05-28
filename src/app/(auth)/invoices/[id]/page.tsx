@@ -338,7 +338,30 @@ export default function InvoiceDetailPage() {
               key={item.lineItemId}
               className={`grid ${tableGridClass} gap-4 px-3 py-3 border-b border-border text-sm`}
             >
-              <span className="text-foreground whitespace-pre-line">{item.description}</span>
+              <div className="text-foreground">
+                {item.title && <p className="font-semibold text-foreground">{item.title}</p>}
+                {item.subItems.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {item.subItems.map((sub, idx) => (
+                      <li
+                        key={`${item.lineItemId}-sub-${idx}`}
+                        className="text-xs text-guard-muted pl-3 relative before:content-['•'] before:absolute before:left-0"
+                      >
+                        {sub}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {item.description && (
+                  <p
+                    className={`whitespace-pre-line ${
+                      item.title || item.subItems.length > 0 ? 'mt-2 text-xs text-guard-muted' : ''
+                    }`}
+                  >
+                    {item.description}
+                  </p>
+                )}
+              </div>
               {showHourlyColumns && (
                 <>
                   <span className="text-center text-guard-muted">{item.hours != null ? item.hours : '-'}</span>

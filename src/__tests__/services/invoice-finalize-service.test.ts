@@ -43,6 +43,8 @@ const mockDraftInvoice: Invoice = {
       lineItemId: 1,
       invoiceId: 1,
       sortOrder: 0,
+      title: null,
+      subItems: [],
       description: 'Development',
       hours: 10,
       hourlyRateCents: 12000,
