@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.34.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.33.0...v0.34.0) (2026-05-28)
+
+
+### Features
+
+* **invoices:** structured line items with title, sub-items and description ([8633e7a](https://github.com/luisvillegaslago/budgetguard/commit/8633e7a747872115f52ac9253554fdcf6675c459))
+
 ## [0.33.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.32.0...v0.33.0) (2026-05-25)
 
 
