@@ -229,11 +229,14 @@ export function DbSyncPanel() {
       {/* Error */}
       {syncError && (
         <div className="rounded-lg border border-guard-danger/30 bg-guard-danger/5 p-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-guard-danger" aria-hidden="true" />
-            <span className="text-sm text-guard-danger">
-              {t('settings.sync.error')}: {syncError}
-            </span>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-guard-danger shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="min-w-0">
+              <span className="text-sm font-medium text-guard-danger">{t('settings.sync.error')}</span>
+              <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-xs text-guard-danger/90">
+                {syncError}
+              </pre>
+            </div>
           </div>
         </div>
       )}

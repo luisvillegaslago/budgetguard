@@ -9,6 +9,31 @@ import { SyncExecuteSchema } from '@/schemas/sync';
 import { executeBackup } from '@/services/database/SyncService';
 import type { SyncProgressEvent } from '@/types/sync';
 
+/**
+ * Build an actionable error message from a (possibly PostgreSQL) error.
+ * node-postgres errors expose `table`, `constraint`, `detail` and `code` fields
+ * that pinpoint the failing row — without them the client only sees a generic
+ * message and the user "has no feedback".
+ */
+function formatSyncError(error: unknown): string {
+  if (!(error instanceof Error)) return 'Unknown error';
+
+  const pg = error as Error & {
+    table?: string;
+    constraint?: string;
+    detail?: string;
+    code?: string;
+  };
+
+  const parts = [error.message];
+  if (pg.table) parts.push(`Tabla: ${pg.table}`);
+  if (pg.constraint) parts.push(`Restricción: ${pg.constraint}`);
+  if (pg.detail) parts.push(pg.detail);
+  if (pg.code) parts.push(`Código: ${pg.code}`);
+
+  return parts.join('\n');
+}
+
 export async function POST(request: Request) {
   if (process.env.NODE_ENV !== 'development') {
     return new Response(JSON.stringify({ error: API_ERROR.VALIDATION.NOT_AVAILABLE_IN_PROD }), { status: 403 });
@@ -38,7 +63,7 @@ export async function POST(request: Request) {
           controller.close();
         })
         .catch((error) => {
-          const message = error instanceof Error ? error.message : 'Unknown error';
+          const message = formatSyncError(error);
           // biome-ignore lint/suspicious/noConsole: Error logging for debugging
           console.error('POST /api/sync/execute error:', error);
           send({ phase: 'error', message });

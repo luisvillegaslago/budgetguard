@@ -80,6 +80,10 @@ export function useSyncExecute() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      // Tracks whether a terminal event (done/error) was received. If the stream
+      // ends without one, we must surface an error instead of hanging forever in
+      // the `isExecuting` state (the spinner would otherwise spin indefinitely).
+      let settled = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -98,9 +102,11 @@ export function useSyncExecute() {
             const event = JSON.parse(json) as SyncProgressEvent;
 
             if (event.phase === 'done') {
+              settled = true;
               const result = JSON.parse(event.message ?? '{}') as SyncExecutionResult;
               setState({ isExecuting: false, progress: null, result, error: null });
             } else if (event.phase === 'error') {
+              settled = true;
               setState({ isExecuting: false, progress: null, result: null, error: event.message ?? 'Unknown error' });
             } else {
               setState((prev) => ({ ...prev, progress: event }));
@@ -108,6 +114,18 @@ export function useSyncExecute() {
           } catch {
             // Ignore parse errors from partial chunks
           }
+        });
+      }
+
+      // Stream closed without a done/error event — don't leave the UI stuck
+      // showing the progress spinner with no outcome.
+      if (!settled) {
+        setState({
+          isExecuting: false,
+          progress: null,
+          result: null,
+          error:
+            'La conexión de sincronización se cerró sin completar. Revisa la consola del servidor para el detalle.',
         });
       }
     } catch (err) {

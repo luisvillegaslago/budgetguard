@@ -25,9 +25,14 @@ interface TableConfig {
   descriptionColumn: string;
   hasUpdatedAt: boolean;
   columns: string[];
+  // JSONB columns: values read via SELECT * come back as parsed JS objects/arrays
+  // and must be re-serialized with JSON.stringify before being passed as query
+  // params, otherwise node-postgres encodes JS arrays as Postgres array literals
+  // ({...}) which are invalid JSON input for a jsonb column.
+  jsonColumns?: string[];
 }
 
-const SYNCABLE_TABLES: TableConfig[] = [
+export const SYNCABLE_TABLES: TableConfig[] = [
   {
     table: 'Categories',
     pk: 'CategoryID',
@@ -45,6 +50,7 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'DefaultShared',
       'DefaultVatPercent',
       'DefaultDeductionPercent',
+      'Modelo100CasillaCode',
       'UserID',
       'CreatedAt',
       'UpdatedAt',
@@ -55,7 +61,7 @@ const SYNCABLE_TABLES: TableConfig[] = [
     pk: 'TripID',
     descriptionColumn: 'Name',
     hasUpdatedAt: true,
-    columns: ['TripID', 'Name', 'UserID', 'CreatedAt', 'UpdatedAt'],
+    columns: ['TripID', 'Name', 'StartDate', 'EndDate', 'UserID', 'CreatedAt', 'UpdatedAt'],
   },
   {
     table: 'TransactionGroups',
@@ -80,6 +86,7 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'Country',
       'InvoiceLanguage',
       'Role',
+      'DefaultBankFeeCents',
       'UserID',
       'IsActive',
       'CreatedAt',
@@ -135,6 +142,7 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'DeductionPercent',
       'VendorName',
       'InvoiceNumber',
+      'Status',
       'CompanyID',
       'UserID',
       'CreatedAt',
@@ -227,7 +235,18 @@ const SYNCABLE_TABLES: TableConfig[] = [
     pk: 'LineItemID',
     descriptionColumn: 'Description',
     hasUpdatedAt: false,
-    columns: ['LineItemID', 'InvoiceID', 'SortOrder', 'Description', 'Hours', 'HourlyRateCents', 'AmountCents'],
+    columns: [
+      'LineItemID',
+      'InvoiceID',
+      'SortOrder',
+      'Title',
+      'SubItems',
+      'Description',
+      'Hours',
+      'HourlyRateCents',
+      'AmountCents',
+    ],
+    jsonColumns: ['SubItems'],
   },
   {
     table: 'SkydiveJumps',
@@ -297,11 +316,14 @@ const SYNCABLE_TABLES: TableConfig[] = [
       'TransactionGroupID',
       'CompanyID',
       'Description',
+      'ExtractedData',
+      'ExtractionStatus',
       'DocumentDate',
       'VendorName',
       'CreatedAt',
       'UpdatedAt',
     ],
+    jsonColumns: ['ExtractedData'],
   },
   {
     table: 'FiscalDeadlineSettings',
@@ -744,7 +766,17 @@ async function processTablesSequentially(
 // Batch Insert / Update helpers
 // ============================================================
 
-async function batchInsert(
+/**
+ * Coerce a value read from the source DB into a query-param-safe value.
+ * JSONB columns are re-serialized with JSON.stringify (see TableConfig.jsonColumns).
+ */
+function coerceValue(config: TableConfig, col: string, raw: unknown): unknown {
+  if (raw === undefined || raw === null) return null;
+  if (config.jsonColumns?.includes(col)) return JSON.stringify(raw);
+  return raw;
+}
+
+export async function batchInsert(
   client: { query: (text: string, params?: unknown[]) => Promise<unknown> },
   config: TableConfig,
   rows: RowRecord[],
@@ -764,7 +796,7 @@ async function batchInsert(
       placeholders.push(`(${rowPlaceholders.join(', ')})`);
 
       config.columns.forEach((col) => {
-        values.push(row[col] === undefined ? null : row[col]);
+        values.push(coerceValue(config, col, row[col]));
       });
     });
 
@@ -787,7 +819,7 @@ async function batchUpdate(
   const sql = `UPDATE "${config.table}" SET ${setClauses} WHERE ${whereClause}`;
 
   const updatePromises = rows.map((row) => {
-    const params = [...updateCols.map((col) => (row[col] === undefined ? null : row[col])), row[config.pk]];
+    const params = [...updateCols.map((col) => coerceValue(config, col, row[col])), row[config.pk]];
     return client.query(sql, params);
   });
 
