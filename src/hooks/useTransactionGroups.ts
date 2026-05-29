@@ -110,6 +110,7 @@ export function useUpdateTransactionGroup() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUBCATEGORY_SUMMARY] });
     },
   });
 }

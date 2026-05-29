@@ -815,41 +815,102 @@ export async function deleteTransactionGroup(groupId: number): Promise<boolean> 
 }
 
 /**
- * Update a transaction group's description and/or date (verifies ownership)
+ * Update a transaction group's shared fields and synchronize its line items
+ * (verifies ownership). Description/date/type/sharedDivisor are propagated to
+ * every transaction. Items are reconciled by category: existing rows are
+ * updated, new categories inserted, and removed categories deleted — all
+ * within a single transaction so the group never ends up partially updated.
  */
 export async function updateTransactionGroup(
   groupId: number,
-  data: { description?: string; transactionDate?: Date },
+  data: {
+    description: string;
+    transactionDate: Date;
+    type: TransactionType;
+    sharedDivisor: number;
+    items: TransactionGroupItem[];
+  },
 ): Promise<Transaction[]> {
   const userId = await getUserIdOrThrow();
+  const pool = getPool();
+  const client = await pool.connect();
 
-  const updates: string[] = [];
-  const params: unknown[] = [];
-  let paramIndex = 1;
+  try {
+    await client.query('BEGIN');
 
-  if (data.description !== undefined) {
-    updates.push(`"Description" = $${paramIndex++}`);
-    params.push(data.description);
-  }
-  if (data.transactionDate !== undefined) {
-    updates.push(`"TransactionDate" = $${paramIndex++}`);
-    params.push(toDateString(data.transactionDate));
-  }
-
-  if (updates.length > 0) {
-    params.push(groupId);
-    params.push(userId);
-    await query(
-      `
-      UPDATE "Transactions"
-      SET ${updates.join(', ')}
-      WHERE "TransactionGroupID" = $${paramIndex} AND "UserID" = $${paramIndex + 1}
-    `,
-      params,
+    const existing = await client.query<{ TransactionID: number; CategoryID: number }>(
+      'SELECT "TransactionID", "CategoryID" FROM "Transactions" WHERE "TransactionGroupID" = $1 AND "UserID" = $2',
+      [groupId, userId],
     );
-  }
 
-  return getTransactionsByGroupId(groupId);
+    const existingByCategory = new Map(existing.rows.map((row) => [row.CategoryID, row.TransactionID]));
+    const newCategoryIds = new Set(data.items.map((item) => item.categoryId));
+    const dateStr = toDateString(data.transactionDate);
+
+    // Delete line items whose category is no longer part of the group
+    const idsToDelete = existing.rows
+      .filter((row) => !newCategoryIds.has(row.CategoryID))
+      .map((row) => row.TransactionID);
+
+    if (idsToDelete.length > 0) {
+      await client.query('DELETE FROM "Transactions" WHERE "TransactionID" = ANY($1::int[]) AND "UserID" = $2', [
+        idsToDelete,
+        userId,
+      ]);
+    }
+
+    // Upsert each item: update when the category already exists, insert otherwise.
+    // Queued sequentially on the same client (node-postgres serializes per client).
+    await Promise.all(
+      data.items.map((item) => {
+        const existingId = existingByCategory.get(item.categoryId);
+        if (existingId !== undefined) {
+          return client.query(
+            `UPDATE "Transactions"
+             SET "AmountCents" = $1, "OriginalAmountCents" = $2, "Description" = $3,
+                 "TransactionDate" = $4, "Type" = $5, "SharedDivisor" = $6
+             WHERE "TransactionID" = $7 AND "UserID" = $8`,
+            [
+              item.amountCents,
+              item.originalAmountCents,
+              data.description,
+              dateStr,
+              data.type,
+              data.sharedDivisor,
+              existingId,
+              userId,
+            ],
+          );
+        }
+        return client.query(
+          `INSERT INTO "Transactions" (
+            "CategoryID", "AmountCents", "Description", "TransactionDate",
+            "Type", "SharedDivisor", "OriginalAmountCents", "TransactionGroupID", "UserID"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            item.categoryId,
+            item.amountCents,
+            data.description,
+            dateStr,
+            data.type,
+            data.sharedDivisor,
+            item.originalAmountCents,
+            groupId,
+            userId,
+          ],
+        );
+      }),
+    );
+
+    await client.query('COMMIT');
+
+    return getTransactionsByGroupId(groupId);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**

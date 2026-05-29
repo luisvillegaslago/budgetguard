@@ -5,7 +5,7 @@
  * Collapsible row showing a group of linked transactions with expandable breakdown
  */
 
-import { ArrowUpRight, ChevronDown, ChevronRight, Layers, Users } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, ChevronRight, Layers, Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
@@ -20,6 +20,7 @@ import { formatCurrency } from '@/utils/money';
 interface TransactionGroupRowProps {
   group: TransactionGroupDisplay;
   onDelete: (groupId: number) => void;
+  onEdit?: (group: TransactionGroupDisplay) => void;
   onEditTransaction?: (transaction: Transaction) => void;
   isDeleting: boolean;
   index: number;
@@ -28,6 +29,7 @@ interface TransactionGroupRowProps {
 export function TransactionGroupRow({
   group,
   onDelete,
+  onEdit,
   onEditTransaction,
   isDeleting,
   index,
@@ -116,6 +118,19 @@ export function TransactionGroupRow({
                   <ChevronRight className="h-4 w-4" aria-hidden="true" />
                 )}
               </button>
+              {onEdit && (
+                <button
+                  type="button"
+                  className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label={t('transactions.groups.edit')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(group);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
               <DeleteButton
                 onDelete={() => onDelete(group.transactionGroupId)}
                 isDeleting={isDeleting}
@@ -186,6 +201,19 @@ export function TransactionGroupRow({
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                 )}
               </button>
+              {onEdit && (
+                <button
+                  type="button"
+                  className="p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label={t('transactions.groups.edit')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(group);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
               <DeleteButton
                 onDelete={() => onDelete(group.transactionGroupId)}
                 isDeleting={isDeleting}

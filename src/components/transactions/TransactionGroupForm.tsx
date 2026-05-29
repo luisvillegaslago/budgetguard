@@ -2,8 +2,10 @@
 
 /**
  * BudgetGuard Transaction Group Form
- * Form for creating grouped transactions (e.g., outings with multiple subcategory expenses)
- * Lists all subcategories of the selected parent category with amount inputs
+ * Form for creating and editing grouped transactions (e.g., outings with
+ * multiple subcategory expenses). Lists all subcategories of the parent
+ * category with amount inputs. When a `group` is provided it runs in edit
+ * mode: fields are pre-filled and submitting reconciles the group's line items.
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,16 +20,18 @@ import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
 import { SHARED_EXPENSE, TRANSACTION_TYPE, VALIDATION_KEY } from '@/constants/finance';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
-import { useCreateTransactionGroup } from '@/hooks/useTransactionGroups';
+import { useCreateTransactionGroup, useUpdateTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useTranslate } from '@/hooks/useTranslations';
 import { TransactionTypeSchema } from '@/schemas/transaction';
-import type { TransactionType } from '@/types/finance';
+import type { TransactionGroupDisplay, TransactionType } from '@/types/finance';
 import { cn } from '@/utils/helpers';
-import { eurosToCents, formatCurrency } from '@/utils/money';
+import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 interface TransactionGroupFormProps {
   onClose: () => void;
   defaultType?: TransactionType;
+  // When provided, the form runs in edit mode for this group
+  group?: TransactionGroupDisplay;
 }
 
 // Form schema: description, date, parentCategoryId, and dynamic amounts per subcategory
@@ -41,13 +45,32 @@ const GroupFormSchema = z.object({
 
 type GroupFormValues = z.infer<typeof GroupFormSchema>;
 
-export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.EXPENSE }: TransactionGroupFormProps) {
+export function TransactionGroupForm({
+  onClose,
+  defaultType = TRANSACTION_TYPE.EXPENSE,
+  group,
+}: TransactionGroupFormProps) {
   const { t } = useTranslate();
+  const isEditMode = group != null;
+  const type = group?.type ?? defaultType;
   const createGroup = useCreateTransactionGroup();
-  const { data: categories, isLoading: categoriesLoading } = useCategoriesHierarchical(defaultType);
+  const updateGroup = useUpdateTransactionGroup();
+  const mutation = isEditMode ? updateGroup : createGroup;
+  const { data: categories, isLoading: categoriesLoading } = useCategoriesHierarchical(type);
 
-  // Track amounts per subcategory (keyed by categoryId)
-  const [subcategoryAmounts, setSubcategoryAmounts] = useState<Record<number, string>>({});
+  // Parent category of the edited group (derived from its line items)
+  const editParentId = group?.transactions[0]?.parentCategory?.categoryId;
+
+  // Track amounts per subcategory (keyed by categoryId), pre-filled in edit mode
+  const [subcategoryAmounts, setSubcategoryAmounts] = useState<Record<number, string>>(() => {
+    if (!group) return {};
+    return group.transactions.reduce<Record<number, string>>((acc, tx) => {
+      // Show the full (original) amount for shared groups so users edit pre-split values
+      const fullCents = group.isShared ? (tx.originalAmountCents ?? tx.amountCents) : tx.amountCents;
+      acc[tx.categoryId] = String(centsToEuros(fullCents));
+      return acc;
+    }, {});
+  });
 
   const {
     register,
@@ -59,10 +82,13 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
   } = useForm<GroupFormValues>({
     resolver: zodResolver(GroupFormSchema),
     defaultValues: {
-      type: defaultType,
-      transactionDate: new Date().toISOString().split('T')[0] as unknown as Date,
-      description: '',
-      isShared: false,
+      type,
+      transactionDate: (group
+        ? group.transactionDate.slice(0, 10)
+        : new Date().toISOString().split('T')[0]) as unknown as Date,
+      description: group?.description ?? '',
+      isShared: group?.isShared ?? false,
+      parentCategoryId: editParentId,
     },
   });
 
@@ -77,19 +103,19 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
 
   const subcategories = useMemo(() => selectedParent?.subcategories ?? [], [selectedParent]);
 
-  // Reset amounts when parent changes
+  // Reset amounts when parent changes (create mode only; parent is locked when editing)
   const prevParentRef = useRef(selectedParentId);
   if (prevParentRef.current !== selectedParentId) {
     prevParentRef.current = selectedParentId;
     setSubcategoryAmounts({});
   }
 
-  // Auto-set shared from parent's defaultShared
+  // Auto-set shared from parent's defaultShared (create mode only — keep the group's own value when editing)
   useEffect(() => {
-    if (selectedParent?.defaultShared) {
+    if (!isEditMode && selectedParent?.defaultShared) {
       setValue('isShared', true);
     }
-  }, [selectedParent, setValue]);
+  }, [isEditMode, selectedParent, setValue]);
 
   // Calculate running total from filled amounts
   const runningTotal = useMemo(() => {
@@ -126,14 +152,27 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
     }
 
     try {
-      await createGroup.mutateAsync({
-        description: formData.description,
-        transactionDate: formData.transactionDate,
-        type: formData.type,
-        isShared: formData.isShared,
-        parentCategoryId: formData.parentCategoryId,
-        items,
-      });
+      if (group) {
+        await updateGroup.mutateAsync({
+          groupId: group.transactionGroupId,
+          data: {
+            description: formData.description,
+            transactionDate: formData.transactionDate,
+            type: formData.type,
+            isShared: formData.isShared,
+            items,
+          },
+        });
+      } else {
+        await createGroup.mutateAsync({
+          description: formData.description,
+          transactionDate: formData.transactionDate,
+          type: formData.type,
+          isShared: formData.isShared,
+          parentCategoryId: formData.parentCategoryId,
+          items,
+        });
+      }
       onClose();
     } catch (_error) {
       // Error is handled by mutation state
@@ -165,7 +204,7 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="group-form-title" className="text-xl font-bold text-foreground">
-            {t('transactions.groups.title')}
+            {t(isEditMode ? 'transactions.groups.edit-title' : 'transactions.groups.title')}
           </h2>
           <button
             type="button"
@@ -237,7 +276,7 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
                 id="groupParentCategory"
                 value={selectedParentId ?? ''}
                 onChange={handleParentChange}
-                disabled={categoriesLoading}
+                disabled={categoriesLoading || isEditMode}
                 className={cn(errors.parentCategoryId && 'border-guard-danger')}
               >
                 <option value="">{t('transactions.form.fields.category-placeholder')}</option>
@@ -337,29 +376,31 @@ export function TransactionGroupForm({ onClose, defaultType = TRANSACTION_TYPE.E
           )}
 
           {/* Error Message */}
-          {createGroup.isError && (
+          {mutation.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
-              <p className="text-sm text-guard-danger">{t('transactions.groups.errors.create')}</p>
+              <p className="text-sm text-guard-danger">
+                {t(isEditMode ? 'transactions.groups.errors.update' : 'transactions.groups.errors.create')}
+              </p>
             </div>
           )}
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || createGroup.isPending || !hasValidItems}
+            disabled={isSubmitting || mutation.isPending || !hasValidItems}
             className={cn(
               'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
               'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
               'bg-guard-danger hover:bg-guard-danger/90',
             )}
           >
-            {isSubmitting || createGroup.isPending ? (
+            {isSubmitting || mutation.isPending ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner size="sm" className="border-white/30 border-t-white" />
-                {t('transactions.groups.saving')}
+                {t(isEditMode ? 'transactions.groups.update-saving' : 'transactions.groups.saving')}
               </span>
             ) : (
-              t('transactions.groups.submit')
+              t(isEditMode ? 'transactions.groups.update-submit' : 'transactions.groups.submit')
             )}
           </button>
         </form>

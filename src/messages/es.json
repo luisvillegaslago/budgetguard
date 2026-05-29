@@ -131,7 +131,10 @@
     },
     "groups": {
       "title": "Gasto Agrupado",
+      "edit": "Editar grupo",
       "edit-title": "Editar Gasto Agrupado",
+      "update-submit": "Guardar cambios",
+      "update-saving": "Guardando...",
       "description-placeholder": "Ej: Cena viernes, salida de fin de semana...",
       "parent-category": "Categoría",
       "subcategories": "Subcategorías",

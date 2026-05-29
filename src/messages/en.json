@@ -131,7 +131,10 @@
     },
     "groups": {
       "title": "Grouped Expense",
+      "edit": "Edit group",
       "edit-title": "Edit Grouped Expense",
+      "update-submit": "Save changes",
+      "update-saving": "Saving...",
       "description-placeholder": "Ex: Friday dinner, weekend outing...",
       "parent-category": "Category",
       "subcategories": "Subcategories",

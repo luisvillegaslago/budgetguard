@@ -12,6 +12,7 @@ import {
   updateTransactionGroup,
 } from '@/services/database/TransactionRepository';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
+import { computeGroupItemsCents } from '@/utils/transactionGroup';
 
 export const GET = withApiHandler(async (_request, { params }) => {
   const { id } = await params;
@@ -47,7 +48,16 @@ export const PATCH = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(UpdateTransactionGroupSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const transactions = await updateTransactionGroup(groupId, validation.data);
+  const { items, isShared, description, transactionDate, type } = validation.data;
+  const { sharedDivisor, items: itemsWithCents } = computeGroupItemsCents(items, isShared);
+
+  const transactions = await updateTransactionGroup(groupId, {
+    description,
+    transactionDate,
+    type,
+    sharedDivisor,
+    items: itemsWithCents,
+  });
 
   return { data: transactions };
 }, 'PATCH /api/transaction-groups/[id]');

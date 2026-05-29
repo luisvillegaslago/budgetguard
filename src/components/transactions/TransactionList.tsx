@@ -35,6 +35,7 @@ import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinance
 import type { StatusFilter, Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+import { TransactionGroupForm } from './TransactionGroupForm';
 import { TransactionGroupRow } from './TransactionGroupRow';
 import { TripGroupRow } from './TripGroupRow';
 
@@ -322,6 +323,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
   const deleteGroup = useDeleteTransactionGroup();
   const updateStatus = useUpdateTransactionStatus();
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingGroup, setEditingGroup] = useState<TransactionGroupDisplay | null>(null);
 
   const handleDelete = (id: number) => {
     deleteTransaction.mutate(id);
@@ -515,6 +517,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
                 <TransactionGroupRow
                   group={item.data}
                   onDelete={handleDeleteGroup}
+                  onEdit={setEditingGroup}
                   onEditTransaction={onEditTransaction}
                   isDeleting={deleteGroup.isPending}
                   index={index}
@@ -545,6 +548,8 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
           );
         })}
       </ul>
+
+      {editingGroup && <TransactionGroupForm group={editingGroup} onClose={() => setEditingGroup(null)} />}
     </div>
   );
 }

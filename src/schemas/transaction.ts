@@ -142,11 +142,16 @@ export const CreateTransactionGroupSchema = z.object({
 export type CreateTransactionGroupInput = z.infer<typeof CreateTransactionGroupSchema>;
 
 /**
- * Schema for updating a transaction group (description and date propagated to all)
+ * Schema for updating a transaction group.
+ * Description/date/type are propagated to all transactions; items define the
+ * full set of line items (added, edited or removed) within the group.
  */
 export const UpdateTransactionGroupSchema = z.object({
-  description: z.string().min(1).max(255).optional(),
-  transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }).optional(),
+  description: z.string().min(1).max(255),
+  transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
+  type: TransactionTypeSchema,
+  isShared: z.boolean().optional().default(false),
+  items: z.array(TransactionGroupItemSchema).min(1).max(20),
 });
 
 export type UpdateTransactionGroupInput = z.infer<typeof UpdateTransactionGroupSchema>;
