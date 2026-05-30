@@ -151,6 +151,60 @@
       "expenses-count": "{count} gastos · {total}"
     }
   },
+  "vouchers": {
+    "untitled": "Bono",
+    "remaining": "Saldo restante",
+    "units-remaining": "{remaining} de {total} {label} restantes",
+    "of-total": "de {total}",
+    "purchased": "Comprado",
+    "expires": "Caduca",
+    "expired": "Caducado",
+    "expires-in-days": "caduca en {days} d",
+    "consumptions": "Consumos",
+    "no-consumptions": "Todavía no hay consumos de este bono",
+    "errors": {
+      "load": "Error al cargar los bonos"
+    },
+    "delete": {
+      "confirm": "Confirmar"
+    },
+    "widget": {
+      "title": "Bonos",
+      "new": "Nuevo bono",
+      "empty": "No tienes bonos",
+      "empty-subtitle": "Crea un bono prepago y vincula tus gastos a él",
+      "no-active": "No hay bonos activos",
+      "show-spent": "Mostrar gastados ({count})"
+    },
+    "detail": {
+      "title": "Detalle del bono"
+    },
+    "form": {
+      "title": "Nuevo bono",
+      "edit-title": "Editar bono",
+      "saving": "Guardando...",
+      "submit": {
+        "create": "Crear bono",
+        "edit": "Guardar cambios"
+      },
+      "errors": {
+        "create": "Error al crear el bono. Intenta de nuevo.",
+        "update": "Error al actualizar el bono. Inténtalo de nuevo."
+      },
+      "fields": {
+        "description": "Descripción",
+        "description-placeholder": "Ej: Bono túnel de viento",
+        "total-amount": "Importe total (€)",
+        "total-amount-placeholder": "0,00",
+        "purchase-date": "Fecha de compra",
+        "total-units": "Unidades totales",
+        "total-units-placeholder": "Ej: 15",
+        "unit-label": "Etiqueta de unidad",
+        "unit-label-placeholder": "Ej: min, clases",
+        "expiry-date": "Fecha de caducidad"
+      }
+    }
+  },
   "transactions": {
     "title": "Transacciones",
     "new": "Nueva",
@@ -231,7 +285,11 @@
         "description-placeholder": "Ej: Compra semanal",
         "shared": "Gasto compartido (÷2)",
         "shared-hint": "Total: {total} → Tu parte: {half}",
-        "status": "Estado de pago"
+        "status": "Estado de pago",
+        "voucher": "¿Procede de un bono?",
+        "voucher-none": "No, gasto normal",
+        "voucher-locked-category": "categoría del bono",
+        "voucher-units": "Unidades consumidas ({label})"
       },
       "submit": {
         "expense": "Crear Gasto",
@@ -984,6 +1042,7 @@
     "tabs": {
       "summary": "Resumen",
       "events": "Movimientos",
+      "prices": "Cotizaciones",
       "fiscal": "Fiscal"
     },
     "fiscal": {
@@ -1165,6 +1224,29 @@
         "dust": "Saldos pequeños (dust)",
         "c2c": "P2P",
         "csv_import": "Importado de CSV"
+      }
+    },
+    "prices": {
+      "title": "Cotizaciones",
+      "subtitle": "Velas, tus operaciones y P&L por par",
+      "pair-placeholder": "Selecciona un par",
+      "pair-search": "Buscar par…",
+      "interval-label": "Intervalo",
+      "intervals": {
+        "1h": "1 hora",
+        "4h": "4 horas",
+        "1d": "1 día"
+      },
+      "entry-line": "Entrada media",
+      "live-line": "Precio actual",
+      "empty": "No hay operaciones para este par todavía",
+      "error": "No se pudieron cargar las cotizaciones",
+      "summary": {
+        "avg-entry": "Precio medio de entrada",
+        "live-price": "Precio actual",
+        "net-qty": "Cantidad neta",
+        "unrealized": "P&L no realizado",
+        "realized": "P&L realizado"
       }
     },
     "csv": {
@@ -1564,6 +1646,8 @@
     "amount-mismatch": "El importe debe ser igual a horas × tarifa",
     "jump-number-positive": "El número de salto debe ser positivo",
     "duration-positive": "La duración debe ser positiva",
+    "voucher-total-positive": "El importe del bono debe ser mayor a 0",
+    "voucher-units-positive": "Las unidades deben ser mayores a 0",
     "modelo-type-mismatch": "Los modelos requieren tipo de modelo; las facturas no deben tenerlo",
     "quarterly-mismatch": "Los modelos trimestrales requieren trimestre; los anuales no",
     "invalid-month-format": "Formato de mes inválido. Usa YYYY-MM",
@@ -1585,6 +1669,7 @@
       "group": "Grupo de transacciones no encontrado",
       "jump": "Salto no encontrado",
       "tunnel-session": "Sesión de túnel no encontrada",
+      "voucher": "Bono no encontrado",
       "prefix": "Prefijo de factura no encontrado",
       "document": "Documento no encontrado",
       "document-blob": "Archivo del documento no encontrado",
@@ -1645,6 +1730,7 @@
         "trip-expense": "Error al crear el gasto de viaje",
         "jump": "Error al crear el salto",
         "tunnel-session": "Error al crear la sesión de túnel",
+        "voucher": "Error al crear el bono",
         "group": "Error al crear el grupo de transacciones",
         "crypto-credentials": "Error al guardar las credenciales de Binance"
       },
@@ -1660,6 +1746,7 @@
         "trip-expense": "Error al actualizar el gasto de viaje",
         "jump": "Error al actualizar el salto",
         "tunnel-session": "Error al actualizar la sesión de túnel",
+        "voucher": "Error al actualizar el bono",
         "fiscal-status": "Error al actualizar el estado del documento",
         "fiscal-settings": "Error al actualizar los ajustes fiscales"
       },
@@ -1674,6 +1761,7 @@
         "trip-expense": "Error al eliminar el gasto de viaje",
         "jump": "Error al eliminar el salto",
         "tunnel-session": "Error al eliminar la sesión de túnel",
+        "voucher": "Error al eliminar el bono",
         "fiscal-document": "Error al eliminar el documento",
         "crypto-credentials": "Error al desconectar Binance"
       },

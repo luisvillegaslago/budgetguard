@@ -151,6 +151,60 @@
       "expenses-count": "{count} expenses · {total}"
     }
   },
+  "vouchers": {
+    "untitled": "Voucher",
+    "remaining": "Remaining balance",
+    "units-remaining": "{remaining} of {total} {label} remaining",
+    "of-total": "of {total}",
+    "purchased": "Purchased",
+    "expires": "Expires",
+    "expired": "Expired",
+    "expires-in-days": "expires in {days}d",
+    "consumptions": "Consumptions",
+    "no-consumptions": "No consumptions for this voucher yet",
+    "errors": {
+      "load": "Error loading vouchers"
+    },
+    "delete": {
+      "confirm": "Confirm"
+    },
+    "widget": {
+      "title": "Vouchers",
+      "new": "New voucher",
+      "empty": "You have no vouchers",
+      "empty-subtitle": "Create a prepaid voucher and link your expenses to it",
+      "no-active": "No active vouchers",
+      "show-spent": "Show spent ({count})"
+    },
+    "detail": {
+      "title": "Voucher detail"
+    },
+    "form": {
+      "title": "New voucher",
+      "edit-title": "Edit voucher",
+      "saving": "Saving...",
+      "submit": {
+        "create": "Create voucher",
+        "edit": "Save changes"
+      },
+      "errors": {
+        "create": "Error creating the voucher. Try again.",
+        "update": "Error updating the voucher. Try again."
+      },
+      "fields": {
+        "description": "Description",
+        "description-placeholder": "Ex: Wind tunnel voucher",
+        "total-amount": "Total amount (€)",
+        "total-amount-placeholder": "0.00",
+        "purchase-date": "Purchase date",
+        "total-units": "Total units",
+        "total-units-placeholder": "Ex: 15",
+        "unit-label": "Unit label",
+        "unit-label-placeholder": "Ex: min, classes",
+        "expiry-date": "Expiry date"
+      }
+    }
+  },
   "transactions": {
     "title": "Transactions",
     "new": "New",
@@ -231,7 +285,11 @@
         "description-placeholder": "Ex: Weekly shopping",
         "shared": "Shared expense (÷2)",
         "shared-hint": "Total: {total} → Your part: {half}",
-        "status": "Payment status"
+        "status": "Payment status",
+        "voucher": "From a voucher?",
+        "voucher-none": "No, regular expense",
+        "voucher-locked-category": "voucher category",
+        "voucher-units": "Units consumed ({label})"
       },
       "submit": {
         "expense": "Create Expense",
@@ -984,6 +1042,7 @@
     "tabs": {
       "summary": "Summary",
       "events": "Movements",
+      "prices": "Prices",
       "fiscal": "Fiscal"
     },
     "fiscal": {
@@ -1165,6 +1224,29 @@
         "dust": "Small balances (dust)",
         "c2c": "P2P",
         "csv_import": "CSV import"
+      }
+    },
+    "prices": {
+      "title": "Quotes",
+      "subtitle": "Candles, your trades and P&L per pair",
+      "pair-placeholder": "Select a pair",
+      "pair-search": "Search pair…",
+      "interval-label": "Interval",
+      "intervals": {
+        "1h": "1 hour",
+        "4h": "4 hours",
+        "1d": "1 day"
+      },
+      "entry-line": "Avg entry",
+      "live-line": "Live price",
+      "empty": "No trades for this pair yet",
+      "error": "Could not load quotes",
+      "summary": {
+        "avg-entry": "Average entry price",
+        "live-price": "Live price",
+        "net-qty": "Net quantity",
+        "unrealized": "Unrealized P&L",
+        "realized": "Realized P&L"
       }
     },
     "csv": {
@@ -1564,6 +1646,8 @@
     "amount-mismatch": "Amount must equal hours × rate",
     "jump-number-positive": "Jump number must be positive",
     "duration-positive": "Duration must be positive",
+    "voucher-total-positive": "The voucher amount must be greater than 0",
+    "voucher-units-positive": "Units must be greater than 0",
     "modelo-type-mismatch": "Modelos require modeloType; invoices must not have it",
     "quarterly-mismatch": "Quarterly modelos require quarter; annual modelos must not",
     "invalid-month-format": "Invalid month format. Use YYYY-MM",
@@ -1585,6 +1669,7 @@
       "group": "Transaction group not found",
       "jump": "Jump not found",
       "tunnel-session": "Tunnel session not found",
+      "voucher": "Voucher not found",
       "prefix": "Invoice prefix not found",
       "document": "Document not found",
       "document-blob": "Document file not found",
@@ -1645,6 +1730,7 @@
         "trip-expense": "Error creating trip expense",
         "jump": "Error creating jump",
         "tunnel-session": "Error creating tunnel session",
+        "voucher": "Error creating voucher",
         "group": "Error creating transaction group",
         "crypto-credentials": "Error saving Binance credentials"
       },
@@ -1660,6 +1746,7 @@
         "trip-expense": "Error updating trip expense",
         "jump": "Error updating jump",
         "tunnel-session": "Error updating tunnel session",
+        "voucher": "Error updating voucher",
         "fiscal-status": "Error updating document status",
         "fiscal-settings": "Error updating fiscal settings"
       },
@@ -1674,6 +1761,7 @@
         "trip-expense": "Error deleting trip expense",
         "jump": "Error deleting jump",
         "tunnel-session": "Error deleting tunnel session",
+        "voucher": "Error deleting voucher",
         "fiscal-document": "Error deleting document",
         "crypto-credentials": "Error disconnecting Binance"
       },
