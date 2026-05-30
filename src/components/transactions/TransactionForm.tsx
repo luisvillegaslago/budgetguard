@@ -7,8 +7,8 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Download, FileText, Users, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Download, FileText, Ticket, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
@@ -18,6 +18,7 @@ import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constant
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
+import { useVouchers } from '@/hooks/useVouchers';
 import { type CreateTransactionInput, CreateTransactionSchema } from '@/schemas/transaction';
 import { useSelectedMonth } from '@/stores/useFinanceStore';
 import type { Transaction, TransactionStatus, TransactionType } from '@/types/finance';
@@ -43,6 +44,8 @@ export function TransactionForm({
     () => isEditing && (transaction.vatPercent !== null || transaction.deductionPercent !== null),
   );
   const fiscalDirtyRef = useRef(isEditing);
+  // Skip voucher amount auto-calc on initial edit load; enable on user interaction
+  const skipVoucherAutoRef = useRef(isEditing);
   const selectedMonth = useSelectedMonth();
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
@@ -73,6 +76,8 @@ export function TransactionForm({
           invoiceNumber: transaction.invoiceNumber,
           companyId: transaction.companyId,
           status: transaction.status,
+          voucherId: transaction.voucherId,
+          voucherUnits: transaction.voucherUnits,
         }
       : {
           type: defaultType,
@@ -87,6 +92,8 @@ export function TransactionForm({
           invoiceNumber: null,
           companyId: null,
           status: TRANSACTION_STATUS.PAID,
+          voucherId: null,
+          voucherUnits: null,
         },
   });
 
@@ -96,6 +103,21 @@ export function TransactionForm({
   const watchedCategoryId = useWatch({ control, name: 'categoryId' });
   const watchedCompanyId = useWatch({ control, name: 'companyId' });
   const watchedStatus = useWatch({ control, name: 'status' });
+  const watchedVoucherId = useWatch({ control, name: 'voucherId' });
+  const watchedVoucherUnits = useWatch({ control, name: 'voucherUnits' });
+
+  // Voucher ("bono") linking — only for expenses. The selected voucher locks
+  // the category (the consumption must match the voucher's category).
+  const isExpense = transactionType === TRANSACTION_TYPE.EXPENSE;
+  const { data: vouchers } = useVouchers();
+  const selectableVouchers = useMemo(
+    () => (vouchers ?? []).filter((v) => v.remainingCents > 0 || v.voucherId === transaction?.voucherId),
+    [vouchers, transaction?.voucherId],
+  );
+  const selectedVoucher = useMemo(
+    () => (vouchers ?? []).find((v) => v.voucherId === watchedVoucherId) ?? null,
+    [vouchers, watchedVoucherId],
+  );
 
   // Auto-fill fiscal defaults from category
   const fiscalDefaults = useFiscalDefaults(watchedCategoryId ?? null);
@@ -109,6 +131,23 @@ export function TransactionForm({
       setShowFiscal(false);
     }
   }, [fiscalDefaults, setValue]);
+
+  // When a voucher with units is selected, derive the amount from the units
+  // consumed (prorate the voucher price). Stays editable afterwards.
+  const voucherUnitPriceCents =
+    selectedVoucher?.totalUnits != null && selectedVoucher.totalUnits > 0
+      ? selectedVoucher.totalAmountCents / selectedVoucher.totalUnits
+      : null;
+  const autoAmountCents =
+    voucherUnitPriceCents != null && typeof watchedVoucherUnits === 'number' && watchedVoucherUnits > 0
+      ? Math.round(voucherUnitPriceCents * watchedVoucherUnits)
+      : null;
+
+  useEffect(() => {
+    if (autoAmountCents != null && !skipVoucherAutoRef.current) {
+      setValue('amount', centsToEuros(autoAmountCents), { shouldValidate: true });
+    }
+  }, [autoAmountCents, setValue]);
 
   const onSubmit = async (data: CreateTransactionInput) => {
     try {
@@ -143,6 +182,21 @@ export function TransactionForm({
 
   const handleSharedDefaultChange = (defaultShared: boolean) => {
     setValue('isShared', defaultShared);
+  };
+
+  const handleVoucherChange = (value: string) => {
+    skipVoucherAutoRef.current = false;
+    if (!value) {
+      setValue('voucherId', null);
+      setValue('voucherUnits', null);
+      return;
+    }
+    const id = Number(value);
+    setValue('voucherId', id, { shouldValidate: true });
+    const voucher = (vouchers ?? []).find((v) => v.voucherId === id);
+    if (voucher) {
+      setValue('categoryId', voucher.categoryId, { shouldValidate: true });
+    }
   };
 
   // Compute shared hint display
@@ -215,8 +269,9 @@ export function TransactionForm({
         </fieldset>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Hidden categoryId field for form validation */}
+          {/* Hidden categoryId + voucherId fields for form validation */}
           <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
+          <input type="hidden" {...register('voucherId', { valueAsNumber: true })} />
 
           {/* Amount + Date (side by side on desktop) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -272,15 +327,27 @@ export function TransactionForm({
             </div>
           </div>
 
-          {/* Hierarchical Category Selector */}
-          <CategorySelector
-            type={transactionType}
-            onCategoryChange={handleCategoryChange}
-            onSharedDefaultChange={handleSharedDefaultChange}
-            error={errors.categoryId?.message}
-            disabled={isSubmitting}
-            initialCategoryId={transaction?.categoryId}
-          />
+          {/* Category — locked to the voucher's category when one is selected */}
+          {selectedVoucher ? (
+            <div>
+              <span className="block text-sm font-medium text-foreground mb-1.5">
+                {t('transactions.form.fields.category')}
+              </span>
+              <div className="w-full px-4 py-2.5 rounded-lg border border-input bg-muted/50 text-sm text-guard-muted">
+                {selectedVoucher.categoryName ?? t('transactions.no-category')}
+                <span className="ml-1 text-xs">({t('transactions.form.fields.voucher-locked-category')})</span>
+              </div>
+            </div>
+          ) : (
+            <CategorySelector
+              type={transactionType}
+              onCategoryChange={handleCategoryChange}
+              onSharedDefaultChange={handleSharedDefaultChange}
+              error={errors.categoryId?.message}
+              disabled={isSubmitting}
+              initialCategoryId={transaction?.categoryId}
+            />
+          )}
 
           {/* Shared Expense Toggle */}
           <div className="flex items-start gap-3">
@@ -333,6 +400,76 @@ export function TransactionForm({
               </p>
             )}
           </div>
+
+          {/* Voucher ("bono") selector — expenses only, placed before the status field */}
+          {isExpense && selectableVouchers.length > 0 && (
+            <div className="space-y-3">
+              <div>
+                <label
+                  htmlFor="voucherId"
+                  className="block text-sm font-medium text-foreground mb-1.5 flex items-center gap-2"
+                >
+                  <Ticket className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+                  {t('transactions.form.fields.voucher')}
+                </label>
+                <select
+                  id="voucherId"
+                  value={watchedVoucherId ?? ''}
+                  onChange={(e) => handleVoucherChange(e.target.value)}
+                  disabled={isSubmitting}
+                  className={cn(
+                    'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                    'transition-colors duration-200 ease-out-quart border-input',
+                  )}
+                >
+                  <option value="">{t('transactions.form.fields.voucher-none')}</option>
+                  {selectableVouchers.map((v) => (
+                    <option key={v.voucherId} value={v.voucherId}>
+                      {(v.description || v.categoryName || t('vouchers.untitled')) +
+                        ` · ${formatCurrency(Math.max(0, v.remainingCents))}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Units consumed — drives the amount above (prorated) */}
+              {selectedVoucher?.totalUnits != null && (
+                <div>
+                  <label htmlFor="voucherUnits" className="block text-sm font-medium text-foreground mb-1.5">
+                    {t('transactions.form.fields.voucher-units', { label: selectedVoucher.unitLabel ?? '' })}
+                  </label>
+                  <input
+                    id="voucherUnits"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    autoComplete="off"
+                    {...register('voucherUnits', {
+                      setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
+                    })}
+                    onChange={(e) => {
+                      skipVoucherAutoRef.current = false;
+                      register('voucherUnits', {
+                        setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
+                      }).onChange(e);
+                    }}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className={cn(
+                      'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                      'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                      'transition-colors duration-200 ease-out-quart border-input',
+                    )}
+                  />
+                  {autoAmountCents != null && (
+                    <p className="text-xs text-guard-muted mt-1 animate-fade-in">
+                      {t('transactions.form.fields.voucher-amount-auto', { amount: formatCurrency(autoAmountCents) })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Status Selector */}
           <fieldset className="border-0 p-0 m-0">

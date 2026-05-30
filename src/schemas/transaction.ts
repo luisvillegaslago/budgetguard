@@ -43,6 +43,9 @@ export const CreateTransactionSchema = z.object({
   invoiceNumber: z.string().max(50).optional().nullable(),
   companyId: z.number().int().positive().optional().nullable(),
   status: TransactionStatusSchema.optional().default(TRANSACTION_STATUS.PAID),
+  // Voucher ("bono") linking: this expense draws from a prepaid voucher
+  voucherId: z.number().int().positive().optional().nullable(),
+  voucherUnits: z.number().positive().optional().nullable(),
 });
 
 export type CreateTransactionInput = z.infer<typeof CreateTransactionSchema>;

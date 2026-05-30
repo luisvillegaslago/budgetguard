@@ -289,7 +289,8 @@
         "voucher": "From a voucher?",
         "voucher-none": "No, regular expense",
         "voucher-locked-category": "voucher category",
-        "voucher-units": "Units consumed ({label})"
+        "voucher-units": "Units consumed ({label})",
+        "voucher-amount-auto": "Calculated amount: {amount}"
       },
       "submit": {
         "expense": "Create Expense",

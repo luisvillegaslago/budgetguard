@@ -35,6 +35,7 @@ export type {
   TransactionType,
   TripStatus,
   VatRate,
+  VoucherStatus,
 } from '@/constants/finance';
 
 /**
@@ -102,6 +103,33 @@ export interface Transaction {
   invoiceNumber: string | null;
   companyId: number | null;
   fiscalDocumentId: number | null;
+  voucherId: number | null;
+  voucherUnits: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Voucher ("bono") — a prepaid balance consumed through linked expense transactions.
+ * Balance fields (consumed/remaining) come from vw_VoucherBalance, computed in SQL.
+ * Amounts are in cents; units (min/clases) are decimals.
+ */
+export interface Voucher {
+  voucherId: number;
+  categoryId: number;
+  categoryName: string | null;
+  categoryIcon: string | null;
+  categoryColor: string | null;
+  description: string | null;
+  totalAmountCents: number;
+  totalUnits: number | null;
+  unitLabel: string | null;
+  purchaseDate: string; // ISO date "2025-01-15"
+  expiryDate: string | null;
+  consumedCents: number;
+  remainingCents: number;
+  consumedUnits: number;
+  consumptionCount: number;
   createdAt: string;
   updatedAt: string;
 }

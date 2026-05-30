@@ -289,7 +289,8 @@
         "voucher": "¿Procede de un bono?",
         "voucher-none": "No, gasto normal",
         "voucher-locked-category": "categoría del bono",
-        "voucher-units": "Unidades consumidas ({label})"
+        "voucher-units": "Unidades consumidas ({label})",
+        "voucher-amount-auto": "Monto calculado: {amount}"
       },
       "submit": {
         "expense": "Crear Gasto",

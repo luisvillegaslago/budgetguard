@@ -18,6 +18,7 @@ DROP TRIGGER IF EXISTS "TR_Trips_UpdatedAt" ON "Trips";
 DROP TRIGGER IF EXISTS "TR_RecurringExpenses_UpdatedAt" ON "RecurringExpenses";
 DROP TRIGGER IF EXISTS "TR_SkydiveJumps_UpdatedAt" ON "SkydiveJumps";
 DROP TRIGGER IF EXISTS "TR_TunnelSessions_UpdatedAt" ON "TunnelSessions";
+DROP TRIGGER IF EXISTS "TR_Vouchers_UpdatedAt" ON "Vouchers";
 DROP TRIGGER IF EXISTS "TR_Companies_UpdatedAt" ON "Companies";
 DROP TRIGGER IF EXISTS "TR_UserBillingProfiles_UpdatedAt" ON "UserBillingProfiles";
 DROP TRIGGER IF EXISTS "TR_Invoices_UpdatedAt" ON "Invoices";
@@ -39,6 +40,7 @@ DROP FUNCTION IF EXISTS propagate_company_name_change();
 DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- Drop views
+DROP VIEW IF EXISTS "vw_VoucherBalance";
 DROP VIEW IF EXISTS "vw_JumpsByYear";
 DROP VIEW IF EXISTS "vw_JumpsByType";
 DROP VIEW IF EXISTS "vw_SkydivingStats";
@@ -68,6 +70,7 @@ DROP TABLE IF EXISTS "Sessions";
 DROP TABLE IF EXISTS "Accounts";
 DROP TABLE IF EXISTS "RecurringExpenseOccurrences";
 DROP TABLE IF EXISTS "Transactions";
+DROP TABLE IF EXISTS "Vouchers";
 DROP TABLE IF EXISTS "RecurringExpenses";
 DROP TABLE IF EXISTS "TransactionGroups";
 DROP TABLE IF EXISTS "Trips";
@@ -173,6 +176,8 @@ CREATE TABLE "Transactions" (
     "InvoiceNumber" VARCHAR(50) NULL,
     "Status" VARCHAR(15) NOT NULL DEFAULT 'paid'
         CHECK ("Status" IN ('paid', 'pending', 'cancelled')),
+    "VoucherID" INT NULL,
+    "VoucherUnits" NUMERIC(10,2) NULL,
     "CompanyID" INT NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -201,6 +206,7 @@ CREATE INDEX "IX_Transactions_InvoiceNumber" ON "Transactions"("InvoiceNumber")
 CREATE INDEX "IX_Transactions_UserID" ON "Transactions"("UserID");
 CREATE INDEX "IX_Transactions_CompanyID" ON "Transactions"("CompanyID");
 CREATE INDEX "IX_Transactions_Status" ON "Transactions"("Status");
+CREATE INDEX "IX_Transactions_VoucherID" ON "Transactions"("VoucherID");
 
 -- ============================================================
 -- RECURRING EXPENSES
@@ -327,6 +333,36 @@ CREATE TABLE "TunnelSessions" (
 CREATE UNIQUE INDEX "UQ_TunnelSessions_Dedup" ON "TunnelSessions"("SessionDate", "Location", "DurationSec", "UserID");
 CREATE INDEX "IX_TunnelSessions_UserID" ON "TunnelSessions"("UserID");
 CREATE INDEX "IX_TunnelSessions_SessionDate" ON "TunnelSessions"("SessionDate");
+
+-- ============================================================
+-- VOUCHERS (Prepaid passes / "bonos")
+-- ============================================================
+
+-- Prepaid voucher container. Buying a voucher does NOT create a transaction;
+-- consumption is recorded as normal expense transactions referencing VoucherID.
+-- Remaining balance is computed live in vw_VoucherBalance, so deleting/editing a
+-- linked consumption frees up the balance automatically (FK ON DELETE SET NULL).
+CREATE TABLE "Vouchers" (
+    "VoucherID" SERIAL PRIMARY KEY,
+    "CategoryID" INT NOT NULL REFERENCES "Categories"("CategoryID"),
+    "Description" VARCHAR(255) NULL,
+    "TotalAmountCents" INT NOT NULL,
+    "TotalUnits" NUMERIC(10,2) NULL,
+    "UnitLabel" VARCHAR(20) NULL,
+    "PurchaseDate" DATE NOT NULL,
+    "ExpiryDate" DATE NULL,
+    "UserID" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX "IX_Vouchers_UserID" ON "Vouchers"("UserID");
+CREATE INDEX "IX_Vouchers_CategoryID" ON "Vouchers"("CategoryID");
+
+-- Link Transactions → Vouchers (added after Vouchers exists)
+ALTER TABLE "Transactions"
+ADD CONSTRAINT "FK_Transactions_Voucher"
+    FOREIGN KEY ("VoucherID") REFERENCES "Vouchers"("VoucherID") ON DELETE SET NULL;
 
 -- ============================================================
 -- VIEWS (Pre-calculated aggregations)
@@ -481,6 +517,30 @@ SELECT
 FROM "SkydiveJumps"
 GROUP BY "UserID", EXTRACT(YEAR FROM "JumpDate")::INT;
 
+-- View: Voucher balance (user-scoped via Vouchers.UserID)
+-- Remaining = total - SUM(paid linked consumptions). ConsumedUnits sums VoucherUnits.
+CREATE VIEW "vw_VoucherBalance" AS
+SELECT
+    v."VoucherID",
+    v."UserID",
+    v."CategoryID",
+    v."Description",
+    v."TotalAmountCents",
+    v."TotalUnits",
+    v."UnitLabel",
+    v."PurchaseDate",
+    v."ExpiryDate",
+    v."CreatedAt",
+    v."UpdatedAt",
+    COALESCE(SUM(t."AmountCents"), 0) AS "ConsumedCents",
+    v."TotalAmountCents" - COALESCE(SUM(t."AmountCents"), 0) AS "RemainingCents",
+    COALESCE(SUM(t."VoucherUnits"), 0) AS "ConsumedUnits",
+    COUNT(t."TransactionID") AS "ConsumptionCount"
+FROM "Vouchers" v
+LEFT JOIN "Transactions" t
+    ON t."VoucherID" = v."VoucherID" AND t."Status" = 'paid'
+GROUP BY v."VoucherID";
+
 -- ============================================================
 -- USER AUTHENTICATION TABLES (NextAuth compatible)
 -- ============================================================
@@ -559,6 +619,8 @@ ALTER TABLE "SkydiveJumps" ADD CONSTRAINT "FK_SkydiveJumps_User"
     FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
 ALTER TABLE "TunnelSessions" ADD CONSTRAINT "FK_TunnelSessions_User"
     FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
+ALTER TABLE "Vouchers" ADD CONSTRAINT "FK_Vouchers_User"
+    FOREIGN KEY ("UserID") REFERENCES "Users"("UserID");
 
 CREATE INDEX "IX_TransactionGroups_UserID" ON "TransactionGroups"("UserID");
 CREATE INDEX "IX_Trips_UserID" ON "Trips"("UserID");
@@ -606,6 +668,10 @@ CREATE TRIGGER "TR_SkydiveJumps_UpdatedAt"
 
 CREATE TRIGGER "TR_TunnelSessions_UpdatedAt"
     BEFORE UPDATE ON "TunnelSessions"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER "TR_Vouchers_UpdatedAt"
+    BEFORE UPDATE ON "Vouchers"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER "TR_Companies_UpdatedAt"

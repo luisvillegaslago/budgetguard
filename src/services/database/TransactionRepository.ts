@@ -46,6 +46,8 @@ interface TransactionRow {
   Status: TransactionStatus;
   CompanyID: number | null;
   FiscalDocumentID: number | null;
+  VoucherID: number | null;
+  VoucherUnits: number | string | null;
   CreatedAt: Date | string;
   UpdatedAt: Date | string;
 }
@@ -128,6 +130,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
     invoiceNumber: row.InvoiceNumber,
     companyId: row.CompanyID,
     fiscalDocumentId: row.FiscalDocumentID ?? null,
+    voucherId: row.VoucherID ?? null,
+    voucherUnits: row.VoucherUnits != null ? Number(row.VoucherUnits) : null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -154,7 +158,7 @@ export async function getTransactionsByMonth(
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."Status", t."CompanyID",
+      t."Status", t."CompanyID", t."VoucherID", t."VoucherUnits",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
@@ -214,7 +218,7 @@ export async function getTransactionById(transactionId: number): Promise<Transac
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
       t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
-      t."Status", t."CompanyID",
+      t."Status", t."CompanyID", t."VoucherID", t."VoucherUnits",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
@@ -228,6 +232,39 @@ export async function getTransactionById(transactionId: number): Promise<Transac
 
   const row = rows[0];
   return row ? rowToTransaction(row) : null;
+}
+
+/**
+ * Get all consumptions (transactions) linked to a voucher, newest first (user-scoped)
+ */
+export async function getTransactionsByVoucherId(voucherId: number): Promise<Transaction[]> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<TransactionRow>(
+    `
+    SELECT
+      t."TransactionID", t."CategoryID", c."Name" AS "CategoryName",
+      c."Icon" AS "CategoryIcon", c."Color" AS "CategoryColor",
+      c."ParentCategoryID", parent."Name" AS "ParentCategoryName",
+      t."AmountCents", t."Description", t."TransactionDate",
+      t."Type", t."SharedDivisor", t."OriginalAmountCents",
+      t."RecurringExpenseID", t."TransactionGroupID",
+      t."TripID", trip."Name" AS "TripName",
+      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."Status", t."CompanyID", t."VoucherID", t."VoucherUnits",
+      (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
+      t."CreatedAt", t."UpdatedAt"
+    FROM "Transactions" t
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
+    WHERE t."VoucherID" = $1 AND t."UserID" = $2
+    ORDER BY t."TransactionDate" DESC, t."CreatedAt" DESC
+  `,
+    [voucherId, userId],
+  );
+
+  return rows.map(rowToTransaction);
 }
 
 /**
@@ -251,6 +288,8 @@ export async function createTransaction(data: {
   invoiceNumber?: string | null;
   companyId?: number | null;
   status?: TransactionStatus;
+  voucherId?: number | null;
+  voucherUnits?: number | null;
 }): Promise<Transaction> {
   const userId = await getUserIdOrThrow();
 
@@ -260,9 +299,10 @@ export async function createTransaction(data: {
       "CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
       "SharedDivisor", "OriginalAmountCents", "RecurringExpenseID",
       "TransactionGroupID", "TripID", "VatPercent", "DeductionPercent",
-      "VendorName", "InvoiceNumber", "CompanyID", "Status", "UserID"
+      "VendorName", "InvoiceNumber", "CompanyID", "Status", "VoucherID",
+      "VoucherUnits", "UserID"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     RETURNING "TransactionID"
   `,
     [
@@ -282,6 +322,8 @@ export async function createTransaction(data: {
       data.invoiceNumber ?? null,
       data.companyId ?? null,
       data.status ?? TRANSACTION_STATUS.PAID,
+      data.voucherId ?? null,
+      data.voucherUnits ?? null,
       userId,
     ],
   );
@@ -318,6 +360,8 @@ export async function updateTransaction(
     invoiceNumber: string | null;
     companyId: number | null;
     status: TransactionStatus;
+    voucherId: number | null;
+    voucherUnits: number | null;
   }>,
 ): Promise<Transaction | null> {
   const userId = await getUserIdOrThrow();
@@ -377,6 +421,14 @@ export async function updateTransaction(
   if (data.status !== undefined) {
     updates.push(`"Status" = $${paramIndex++}`);
     params.push(data.status);
+  }
+  if (data.voucherId !== undefined) {
+    updates.push(`"VoucherID" = $${paramIndex++}`);
+    params.push(data.voucherId);
+  }
+  if (data.voucherUnits !== undefined) {
+    updates.push(`"VoucherUnits" = $${paramIndex++}`);
+    params.push(data.voucherUnits);
   }
 
   if (updates.length === 0) {

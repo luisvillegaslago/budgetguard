@@ -42,6 +42,14 @@ export const SHARED_EXPENSE = {
   DEFAULT_DIVISOR: 1,
 } as const;
 
+// Voucher ("bono") derived status — computed from remaining balance, not stored
+export const VOUCHER_STATUS = {
+  ACTIVE: 'active',
+  DEPLETED: 'depleted',
+} as const;
+
+export type VoucherStatus = (typeof VOUCHER_STATUS)[keyof typeof VOUCHER_STATUS];
+
 // Balance Card Variants
 export const CARD_VARIANT = {
   INCOME: 'income',
@@ -102,6 +110,7 @@ export const QUERY_KEY = {
   TUNNEL_LOCATIONS: 'tunnel-locations',
   SKYDIVE_STATS: 'skydive-stats',
   SKYDIVE_CATEGORIES: 'skydive-categories',
+  VOUCHERS: 'vouchers',
   COMPANIES: 'companies',
   INVOICES: 'invoices',
   INVOICE_PREFIXES: 'invoice-prefixes',
@@ -115,6 +124,10 @@ export const QUERY_KEY = {
   CRYPTO_ASSETS: 'crypto-assets',
   CRYPTO_DISPOSALS: 'crypto-disposals',
   CRYPTO_MODELO: 'crypto-modelo',
+  CRYPTO_KLINES: 'crypto-klines',
+  CRYPTO_PAIRS: 'crypto-pairs',
+  CRYPTO_PAIR: 'crypto-pair',
+  CRYPTO_TICKER: 'crypto-ticker',
 } as const;
 
 // Cache Times (in milliseconds)
@@ -158,6 +171,7 @@ export const API_ENDPOINT = {
   TUNNEL_LOCATIONS: '/api/skydiving/tunnel/locations',
   SKYDIVE_STATS: '/api/skydiving/stats',
   SKYDIVE_CATEGORIES: '/api/skydiving/categories',
+  VOUCHERS: '/api/vouchers',
   COMPANIES: '/api/companies',
   INVOICES: '/api/invoices',
   INVOICE_PREFIXES: '/api/invoices/prefixes',
@@ -177,6 +191,9 @@ export const API_ENDPOINT = {
   CRYPTO_FISCAL_DISPOSALS: '/api/crypto/fiscal/disposals',
   CRYPTO_FISCAL_EXPORT: '/api/crypto/fiscal/export',
   CRYPTO_IMPORT_CSV: '/api/crypto/import/csv',
+  CRYPTO_KLINES: '/api/crypto/klines',
+  CRYPTO_PAIRS: '/api/crypto/pairs',
+  CRYPTO_TICKER: '/api/crypto/ticker',
 } as const;
 
 // Trip Status
@@ -443,6 +460,15 @@ export const CRYPTO_SYNC_MODE = {
 
 export type CryptoSyncMode = (typeof CRYPTO_SYNC_MODE)[keyof typeof CRYPTO_SYNC_MODE];
 
+// Candlestick (kline) intervals supported by the crypto price chart.
+export const KLINE_INTERVAL = {
+  ONE_HOUR: '1h',
+  FOUR_HOURS: '4h',
+  ONE_DAY: '1d',
+} as const;
+
+export type KlineInterval = (typeof KLINE_INTERVAL)[keyof typeof KLINE_INTERVAL];
+
 // Maximum window size (days) per Binance endpoint family.
 // Documented limits — going beyond these returns empty arrays or 400.
 export const BINANCE_WINDOW_DAYS = {
@@ -496,6 +522,7 @@ export const API_ERROR = {
     GROUP: 'api-error.not-found.group',
     JUMP: 'api-error.not-found.jump',
     TUNNEL_SESSION: 'api-error.not-found.tunnel-session',
+    VOUCHER: 'api-error.not-found.voucher',
     PREFIX: 'api-error.not-found.prefix',
     DOCUMENT: 'api-error.not-found.document',
     DOCUMENT_BLOB: 'api-error.not-found.document-blob',
@@ -556,6 +583,7 @@ export const API_ERROR = {
       TRIP_EXPENSE: 'api-error.mutation.create.trip-expense',
       JUMP: 'api-error.mutation.create.jump',
       TUNNEL_SESSION: 'api-error.mutation.create.tunnel-session',
+      VOUCHER: 'api-error.mutation.create.voucher',
       GROUP: 'api-error.mutation.create.group',
       CRYPTO_CREDENTIALS: 'api-error.mutation.create.crypto-credentials',
     },
@@ -571,6 +599,7 @@ export const API_ERROR = {
       TRIP_EXPENSE: 'api-error.mutation.update.trip-expense',
       JUMP: 'api-error.mutation.update.jump',
       TUNNEL_SESSION: 'api-error.mutation.update.tunnel-session',
+      VOUCHER: 'api-error.mutation.update.voucher',
       FISCAL_STATUS: 'api-error.mutation.update.fiscal-status',
       FISCAL_SETTINGS: 'api-error.mutation.update.fiscal-settings',
     },
@@ -585,6 +614,7 @@ export const API_ERROR = {
       TRIP_EXPENSE: 'api-error.mutation.delete.trip-expense',
       JUMP: 'api-error.mutation.delete.jump',
       TUNNEL_SESSION: 'api-error.mutation.delete.tunnel-session',
+      VOUCHER: 'api-error.mutation.delete.voucher',
       FISCAL_DOCUMENT: 'api-error.mutation.delete.fiscal-document',
       CRYPTO_CREDENTIALS: 'api-error.mutation.delete.crypto-credentials',
     },
@@ -639,6 +669,8 @@ export const VALIDATION_KEY = {
   AMOUNT_MISMATCH: 'validation.amount-mismatch',
   JUMP_NUMBER_POSITIVE: 'validation.jump-number-positive',
   DURATION_POSITIVE: 'validation.duration-positive',
+  VOUCHER_TOTAL_POSITIVE: 'validation.voucher-total-positive',
+  VOUCHER_UNITS_POSITIVE: 'validation.voucher-units-positive',
   MODELO_TYPE_MISMATCH: 'validation.modelo-type-mismatch',
   QUARTERLY_MISMATCH: 'validation.quarterly-mismatch',
   INVALID_MONTH_FORMAT: 'validation.invalid-month-format',

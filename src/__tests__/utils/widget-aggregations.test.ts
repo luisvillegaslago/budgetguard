@@ -29,6 +29,8 @@ function makeTx(overrides: Partial<Transaction>): Transaction {
     invoiceNumber: null,
     companyId: null,
     fiscalDocumentId: null,
+    voucherId: null,
+    voucherUnits: null,
     createdAt: '',
     updatedAt: '',
     ...overrides,

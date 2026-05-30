@@ -16,6 +16,7 @@ import { YtdBalanceCard } from '@/components/dashboard/charts/YtdBalanceCard';
 import { FiscalSummaryCard } from '@/components/dashboard/widgets/FiscalSummaryCard';
 import { FixedVsVariableCard } from '@/components/dashboard/widgets/FixedVsVariableCard';
 import { TopVendorsWidget } from '@/components/dashboard/widgets/TopVendorsWidget';
+import { VouchersWidget } from '@/components/dashboard/widgets/VouchersWidget';
 import { QuickExpenseActions } from '@/components/transactions/QuickExpenseActions';
 import { ActiveTripBanner } from '@/components/trips/ActiveTripBanner';
 import { TripExpenseForm } from '@/components/trips/TripExpenseForm';
@@ -103,6 +104,8 @@ export default function DashboardPage() {
           </div>
 
           <CategoryTrendsCard />
+
+          <VouchersWidget />
         </section>
       </div>
 

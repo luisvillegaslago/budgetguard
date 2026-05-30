@@ -17,6 +17,7 @@ import {
   Plus,
   Receipt,
   Repeat,
+  Ticket,
   Users,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -31,6 +32,7 @@ import { FILTER_TYPE, SHARED_EXPENSE, STATUS_FILTER, TRANSACTION_STATUS, TRANSAC
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useDeleteTransaction, useGroupedTransactions, useUpdateTransactionStatus } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
+import { useVouchers } from '@/hooks/useVouchers';
 import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinanceStore';
 import type { StatusFilter, Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -46,9 +48,18 @@ interface TransactionRowProps {
   onMarkAsPaid?: (id: number) => void;
   isDeleting: boolean;
   index: number;
+  voucherName?: string | null;
 }
 
-function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeleting, index }: TransactionRowProps) {
+function TransactionRow({
+  transaction,
+  onDelete,
+  onEdit,
+  onMarkAsPaid,
+  isDeleting,
+  index,
+  voucherName,
+}: TransactionRowProps) {
   const { t } = useTranslate();
   const isIncome = transaction.type === TRANSACTION_TYPE.INCOME;
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
@@ -112,6 +123,15 @@ function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeletin
               <>
                 <span className="flex-shrink-0">·</span>
                 <span className="truncate">{transaction.description}</span>
+              </>
+            )}
+            {voucherName && (
+              <>
+                <span className="flex-shrink-0">·</span>
+                <span className="flex items-center gap-0.5 flex-shrink-0 text-guard-primary">
+                  <Ticket className="h-3 w-3" aria-hidden="true" />
+                  <span className="truncate">{voucherName}</span>
+                </span>
               </>
             )}
           </div>
@@ -217,6 +237,12 @@ function TransactionRow({ transaction, onDelete, onEdit, onMarkAsPaid, isDeletin
               {transaction.description}
             </span>
           )}
+          {voucherName && (
+            <span className="flex items-center gap-0.5 flex-shrink-0 text-xs text-guard-primary min-w-0">
+              <Ticket className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              <span className="truncate">{voucherName}</span>
+            </span>
+          )}
           <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
             {isPending && (
               <Tooltip content={t('transaction-status.pending')}>
@@ -319,11 +345,21 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
   const filters = useFilters();
   const setFilters = useSetFilters();
   const { isLoading, isError, refetch, grouped } = useGroupedTransactions(selectedMonth);
+  const { data: vouchers } = useVouchers();
   const deleteTransaction = useDeleteTransaction();
   const deleteGroup = useDeleteTransactionGroup();
   const updateStatus = useUpdateTransactionStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [editingGroup, setEditingGroup] = useState<TransactionGroupDisplay | null>(null);
+
+  // Map voucherId → display name so consumptions can show which voucher they draw from
+  const voucherNames = useMemo(() => {
+    const map = new Map<number, string>();
+    (vouchers ?? []).forEach((v) => {
+      map.set(v.voucherId, v.description || v.categoryName || t('vouchers.untitled'));
+    });
+    return map;
+  }, [vouchers, t]);
 
   const handleDelete = (id: number) => {
     deleteTransaction.mutate(id);
@@ -543,6 +579,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
                 onMarkAsPaid={handleMarkAsPaid}
                 isDeleting={deleteTransaction.isPending}
                 index={index}
+                voucherName={item.data.voucherId != null ? (voucherNames.get(item.data.voucherId) ?? null) : null}
               />
             </li>
           );

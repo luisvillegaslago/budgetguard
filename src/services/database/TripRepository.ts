@@ -128,6 +128,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
     invoiceNumber: null,
     companyId: null,
     fiscalDocumentId: null,
+    voucherId: null,
+    voucherUnits: null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
