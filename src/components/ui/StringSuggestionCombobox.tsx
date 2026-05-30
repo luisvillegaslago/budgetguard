@@ -27,6 +27,9 @@ interface StringSuggestionComboboxProps {
   searchPlaceholder?: string;
   disabled?: boolean;
   id?: string;
+  // When false, typing a value not in `suggestions` won't offer to add it.
+  // Use for filter-style comboboxes that must stay within the known set.
+  allowCreate?: boolean;
 }
 
 export function StringSuggestionCombobox({
@@ -37,6 +40,7 @@ export function StringSuggestionCombobox({
   searchPlaceholder,
   disabled,
   id,
+  allowCreate = true,
 }: StringSuggestionComboboxProps) {
   const { t } = useTranslate();
   const [isOpen, setIsOpen] = useState(false);
@@ -53,7 +57,9 @@ export function StringSuggestionCombobox({
 
   const trimmedSearch = search.trim();
   const showCreateOption =
-    trimmedSearch.length > 0 && !suggestions.some((s) => s.toLowerCase() === trimmedSearch.toLowerCase());
+    allowCreate &&
+    trimmedSearch.length > 0 &&
+    !suggestions.some((s) => s.toLowerCase() === trimmedSearch.toLowerCase());
 
   // Close on outside click
   useEffect(() => {

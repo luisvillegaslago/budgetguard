@@ -190,6 +190,7 @@ export interface EventsFilters {
   type?: CryptoEventType;
   from?: string;
   to?: string;
+  asset?: string;
   page?: number;
 }
 
@@ -198,6 +199,7 @@ async function fetchEvents(filters: EventsFilters): Promise<RawEventsPage> {
   if (filters.type) params.set('type', filters.type);
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
+  if (filters.asset) params.set('asset', filters.asset);
   if (filters.page) params.set('page', String(filters.page));
 
   const url = params.toString() ? `${API_ENDPOINT.CRYPTO_EVENTS}?${params}` : API_ENDPOINT.CRYPTO_EVENTS;
@@ -211,5 +213,25 @@ export function useCryptoEvents(filters: EventsFilters) {
     queryKey: [QUERY_KEY.CRYPTO_EVENTS, filters],
     queryFn: () => fetchEvents(filters),
     staleTime: CACHE_TIME.ONE_MINUTE,
+  });
+}
+
+// ============================================================
+// Available assets query (for the movements asset filter)
+// ============================================================
+
+async function fetchAssets(): Promise<string[]> {
+  const response = await fetchApi(API_ENDPOINT.CRYPTO_ASSETS);
+  if (!response.ok) throw new Error('Error loading crypto assets');
+  const data: ApiResponse<string[]> = await response.json();
+  if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
+  return data.data;
+}
+
+export function useCryptoAssets() {
+  return useQuery({
+    queryKey: [QUERY_KEY.CRYPTO_ASSETS],
+    queryFn: fetchAssets,
+    staleTime: CACHE_TIME.FIVE_MINUTES,
   });
 }

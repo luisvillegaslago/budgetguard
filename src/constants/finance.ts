@@ -112,6 +112,7 @@ export const QUERY_KEY = {
   CRYPTO_CREDENTIALS: 'crypto-credentials',
   CRYPTO_SYNC_STATUS: 'crypto-sync-status',
   CRYPTO_EVENTS: 'crypto-events',
+  CRYPTO_ASSETS: 'crypto-assets',
   CRYPTO_DISPOSALS: 'crypto-disposals',
   CRYPTO_MODELO: 'crypto-modelo',
 } as const;
@@ -168,6 +169,7 @@ export const API_ENDPOINT = {
   CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
   CRYPTO_SYNC: '/api/crypto/sync',
   CRYPTO_EVENTS: '/api/crypto/events',
+  CRYPTO_ASSETS: '/api/crypto/assets',
   CRYPTO_TAXABLE_EVENTS: '/api/crypto/taxable-events',
   CRYPTO_NORMALIZE: '/api/crypto/normalize',
   CRYPTO_FISCAL_MODELO: '/api/crypto/fiscal/modelo100',

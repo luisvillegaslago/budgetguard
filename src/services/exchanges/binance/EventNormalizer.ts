@@ -28,6 +28,7 @@ import {
   type CryptoEventType,
   type CryptoTaxableKind,
 } from '@/constants/finance';
+import { splitSymbol } from '@/utils/cryptoSymbol';
 
 // ============================================================
 // Types
@@ -93,34 +94,8 @@ function contraprestacionFor(counterAsset: string | undefined): CryptoContrapres
  *
  * Symbol parsing: Binance returns the symbol as a concatenation
  * (`BTCUSDT`, `BNBBTC`). We rely on a fixed list of well-known quote suffixes
- * to split the base/quote unambiguously.
+ * to split the base/quote unambiguously (see `@/utils/cryptoSymbol`).
  */
-const QUOTE_SUFFIXES = [
-  'USDT',
-  'BUSD',
-  'USDC',
-  'FDUSD',
-  'BTC',
-  'ETH',
-  'BNB',
-  'EUR',
-  'TRY',
-  'GBP',
-  'AUD',
-  'BRL',
-  'TUSD',
-  'DAI',
-];
-
-function splitSymbol(symbol: string): { base: string; quote: string } | null {
-  for (const quote of QUOTE_SUFFIXES) {
-    if (symbol.endsWith(quote) && symbol.length > quote.length) {
-      return { base: symbol.slice(0, symbol.length - quote.length), quote };
-    }
-  }
-  return null;
-}
-
 export function normalizeSpotTrade(ctx: NormaliserContext): NormalisedLeg[] {
   const p = ctx.rawPayload;
   const symbol = String(p.symbol ?? '');

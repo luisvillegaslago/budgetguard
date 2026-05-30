@@ -1116,14 +1116,55 @@
       "error-details": "Technical details"
     },
     "events": {
-      "title": "Imported events",
+      "title": "Movements",
       "filter-all": "All types",
+      "filter-asset-all": "All coins",
+      "filter-asset-search": "Search coin…",
+      "avg-price": "Avg. price: {price}",
+      "fills": "{count} fills",
       "empty": "No events synced yet.",
       "col": {
         "date": "Date",
-        "type": "Type",
+        "type": "Event type",
+        "concept": "Concept",
+        "amount": "Amount",
         "external-id": "External ID",
-        "payload": "Details"
+        "payload": "Raw data"
+      },
+      "concept": {
+        "buy": "Buy",
+        "sell": "Sell",
+        "convert": "Convert",
+        "dust": "Small balance conversion",
+        "earn_flex": "Flexible Earn reward",
+        "earn_locked": "Locked Earn reward",
+        "eth_staking": "ETH staking reward",
+        "staking_interest": "Staking interest",
+        "dividend": "Distribution / Airdrop",
+        "deposit": "Deposit",
+        "withdraw": "Withdrawal",
+        "fiat-deposit": "Cash deposit",
+        "fiat-withdraw": "Cash withdrawal",
+        "card-buy": "Card purchase",
+        "p2p-buy": "P2P buy",
+        "p2p-sell": "P2P sell",
+        "other": "Movement"
+      },
+      "type": {
+        "spot_trade": "Spot trade",
+        "convert": "Convert",
+        "earn_flex": "Flexible Earn",
+        "earn_locked": "Locked Earn",
+        "eth_staking": "ETH staking",
+        "staking_interest": "Staking interest",
+        "dividend": "Distribution / Airdrop",
+        "deposit": "Deposit",
+        "withdraw": "Withdrawal",
+        "fiat_order": "Fiat order",
+        "fiat_payment": "Card payment",
+        "dust": "Small balances (dust)",
+        "c2c": "P2P",
+        "csv_import": "CSV import"
       }
     },
     "csv": {

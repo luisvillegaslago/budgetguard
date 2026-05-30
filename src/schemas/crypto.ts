@@ -42,6 +42,14 @@ export const ListEventsQuerySchema = z.object({
   type: z.enum(EVENT_TYPE_VALUES).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  // Asset/coin code to filter by (alphanumeric, e.g. BTC, USDC). Bounded to
+  // keep the LIKE-based symbol match cheap and safe.
+  asset: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]+$/)
+    .max(20)
+    .optional(),
   page: z.coerce.number().int().positive().default(1),
 });
 

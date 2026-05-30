@@ -1116,14 +1116,55 @@
       "error-details": "Detalles técnicos"
     },
     "events": {
-      "title": "Eventos importados",
+      "title": "Movimientos",
       "filter-all": "Todos los tipos",
+      "filter-asset-all": "Todas las monedas",
+      "filter-asset-search": "Buscar moneda…",
+      "avg-price": "Precio medio: {price}",
+      "fills": "{count} ejecuciones",
       "empty": "No hay eventos sincronizados todavía.",
       "col": {
         "date": "Fecha",
-        "type": "Tipo",
+        "type": "Tipo de evento",
+        "concept": "Concepto",
+        "amount": "Importe",
         "external-id": "ID externo",
-        "payload": "Detalles"
+        "payload": "Datos sin procesar"
+      },
+      "concept": {
+        "buy": "Compra",
+        "sell": "Venta",
+        "convert": "Conversión",
+        "dust": "Conversión de saldos pequeños",
+        "earn_flex": "Recompensa Earn flexible",
+        "earn_locked": "Recompensa Earn bloqueado",
+        "eth_staking": "Recompensa ETH staking",
+        "staking_interest": "Interés de staking",
+        "dividend": "Distribución / Airdrop",
+        "deposit": "Depósito",
+        "withdraw": "Retiro",
+        "fiat-deposit": "Ingreso de dinero",
+        "fiat-withdraw": "Retiro de dinero",
+        "card-buy": "Compra con tarjeta",
+        "p2p-buy": "Compra P2P",
+        "p2p-sell": "Venta P2P",
+        "other": "Movimiento"
+      },
+      "type": {
+        "spot_trade": "Operación spot",
+        "convert": "Conversión",
+        "earn_flex": "Earn flexible",
+        "earn_locked": "Earn bloqueado",
+        "eth_staking": "ETH staking",
+        "staking_interest": "Interés de staking",
+        "dividend": "Distribución / Airdrop",
+        "deposit": "Depósito",
+        "withdraw": "Retiro",
+        "fiat_order": "Orden fiat",
+        "fiat_payment": "Pago con tarjeta",
+        "dust": "Saldos pequeños (dust)",
+        "c2c": "P2P",
+        "csv_import": "Importado de CSV"
       }
     },
     "csv": {

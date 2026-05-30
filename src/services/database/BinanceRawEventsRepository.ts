@@ -8,6 +8,7 @@
 
 import { type CryptoEventType } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
+import { splitSymbol } from '@/utils/cryptoSymbol';
 import { query } from './connection';
 
 interface RawEventRow {
@@ -103,13 +104,23 @@ export async function bulkInsertRawEventsForUser(
 }
 
 /**
- * Page of raw events for the authenticated user, optionally filtered by
- * EventType. Used by the /crypto/movimientos table in Phase 2.
+ * Page of events for the authenticated user, optionally filtered by EventType,
+ * date range and asset. Used by the /crypto movements table.
+ *
+ * Spot trades are collapsed into one logical row per Binance order (grouped by
+ * symbol + orderId + side) so the user sees "Buy 0.03958 BTC @ avg price"
+ * instead of one row per partial fill. Grouping happens in SQL so pagination
+ * and the total count stay correct across pages. Rows without an orderId fall
+ * back to grouping by their own EventID, i.e. they stay ungrouped.
+ *
+ * The asset filter matches the coin across every payload shape (spot symbol
+ * prefix/suffix, .asset, .coin, convert from/to, dust detail, card purchase).
  */
 export async function listRawEvents(filters: {
   eventType?: CryptoEventType;
   from?: Date;
   to?: Date;
+  asset?: string;
   limit: number;
   offset: number;
 }): Promise<{ events: BinanceRawEvent[]; total: number }> {
@@ -133,26 +144,134 @@ export async function listRawEvents(filters: {
     params.push(filters.to.toISOString());
     paramIdx++;
   }
+  if (filters.asset) {
+    const a = `$${paramIdx}`;
+    conditions.push(
+      `(("EventType" = 'spot_trade' AND ("RawPayload"->>'symbol' LIKE ${a} || '%' OR "RawPayload"->>'symbol' LIKE '%' || ${a}))
+        OR "RawPayload"->>'asset' = ${a}
+        OR "RawPayload"->>'coin' = ${a}
+        OR "RawPayload"->>'fromAsset' = ${a}
+        OR "RawPayload"->>'toAsset' = ${a}
+        OR "RawPayload"->>'cryptoCurrency' = ${a}
+        OR "RawPayload"->'detail'->>'fromAsset' = ${a}
+        OR "RawPayload"->'detail'->>'targetAsset' = ${a})`,
+    );
+    params.push(filters.asset);
+    paramIdx++;
+  }
 
   const where = conditions.join(' AND ');
 
+  // CTE shared by the data and count queries: spot fills collapsed per order,
+  // every other event passed through unchanged, then merged into one stream.
+  const cte = `
+    WITH base AS (
+      SELECT "EventID", "UserID", "EventType", "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
+      FROM "BinanceRawEvents"
+      WHERE ${where}
+    ),
+    spot_grouped AS (
+      SELECT
+        MIN("EventID"::bigint)::text AS "EventID",
+        MIN("UserID") AS "UserID",
+        'spot_trade'::text AS "EventType",
+        (MAX("RawPayload"->>'symbol') || '-' || COALESCE(MAX("RawPayload"->>'orderId'), '')) AS "ExternalID",
+        MAX("OccurredAt") AS "OccurredAt",
+        jsonb_build_object(
+          'symbol', MAX("RawPayload"->>'symbol'),
+          'orderId', MAX("RawPayload"->>'orderId'),
+          'isBuyer', bool_or(("RawPayload"->>'isBuyer')::boolean),
+          'qty', SUM(("RawPayload"->>'qty')::numeric)::text,
+          'quoteQty', SUM(("RawPayload"->>'quoteQty')::numeric)::text,
+          'fills', COUNT(*)
+        ) AS "RawPayload",
+        MAX("IngestedAt") AS "IngestedAt",
+        NULL::int AS "JobID"
+      FROM base
+      WHERE "EventType" = 'spot_trade'
+      GROUP BY
+        "RawPayload"->>'symbol',
+        COALESCE("RawPayload"->>'orderId', "EventID"::text),
+        ("RawPayload"->>'isBuyer')::boolean
+    ),
+    others AS (
+      SELECT "EventID"::text AS "EventID", "UserID", "EventType"::text AS "EventType",
+             "ExternalID"::text AS "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
+      FROM base
+      WHERE "EventType" <> 'spot_trade'
+    ),
+    unioned AS (
+      SELECT * FROM spot_grouped
+      UNION ALL
+      SELECT * FROM others
+    )`;
+
   const [eventRows, countRows] = await Promise.all([
     query<RawEventRow>(
-      `SELECT "EventID"::text, "UserID", "EventType", "ExternalID", "OccurredAt",
-              "RawPayload", "IngestedAt", "JobID"
-       FROM "BinanceRawEvents"
-       WHERE ${where}
+      `${cte}
+       SELECT "EventID", "UserID", "EventType", "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
+       FROM unioned
        ORDER BY "OccurredAt" DESC
        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
       [...params, filters.limit, filters.offset],
     ),
-    query<{ total: number }>(`SELECT COUNT(*)::int AS total FROM "BinanceRawEvents" WHERE ${where}`, params),
+    query<{ total: number }>(`${cte} SELECT COUNT(*)::int AS total FROM unioned`, params),
   ]);
 
   return {
     events: eventRows.map(rowToEvent),
     total: countRows[0]?.total ?? 0,
   };
+}
+
+/**
+ * Distinct list of coins the user has interacted with, for the movements asset
+ * filter. Combines direct asset/coin fields (via SQL) with the base/quote
+ * assets parsed out of spot-trade symbols (via `splitSymbol`), deduped and
+ * sorted alphabetically.
+ */
+export async function listUserAssets(): Promise<string[]> {
+  const userId = await getUserIdOrThrow();
+  const rows = await query<{ kind: 'asset' | 'symbol'; value: string | null }>(
+    `SELECT DISTINCT 'asset' AS kind, val AS value FROM (
+       SELECT "RawPayload"->>'asset' AS val FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" IN ('dividend','earn_flex','earn_locked','staking_interest','eth_staking')
+       UNION ALL SELECT "RawPayload"->>'coin' FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" IN ('deposit','withdraw')
+       UNION ALL SELECT "RawPayload"->'detail'->>'fromAsset' FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" = 'dust'
+       UNION ALL SELECT "RawPayload"->'detail'->>'targetAsset' FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" = 'dust'
+       UNION ALL SELECT "RawPayload"->>'fromAsset' FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" = 'convert'
+       UNION ALL SELECT "RawPayload"->>'toAsset' FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" = 'convert'
+       UNION ALL SELECT "RawPayload"->>'cryptoCurrency' FROM "BinanceRawEvents"
+         WHERE "UserID" = $1 AND "EventType" = 'fiat_payment'
+     ) direct
+     UNION
+     SELECT DISTINCT 'symbol' AS kind, "RawPayload"->>'symbol' AS value
+       FROM "BinanceRawEvents" WHERE "UserID" = $1 AND "EventType" = 'spot_trade'`,
+    [userId],
+  );
+
+  const assets = new Set<string>();
+  rows.forEach((row) => {
+    if (!row.value) return;
+    if (row.kind === 'symbol') {
+      const split = splitSymbol(row.value);
+      if (split) {
+        assets.add(split.base);
+        assets.add(split.quote);
+      } else {
+        assets.add(row.value);
+      }
+    } else {
+      assets.add(row.value);
+    }
+  });
+
+  return Array.from(assets).sort((a, b) => a.localeCompare(b));
 }
 
 /**

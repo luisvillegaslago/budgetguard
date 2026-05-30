@@ -1,9 +1,10 @@
 /**
  * GET /api/crypto/events
  *
- * Paginated list of raw Binance events for the authenticated user. Optional
- * filters: ?type, ?from, ?to, ?page. Page size is fixed at 20 to match the
- * UI table convention (PAGE_SIZE in src/components/skydiving/JumpLogTable).
+ * Paginated list of Binance movements for the authenticated user. Optional
+ * filters: ?type, ?from, ?to, ?asset, ?page. Spot trades are collapsed per
+ * order in the repository. Page size is fixed at 20 to match the UI table
+ * convention (PAGE_SIZE in src/components/skydiving/JumpLogTable).
  */
 
 import { ListEventsQuerySchema } from '@/schemas/crypto';
@@ -23,7 +24,7 @@ export const GET = withApiHandler(async (request) => {
   const validation = validateRequest(ListEventsQuerySchema, queryObj);
   if (!validation.success) return validationError(validation.errors);
 
-  const { type, from, to } = validation.data;
+  const { type, from, to, asset } = validation.data;
   const page = validation.data.page ?? 1;
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -31,6 +32,7 @@ export const GET = withApiHandler(async (request) => {
     eventType: type,
     from,
     to,
+    asset,
     limit: PAGE_SIZE,
     offset,
   });
