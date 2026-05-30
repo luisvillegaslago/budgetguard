@@ -8,7 +8,14 @@
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import { FILTER_TYPE, type FilterType, STATUS_FILTER, type StatusFilter } from '@/constants/finance';
+import {
+  FILTER_TYPE,
+  type FilterType,
+  STATUS_FILTER,
+  type StatusFilter,
+  TREND_PERIOD,
+  type TrendPeriod,
+} from '@/constants/finance';
 import { useIsLargeScreen } from '@/hooks/useMediaQuery';
 import { addMonths, getCurrentMonth } from '@/utils/helpers';
 
@@ -36,8 +43,12 @@ interface FinanceUIState {
   // Movements page preferences
   groupByMonth: boolean;
 
+  // Dashboard trend charts period (cash-flow + cumulative)
+  trendPeriod: TrendPeriod;
+
   // Actions
   setSelectedMonth: (month: string) => void;
+  setTrendPeriod: (period: TrendPeriod) => void;
   goToPreviousMonth: () => void;
   goToNextMonth: () => void;
   goToCurrentMonth: () => void;
@@ -70,8 +81,10 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   isFiscalPanelCollapsed: true,
   isSidebarOpen: false,
   groupByMonth: getStoredBoolean('bg-group-by-month', true),
+  trendPeriod: TREND_PERIOD.ONE_YEAR,
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
+  setTrendPeriod: (period) => set({ trendPeriod: period }),
 
   goToPreviousMonth: () => {
     const current = get().selectedMonth;
@@ -165,3 +178,6 @@ export const useSidebarExpanded = () => {
 
 export const useGroupByMonth = () => useFinanceStore((s) => s.groupByMonth);
 export const useToggleGroupByMonth = () => useFinanceStore((s) => s.toggleGroupByMonth);
+
+export const useTrendPeriod = () => useFinanceStore((s) => s.trendPeriod);
+export const useSetTrendPeriod = () => useFinanceStore((s) => s.setTrendPeriod);

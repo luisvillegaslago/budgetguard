@@ -106,6 +106,21 @@ export function addMonths(month: string, offset: number): string {
 }
 
 /**
+ * Format a month string (YYYY-MM) as a short month label for chart axes.
+ * @param month - Month string in YYYY-MM format
+ * @param locale - BCP 47 locale (default 'es-ES')
+ * @returns Localized short month label (e.g. "ene")
+ */
+export function formatMonthShort(month: string, locale = 'es-ES'): string {
+  const [year, monthNum] = month.split('-').map(Number);
+  if (!year || !monthNum) return month;
+
+  // Use Date.UTC to avoid local timezone shifting the month.
+  const date = new Date(Date.UTC(year, monthNum - 1, 1));
+  return new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(date);
+}
+
+/**
  * Convert a Date or string to a date-only string (YYYY-MM-DD).
  * Uses local time methods to avoid UTC timezone shift that causes
  * off-by-one errors when the pg driver returns DATE columns as Date objects.

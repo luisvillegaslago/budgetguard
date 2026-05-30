@@ -2,27 +2,77 @@
 
 /**
  * BudgetGuard Balance Cards
- * Three cards showing Income, Expenses, and Net Balance
- * Clicking Income or Expense cards toggles type filter on TransactionList
+ * KPI cards: Income, Expenses, Net Balance — each with month-over-month delta —
+ * plus Savings Rate and Average Daily Spend.
+ * Clicking Income or Expense opens a popup with that type's transactions for the month.
  */
 
-import { AlertCircle, ArrowDownLeft, ArrowUpRight, RefreshCw, Scale } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarDays,
+  PiggyBank,
+  RefreshCw,
+  Scale,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
+import { useState } from 'react';
 import { SUMMARY_COLORS, SummaryCard, SummaryCardSkeleton } from '@/components/ui/SummaryCard';
-import { FILTER_TYPE, type FilterType } from '@/constants/finance';
+import { TRANSACTION_TYPE, type TransactionType } from '@/constants/finance';
 import { useFormattedSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinanceStore';
+import { useSelectedMonth } from '@/stores/useFinanceStore';
+import { addMonths, getMonthDateRange } from '@/utils/helpers';
+import { formatCurrency } from '@/utils/money';
+import { TypeTransactionsModal } from './charts/TypeTransactionsModal';
+
+/**
+ * Percentage change relative to the previous value.
+ * Returns null when there is no comparable previous value (avoids divide-by-zero).
+ */
+function pctChange(current: number, previous: number): number | null {
+  if (previous === 0) return null;
+  return Math.round(((current - previous) / Math.abs(previous)) * 100);
+}
+
+interface DeltaBadgeProps {
+  change: number | null;
+  favorableWhenUp: boolean;
+  noDataLabel: string;
+  suffix: string;
+}
+
+function DeltaBadge({ change, favorableWhenUp, noDataLabel, suffix }: DeltaBadgeProps) {
+  if (change === null) {
+    return <span className="text-xs text-guard-muted">{noDataLabel}</span>;
+  }
+
+  const isUp = change > 0;
+  const isFlat = change === 0;
+  const isFavorable = isFlat || (isUp ? favorableWhenUp : !favorableWhenUp);
+  const Icon = isUp ? TrendingUp : TrendingDown;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium ${
+        isFlat ? 'text-guard-muted' : isFavorable ? 'text-guard-success' : 'text-guard-danger'
+      }`}
+    >
+      {!isFlat && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+      {isUp ? '+' : ''}
+      {change}% {suffix}
+    </span>
+  );
+}
 
 export function BalanceCards() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
-  const filters = useFilters();
-  const setFilters = useSetFilters();
   const { formatted, isLoading, isError, refetch } = useFormattedSummary(selectedMonth);
-
-  const handleFilterToggle = (type: FilterType) => {
-    setFilters({ type: filters.type === type ? FILTER_TYPE.ALL : type });
-  };
+  const { formatted: previous } = useFormattedSummary(addMonths(selectedMonth, -1));
+  const [modalType, setModalType] = useState<TransactionType | null>(null);
 
   if (isLoading) {
     return (
@@ -47,19 +97,38 @@ export function BalanceCards() {
     );
   }
 
-  const isBalancePositive = (formatted?.balanceValue ?? 0) >= 0;
+  const incomeValue = formatted?.incomeValue ?? 0;
+  const expenseValue = formatted?.expenseValue ?? 0;
+  const balanceValue = formatted?.balanceValue ?? 0;
+  const isBalancePositive = balanceValue >= 0;
   const defaultCurrency = t('dashboard.default-currency');
+  const vsPrev = t('dashboard.kpi.vs-previous-month');
+  const noPrev = t('dashboard.kpi.no-previous-data');
+
+  // Savings rate: share of income kept as balance.
+  const savingsRate = incomeValue > 0 ? Math.round((balanceValue / incomeValue) * 100) : null;
+
+  // Average daily spend across the calendar days of the selected month.
+  const daysInMonth = getMonthDateRange(selectedMonth).end.getDate();
+  const dailyAverageCents = Math.round((expenseValue * 100) / daysInMonth);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
       <SummaryCard
         title={t('dashboard.balance-cards.income')}
         value={formatted?.income ?? defaultCurrency}
         icon={<ArrowDownLeft className="h-5 w-5" aria-hidden="true" />}
         colors={SUMMARY_COLORS.success}
         staggerClass="stagger-1"
-        isActive={filters.type === FILTER_TYPE.INCOME}
-        onClick={() => handleFilterToggle(FILTER_TYPE.INCOME)}
+        onClick={() => setModalType(TRANSACTION_TYPE.INCOME)}
+        footer={
+          <DeltaBadge
+            change={pctChange(incomeValue, previous?.incomeValue ?? 0)}
+            favorableWhenUp
+            noDataLabel={noPrev}
+            suffix={vsPrev}
+          />
+        }
       />
 
       <SummaryCard
@@ -68,8 +137,15 @@ export function BalanceCards() {
         icon={<ArrowUpRight className="h-5 w-5" aria-hidden="true" />}
         colors={SUMMARY_COLORS.danger}
         staggerClass="stagger-2"
-        isActive={filters.type === FILTER_TYPE.EXPENSE}
-        onClick={() => handleFilterToggle(FILTER_TYPE.EXPENSE)}
+        onClick={() => setModalType(TRANSACTION_TYPE.EXPENSE)}
+        footer={
+          <DeltaBadge
+            change={pctChange(expenseValue, previous?.expenseValue ?? 0)}
+            favorableWhenUp={false}
+            noDataLabel={noPrev}
+            suffix={vsPrev}
+          />
+        }
       />
 
       <SummaryCard
@@ -78,7 +154,33 @@ export function BalanceCards() {
         icon={<Scale className="h-5 w-5" aria-hidden="true" />}
         colors={isBalancePositive ? SUMMARY_COLORS.success : SUMMARY_COLORS.danger}
         staggerClass="stagger-3"
+        footer={
+          <DeltaBadge
+            change={pctChange(balanceValue, previous?.balanceValue ?? 0)}
+            favorableWhenUp
+            noDataLabel={noPrev}
+            suffix={vsPrev}
+          />
+        }
       />
+
+      <SummaryCard
+        title={t('dashboard.kpi.savings-rate')}
+        value={savingsRate === null ? '—' : `${savingsRate}%`}
+        icon={<PiggyBank className="h-5 w-5" aria-hidden="true" />}
+        colors={SUMMARY_COLORS.violet}
+        staggerClass="stagger-1"
+      />
+
+      <SummaryCard
+        title={t('dashboard.kpi.daily-average')}
+        value={formatCurrency(dailyAverageCents)}
+        icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
+        colors={SUMMARY_COLORS.amber}
+        staggerClass="stagger-2"
+      />
+
+      {modalType && <TypeTransactionsModal type={modalType} month={selectedMonth} onClose={() => setModalType(null)} />}
     </div>
   );
 }

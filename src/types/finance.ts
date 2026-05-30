@@ -282,6 +282,68 @@ export interface FormattedSummary {
 }
 
 /**
+ * Single month data point for trend charts (cents - for internal use)
+ */
+export interface MonthlyTrendPoint {
+  month: string; // "2025-01"
+  incomeCents: number;
+  expenseCents: number;
+  balanceCents: number;
+}
+
+/**
+ * Multi-month income/expense/balance trends (cents - for internal use)
+ */
+export interface MonthlySummaryTrends {
+  fromMonth: string; // "2024-06"
+  toMonth: string; // "2025-05"
+  points: MonthlyTrendPoint[];
+}
+
+/**
+ * Formatted single month data point for trend charts (UI display)
+ */
+export interface FormattedTrendPoint {
+  month: string; // "2025-01"
+  income: string; // Formatted: "447,70 €"
+  incomeValue: number; // Euros: 447.70
+  expense: string;
+  expenseValue: number;
+  balance: string;
+  balanceValue: number;
+  cumulativeBalanceValue: number; // Running sum of balanceValue across the range
+}
+
+/**
+ * Formatted multi-month trends (UI display)
+ */
+export interface FormattedMonthlySummaryTrends {
+  fromMonth: string;
+  toMonth: string;
+  points: FormattedTrendPoint[];
+}
+
+/**
+ * Per-month expense total for a single category (cents - for internal use)
+ */
+export interface CategoryTrendRow {
+  month: string; // "2025-01"
+  categoryId: number;
+  categoryName: string;
+  categoryColor: string | null;
+  totalCents: number;
+}
+
+/**
+ * Expense-by-category trends across a month range (cents - for internal use)
+ */
+export interface CategoryTrends {
+  fromMonth: string;
+  toMonth: string;
+  rows: CategoryTrendRow[];
+}
+
+/**
  * Transaction input from forms (user enters euros, not cents)
  */
 export interface TransactionInput {

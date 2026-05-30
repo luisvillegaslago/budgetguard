@@ -3,18 +3,22 @@
  * Database operations for transactions (PostgreSQL, user-scoped)
  */
 
-import { TRANSACTION_STATUS } from '@/constants/finance';
+import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   CategoryHistorySummary,
   CategorySummary,
+  CategoryTrendRow,
+  CategoryTrends,
   MonthlySummary,
+  MonthlySummaryTrends,
+  MonthlyTrendPoint,
   SubcategorySummary,
   Transaction,
   TransactionStatus,
   TransactionType,
 } from '@/types/finance';
-import { toDateString } from '@/utils/helpers';
+import { addMonths, toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
 
 interface TransactionRow {
@@ -462,23 +466,117 @@ export async function getMonthlySummary(month: string): Promise<MonthlySummary> 
   );
 
   const balance = balanceRows[0];
+  // PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
   const categories: CategorySummary[] = categoryRows.map((row) => ({
     categoryId: row.CategoryID,
     categoryName: row.CategoryName,
     categoryIcon: row.CategoryIcon,
     categoryColor: row.CategoryColor,
     type: row.Type,
-    totalCents: row.TotalCents,
-    transactionCount: row.TransactionCount,
+    totalCents: Number(row.TotalCents),
+    transactionCount: Number(row.TransactionCount),
   }));
 
   return {
     month,
-    incomeCents: balance?.IncomeCents ?? 0,
-    expenseCents: balance?.ExpenseCents ?? 0,
-    balanceCents: balance?.BalanceCents ?? 0,
+    incomeCents: Number(balance?.IncomeCents ?? 0),
+    expenseCents: Number(balance?.ExpenseCents ?? 0),
+    balanceCents: Number(balance?.BalanceCents ?? 0),
     byCategory: categories,
   };
+}
+
+// Hard cap on the number of months returned, to bound the zero-fill loop.
+const MAX_TREND_MONTHS = 600;
+
+/**
+ * Earliest month with balance activity for the current user (user-scoped).
+ * Used to resolve the "all time" trend period. Returns null when there is no data.
+ */
+export async function getEarliestActivityMonth(): Promise<string | null> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<{ Month: string | null }>(
+    `SELECT MIN("Month") AS "Month" FROM "vw_MonthlyBalance" WHERE "UserID" = $1`,
+    [userId],
+  );
+
+  return rows[0]?.Month ?? null;
+}
+
+/**
+ * Get monthly income/expense/balance trends across an inclusive month range
+ * (user-scoped). Months with no data are zero-filled so charts have no gaps.
+ */
+export async function getMonthlyTrends(fromMonth: string, toMonth: string): Promise<MonthlySummaryTrends> {
+  const userId = await getUserIdOrThrow();
+
+  // Inverted ranges yield no points (string comparison is valid for YYYY-MM).
+  if (fromMonth > toMonth) {
+    return { fromMonth, toMonth, points: [] };
+  }
+
+  const balanceRows = await query<BalanceRow>(
+    `
+    SELECT "Month", "IncomeCents", "ExpenseCents", "BalanceCents"
+    FROM "vw_MonthlyBalance"
+    WHERE "Month" BETWEEN $1 AND $2 AND "UserID" = $3
+    ORDER BY "Month"
+  `,
+    [fromMonth, toMonth, userId],
+  );
+
+  const byMonth = new Map(balanceRows.map((row) => [row.Month, row]));
+
+  // Walk the continuous month sequence, zero-filling months without rows.
+  const points: MonthlyTrendPoint[] = [];
+  let cursor = fromMonth;
+  while (cursor <= toMonth && points.length < MAX_TREND_MONTHS) {
+    const row = byMonth.get(cursor);
+    // PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
+    points.push({
+      month: cursor,
+      incomeCents: Number(row?.IncomeCents ?? 0),
+      expenseCents: Number(row?.ExpenseCents ?? 0),
+      balanceCents: Number(row?.BalanceCents ?? 0),
+    });
+    cursor = addMonths(cursor, 1);
+  }
+
+  return { fromMonth, toMonth, points };
+}
+
+/**
+ * Get expense totals per category across an inclusive month range (user-scoped).
+ * Returns raw per-month/per-category rows; pivoting + top-N is done client-side.
+ */
+export async function getCategoryTrends(fromMonth: string, toMonth: string): Promise<CategoryTrends> {
+  const userId = await getUserIdOrThrow();
+
+  if (fromMonth > toMonth) {
+    return { fromMonth, toMonth, rows: [] };
+  }
+
+  const rows = await query<SummaryRow>(
+    `
+    SELECT "Month", "Type", "CategoryID", "CategoryName", "CategoryColor", "TotalCents"
+    FROM "vw_MonthlySummary"
+    WHERE "Month" BETWEEN $1 AND $2 AND "UserID" = $3 AND "Type" = $4
+    ORDER BY "Month"
+  `,
+    [fromMonth, toMonth, userId, TRANSACTION_TYPE.EXPENSE],
+  );
+
+  // PG returns SUM()/bigint columns as strings; coerce to numbers.
+  const trendRows: CategoryTrendRow[] = rows.map((row) => ({
+    month: row.Month,
+    categoryId: row.CategoryID,
+    categoryName: row.CategoryName,
+    categoryColor: row.CategoryColor,
+    totalCents: Number(row.TotalCents),
+  }));
+
+  return { fromMonth, toMonth, rows: trendRows };
 }
 
 /**
@@ -499,6 +597,7 @@ export async function getSubcategorySummary(month: string, parentCategoryId: num
     [month, parentCategoryId, userId],
   );
 
+  // PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
   return rows.map((row) => ({
     parentCategoryId: row.ParentCategoryID,
     subcategoryId: row.SubcategoryID,
@@ -506,8 +605,8 @@ export async function getSubcategorySummary(month: string, parentCategoryId: num
     subcategoryIcon: row.SubcategoryIcon,
     subcategoryColor: row.SubcategoryColor,
     isSubcategory: row.IsSubcategory !== null,
-    totalCents: row.TotalCents,
-    transactionCount: row.TransactionCount,
+    totalCents: Number(row.TotalCents),
+    transactionCount: Number(row.TransactionCount),
   }));
 }
 

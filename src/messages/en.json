@@ -75,6 +75,29 @@
   "dashboard": {
     "title": "Dashboard",
     "footer": "BudgetGuard - Family expense tracker — v{version}",
+    "sections": {
+      "monthly": "This month",
+      "historical": "Historical"
+    },
+    "widgets": {
+      "top-vendors-title": "Top vendors",
+      "no-vendors": "No vendors this month",
+      "fixed-variable-title": "Fixed vs variable expenses",
+      "fixed": "Fixed",
+      "variable": "Variable",
+      "total-expenses": "Total expenses",
+      "fixed-insight": "{pct}% of your spending is fixed",
+      "view-movements": "View movements",
+      "fiscal-title": "Fiscal summary",
+      "quarter-label": "Q{quarter} {year}",
+      "iva-303": "VAT quarter (303)",
+      "irpf-130": "Income tax quarter (130)",
+      "pending-invoices": "Invoices to collect",
+      "next-model": "Form {model}",
+      "due-in-days": "due in {days}d",
+      "overdue": "overdue",
+      "view-fiscal": "View fiscal"
+    },
     "balance-cards": {
       "income": "Income",
       "expenses": "Expenses",
@@ -88,6 +111,34 @@
       "general": "General"
     },
     "default-currency": "0.00 €",
+    "kpi": {
+      "savings-rate": "Savings rate",
+      "daily-average": "Avg. daily spend",
+      "vs-previous-month": "vs last month",
+      "no-previous-data": "No data for previous month"
+    },
+    "charts": {
+      "cashflow-title": "Cash flow",
+      "cashflow-subtitle": "Last 12 months",
+      "donut-title": "Expense distribution",
+      "ytd-title": "Cumulative balance",
+      "category-trends-title": "Expenses by category",
+      "top-categories-title": "Top spending categories",
+      "income": "Income",
+      "expenses": "Expenses",
+      "balance": "Balance",
+      "cumulative-balance": "Cumulative balance",
+      "others": "Others",
+      "empty": "Not enough data to display the chart",
+      "by-month": "Monthly",
+      "by-year": "Yearly",
+      "period": {
+        "1y": "1Y",
+        "5y": "5Y",
+        "10y": "10Y",
+        "all": "All"
+      }
+    },
     "actions": {
       "group-expense": "Group",
       "add-invoice": "Invoice",
@@ -538,7 +589,11 @@
     "all-subcategories": "All",
     "no-transactions-subcategory": "No transactions for this subcategory",
     "try-other-subcategory": "Try selecting a different subcategory or time range",
-    "group-by-month": "Group by month"
+    "group-by-month": "Group by month",
+    "tabs": {
+      "monthly-list": "Monthly expenses",
+      "by-category": "By category"
+    }
   },
   "category-history": {
     "view-link": "View history",

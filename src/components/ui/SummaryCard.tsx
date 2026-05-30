@@ -24,6 +24,7 @@ interface SummaryCardProps {
   onClick?: () => void;
   staggerClass?: string;
   className?: string;
+  footer?: ReactNode;
 }
 
 export function SummaryCard({
@@ -35,15 +36,19 @@ export function SummaryCard({
   onClick,
   staggerClass,
   className,
+  footer,
 }: SummaryCardProps) {
   const content = (
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-sm font-medium text-guard-muted">{title}</p>
-        <p className={cn('text-2xl font-bold mt-1', colors.value)}>{value}</p>
+    <>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-medium text-guard-muted">{title}</p>
+          <p className={cn('text-2xl font-bold mt-1', colors.value)}>{value}</p>
+        </div>
+        <div className={cn('p-2.5 rounded-xl', colors.iconBg)}>{icon}</div>
       </div>
-      <div className={cn('p-2.5 rounded-xl', colors.iconBg)}>{icon}</div>
-    </div>
+      {footer && <div className="mt-3">{footer}</div>}
+    </>
   );
 
   const baseClass = cn('balance-card border-l-4 animate-slide-up', colors.border, staggerClass, className);

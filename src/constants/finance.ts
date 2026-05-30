@@ -83,6 +83,8 @@ export const QUERY_KEY = {
   CATEGORIES: 'categories',
   TRANSACTIONS: 'transactions',
   SUMMARY: 'summary',
+  SUMMARY_TRENDS: 'summary-trends',
+  CATEGORY_TRENDS: 'category-trends',
   SUBCATEGORY_SUMMARY: 'subcategory-summary',
   RECURRING_EXPENSES: 'recurring-expenses',
   PENDING_OCCURRENCES: 'pending-occurrences',
@@ -137,6 +139,8 @@ export const API_ENDPOINT = {
   CATEGORIES: '/api/categories',
   TRANSACTIONS: '/api/transactions',
   SUMMARY: '/api/summary',
+  SUMMARY_TRENDS: '/api/summary/trends',
+  CATEGORY_TRENDS: '/api/summary/category-trends',
   SUBCATEGORY_SUMMARY: '/api/summary/subcategories',
   RECURRING_EXPENSES: '/api/recurring-expenses',
   TRANSACTION_GROUPS: '/api/transaction-groups',
@@ -207,6 +211,16 @@ export const BANK_FEE_CATEGORY = {
   SORT_ORDER: 6,
   DEDUCTION_PERCENT: 100,
 } as const;
+
+// Trend chart period presets (dashboard cash-flow + cumulative charts)
+export const TREND_PERIOD = {
+  ONE_YEAR: '1y',
+  FIVE_YEARS: '5y',
+  TEN_YEARS: '10y',
+  ALL: 'all',
+} as const;
+
+export type TrendPeriod = (typeof TREND_PERIOD)[keyof typeof TREND_PERIOD];
 
 // Date Range Presets (for category history)
 export const DATE_RANGE_PRESET = {

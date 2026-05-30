@@ -111,7 +111,7 @@ export function MonthPicker() {
         aria-haspopup="dialog"
       >
         <Calendar className="h-4 w-4 text-guard-primary" aria-hidden="true" />
-        <span className="font-semibold text-foreground capitalize" aria-live="polite" aria-atomic="true">
+        <span className="font-semibold text-foreground first-letter:uppercase" aria-live="polite" aria-atomic="true">
           {displayMonth}
         </span>
         <ChevronDown

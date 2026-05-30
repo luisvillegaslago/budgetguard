@@ -1,16 +1,15 @@
 /**
- * Component Tests: BalanceCards — Filter Toggle Feature
- * Tests that clicking Income/Expense cards toggles the transaction type filter
- * and that the Balance card remains non-interactive.
+ * Component Tests: BalanceCards — Card actions
+ * Clicking Income/Expense cards opens a transactions popup for that type;
+ * the Balance card remains non-interactive.
  */
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { FILTER_TYPE, type FilterType } from '@/constants/finance';
 
-// Mock state holders — reassigned per test to simulate different filter states
-let mockFilters: { type: FilterType; categoryId: null } = { type: FILTER_TYPE.ALL, categoryId: null };
-const mockSetFilters = jest.fn();
+jest.mock('@/components/dashboard/charts/TypeTransactionsModal', () => ({
+  TypeTransactionsModal: ({ type }: { type: string }) => <div data-testid="type-modal">{type}</div>,
+}));
 
 jest.mock('@/hooks/useFormattedSummary', () => ({
   useFormattedSummary: () => ({
@@ -48,45 +47,38 @@ jest.mock('@/hooks/useTranslations', () => ({
 
 jest.mock('@/stores/useFinanceStore', () => ({
   useSelectedMonth: () => '2025-01',
-  useFilters: () => mockFilters,
-  useSetFilters: () => mockSetFilters,
 }));
 
-jest.mock('@/utils/helpers', () => ({
-  cn: (...args: unknown[]) => {
-    const result: string[] = [];
-    args.forEach((item) => {
-      if (typeof item === 'string') {
-        result.push(item);
-      }
-      if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-        Object.entries(item as Record<string, boolean>).forEach(([key, val]) => {
-          if (val) result.push(key);
-        });
-      }
-    });
-    return result.join(' ');
-  },
-}));
+jest.mock('@/utils/helpers', () => {
+  const actual = jest.requireActual('@/utils/helpers');
+  return {
+    ...actual,
+    cn: (...args: unknown[]) => {
+      const result: string[] = [];
+      args.forEach((item) => {
+        if (typeof item === 'string') {
+          result.push(item);
+        }
+        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+          Object.entries(item as Record<string, boolean>).forEach(([key, val]) => {
+            if (val) result.push(key);
+          });
+        }
+      });
+      return result.join(' ');
+    },
+  };
+});
 
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
-
-beforeEach(() => {
-  mockFilters = { type: FILTER_TYPE.ALL, categoryId: null };
-  mockSetFilters.mockClear();
-});
 
 describe('BalanceCards — Card Element Types', () => {
   it('renders Income and Expense cards as buttons and Balance card as a div', () => {
     render(<BalanceCards />);
 
-    // Income and Expense cards should be buttons (interactive)
-    const incomeButton = screen.getByRole('button', { name: /income/i });
-    const expenseButton = screen.getByRole('button', { name: /expenses/i });
-    expect(incomeButton).toBeInTheDocument();
-    expect(expenseButton).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /income/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /expenses/i })).toBeInTheDocument();
 
-    // Balance card should NOT be a button — it renders as a plain div
     const balanceText = screen.getByText('Balance');
     const balanceCard = balanceText.closest('div.balance-card');
     expect(balanceCard).toBeInTheDocument();
@@ -94,90 +86,39 @@ describe('BalanceCards — Card Element Types', () => {
   });
 });
 
-describe('BalanceCards — Filter Toggle via Click', () => {
-  it('calls setFilters with { type: income } when clicking the Income card', () => {
+describe('BalanceCards — Opens transactions popup', () => {
+  it('does not render the popup until a card is clicked', () => {
     render(<BalanceCards />);
-
-    const incomeButton = screen.getByRole('button', { name: /income/i });
-    fireEvent.click(incomeButton);
-
-    expect(mockSetFilters).toHaveBeenCalledTimes(1);
-    expect(mockSetFilters).toHaveBeenCalledWith({ type: FILTER_TYPE.INCOME });
+    expect(screen.queryByTestId('type-modal')).not.toBeInTheDocument();
   });
 
-  it('calls setFilters with { type: all } when clicking Income card while already active (toggle off)', () => {
-    mockFilters = { type: FILTER_TYPE.INCOME, categoryId: null };
-
+  it('opens the income popup when clicking the Income card', () => {
     render(<BalanceCards />);
 
-    const incomeButton = screen.getByRole('button', { name: /income/i });
-    fireEvent.click(incomeButton);
+    fireEvent.click(screen.getByRole('button', { name: /income/i }));
 
-    expect(mockSetFilters).toHaveBeenCalledTimes(1);
-    expect(mockSetFilters).toHaveBeenCalledWith({ type: FILTER_TYPE.ALL });
+    const modal = screen.getByTestId('type-modal');
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent('income');
   });
 
-  it('calls setFilters with { type: expense } when clicking the Expense card', () => {
+  it('opens the expense popup when clicking the Expense card', () => {
     render(<BalanceCards />);
 
-    const expenseButton = screen.getByRole('button', { name: /expenses/i });
-    fireEvent.click(expenseButton);
+    fireEvent.click(screen.getByRole('button', { name: /expenses/i }));
 
-    expect(mockSetFilters).toHaveBeenCalledTimes(1);
-    expect(mockSetFilters).toHaveBeenCalledWith({ type: FILTER_TYPE.EXPENSE });
-  });
-});
-
-describe('BalanceCards — aria-pressed State', () => {
-  it('sets aria-pressed="true" on the active Income card and "false" on Expense', () => {
-    mockFilters = { type: FILTER_TYPE.INCOME, categoryId: null };
-
-    render(<BalanceCards />);
-
-    const incomeButton = screen.getByRole('button', { name: /income/i });
-    const expenseButton = screen.getByRole('button', { name: /expenses/i });
-
-    expect(incomeButton).toHaveAttribute('aria-pressed', 'true');
-    expect(expenseButton).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('sets aria-pressed="true" on the active Expense card and "false" on Income', () => {
-    mockFilters = { type: FILTER_TYPE.EXPENSE, categoryId: null };
-
-    render(<BalanceCards />);
-
-    const incomeButton = screen.getByRole('button', { name: /income/i });
-    const expenseButton = screen.getByRole('button', { name: /expenses/i });
-
-    expect(incomeButton).toHaveAttribute('aria-pressed', 'false');
-    expect(expenseButton).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it('sets aria-pressed="false" on both cards when no filter is active', () => {
-    mockFilters = { type: FILTER_TYPE.ALL, categoryId: null };
-
-    render(<BalanceCards />);
-
-    const incomeButton = screen.getByRole('button', { name: /income/i });
-    const expenseButton = screen.getByRole('button', { name: /expenses/i });
-
-    expect(incomeButton).toHaveAttribute('aria-pressed', 'false');
-    expect(expenseButton).toHaveAttribute('aria-pressed', 'false');
+    const modal = screen.getByTestId('type-modal');
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent('expense');
   });
 });
 
 describe('BalanceCards — Balance Card Non-Interactive', () => {
-  it('does not render Balance card with onClick or aria-pressed', () => {
+  it('does not render the Balance card as a button', () => {
     render(<BalanceCards />);
 
-    // Balance card should not be a button at all
     const allButtons = screen.getAllByRole('button');
     const balanceButton = allButtons.filter((btn) => btn.textContent?.includes('Balance'));
     expect(balanceButton).toHaveLength(0);
-
-    // The Balance card text exists, but its container has no aria-pressed
-    const balanceText = screen.getByText('Balance');
-    const balanceCard = balanceText.closest('.balance-card');
-    expect(balanceCard).not.toHaveAttribute('aria-pressed');
   });
 });
