@@ -8,15 +8,12 @@
  */
 
 import { useMemo } from 'react';
-import { TREND_PERIOD, type TrendPeriod } from '@/constants/finance';
+import { TREND_ALL_SENTINEL, TREND_PERIOD, type TrendPeriod } from '@/constants/finance';
 import { useFormattedSummaryTrends } from '@/hooks/useSummaryTrends';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { FormattedTrendPoint } from '@/types/finance';
 import { addMonths, formatMonthShort, getCurrentMonth } from '@/utils/helpers';
 import { formatEuroValue } from './chartConfig';
-
-// Sentinel understood by the trends endpoint as "earliest month with activity".
-const ALL_TIME = 'all';
 
 // Inclusive month offsets per preset (1 year = 12 months → offset 11).
 const PERIOD_OFFSET: Record<Exclude<TrendPeriod, 'all'>, number> = {
@@ -37,7 +34,7 @@ export type TrendGranularity = 'month' | 'year';
  */
 export function resolveTrendRange(period: TrendPeriod): { fromMonth: string; toMonth: string } {
   const toMonth = getCurrentMonth();
-  const fromMonth = period === TREND_PERIOD.ALL ? ALL_TIME : addMonths(toMonth, -PERIOD_OFFSET[period]);
+  const fromMonth = period === TREND_PERIOD.ALL ? TREND_ALL_SENTINEL : addMonths(toMonth, -PERIOD_OFFSET[period]);
   return { fromMonth, toMonth };
 }
 

@@ -106,6 +106,25 @@ export function addMonths(month: string, offset: number): string {
 }
 
 /**
+ * Build the inclusive, contiguous sequence of months between two YYYY-MM bounds.
+ * Returns [] for inverted ranges. Bounded by `cap` to guard against runaway loops.
+ * @param fromMonth - Start month (YYYY-MM)
+ * @param toMonth - End month (YYYY-MM)
+ * @param cap - Maximum number of months to emit (default 600 = 50 years)
+ */
+export function buildMonthSequence(fromMonth: string, toMonth: string, cap = 600): string[] {
+  if (fromMonth > toMonth) return [];
+
+  const months: string[] = [];
+  let cursor = fromMonth;
+  while (cursor <= toMonth && months.length < cap) {
+    months.push(cursor);
+    cursor = addMonths(cursor, 1);
+  }
+  return months;
+}
+
+/**
  * Format a month string (YYYY-MM) as a short month label for chart axes.
  * @param month - Month string in YYYY-MM format
  * @param locale - BCP 47 locale (default 'es-ES')

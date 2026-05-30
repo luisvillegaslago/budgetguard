@@ -18,7 +18,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '@/types/finance';
-import { addMonths, toDateString } from '@/utils/helpers';
+import { buildMonthSequence, toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
 
 interface TransactionRow {
@@ -486,9 +486,6 @@ export async function getMonthlySummary(month: string): Promise<MonthlySummary> 
   };
 }
 
-// Hard cap on the number of months returned, to bound the zero-fill loop.
-const MAX_TREND_MONTHS = 600;
-
 /**
  * Earliest month with balance activity for the current user (user-scoped).
  * Used to resolve the "all time" trend period. Returns null when there is no data.
@@ -529,19 +526,16 @@ export async function getMonthlyTrends(fromMonth: string, toMonth: string): Prom
   const byMonth = new Map(balanceRows.map((row) => [row.Month, row]));
 
   // Walk the continuous month sequence, zero-filling months without rows.
-  const points: MonthlyTrendPoint[] = [];
-  let cursor = fromMonth;
-  while (cursor <= toMonth && points.length < MAX_TREND_MONTHS) {
-    const row = byMonth.get(cursor);
-    // PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
-    points.push({
-      month: cursor,
+  // PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
+  const points: MonthlyTrendPoint[] = buildMonthSequence(fromMonth, toMonth).map((month) => {
+    const row = byMonth.get(month);
+    return {
+      month,
       incomeCents: Number(row?.IncomeCents ?? 0),
       expenseCents: Number(row?.ExpenseCents ?? 0),
       balanceCents: Number(row?.BalanceCents ?? 0),
-    });
-    cursor = addMonths(cursor, 1);
-  }
+    };
+  });
 
   return { fromMonth, toMonth, points };
 }

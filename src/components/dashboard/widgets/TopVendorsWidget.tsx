@@ -52,6 +52,8 @@ export function aggregateTopVendors(transactions: Transaction[], limit: number):
 export function TopVendorsWidget() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
+  // Intentional client-side aggregation: reuses the cached month-transactions query
+  // shared with the drill-down popups. Move to a SQL view if monthly volume grows large.
   const { data, isLoading, isError, refetch } = useTransactions(selectedMonth);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
 

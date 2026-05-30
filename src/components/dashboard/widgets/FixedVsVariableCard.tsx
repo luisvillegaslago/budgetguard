@@ -64,6 +64,8 @@ function LegendRow({ label, color, cents, pct }: LegendRowProps) {
 export function FixedVsVariableCard() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
+  // Intentional client-side aggregation: reuses the cached month-transactions query
+  // shared with the drill-down popups. Move to a SQL view if monthly volume grows large.
   const { data, isLoading, isError, refetch } = useTransactions(selectedMonth);
 
   const { fixedCents, variableCents } = useMemo(() => splitFixedVariable(data?.data ?? []), [data]);

@@ -12,12 +12,11 @@ import type { TrendPeriod } from '@/constants/finance';
 import { useCategoryTrends } from '@/hooks/useCategoryTrends';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { CategoryTrendRow } from '@/types/finance';
-import { addMonths, formatMonthShort } from '@/utils/helpers';
+import { buildMonthSequence, formatMonthShort } from '@/utils/helpers';
 import { CATEGORY_PALETTE, CHART_COLORS } from './chartConfig';
 import { MONTHLY_MAX_BARS, resolveTrendRange, type TrendGranularity } from './useTrendBars';
 
 const TOP_N = 6;
-const MAX_BUCKETS = 600;
 const OTHERS_KEY = 'others';
 
 export interface CategorySeries {
@@ -122,13 +121,7 @@ export function useCategoryTrendBars(period: TrendPeriod) {
     }
 
     // Build the full month sequence from the resolved range (zero-fill base).
-    const months: string[] = [];
-    let cursor = data.fromMonth;
-    while (cursor <= data.toMonth && months.length < MAX_BUCKETS) {
-      months.push(cursor);
-      cursor = addMonths(cursor, 1);
-    }
-
+    const months = buildMonthSequence(data.fromMonth, data.toMonth);
     const granularity: TrendGranularity = months.length > MONTHLY_MAX_BARS ? 'year' : 'month';
     const { series: pivotSeries, data: pivot } = pivotCategoryTrends(data.rows, months, granularity, TOP_N);
 

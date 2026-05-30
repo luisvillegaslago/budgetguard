@@ -222,6 +222,12 @@ export const TREND_PERIOD = {
 
 export type TrendPeriod = (typeof TREND_PERIOD)[keyof typeof TREND_PERIOD];
 
+// Sentinel for the "all time" trend range — resolved server-side to the earliest
+// month with activity. Shared by the trends endpoints and the chart hooks.
+export const TREND_ALL_SENTINEL = 'all';
+// Default trailing range (months) when no fromMonth is given.
+export const TREND_DEFAULT_RANGE_MONTHS = 11;
+
 // Date Range Presets (for category history)
 export const DATE_RANGE_PRESET = {
   THREE_MONTHS: '3m',
