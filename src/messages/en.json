@@ -155,6 +155,7 @@
     "untitled": "Voucher",
     "remaining": "Remaining balance",
     "units-remaining": "{remaining} of {total} {label} remaining",
+    "units-count": "{consumed}/{total}",
     "of-total": "of {total}",
     "purchased": "Purchased",
     "expires": "Expires",

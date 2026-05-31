@@ -43,6 +43,7 @@ function VoucherRow({ voucher, onSelect }: VoucherRowProps) {
       ? Math.min(100, Math.round((voucher.consumedCents / voucher.totalAmountCents) * 100))
       : 0;
   const isDepleted = voucher.remainingCents <= 0;
+  const hasUnits = voucher.totalUnits != null && voucher.totalUnits > 0;
   const days = daysUntilExpiry(voucher.expiryDate);
   const expired = days != null && days < 0;
   const expiringSoon = days != null && days >= 0 && days <= EXPIRY_SOON_DAYS;
@@ -75,7 +76,16 @@ function VoucherRow({ voucher, onSelect }: VoucherRowProps) {
       </div>
 
       <div className="mt-1 flex items-center justify-between">
-        <span className="text-xs text-guard-muted tabular-nums">
+        <span className="flex items-center gap-1.5 text-xs text-guard-muted tabular-nums">
+          {hasUnits && (
+            <span className="font-semibold text-foreground">
+              {t('vouchers.units-count', {
+                consumed: voucher.consumedUnits,
+                total: voucher.totalUnits as number,
+              })}
+              {voucher.unitLabel ? ` ${voucher.unitLabel}` : ''}
+            </span>
+          )}
           {t('vouchers.of-total', { total: formatCurrency(voucher.totalAmountCents) })}
         </span>
         {expired ? (

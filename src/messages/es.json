@@ -155,6 +155,7 @@
     "untitled": "Bono",
     "remaining": "Saldo restante",
     "units-remaining": "{remaining} de {total} {label} restantes",
+    "units-count": "{consumed}/{total}",
     "of-total": "de {total}",
     "purchased": "Comprado",
     "expires": "Caduca",
