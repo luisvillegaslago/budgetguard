@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.36.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.35.0...v0.36.0) (2026-05-31)
+
+
+### Features
+
+* **movements:** search by voucher name, accent-insensitive ([890932f](https://github.com/luisvillegaslago/budgetguard/commit/890932fc7cb70dfbd83ecd64887f933f9f555180))
+* **transactions:** make voucher link an opt-in checkbox below status ([a67db2f](https://github.com/luisvillegaslago/budgetguard/commit/a67db2f02c3c2f87d1cefef41b3ff6ed55cf45c0))
+* **vouchers:** show consumed/total units count in widget rows ([1366847](https://github.com/luisvillegaslago/budgetguard/commit/1366847cb4171d3ee2cfe8fd1604cc39155f7e6f))
+
 ## [0.35.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.34.0...v0.35.0) (2026-05-31)
 
 
