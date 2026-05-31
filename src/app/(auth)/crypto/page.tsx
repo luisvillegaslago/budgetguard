@@ -12,7 +12,7 @@
  *  - config      — quick link to Settings → Crypto
  */
 
-import { Bitcoin, Calculator, ListChecks } from 'lucide-react';
+import { Bitcoin, Calculator, ListChecks, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { CryptoAeatGuide } from '@/components/crypto/CryptoAeatGuide';
@@ -20,13 +20,14 @@ import { CryptoCsvUploader } from '@/components/crypto/CryptoCsvUploader';
 import { CryptoDisposalsTable } from '@/components/crypto/CryptoDisposalsTable';
 import { CryptoEventsTable } from '@/components/crypto/CryptoEventsTable';
 import { CryptoModelo100Section } from '@/components/crypto/CryptoModelo100Section';
+import { CryptoPriceChart } from '@/components/crypto/CryptoPriceChart';
 import { CryptoSyncPanel } from '@/components/crypto/CryptoSyncPanel';
 import { CRYPTO_EXCHANGE } from '@/constants/finance';
 import { useCryptoCredentialStatus } from '@/hooks/useCryptoCredentials';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
 
-type TabId = 'summary' | 'events' | 'fiscal';
+type TabId = 'summary' | 'events' | 'prices' | 'fiscal';
 
 export default function CryptoPage() {
   const { t } = useTranslate();
@@ -37,6 +38,7 @@ export default function CryptoPage() {
   const tabs: { id: TabId; label: string; icon: typeof Bitcoin }[] = [
     { id: 'summary', label: t('crypto.tabs.summary'), icon: Bitcoin },
     { id: 'events', label: t('crypto.tabs.events'), icon: ListChecks },
+    { id: 'prices', label: t('crypto.tabs.prices'), icon: TrendingUp },
     { id: 'fiscal', label: t('crypto.tabs.fiscal'), icon: Calculator },
   ];
 
@@ -91,6 +93,7 @@ export default function CryptoPage() {
         </div>
       )}
       {activeTab === 'events' && <CryptoEventsTable />}
+      {activeTab === 'prices' && <CryptoPriceChart />}
       {activeTab === 'fiscal' && (
         <div className="space-y-6">
           <CryptoModelo100Section year={fiscalYear} onYearChange={setFiscalYear} />

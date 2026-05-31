@@ -11,7 +11,7 @@ import { type ReactNode, useCallback, useRef, useState } from 'react';
 import { cn } from '@/utils/helpers';
 
 interface TooltipProps {
-  content: string;
+  content: ReactNode;
   children: ReactNode;
   side?: 'top' | 'right' | 'bottom' | 'left';
   align?: 'start' | 'center' | 'end';

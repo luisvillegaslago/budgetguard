@@ -1240,14 +1240,30 @@
       },
       "entry-line": "Entrada media",
       "live-line": "Precio actual",
+      "exit-line": "Salida",
+      "closed": "Cerrada",
       "empty": "No hay operaciones para este par todavía",
       "error": "No se pudieron cargar las cotizaciones",
+      "marker": {
+        "buy": "Compra",
+        "sell": "Venta"
+      },
+      "tooltip": {
+        "price": "Precio",
+        "cost": "Coste"
+      },
+      "trades-count": "{n} operaciones",
       "summary": {
         "avg-entry": "Precio medio de entrada",
+        "avg-entry-help": "Coste medio ponderado de cada unidad comprada (total pagado ÷ total comprado), en la moneda de cotización. No incluye las ventas.",
         "live-price": "Precio actual",
+        "live-price-help": "Precio de mercado actual de 1 unidad del activo base, en la moneda de cotización y su equivalente en euros.",
         "net-qty": "Cantidad neta",
+        "net-qty-help": "Cantidad que mantienes en este par: total comprado − total vendido.",
         "unrealized": "P&L no realizado",
-        "realized": "P&L realizado"
+        "unrealized-help": "Ganancia o pérdida latente de la posición abierta frente al precio actual (en la moneda de cotización). Aún no se ha materializado.",
+        "realized": "P&L realizado",
+        "realized-help": "Ganancia o pérdida ya materializada por las ventas (FIFO), en la moneda de cotización."
       }
     },
     "csv": {

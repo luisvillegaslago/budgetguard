@@ -1240,14 +1240,30 @@
       },
       "entry-line": "Avg entry",
       "live-line": "Live price",
+      "exit-line": "Exit",
+      "closed": "Closed",
       "empty": "No trades for this pair yet",
       "error": "Could not load quotes",
+      "marker": {
+        "buy": "Buy",
+        "sell": "Sell"
+      },
+      "tooltip": {
+        "price": "Price",
+        "cost": "Cost"
+      },
+      "trades-count": "{n} trades",
       "summary": {
         "avg-entry": "Average entry price",
+        "avg-entry-help": "Weighted-average cost of each unit bought (total paid ÷ total bought), in the quote currency. Excludes sells.",
         "live-price": "Live price",
+        "live-price-help": "Current market price of 1 base-asset unit, in the quote currency and its euro equivalent.",
         "net-qty": "Net quantity",
+        "net-qty-help": "Amount you hold in this pair: total bought − total sold.",
         "unrealized": "Unrealized P&L",
-        "realized": "Realized P&L"
+        "unrealized-help": "Latent gain or loss of the open position against the current price (in the quote currency). Not yet realized.",
+        "realized": "Realized P&L",
+        "realized-help": "Gain or loss already realized by sells (FIFO), in the quote currency."
       }
     },
     "csv": {

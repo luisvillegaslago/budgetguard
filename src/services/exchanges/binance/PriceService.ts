@@ -66,7 +66,7 @@ export interface ResolvedPrice {
  * the user-credential MainClient so the price engine works without the
  * user's API key being available.
  */
-const publicClient = new MainClient({ beautifyResponses: true });
+export const publicClient = new MainClient({ beautifyResponses: true });
 
 /**
  * Resolve the EUR price for `asset` at the day component of `at`. Returns

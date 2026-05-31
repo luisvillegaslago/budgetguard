@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, CRYPTO_SYNC_MODE } from '@/constants/finance';
+import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, CRYPTO_SYNC_MODE, KLINE_INTERVAL } from '@/constants/finance';
 
 // Binance API key format: 64 alphanumeric characters.
 // Binance API secret format: 64 alphanumeric characters.
@@ -54,6 +54,28 @@ export const ListEventsQuerySchema = z.object({
 });
 
 export type ListEventsQuery = z.infer<typeof ListEventsQuerySchema>;
+
+const KLINE_INTERVAL_VALUES = Object.values(KLINE_INTERVAL) as [
+  (typeof KLINE_INTERVAL)[keyof typeof KLINE_INTERVAL],
+  ...(typeof KLINE_INTERVAL)[keyof typeof KLINE_INTERVAL][],
+];
+
+export const ListKlinesQuerySchema = z.object({
+  // Canonical Binance symbol (e.g. BTCUSDC). Alphanumeric, bounded to keep the
+  // upstream request safe.
+  symbol: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]+$/)
+    .min(1)
+    .max(20),
+  interval: z.enum(KLINE_INTERVAL_VALUES),
+  // Optional time window in epoch milliseconds.
+  from: z.coerce.number().int().optional(),
+  to: z.coerce.number().int().optional(),
+});
+
+export type ListKlinesQuery = z.infer<typeof ListKlinesQuerySchema>;
 
 // 10 MB cap on CSV uploads — Binance exports ~1KB per row, so 10MB
 // covers ~10k rows which is well above any realistic single-export size.

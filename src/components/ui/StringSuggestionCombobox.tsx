@@ -30,6 +30,9 @@ interface StringSuggestionComboboxProps {
   // When false, typing a value not in `suggestions` won't offer to add it.
   // Use for filter-style comboboxes that must stay within the known set.
   allowCreate?: boolean;
+  // Optional display transform: the value stays the raw string, but the label
+  // shown in the trigger and options can be decorated (e.g. "BTCUSDC (44)").
+  getOptionLabel?: (value: string) => string;
 }
 
 export function StringSuggestionCombobox({
@@ -41,6 +44,7 @@ export function StringSuggestionCombobox({
   disabled,
   id,
   allowCreate = true,
+  getOptionLabel,
 }: StringSuggestionComboboxProps) {
   const { t } = useTranslate();
   const [isOpen, setIsOpen] = useState(false);
@@ -158,7 +162,7 @@ export function StringSuggestionCombobox({
       >
         <span className="truncate min-w-0">
           {value ? (
-            <span className="text-foreground">{value}</span>
+            <span className="text-foreground">{getOptionLabel ? getOptionLabel(value) : value}</span>
           ) : (
             <span className="text-guard-muted">{resolvedPlaceholder}</span>
           )}
@@ -224,7 +228,7 @@ export function StringSuggestionCombobox({
                 ) : (
                   <span className="w-4 shrink-0" />
                 )}
-                <span className="truncate">{suggestion}</span>
+                <span className="truncate">{getOptionLabel ? getOptionLabel(suggestion) : suggestion}</span>
               </button>
             ))}
 
