@@ -14,6 +14,7 @@ import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { Select } from '@/components/ui/Select';
 import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
@@ -43,6 +44,7 @@ export function TransactionForm({
   const [showFiscal, setShowFiscal] = useState(
     () => isEditing && (transaction.vatPercent !== null || transaction.deductionPercent !== null),
   );
+  const [showVoucher, setShowVoucher] = useState(() => isEditing && transaction.voucherId != null);
   const fiscalDirtyRef = useRef(isEditing);
   // Skip voucher amount auto-calc on initial edit load; enable on user interaction
   const skipVoucherAutoRef = useRef(isEditing);
@@ -182,6 +184,15 @@ export function TransactionForm({
 
   const handleSharedDefaultChange = (defaultShared: boolean) => {
     setValue('isShared', defaultShared);
+  };
+
+  const handleVoucherToggle = (checked: boolean) => {
+    setShowVoucher(checked);
+    if (!checked) {
+      skipVoucherAutoRef.current = false;
+      setValue('voucherId', null);
+      setValue('voucherUnits', null);
+    }
   };
 
   const handleVoucherChange = (value: string) => {
@@ -401,76 +412,6 @@ export function TransactionForm({
             )}
           </div>
 
-          {/* Voucher ("bono") selector — expenses only, placed before the status field */}
-          {isExpense && selectableVouchers.length > 0 && (
-            <div className="space-y-3">
-              <div>
-                <label
-                  htmlFor="voucherId"
-                  className="block text-sm font-medium text-foreground mb-1.5 flex items-center gap-2"
-                >
-                  <Ticket className="h-4 w-4 text-guard-primary" aria-hidden="true" />
-                  {t('transactions.form.fields.voucher')}
-                </label>
-                <select
-                  id="voucherId"
-                  value={watchedVoucherId ?? ''}
-                  onChange={(e) => handleVoucherChange(e.target.value)}
-                  disabled={isSubmitting}
-                  className={cn(
-                    'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                    'transition-colors duration-200 ease-out-quart border-input',
-                  )}
-                >
-                  <option value="">{t('transactions.form.fields.voucher-none')}</option>
-                  {selectableVouchers.map((v) => (
-                    <option key={v.voucherId} value={v.voucherId}>
-                      {(v.description || v.categoryName || t('vouchers.untitled')) +
-                        ` · ${formatCurrency(Math.max(0, v.remainingCents))}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Units consumed — drives the amount above (prorated) */}
-              {selectedVoucher?.totalUnits != null && (
-                <div>
-                  <label htmlFor="voucherUnits" className="block text-sm font-medium text-foreground mb-1.5">
-                    {t('transactions.form.fields.voucher-units', { label: selectedVoucher.unitLabel ?? '' })}
-                  </label>
-                  <input
-                    id="voucherUnits"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    autoComplete="off"
-                    {...register('voucherUnits', {
-                      setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
-                    })}
-                    onChange={(e) => {
-                      skipVoucherAutoRef.current = false;
-                      register('voucherUnits', {
-                        setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
-                      }).onChange(e);
-                    }}
-                    onWheel={(e) => e.currentTarget.blur()}
-                    className={cn(
-                      'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                      'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-                      'transition-colors duration-200 ease-out-quart border-input',
-                    )}
-                  />
-                  {autoAmountCents != null && (
-                    <p className="text-xs text-guard-muted mt-1 animate-fade-in">
-                      {t('transactions.form.fields.voucher-amount-auto', { amount: formatCurrency(autoAmountCents) })}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Status Selector */}
           <fieldset className="border-0 p-0 m-0">
             <legend className="block text-sm font-medium text-foreground mb-1.5">
@@ -504,6 +445,84 @@ export function TransactionForm({
               ))}
             </div>
           </fieldset>
+
+          {/* Voucher ("bono") — opt-in via checkbox (uncommon), expenses only */}
+          {isExpense && selectableVouchers.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center h-6">
+                  <input
+                    id="showVoucher"
+                    type="checkbox"
+                    checked={showVoucher}
+                    onChange={(e) => handleVoucherToggle(e.target.checked)}
+                    className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
+                  />
+                </div>
+                <label htmlFor="showVoucher" className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Ticket className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+                  {t('transactions.form.fields.voucher')}
+                </label>
+              </div>
+
+              {showVoucher && (
+                <div className="space-y-3 pl-7 animate-fade-in">
+                  <Select
+                    id="voucherId"
+                    value={watchedVoucherId ?? ''}
+                    onChange={(e) => handleVoucherChange(e.target.value)}
+                    disabled={isSubmitting}
+                  >
+                    <option value="">{t('transactions.form.fields.voucher-select-placeholder')}</option>
+                    {selectableVouchers.map((v) => (
+                      <option key={v.voucherId} value={v.voucherId}>
+                        {(v.description || v.categoryName || t('vouchers.untitled')) +
+                          ` · ${formatCurrency(Math.max(0, v.remainingCents))}`}
+                      </option>
+                    ))}
+                  </Select>
+
+                  {/* Units consumed — drives the amount above (prorated) */}
+                  {selectedVoucher?.totalUnits != null && (
+                    <div>
+                      <label htmlFor="voucherUnits" className="block text-sm font-medium text-foreground mb-1.5">
+                        {t('transactions.form.fields.voucher-units', { label: selectedVoucher.unitLabel ?? '' })}
+                      </label>
+                      <input
+                        id="voucherUnits"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        autoComplete="off"
+                        {...register('voucherUnits', {
+                          setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
+                        })}
+                        onChange={(e) => {
+                          skipVoucherAutoRef.current = false;
+                          register('voucherUnits', {
+                            setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
+                          }).onChange(e);
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className={cn(
+                          'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                          'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+                          'transition-colors duration-200 ease-out-quart border-input',
+                        )}
+                      />
+                      {autoAmountCents != null && (
+                        <p className="text-xs text-guard-muted mt-1 animate-fade-in">
+                          {t('transactions.form.fields.voucher-amount-auto', {
+                            amount: formatCurrency(autoAmountCents),
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fiscal Data Toggle */}
           <div className="flex items-center gap-3">
