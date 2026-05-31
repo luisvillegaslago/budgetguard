@@ -144,6 +144,8 @@ export const SYNCABLE_TABLES: TableConfig[] = [
       'InvoiceNumber',
       'Status',
       'CompanyID',
+      'VoucherID',
+      'VoucherUnits',
       'UserID',
       'CreatedAt',
       'UpdatedAt',
