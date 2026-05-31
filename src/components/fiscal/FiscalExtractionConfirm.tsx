@@ -300,12 +300,12 @@ export function FiscalExtractionConfirm({
                   </button>
                 </div>
               )}
+              <CompanySelector value={companyId} onChange={(id) => setCompanyId(id)} />
               {detectedVendor && autoMatchedCompany && (
-                <p className="text-xs text-guard-success mb-1.5">
+                <p className="text-xs text-guard-success mt-1.5">
                   {t('fiscal.extraction.matched-vendor')}: {detectedVendor}
                 </p>
               )}
-              <CompanySelector value={companyId} onChange={(id) => setCompanyId(id)} />
             </div>
             <div>
               <label htmlFor="ext-invoice-number" className="block text-sm font-medium text-foreground mb-1.5">
