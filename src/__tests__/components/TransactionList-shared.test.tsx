@@ -119,6 +119,14 @@ jest.mock('@/hooks/useTransactionGroups', () => ({
   }),
 }));
 
+jest.mock('@/hooks/useVouchers', () => ({
+  useVouchers: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 jest.mock('@/stores/useFinanceStore', () => ({
   useSelectedMonth: () => '2025-01',
   useFilters: () => ({ type: 'all', categoryId: null, status: 'all' }),
