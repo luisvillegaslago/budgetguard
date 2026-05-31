@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.35.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.34.0...v0.35.0) (2026-05-31)
+
+
+### Features
+
+* **crypto:** humanize movements with order grouping and coin filter ([ab0352d](https://github.com/luisvillegaslago/budgetguard/commit/ab0352d8c42004fdbe31bd7d7f57b1c4d15001f5))
+* **crypto:** pestaña Cotizaciones (mini-TradingView por par) ([29e97c7](https://github.com/luisvillegaslago/budgetguard/commit/29e97c7b4b8a8498f8cc783be0fd3f2c348cd013))
+* **dashboard:** analytics overhaul with charts, period widgets and fiscal summary ([2f0defe](https://github.com/luisvillegaslago/budgetguard/commit/2f0defe67c03144415f61a8ec03240ef9a15928c))
+* **i18n:** add voucher and pricing modules with en/es translations ([de26165](https://github.com/luisvillegaslago/budgetguard/commit/de26165865e59a615c781052565fe5a2e560f0e1))
+* **sync:** include VoucherID and VoucherUnits in database ([8393437](https://github.com/luisvillegaslago/budgetguard/commit/8393437036da142178f87b6caa390e16e546bf04))
+* **transactions:** edit grouped expenses with full item reconciliation ([6613984](https://github.com/luisvillegaslago/budgetguard/commit/6613984bda4fda1dd00aa10b2b161031087abcd5))
+* **vouchers:** add prepaid voucher ("bono") module ([08e0e70](https://github.com/luisvillegaslago/budgetguard/commit/08e0e706d1257c5552fe904ae27b446592f60e82))
+
+
+### Bug Fixes
+
+* **crypto:** deduplicación CSV↔API + script de limpieza ([d70d872](https://github.com/luisvillegaslago/budgetguard/commit/d70d8728944f0c14bc50255f6b09ee6eb031bebb))
+* **sync:** copy all columns, serialize JSONB, and surface sync errors ([e452250](https://github.com/luisvillegaslago/budgetguard/commit/e452250cf9d1008d23998d8f0758270d3468e9dc))
+
 ## [0.34.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.33.0...v0.34.0) (2026-05-28)
 
 
