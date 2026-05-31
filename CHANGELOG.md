@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.36.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.36.0...v0.36.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* **fiscal:** show matched-vendor hint below selector to keep alignment ([ab845dc](https://github.com/luisvillegaslago/budgetguard/commit/ab845dc08e1f8e367733bcd49ae4a7642397b9ad))
+
 ## [0.36.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.35.0...v0.36.0) (2026-05-31)
 
 
