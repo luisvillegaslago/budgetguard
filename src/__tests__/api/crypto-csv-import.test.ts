@@ -66,6 +66,12 @@ jest.mock('@/services/database/BinanceRawEventsRepository', () => ({
     lastBulkInsertCount = events.length;
     return bulkInsertReturnsZero ? 0 : events.length;
   }),
+  // Pass-through: cross-source dedup is exercised in its own repository tests;
+  // here we keep every candidate so the insert/idempotency assertions hold.
+  filterCrossSourceDuplicates: jest.fn(async (_userId: number, inputs: unknown[]) => ({
+    kept: inputs,
+    skipped: 0,
+  })),
 }));
 
 jest.mock('@/services/exchanges/binance/NormalizationService', () => ({

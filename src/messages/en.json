@@ -1285,6 +1285,7 @@
       "result-rows-skipped": "Rows skipped: {n}",
       "result-events-inserted": "New events: {n}",
       "result-events-duplicate": "Duplicates (ignored): {n}",
+      "result-cross-source-skipped": "Already imported via API (skipped): {n}",
       "result-taxable-created": "Taxable events created: {n}",
       "result-normalizing": "Normalizing EUR prices in the background — check progress in the sync panel.",
       "result-skipped-ops": "Skipped operations (not supported):",

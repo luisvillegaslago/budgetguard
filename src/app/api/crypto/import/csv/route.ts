@@ -18,7 +18,11 @@ import { after, NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { CSV_MAX_BYTES } from '@/schemas/crypto';
-import { bulkInsertRawEventsForUser, type RawEventInput } from '@/services/database/BinanceRawEventsRepository';
+import {
+  bulkInsertRawEventsForUser,
+  filterCrossSourceDuplicates,
+  type RawEventInput,
+} from '@/services/database/BinanceRawEventsRepository';
 import {
   createSyncJob,
   markJobCompleted,
@@ -75,15 +79,20 @@ export const POST = withApiHandler(async (request) => {
   });
   await markJobRunning(job.jobId);
 
+  // Drop rows whose operation already exists from a different source (e.g. the
+  // API sync already covered this period) — they carry a different ExternalID
+  // so the UNIQUE constraint wouldn't catch them, and would double-count.
+  const { kept, skipped: crossSourceSkipped } = await filterCrossSourceDuplicates(userId, mapResult.events);
+
   // Insert raw rows synchronously — this is fast (a few hundred ms even
   // for 10k rows) so the user gets the count back in the response.
   let inserted = 0;
-  if (mapResult.events.length > 0) {
+  if (kept.length > 0) {
     const CHUNK_SIZE = 500;
-    const chunkCount = Math.ceil(mapResult.events.length / CHUNK_SIZE);
+    const chunkCount = Math.ceil(kept.length / CHUNK_SIZE);
     const chunkInserts = await Promise.all(
       Array.from({ length: chunkCount }, (_, i) => {
-        const chunk = mapResult.events.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const chunk = kept.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
         return bulkInsertRawEventsForUser(userId, chunk, job.jobId);
       }),
     );
@@ -148,7 +157,8 @@ export const POST = withApiHandler(async (request) => {
         rowsSkipped: mapResult.summary.rowsSkipped,
         skippedOperations: mapResult.summary.skippedOperations,
         eventsInserted: inserted,
-        eventsDuplicate: mapResult.events.length - inserted,
+        eventsDuplicate: kept.length - inserted,
+        eventsCrossSourceSkipped: crossSourceSkipped,
         // The taxable count is filled by the background normalize — clients
         // poll GET /api/crypto/sync/:jobId for the final state.
         normalizing: true,

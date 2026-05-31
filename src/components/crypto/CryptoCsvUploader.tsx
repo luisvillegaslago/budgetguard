@@ -51,6 +51,8 @@ interface ImportResult {
   skippedOperations: Record<string, number>;
   eventsInserted: number;
   eventsDuplicate: number;
+  /** Operations skipped because they already existed from another source (API sync). */
+  eventsCrossSourceSkipped: number;
   /** True while the background normalize is still running — UI can point
    *  the user at the sync panel for live progress. */
   normalizing: boolean;
@@ -190,6 +192,9 @@ export function CryptoCsvUploader() {
             <li>{t('crypto.csv.result-rows-skipped', { n: result.rowsSkipped })}</li>
             <li>{t('crypto.csv.result-events-inserted', { n: result.eventsInserted })}</li>
             <li>{t('crypto.csv.result-events-duplicate', { n: result.eventsDuplicate })}</li>
+            {result.eventsCrossSourceSkipped > 0 && (
+              <li>{t('crypto.csv.result-cross-source-skipped', { n: result.eventsCrossSourceSkipped })}</li>
+            )}
           </ul>
           {result.normalizing && (
             <p className="text-xs text-guard-muted italic">{t('crypto.csv.result-normalizing')}</p>

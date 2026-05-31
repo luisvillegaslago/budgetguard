@@ -6,7 +6,7 @@
  * .flatMap() for params (project convention, see TransactionRepository).
  */
 
-import { type CryptoEventType } from '@/constants/finance';
+import { CRYPTO_EVENT_TYPE, type CryptoEventType } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { splitSymbol } from '@/utils/cryptoSymbol';
 import { query } from './connection';
@@ -101,6 +101,174 @@ export async function bulkInsertRawEventsForUser(
   );
 
   return rows[0]?.inserted ?? 0;
+}
+
+// ============================================================
+// Cross-source dedup (CSV ↔ API)
+// ============================================================
+
+// deposit/withdraw timestamps differ by minutes/hours between the CSV export
+// and the API, but always land on the same UTC day — so we match them at day
+// granularity. Every other type shares the exact second.
+const DAY_GRANULARITY_TYPES = new Set<string>([CRYPTO_EVENT_TYPE.DEPOSIT, CRYPTO_EVENT_TYPE.WITHDRAW]);
+
+interface EventIdentity {
+  bucket: string; // EventType|asset|side|timeKey
+  // Candidate amounts. Withdrawals carry both the net and the gross (net + fee)
+  // because the CSV stores the gross while the API stores the net + fee apart.
+  amounts: number[];
+}
+
+/**
+ * Build the cross-source identity used to recognise the SAME real operation
+ * imported via different sources (CSV vs API), which carry different ExternalIDs.
+ * Returns null when there is nothing to match on (then it is never a duplicate).
+ */
+function buildIdentity(
+  eventType: string,
+  asset: string | null,
+  amount: number | null,
+  side: string,
+  fee: number,
+  occurredAt: Date,
+): EventIdentity | null {
+  if (asset === null || amount === null || !Number.isFinite(amount)) return null;
+  const timeKey = DAY_GRANULARITY_TYPES.has(eventType)
+    ? occurredAt.toISOString().slice(0, 10) // YYYY-MM-DD (UTC)
+    : String(Math.floor(occurredAt.getTime() / 1000));
+  const gross = Number.isFinite(fee) && fee > 0 ? amount + fee : amount;
+  const amounts = gross !== amount ? [amount, gross] : [amount];
+  return { bucket: `${eventType}|${asset}|${side}|${timeKey}`, amounts };
+}
+
+/** Identity from a raw payload (a candidate event being imported). */
+function identityFromPayload(
+  eventType: string,
+  payload: Record<string, unknown>,
+  occurredAt: Date,
+): EventIdentity | null {
+  const detail = payload.detail as Record<string, unknown> | undefined;
+  const assetRaw = payload.symbol ?? payload.asset ?? payload.coin ?? payload.fromAsset ?? detail?.fromAsset ?? null;
+  const amountRaw = payload.qty ?? payload.amount ?? payload.fromAmount ?? detail?.amount ?? null;
+  const side = payload.isBuyer == null ? '' : String(payload.isBuyer);
+  const fee = Number(payload.transactionFee ?? 0);
+  return buildIdentity(
+    eventType,
+    assetRaw == null ? null : String(assetRaw),
+    amountRaw == null ? null : Number(amountRaw),
+    side,
+    fee,
+    occurredAt,
+  );
+}
+
+interface ExistingKeyRow {
+  EventType: string;
+  asset: string | null;
+  amount: number | null;
+  quote: number | null;
+  fee: number | null;
+  side: string | null;
+  ms: string;
+}
+
+/** Numeric closeness with relative tolerance (robust to float representation). */
+function closeAmount(a: number, b: number): boolean {
+  return Math.abs(a - b) <= Math.max(Math.abs(a), 1) * 1e-9;
+}
+
+/**
+ * Drop candidate raw events that already exist for the user under a different
+ * source/ExternalID (e.g. a CSV row whose operation was already imported via
+ * the API). Matches on EventType + asset + side, a per-type timestamp (exact
+ * second, or same UTC day for deposit/withdraw) and the amount (allowing the
+ * withdrawal network fee). Returns the events to keep plus how many were
+ * skipped as cross-source duplicates.
+ *
+ * Used by the CSV import path so re-importing a period already covered by the
+ * API sync no longer double-counts trades, dividends, dust, deposits, etc.
+ */
+export async function filterCrossSourceDuplicates(
+  userId: number,
+  inputs: RawEventInput[],
+): Promise<{ kept: RawEventInput[]; skipped: number }> {
+  if (inputs.length === 0) return { kept: [], skipped: 0 };
+
+  const rows = await query<ExistingKeyRow>(
+    `SELECT "EventType",
+       COALESCE("RawPayload"->>'symbol', "RawPayload"->>'asset', "RawPayload"->>'coin',
+                "RawPayload"->>'fromAsset', "RawPayload"->'detail'->>'fromAsset') AS asset,
+       COALESCE(("RawPayload"->>'qty')::numeric, ("RawPayload"->>'amount')::numeric,
+                ("RawPayload"->>'fromAmount')::numeric, ("RawPayload"->'detail'->>'amount')::numeric)::float8 AS amount,
+       ("RawPayload"->>'quoteQty')::float8 AS quote,
+       COALESCE(("RawPayload"->>'transactionFee')::numeric, 0)::float8 AS fee,
+       "RawPayload"->>'isBuyer' AS side,
+       (EXTRACT(EPOCH FROM "OccurredAt") * 1000)::bigint::text AS ms
+     FROM "BinanceRawEvents"
+     WHERE "UserID" = $1`,
+    [userId],
+  );
+
+  // bucket -> amounts already present (net + gross), for tolerant numeric match.
+  const index = new Map<string, number[]>();
+  // second -> spot qty/quoteQty already present, to catch a CSV spot trade
+  // exported with the INVERTED symbol (base↔quote swapped) that duplicates an
+  // API order at the same second — its symbol/side differ so the bucket misses it.
+  const spotSecondIndex = new Map<number, number[]>();
+  rows.forEach((row) => {
+    if (row.EventType === CRYPTO_EVENT_TYPE.SPOT_TRADE) {
+      const second = Math.floor(Number(row.ms) / 1000);
+      const list = spotSecondIndex.get(second) ?? [];
+      if (row.amount != null) list.push(row.amount);
+      if (row.quote != null) list.push(row.quote);
+      spotSecondIndex.set(second, list);
+    }
+    const identity = buildIdentity(
+      row.EventType,
+      row.asset,
+      row.amount,
+      row.side ?? '',
+      row.fee ?? 0,
+      new Date(Number(row.ms)),
+    );
+    if (identity === null) return;
+    const list = index.get(identity.bucket) ?? [];
+    identity.amounts.forEach((amount) => {
+      list.push(amount);
+    });
+    index.set(identity.bucket, list);
+  });
+
+  const matchesExisting = (identity: EventIdentity): boolean => {
+    const list = index.get(identity.bucket);
+    if (!list) return false;
+    return identity.amounts.some((amount) => list.some((existing) => closeAmount(existing, amount)));
+  };
+
+  const isSpotCrossDuplicate = (input: RawEventInput): boolean => {
+    if (input.eventType !== CRYPTO_EVENT_TYPE.SPOT_TRADE) return false;
+    const list = spotSecondIndex.get(Math.floor(input.occurredAt.getTime() / 1000));
+    if (!list) return false;
+    const qty = Number(input.rawPayload.qty);
+    const quoteQty = Number(input.rawPayload.quoteQty);
+    return [qty, quoteQty].some((amount) => Number.isFinite(amount) && list.some((e) => closeAmount(e, amount)));
+  };
+
+  let skipped = 0;
+  const kept = inputs.filter((input) => {
+    const identity = identityFromPayload(input.eventType, input.rawPayload, input.occurredAt);
+    if (identity !== null && matchesExisting(identity)) {
+      skipped += 1;
+      return false;
+    }
+    if (isSpotCrossDuplicate(input)) {
+      skipped += 1;
+      return false;
+    }
+    return true;
+  });
+
+  return { kept, skipped };
 }
 
 /**

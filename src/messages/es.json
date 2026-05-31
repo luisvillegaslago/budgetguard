@@ -1285,6 +1285,7 @@
       "result-rows-skipped": "Filas ignoradas: {n}",
       "result-events-inserted": "Eventos nuevos: {n}",
       "result-events-duplicate": "Duplicados (ignorados): {n}",
+      "result-cross-source-skipped": "Ya importados por la API (omitidos): {n}",
       "result-taxable-created": "Eventos fiscales generados: {n}",
       "result-normalizing": "Normalizando precios EUR en segundo plano… consulta el progreso en el panel de sincronización.",
       "result-skipped-ops": "Operaciones ignoradas (no soportadas):",
