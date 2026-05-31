@@ -153,6 +153,14 @@ export function toDateString(val: Date | string): string {
 }
 
 /**
+ * Normalize a string for accent- and case-insensitive search.
+ * Strips diacritics so "túnel" and "tunel" match each other.
+ */
+export function normalizeForSearch(value: string): string {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/**
  * Debounce function for input handlers
  */
 export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(

@@ -35,7 +35,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import { useVouchers } from '@/hooks/useVouchers';
 import { useFilters, useSelectedMonth, useSetFilters } from '@/stores/useFinanceStore';
 import type { StatusFilter, Transaction, TransactionGroupDisplay, TripGroupDisplay } from '@/types/finance';
-import { cn, formatDate } from '@/utils/helpers';
+import { cn, formatDate, normalizeForSearch } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { TransactionGroupForm } from './TransactionGroupForm';
 import { TransactionGroupRow } from './TransactionGroupRow';
@@ -329,13 +329,14 @@ interface TransactionListProps {
   onEditTransaction?: (transaction: Transaction) => void;
 }
 
-/** Check if a transaction matches the search query */
-function matchesSearch(tx: Transaction, query: string): boolean {
-  const q = query.toLowerCase();
+/** Check if a transaction matches the search query (accent- and case-insensitive) */
+function matchesSearch(tx: Transaction, query: string, voucherName?: string | null): boolean {
+  const q = normalizeForSearch(query);
   return (
-    (tx.description?.toLowerCase().includes(q) ?? false) ||
-    (tx.category?.name?.toLowerCase().includes(q) ?? false) ||
-    (tx.parentCategory?.name?.toLowerCase().includes(q) ?? false)
+    normalizeForSearch(tx.description ?? '').includes(q) ||
+    normalizeForSearch(tx.category?.name ?? '').includes(q) ||
+    normalizeForSearch(tx.parentCategory?.name ?? '').includes(q) ||
+    (voucherName != null && normalizeForSearch(voucherName).includes(q))
   );
 }
 
@@ -433,27 +434,29 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
 
     // Search filter
     if (searchQuery) {
+      const txVoucherName = (tx: Transaction): string | null =>
+        tx.voucherId != null ? (voucherNames.get(tx.voucherId) ?? null) : null;
+      const q = normalizeForSearch(searchQuery);
       items = items.filter((item) => {
         if (item.kind === 'transaction') {
-          return matchesSearch(item.data, searchQuery);
+          return matchesSearch(item.data, searchQuery, txVoucherName(item.data));
         }
         if (item.kind === 'group') {
-          const q = searchQuery.toLowerCase();
           return (
-            (item.data.description?.toLowerCase().includes(q) ?? false) ||
-            (item.data.parentCategoryName?.toLowerCase().includes(q) ?? false) ||
-            item.data.transactions.some((tx) => matchesSearch(tx, q))
+            normalizeForSearch(item.data.description ?? '').includes(q) ||
+            normalizeForSearch(item.data.parentCategoryName ?? '').includes(q) ||
+            item.data.transactions.some((tx) => matchesSearch(tx, searchQuery, txVoucherName(tx)))
           );
         }
-        const q = searchQuery.toLowerCase();
         return (
-          item.data.tripName.toLowerCase().includes(q) || item.data.transactions.some((tx) => matchesSearch(tx, q))
+          normalizeForSearch(item.data.tripName).includes(q) ||
+          item.data.transactions.some((tx) => matchesSearch(tx, searchQuery, txVoucherName(tx)))
         );
       });
     }
 
     return items;
-  }, [sortedItems, searchQuery, filters.type, filters.status]);
+  }, [sortedItems, searchQuery, filters.type, filters.status, voucherNames]);
 
   if (isLoading) {
     return (
