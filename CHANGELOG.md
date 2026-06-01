@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.37.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.36.1...v0.37.0) (2026-06-01)
+
+
+### Features
+
+* **trips:** unify name and date editing into a single edit modal ([f0e8642](https://github.com/luisvillegaslago/budgetguard/commit/f0e8642c6b5f494700ea21325ac4c6dab0154c25))
+
 ## [0.36.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.36.0...v0.36.1) (2026-05-31)
 
 
