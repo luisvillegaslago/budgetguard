@@ -583,11 +583,7 @@
     "detail": {
       "add-expense": "Add Expense",
       "total": "Total",
-      "edit-name": "Edit name",
-      "save-name": "Save name",
-      "edit-dates": "Edit dates",
-      "save-dates": "Save dates",
-      "cancel-edit": "Cancel edit",
+      "edit-trip": "Edit trip",
       "empty": {
         "title": "No expenses in this trip",
         "subtitle": "Add your first expense to get started"
@@ -626,6 +622,11 @@
       "submit": "Create Trip",
       "saving": "Creating..."
     },
+    "edit-form": {
+      "title": "Edit Trip",
+      "submit": "Save Changes",
+      "saving": "Saving..."
+    },
     "delete": {
       "button": "Delete trip",
       "confirm": "Delete trip and {count} associated expenses?"
@@ -635,6 +636,7 @@
       "load": "Error loading trips",
       "load-detail": "Error loading trip",
       "create": "Error creating trip. Please try again.",
+      "update": "Error updating trip. Please try again.",
       "not-found": "Trip not found"
     }
   },

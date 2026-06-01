@@ -583,11 +583,7 @@
     "detail": {
       "add-expense": "Añadir Gasto",
       "total": "Total",
-      "edit-name": "Editar nombre",
-      "save-name": "Guardar nombre",
-      "edit-dates": "Editar fechas",
-      "save-dates": "Guardar fechas",
-      "cancel-edit": "Cancelar edición",
+      "edit-trip": "Editar viaje",
       "empty": {
         "title": "No hay gastos en este viaje",
         "subtitle": "Añade tu primer gasto para empezar"
@@ -626,6 +622,11 @@
       "submit": "Crear Viaje",
       "saving": "Creando..."
     },
+    "edit-form": {
+      "title": "Editar Viaje",
+      "submit": "Guardar Cambios",
+      "saving": "Guardando..."
+    },
     "delete": {
       "button": "Eliminar viaje",
       "confirm": "¿Eliminar viaje y {count} gastos asociados?"
@@ -635,6 +636,7 @@
       "load": "Error al cargar viajes",
       "load-detail": "Error al cargar el viaje",
       "create": "Error al crear el viaje. Intenta de nuevo.",
+      "update": "Error al actualizar el viaje. Intenta de nuevo.",
       "not-found": "Viaje no encontrado"
     }
   },
