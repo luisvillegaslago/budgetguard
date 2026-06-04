@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.38.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.37.0...v0.38.0) (2026-06-04)
+
+
+### Features
+
+* **crypto:** show EUR P&L on all quote bands, hover only on % badge ([19f230b](https://github.com/luisvillegaslago/budgetguard/commit/19f230b3fa58dce6de9935ddf6f7475421a67961))
+
 ## [0.37.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.36.1...v0.37.0) (2026-06-01)
 
 
