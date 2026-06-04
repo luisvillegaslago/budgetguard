@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.39.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.38.0...v0.39.0) (2026-06-04)
+
+
+### Features
+
+* **skydiving:** pay jumps and tunnel sessions with vouchers ([752a74b](https://github.com/luisvillegaslago/budgetguard/commit/752a74ba97569408451f5b087c99910aeb79d8d4))
+
 ## [0.38.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.37.0...v0.38.0) (2026-06-04)
 
 
