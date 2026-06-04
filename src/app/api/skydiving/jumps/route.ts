@@ -4,11 +4,9 @@
  * POST /api/skydiving/jumps - Create a new jump
  */
 
-import { SKYDIVE_CATEGORY } from '@/constants/finance';
-import { getUserIdOrThrow } from '@/libs/auth';
 import { CreateJumpSchema } from '@/schemas/skydive';
 import { validateRequest } from '@/schemas/transaction';
-import { createJump, findSkydiveSubcategoryId, getAllJumps } from '@/services/database/SkydiveRepository';
+import { createJump, getAllJumps } from '@/services/database/SkydiveRepository';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 
 export const GET = withApiHandler(async (request) => {
@@ -44,13 +42,9 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(CreateJumpSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  let categoryId: number | null = null;
-  if (validation.data.priceCents != null && validation.data.priceCents > 0) {
-    const userId = await getUserIdOrThrow();
-    categoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS, userId);
-  }
-
-  const jump = await createJump({ ...validation.data, categoryId });
+  // The repository resolves the category: voucher payments use the voucher's own
+  // category, cash expenses are filed under the "Saltos" subcategory.
+  const jump = await createJump(validation.data);
 
   return { data: jump, status: 201 };
 }, 'POST /api/skydiving/jumps');

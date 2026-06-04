@@ -21,6 +21,8 @@ const mockSession: TunnelSession = {
   priceCents: null,
   notes: null,
   transactionId: null,
+  voucherId: null,
+  voucherUnits: null,
   createdAt: '2025-05-20T10:00:00.000Z',
   updatedAt: '2025-05-20T10:00:00.000Z',
 };
@@ -181,6 +183,18 @@ describe('POST /api/skydiving/tunnel', () => {
     expect(capturedCreateData!.durationSec).toBe(60);
   });
 
+  it('should pass voucherId through to the repository', async () => {
+    const request = createMockRequest({
+      sessionDate: '2025-06-05',
+      durationMin: 5,
+      voucherId: 2,
+    });
+    const response = await POST_SESSION(request as never);
+
+    expect(response.status).toBe(201);
+    expect(capturedCreateData!.voucherId).toBe(2);
+  });
+
   it('should reject missing sessionDate', async () => {
     const request = createMockRequest({
       durationMin: 2,
@@ -255,6 +269,16 @@ describe('PUT /api/skydiving/tunnel/[id]', () => {
     expect(capturedUpdateData!.sessionId).toBe(1);
     expect(capturedUpdateData!.data.location).toBe('Barcelona Fly');
     expect(capturedUpdateData!.data.durationSec).toBe(240);
+  });
+
+  it('should pass voucherId through to the repository', async () => {
+    const request = createMockRequest({ durationMin: 6, voucherId: 8 });
+    const response = await PUT_SESSION(request as never, createMockParams('1'));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(capturedUpdateData!.data.voucherId).toBe(8);
   });
 
   it('should return 404 for non-existent session', async () => {

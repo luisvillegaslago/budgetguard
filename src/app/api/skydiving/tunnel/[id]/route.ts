@@ -21,6 +21,9 @@ export const PUT = withApiHandler(async (request, { params }) => {
   if (!validation.success) return validationError(validation.errors);
 
   const { price, durationMin, ...rest } = validation.data;
+
+  // The repository reconciles the linked transaction and resolves the category
+  // (voucher's own category, or the "Túnel de viento" subcategory for cash).
   const payload = {
     ...rest,
     ...(durationMin !== undefined ? { durationSec: Math.round(durationMin * 60) } : {}),

@@ -18,7 +18,7 @@ import { useCreateCategory, useUpdateCategory } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateCategoryInput, CreateCategorySchema, type UpdateCategoryInput } from '@/schemas/transaction';
 import type { Category } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+import { cn, toNullableNumber } from '@/utils/helpers';
 
 interface CategoryFormModalProps {
   onClose: () => void;
@@ -298,7 +298,7 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
                   step="0.01"
                   min="0"
                   max="100"
-                  {...register('defaultVatPercent', { valueAsNumber: true })}
+                  {...register('defaultVatPercent', { setValueAs: toNullableNumber })}
                   onWheel={(e) => e.currentTarget.blur()}
                   className={cn(
                     'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
@@ -318,7 +318,7 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
                   step="0.01"
                   min="0"
                   max="100"
-                  {...register('defaultDeductionPercent', { valueAsNumber: true })}
+                  {...register('defaultDeductionPercent', { setValueAs: toNullableNumber })}
                   onWheel={(e) => e.currentTarget.blur()}
                   className={cn(
                     'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',

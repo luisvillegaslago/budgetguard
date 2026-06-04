@@ -6,17 +6,20 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { SkydiveVoucherSelect } from '@/components/skydiving/SkydiveVoucherSelect';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
+import { SKYDIVE_CATEGORY } from '@/constants/finance';
 import { useTunnelLocations } from '@/hooks/useSkydiveSuggestions';
+import { useSkydiveVouchers } from '@/hooks/useSkydiveVouchers';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useCreateTunnelSession, useUpdateTunnelSession } from '@/hooks/useTunnelSessions';
 import type { CreateTunnelSessionInput } from '@/schemas/skydive';
 import { CreateTunnelSessionSchema } from '@/schemas/skydive';
 import type { TunnelSession } from '@/types/skydive';
-import { cn, toDateString } from '@/utils/helpers';
+import { cn, toDateString, toNullableNumber } from '@/utils/helpers';
 import { centsToEuros } from '@/utils/money';
 
 interface TunnelSessionFormProps {
@@ -44,6 +47,7 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
     control,
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateTunnelSessionInput>({
     resolver: zodResolver(CreateTunnelSessionSchema),
@@ -55,11 +59,20 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
           durationMin: session.durationSec / 60,
           notes: session.notes,
           price: session.priceCents != null ? centsToEuros(session.priceCents) : null,
+          voucherId: session.voucherId,
         }
       : {
           sessionDate: toDateString(new Date()) as unknown as Date,
         },
   });
+
+  // Voucher ("bono") payment — only vouchers in the "Túnel de viento" subcategory.
+  const watchedVoucherId = useWatch({ control, name: 'voucherId' });
+  const watchedDurationMin = useWatch({ control, name: 'durationMin' });
+  const tunnelVouchers = useSkydiveVouchers(SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL, session?.voucherId ?? null);
+  const selectedVoucher = tunnelVouchers.find((v) => v.voucherId === watchedVoucherId) ?? null;
+  // Unit vouchers (e.g. "60 minutos") prorate the amount, so the manual price is hidden.
+  const isUnitsVoucherSelected = selectedVoucher?.totalUnits != null && selectedVoucher.totalUnits > 0;
 
   const onSubmit = async (data: CreateTunnelSessionInput) => {
     try {
@@ -176,12 +189,25 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
               type="number"
               step="0.01"
               min="0"
-              {...register('price', { valueAsNumber: true })}
+              disabled={isUnitsVoucherSelected}
+              {...register('price', { setValueAs: toNullableNumber })}
               onWheel={(e) => e.currentTarget.blur()}
               placeholder={t('skydiving.tunnel.form.fields.price-placeholder')}
-              className={inputClass(false)}
+              className={cn(inputClass(false), isUnitsVoucherSelected && 'opacity-50 cursor-not-allowed')}
             />
+            {isUnitsVoucherSelected && (
+              <p className="mt-1 text-xs text-guard-muted">{t('skydiving.voucher.price-from-voucher')}</p>
+            )}
           </div>
+
+          {/* Voucher ("bono") payment */}
+          <SkydiveVoucherSelect
+            vouchers={tunnelVouchers}
+            value={watchedVoucherId ?? null}
+            onChange={(id) => setValue('voucherId', id, { shouldValidate: true })}
+            units={typeof watchedDurationMin === 'number' ? watchedDurationMin : 0}
+            disabled={isSubmitting}
+          />
 
           {/* Notes */}
           <div>

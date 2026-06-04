@@ -153,6 +153,15 @@ export function toDateString(val: Date | string): string {
 }
 
 /**
+ * react-hook-form `setValueAs` helper for optional number inputs.
+ * Maps empty/invalid input to null (instead of NaN, which fails z.number()).
+ */
+export function toNullableNumber(value: unknown): number | null {
+  if (value === '' || value == null || Number.isNaN(Number(value))) return null;
+  return Number(value);
+}
+
+/**
  * Normalize a string for accent- and case-insensitive search.
  * Strips diacritics so "túnel" and "tunel" match each other.
  */

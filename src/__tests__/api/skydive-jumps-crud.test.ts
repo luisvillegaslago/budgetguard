@@ -30,6 +30,8 @@ const mockJump: SkydiveJump = {
   comment: null,
   priceCents: null,
   transactionId: null,
+  voucherId: null,
+  voucherUnits: null,
   createdAt: '2025-06-15T10:00:00.000Z',
   updatedAt: '2025-06-15T10:00:00.000Z',
 };
@@ -235,6 +237,18 @@ describe('POST /api/skydiving/jumps', () => {
     expect(capturedCreateData!.jumpNumber).toBe(44);
   });
 
+  it('should pass voucherId through to the repository', async () => {
+    const request = createMockRequest({
+      jumpNumber: 45,
+      jumpDate: '2025-07-03',
+      voucherId: 9,
+    });
+    const response = await POST_JUMP(request as never);
+
+    expect(response.status).toBe(201);
+    expect(capturedCreateData!.voucherId).toBe(9);
+  });
+
   it('should reject missing jumpNumber', async () => {
     const request = createMockRequest({
       jumpDate: '2025-07-01',
@@ -334,6 +348,16 @@ describe('PUT /api/skydiving/jumps/[id]', () => {
     expect(capturedUpdateData).not.toBeNull();
     expect(capturedUpdateData!.jumpId).toBe(1);
     expect(capturedUpdateData!.data.dropzone).toBe('Skydive Empuriabrava');
+  });
+
+  it('should pass voucherId through to the repository', async () => {
+    const request = createMockRequest({ voucherId: 4 });
+    const response = await PUT_JUMP(request as never, createMockParams('1'));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(capturedUpdateData!.data.voucherId).toBe(4);
   });
 
   it('should return 404 for non-existent jump', async () => {

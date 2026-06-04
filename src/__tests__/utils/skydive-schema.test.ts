@@ -211,6 +211,32 @@ describe('CreateJumpSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  // voucherId validation (voucher / "bono" payment)
+  it('should accept a positive voucherId', () => {
+    const result = CreateJumpSchema.safeParse({ ...validJump, voucherId: 7 });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept null voucherId', () => {
+    const result = CreateJumpSchema.safeParse({ ...validJump, voucherId: null });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject zero voucherId', () => {
+    const result = CreateJumpSchema.safeParse({ ...validJump, voucherId: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject negative voucherId', () => {
+    const result = CreateJumpSchema.safeParse({ ...validJump, voucherId: -2 });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject non-integer voucherId', () => {
+    const result = CreateJumpSchema.safeParse({ ...validJump, voucherId: 1.5 });
+    expect(result.success).toBe(false);
+  });
+
   it('should reject non-integer freefallTimeSec', () => {
     const result = CreateJumpSchema.safeParse({ ...validJump, freefallTimeSec: 30.5 });
     expect(result.success).toBe(false);
@@ -407,6 +433,27 @@ describe('CreateTunnelSessionSchema', () => {
   it('should accept sessionType with exactly 100 characters', () => {
     const result = CreateTunnelSessionSchema.safeParse({ ...validSession, sessionType: 'S'.repeat(100) });
     expect(result.success).toBe(true);
+  });
+
+  // voucherId validation (voucher / "bono" payment)
+  it('should accept a positive voucherId', () => {
+    const result = CreateTunnelSessionSchema.safeParse({ ...validSession, voucherId: 3 });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept null voucherId', () => {
+    const result = CreateTunnelSessionSchema.safeParse({ ...validSession, voucherId: null });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject zero voucherId', () => {
+    const result = CreateTunnelSessionSchema.safeParse({ ...validSession, voucherId: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject negative voucherId', () => {
+    const result = CreateTunnelSessionSchema.safeParse({ ...validSession, voucherId: -1 });
+    expect(result.success).toBe(false);
   });
 
   // Optional/nullable fields

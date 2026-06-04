@@ -22,6 +22,9 @@ export interface SkydiveJump {
   comment: string | null;
   priceCents: number | null;
   transactionId: number | null;
+  // Voucher ("bono") this jump was paid from, read from the linked transaction
+  voucherId: number | null;
+  voucherUnits: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +41,9 @@ export interface TunnelSession {
   notes: string | null;
   priceCents: number | null;
   transactionId: number | null;
+  // Voucher ("bono") this session was paid from, read from the linked transaction
+  voucherId: number | null;
+  voucherUnits: number | null;
   createdAt: string;
   updatedAt: string;
 }

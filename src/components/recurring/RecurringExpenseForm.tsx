@@ -21,7 +21,7 @@ import { useCreateRecurringExpense, useUpdateRecurringExpense } from '@/hooks/us
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateRecurringExpenseInput, CreateRecurringExpenseSchema } from '@/schemas/recurring-expense';
 import type { RecurringExpense, RecurringFrequency } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+import { cn, toNullableNumber } from '@/utils/helpers';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 import { computeEndDateFromOccurrences } from '@/utils/recurring';
 
@@ -473,10 +473,10 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                       step="0.01"
                       min="0"
                       max="100"
-                      {...register('vatPercent', { valueAsNumber: true })}
+                      {...register('vatPercent', { setValueAs: toNullableNumber })}
                       onChange={(e) => {
                         fiscalDirtyRef.current = true;
-                        register('vatPercent', { valueAsNumber: true }).onChange(e);
+                        register('vatPercent', { setValueAs: toNullableNumber }).onChange(e);
                       }}
                       onWheel={(e) => e.currentTarget.blur()}
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
@@ -494,10 +494,10 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                       step="0.01"
                       min="0"
                       max="100"
-                      {...register('deductionPercent', { valueAsNumber: true })}
+                      {...register('deductionPercent', { setValueAs: toNullableNumber })}
                       onChange={(e) => {
                         fiscalDirtyRef.current = true;
-                        register('deductionPercent', { valueAsNumber: true }).onChange(e);
+                        register('deductionPercent', { setValueAs: toNullableNumber }).onChange(e);
                       }}
                       onWheel={(e) => e.currentTarget.blur()}
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"

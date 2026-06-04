@@ -1532,7 +1532,8 @@
           "wingsuit-placeholder": "Ej: Squirrel Colugo 3",
           "landing-distance": "Distancia de aterrizaje (m)",
           "comment": "Comentario",
-          "price": "Precio (€)"
+          "price": "Precio (€)",
+          "price-placeholder": "Ej: 35,00"
         },
         "submit-create": "Crear Salto",
         "submit-edit": "Guardar Salto",
@@ -1618,6 +1619,12 @@
     },
     "by-type": "Por Tipo",
     "by-year": "Por Año",
+    "voucher": {
+      "question": "¿Procede de un bono?",
+      "select-placeholder": "Selecciona un bono",
+      "amount-auto": "Se descontará {amount} del bono",
+      "price-from-voucher": "El importe se calcula automáticamente desde el bono"
+    },
     "pagination": {
       "showing": "{from}–{to} de {total}",
       "first": "Primera página",

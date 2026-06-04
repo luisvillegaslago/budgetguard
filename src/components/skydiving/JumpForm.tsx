@@ -6,17 +6,21 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { SkydiveVoucherSelect } from '@/components/skydiving/SkydiveVoucherSelect';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
+import { SKYDIVE_CATEGORY } from '@/constants/finance';
 import { useCreateJump, useUpdateJump } from '@/hooks/useSkydiveJumps';
 import { useDropzones } from '@/hooks/useSkydiveSuggestions';
+import { useSkydiveVouchers } from '@/hooks/useSkydiveVouchers';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { CreateJumpInput } from '@/schemas/skydive';
 import { CreateJumpSchema } from '@/schemas/skydive';
 import type { SkydiveJump } from '@/types/skydive';
-import { cn, toDateString } from '@/utils/helpers';
+import { cn, toDateString, toNullableNumber } from '@/utils/helpers';
+import { centsToEuros, eurosToCents } from '@/utils/money';
 
 interface JumpFormProps {
   jump?: SkydiveJump | null;
@@ -44,6 +48,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
     control,
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateJumpInput>({
     resolver: zodResolver(CreateJumpSchema),
@@ -62,12 +67,20 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
           landingDistanceM: jump.landingDistanceM,
           comment: jump.comment,
           priceCents: jump.priceCents,
+          voucherId: jump.voucherId,
         }
       : {
           jumpNumber: nextJumpNumber,
           jumpDate: toDateString(new Date()) as unknown as Date,
         },
   });
+
+  // Voucher ("bono") payment — only vouchers in the "Saltos" subcategory.
+  const watchedVoucherId = useWatch({ control, name: 'voucherId' });
+  const jumpVouchers = useSkydiveVouchers(SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS, jump?.voucherId ?? null);
+  const selectedVoucher = jumpVouchers.find((v) => v.voucherId === watchedVoucherId) ?? null;
+  // Unit vouchers (e.g. "10 saltos") prorate the amount, so the manual price is hidden.
+  const isUnitsVoucherSelected = selectedVoucher?.totalUnits != null && selectedVoucher.totalUnits > 0;
 
   const onSubmit = async (data: CreateJumpInput) => {
     try {
@@ -176,7 +189,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
               <input
                 id="freefallTimeSec"
                 type="number"
-                {...register('freefallTimeSec', { valueAsNumber: true })}
+                {...register('freefallTimeSec', { setValueAs: toNullableNumber })}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass(false)}
               />
@@ -188,7 +201,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
               <input
                 id="exitAltitudeFt"
                 type="number"
-                {...register('exitAltitudeFt', { valueAsNumber: true })}
+                {...register('exitAltitudeFt', { setValueAs: toNullableNumber })}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass(false)}
               />
@@ -222,6 +235,43 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
               />
             </div>
           </div>
+
+          {/* Price (euros) */}
+          <div>
+            <label htmlFor="priceCents" className="block text-sm font-medium text-foreground mb-1.5">
+              {t('skydiving.jumps.form.fields.price')}
+            </label>
+            <Controller
+              control={control}
+              name="priceCents"
+              render={({ field }) => (
+                <input
+                  id="priceCents"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  disabled={isUnitsVoucherSelected}
+                  value={field.value != null ? centsToEuros(field.value) : ''}
+                  onChange={(e) => field.onChange(e.target.value === '' ? null : eurosToCents(Number(e.target.value)))}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder={t('skydiving.jumps.form.fields.price-placeholder')}
+                  className={cn(inputClass(false), isUnitsVoucherSelected && 'opacity-50 cursor-not-allowed')}
+                />
+              )}
+            />
+            {isUnitsVoucherSelected && (
+              <p className="mt-1 text-xs text-guard-muted">{t('skydiving.voucher.price-from-voucher')}</p>
+            )}
+          </div>
+
+          {/* Voucher ("bono") payment */}
+          <SkydiveVoucherSelect
+            vouchers={jumpVouchers}
+            value={watchedVoucherId ?? null}
+            onChange={(id) => setValue('voucherId', id, { shouldValidate: true })}
+            units={1}
+            disabled={isSubmitting}
+          />
 
           {/* Comment */}
           <div>

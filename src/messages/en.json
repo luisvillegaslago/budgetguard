@@ -1532,7 +1532,8 @@
           "wingsuit-placeholder": "e.g., Squirrel Colugo 3",
           "landing-distance": "Landing distance (m)",
           "comment": "Comment",
-          "price": "Price (€)"
+          "price": "Price (€)",
+          "price-placeholder": "e.g., 35.00"
         },
         "submit-create": "Create Jump",
         "submit-edit": "Save Jump",
@@ -1618,6 +1619,12 @@
     },
     "by-type": "By Type",
     "by-year": "By Year",
+    "voucher": {
+      "question": "Paid with a voucher?",
+      "select-placeholder": "Select a voucher",
+      "amount-auto": "{amount} will be deducted from the voucher",
+      "price-from-voucher": "The amount is calculated automatically from the voucher"
+    },
     "pagination": {
       "showing": "{from}–{to} of {total}",
       "first": "First page",

@@ -23,7 +23,7 @@ import { useVouchers } from '@/hooks/useVouchers';
 import { type CreateTransactionInput, CreateTransactionSchema } from '@/schemas/transaction';
 import { useSelectedMonth } from '@/stores/useFinanceStore';
 import type { Transaction, TransactionStatus, TransactionType } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+import { cn, toNullableNumber } from '@/utils/helpers';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 interface TransactionFormProps {
@@ -556,10 +556,10 @@ export function TransactionForm({
                     step="0.01"
                     min="0"
                     max="100"
-                    {...register('vatPercent', { valueAsNumber: true })}
+                    {...register('vatPercent', { setValueAs: toNullableNumber })}
                     onChange={(e) => {
                       fiscalDirtyRef.current = true;
-                      register('vatPercent', { valueAsNumber: true }).onChange(e);
+                      register('vatPercent', { setValueAs: toNullableNumber }).onChange(e);
                     }}
                     onWheel={(e) => e.currentTarget.blur()}
                     className="w-full input-sm"
@@ -577,10 +577,10 @@ export function TransactionForm({
                     step="0.01"
                     min="0"
                     max="100"
-                    {...register('deductionPercent', { valueAsNumber: true })}
+                    {...register('deductionPercent', { setValueAs: toNullableNumber })}
                     onChange={(e) => {
                       fiscalDirtyRef.current = true;
-                      register('deductionPercent', { valueAsNumber: true }).onChange(e);
+                      register('deductionPercent', { setValueAs: toNullableNumber }).onChange(e);
                     }}
                     onWheel={(e) => e.currentTarget.blur()}
                     className="w-full input-sm"

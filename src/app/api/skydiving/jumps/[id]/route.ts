@@ -31,6 +31,8 @@ export const PUT = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(UpdateJumpSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
+  // The repository reconciles the linked transaction and resolves the category
+  // (voucher's own category, or the "Saltos" subcategory for cash expenses).
   const jump = await updateJump(jumpId, validation.data);
   if (!jump) return notFound(API_ERROR.NOT_FOUND.JUMP);
 

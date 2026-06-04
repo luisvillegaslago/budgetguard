@@ -10,6 +10,7 @@ import type { Category } from '@/types/finance';
 import type { ImportResult, JumpsByType, JumpsByYear, SkydiveJump, SkydiveStats, TunnelSession } from '@/types/skydive';
 import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
+import { getVoucherById } from './VoucherRepository';
 
 // ============================================================
 // Row types
@@ -31,6 +32,8 @@ interface JumpRow {
   Comment: string | null;
   PriceCents: number | null;
   TransactionID: number | null;
+  VoucherID?: number | null;
+  VoucherUnits?: number | string | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -44,6 +47,8 @@ interface TunnelRow {
   Notes: string | null;
   PriceCents: number | null;
   TransactionID: number | null;
+  VoucherID?: number | null;
+  VoucherUnits?: number | string | null;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -107,6 +112,8 @@ function rowToJump(row: JumpRow): SkydiveJump {
     comment: row.Comment,
     priceCents: row.PriceCents,
     transactionId: row.TransactionID,
+    voucherId: row.VoucherID ?? null,
+    voucherUnits: row.VoucherUnits != null ? Number(row.VoucherUnits) : null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -122,6 +129,8 @@ function rowToTunnelSession(row: TunnelRow): TunnelSession {
     notes: row.Notes,
     priceCents: row.PriceCents,
     transactionId: row.TransactionID,
+    voucherId: row.VoucherID ?? null,
+    voucherUnits: row.VoucherUnits != null ? Number(row.VoucherUnits) : null,
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -146,6 +155,127 @@ export async function findSkydiveSubcategoryId(subcategoryName: string, userId: 
     [SKYDIVE_CATEGORY.NAME, subcategoryName, userId],
   );
   return result[0]?.CategoryID ?? null;
+}
+
+// ============================================================
+// Voucher consumption
+// ============================================================
+
+interface VoucherConsumption {
+  categoryId: number;
+  priceCents: number;
+  voucherUnits: number | null;
+}
+
+/**
+ * Resolve how a jump/session paid with a voucher ("bono") consumes its balance.
+ * - Unit vouchers (TotalUnits set): consume `units` (1 per jump, minutes for tunnel)
+ *   and prorate the amount from the voucher's unit price.
+ * - Monetary vouchers: deduct the manually entered price; no units consumed.
+ * The resulting CategoryID is always the voucher's category so the linked
+ * transaction matches vw_VoucherBalance.
+ */
+async function resolveVoucherConsumption(
+  voucherId: number,
+  opts: { units: number; manualPriceCents: number | null },
+): Promise<VoucherConsumption> {
+  const voucher = await getVoucherById(voucherId);
+  if (!voucher) {
+    throw new Error(`Voucher ${voucherId} not found`);
+  }
+
+  if (voucher.totalUnits != null && voucher.totalUnits > 0) {
+    const unitPriceCents = voucher.totalAmountCents / voucher.totalUnits;
+    return {
+      categoryId: voucher.categoryId,
+      priceCents: Math.round(unitPriceCents * opts.units),
+      voucherUnits: opts.units,
+    };
+  }
+
+  return {
+    categoryId: voucher.categoryId,
+    priceCents: opts.manualPriceCents ?? 0,
+    voucherUnits: null,
+  };
+}
+
+// Minimal structural client type shared by Neon and pg pool clients.
+type TxClient = {
+  query: <T = unknown>(sql: string, params?: unknown[]) => Promise<{ rows: T[] }>;
+};
+
+/**
+ * Reconcile the expense transaction linked to a jump/session inside an open
+ * transaction. Creates, updates, or deletes the transaction to match the desired
+ * payment state and returns the resulting TransactionID (or null when none).
+ * Deleting a transaction frees any voucher balance and nulls the FK via
+ * ON DELETE SET NULL.
+ */
+async function syncLinkedExpenseTransaction(
+  client: TxClient,
+  opts: {
+    existingTxId: number | null;
+    shouldHaveTx: boolean;
+    categoryId: number | null;
+    priceCents: number | null;
+    description: string;
+    transactionDate: string;
+    voucherId: number | null;
+    voucherUnits: number | null;
+    userId: number;
+  },
+): Promise<number | null> {
+  const { existingTxId, shouldHaveTx } = opts;
+
+  if (!shouldHaveTx) {
+    if (existingTxId != null) {
+      await client.query('DELETE FROM "Transactions" WHERE "TransactionID" = $1 AND "UserID" = $2', [
+        existingTxId,
+        opts.userId,
+      ]);
+    }
+    return null;
+  }
+
+  if (existingTxId != null) {
+    await client.query(
+      `UPDATE "Transactions"
+       SET "CategoryID" = $1, "AmountCents" = $2, "Description" = $3, "TransactionDate" = $4,
+           "VoucherID" = $5, "VoucherUnits" = $6
+       WHERE "TransactionID" = $7 AND "UserID" = $8`,
+      [
+        opts.categoryId,
+        opts.priceCents,
+        opts.description,
+        opts.transactionDate,
+        opts.voucherId,
+        opts.voucherUnits,
+        existingTxId,
+        opts.userId,
+      ],
+    );
+    return existingTxId;
+  }
+
+  const txResult = await client.query<{ TransactionID: number }>(
+    `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "VoucherID", "VoucherUnits", "UserID")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING "TransactionID"`,
+    [
+      opts.categoryId,
+      opts.priceCents,
+      opts.description,
+      opts.transactionDate,
+      TRANSACTION_TYPE.EXPENSE,
+      SHARED_EXPENSE.DEFAULT_DIVISOR,
+      TRANSACTION_STATUS.PAID,
+      opts.voucherId,
+      opts.voucherUnits,
+      opts.userId,
+    ],
+  );
+  return txResult.rows[0]?.TransactionID ?? null;
 }
 
 // ============================================================
@@ -199,7 +329,9 @@ export async function getAllJumps(filters?: {
   const result = await query<JumpRow>(
     `SELECT "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
             "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
-            "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"
+            "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt",
+            (SELECT t."VoucherID" FROM "Transactions" t WHERE t."TransactionID" = "SkydiveJumps"."TransactionID") AS "VoucherID",
+            (SELECT t."VoucherUnits" FROM "Transactions" t WHERE t."TransactionID" = "SkydiveJumps"."TransactionID") AS "VoucherUnits"
      FROM "SkydiveJumps"
      WHERE ${whereClause}
      ORDER BY "JumpNumber" DESC
@@ -222,7 +354,9 @@ export async function getJumpById(jumpId: number): Promise<SkydiveJump | null> {
   const result = await query<JumpRow>(
     `SELECT "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
             "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
-            "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"
+            "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt",
+            (SELECT t."VoucherID" FROM "Transactions" t WHERE t."TransactionID" = "SkydiveJumps"."TransactionID") AS "VoucherID",
+            (SELECT t."VoucherUnits" FROM "Transactions" t WHERE t."TransactionID" = "SkydiveJumps"."TransactionID") AS "VoucherUnits"
      FROM "SkydiveJumps"
      WHERE "JumpID" = $1 AND "UserID" = $2`,
     [jumpId, userId],
@@ -246,10 +380,30 @@ export async function createJump(data: {
   landingDistanceM?: number | null;
   comment?: string | null;
   priceCents?: number | null;
-  categoryId?: number | null;
+  voucherId?: number | null;
 }): Promise<SkydiveJump> {
   const userId = await getUserIdOrThrow();
-  const shouldLinkTransaction = data.priceCents != null && data.priceCents > 0 && data.categoryId != null;
+
+  // Resolve how the jump is paid: from a voucher (its own category) or as a cash
+  // expense filed under the "Saltos" subcategory.
+  const voucherId = data.voucherId ?? null;
+  let effectivePriceCents = data.priceCents ?? null;
+  let categoryId: number | null = null;
+  let voucherUnits: number | null = null;
+  if (voucherId != null) {
+    const consumption = await resolveVoucherConsumption(voucherId, {
+      units: 1,
+      manualPriceCents: data.priceCents ?? null,
+    });
+    effectivePriceCents = consumption.priceCents;
+    categoryId = consumption.categoryId;
+    voucherUnits = consumption.voucherUnits;
+  } else if (effectivePriceCents != null && effectivePriceCents > 0) {
+    categoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS, userId);
+  }
+
+  const shouldLinkTransaction =
+    voucherId != null || (effectivePriceCents != null && effectivePriceCents > 0 && categoryId != null);
 
   // Simple insert when no transaction linking is needed
   if (!shouldLinkTransaction) {
@@ -273,7 +427,7 @@ export async function createJump(data: {
         data.exitAltitudeFt ?? null,
         data.landingDistanceM ?? null,
         data.comment ?? null,
-        data.priceCents ?? null,
+        effectivePriceCents,
         userId,
       ],
     );
@@ -308,7 +462,7 @@ export async function createJump(data: {
         data.exitAltitudeFt ?? null,
         data.landingDistanceM ?? null,
         data.comment ?? null,
-        data.priceCents ?? null,
+        effectivePriceCents,
         userId,
       ],
     );
@@ -320,17 +474,19 @@ export async function createJump(data: {
     const jumpDate = typeof data.jumpDate === 'string' ? data.jumpDate : toDateString(data.jumpDate);
 
     const txResult = await client.query<{ TransactionID: number }>(
-      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "UserID")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "VoucherID", "VoucherUnits", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING "TransactionID"`,
       [
-        data.categoryId,
-        data.priceCents,
+        categoryId,
+        effectivePriceCents,
         description,
         jumpDate,
         TRANSACTION_TYPE.EXPENSE,
         SHARED_EXPENSE.DEFAULT_DIVISOR,
         TRANSACTION_STATUS.PAID,
+        voucherId,
+        voucherUnits,
         userId,
       ],
     );
@@ -340,6 +496,8 @@ export async function createJump(data: {
       await client.query('UPDATE "SkydiveJumps" SET "TransactionID" = $1 WHERE "JumpID" = $2', [txId, jumpRow.JumpID]);
       jumpRow.TransactionID = txId;
     }
+    jumpRow.VoucherID = voucherId;
+    jumpRow.VoucherUnits = voucherUnits;
 
     await client.query('COMMIT');
     return rowToJump(jumpRow);
@@ -351,13 +509,51 @@ export async function createJump(data: {
   }
 }
 
-export async function updateJump(jumpId: number, data: Record<string, unknown>): Promise<SkydiveJump | null> {
+export async function updateJump(
+  jumpId: number,
+  data: {
+    jumpNumber?: number;
+    title?: string | null;
+    jumpDate?: Date | string;
+    dropzone?: string | null;
+    canopy?: string | null;
+    wingsuit?: string | null;
+    freefallTimeSec?: number | null;
+    jumpType?: string | null;
+    aircraft?: string | null;
+    exitAltitudeFt?: number | null;
+    landingDistanceM?: number | null;
+    comment?: string | null;
+    priceCents?: number | null;
+    voucherId?: number | null;
+  },
+): Promise<SkydiveJump | null> {
   const userId = await getUserIdOrThrow();
 
-  const fields: string[] = [];
-  const params: unknown[] = [];
-  let paramIdx = 1;
+  const existing = await getJumpById(jumpId);
+  if (!existing) return null;
 
+  // Resolve the desired payment state: voucher (its own category) or cash expense
+  // filed under the "Saltos" subcategory. A voucher consumes 1 unit per jump.
+  const voucherId = data.voucherId ?? null;
+  let effectivePriceCents = data.priceCents !== undefined ? data.priceCents : existing.priceCents;
+  let categoryId: number | null = null;
+  let voucherUnits: number | null = null;
+  if (voucherId != null) {
+    const consumption = await resolveVoucherConsumption(voucherId, {
+      units: 1,
+      manualPriceCents: effectivePriceCents,
+    });
+    effectivePriceCents = consumption.priceCents;
+    categoryId = consumption.categoryId;
+    voucherUnits = consumption.voucherUnits;
+  } else if (effectivePriceCents != null && effectivePriceCents > 0) {
+    categoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS, userId);
+  }
+  const shouldHaveTx =
+    voucherId != null || (effectivePriceCents != null && effectivePriceCents > 0 && categoryId != null);
+
+  // Scalar jump fields that can be updated (PriceCents is synced separately).
   const allowedFields: Record<string, string> = {
     jumpNumber: '"JumpNumber"',
     title: '"Title"',
@@ -371,33 +567,66 @@ export async function updateJump(jumpId: number, data: Record<string, unknown>):
     exitAltitudeFt: '"ExitAltitudeFt"',
     landingDistanceM: '"LandingDistanceM"',
     comment: '"Comment"',
-    priceCents: '"PriceCents"',
   };
 
-  Object.entries(data).forEach(([key, value]) => {
-    const col = allowedFields[key];
-    if (col) {
-      fields.push(`${col} = $${paramIdx}`);
-      params.push(value ?? null);
-      paramIdx++;
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Update scalar fields + keep PriceCents in sync with the effective amount.
+    const fields: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+    Object.entries(data).forEach(([key, value]) => {
+      const col = allowedFields[key];
+      if (col) {
+        fields.push(`${col} = $${paramIdx}`);
+        params.push(value ?? null);
+        paramIdx++;
+      }
+    });
+    fields.push(`"PriceCents" = $${paramIdx}`);
+    params.push(effectivePriceCents);
+    paramIdx++;
+    params.push(jumpId, userId);
+    await client.query(
+      `UPDATE "SkydiveJumps" SET ${fields.join(', ')}
+       WHERE "JumpID" = $${paramIdx} AND "UserID" = $${paramIdx + 1}`,
+      params,
+    );
+
+    // 2. Reconcile the linked expense transaction.
+    const dropzone = data.dropzone !== undefined ? data.dropzone : existing.dropzone;
+    const description = dropzone ? `Salto – ${dropzone}` : 'Salto paracaidismo';
+    const jumpDateVal = data.jumpDate !== undefined ? data.jumpDate : existing.jumpDate;
+    const transactionDate = typeof jumpDateVal === 'string' ? jumpDateVal : toDateString(jumpDateVal);
+
+    const newTxId = await syncLinkedExpenseTransaction(client, {
+      existingTxId: existing.transactionId,
+      shouldHaveTx,
+      categoryId,
+      priceCents: effectivePriceCents,
+      description,
+      transactionDate,
+      voucherId,
+      voucherUnits,
+      userId,
+    });
+
+    if (existing.transactionId == null && newTxId != null) {
+      await client.query('UPDATE "SkydiveJumps" SET "TransactionID" = $1 WHERE "JumpID" = $2', [newTxId, jumpId]);
     }
-  });
 
-  if (fields.length === 0) return getJumpById(jumpId);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 
-  params.push(jumpId, userId);
-
-  const result = await query<JumpRow>(
-    `UPDATE "SkydiveJumps" SET ${fields.join(', ')}
-     WHERE "JumpID" = $${paramIdx} AND "UserID" = $${paramIdx + 1}
-     RETURNING "JumpID", "JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
-       "FreefallTimeSec", "JumpType", "Aircraft", "ExitAltitudeFt", "LandingDistanceM",
-       "Comment", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
-    params,
-  );
-
-  const row = result[0];
-  return row ? rowToJump(row) : null;
+  return getJumpById(jumpId);
 }
 
 export async function deleteJump(jumpId: number): Promise<boolean> {
@@ -504,7 +733,9 @@ export async function getAllTunnelSessions(filters?: {
 
   const result = await query<TunnelRow>(
     `SELECT "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
-            "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"
+            "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt",
+            (SELECT t."VoucherID" FROM "Transactions" t WHERE t."TransactionID" = "TunnelSessions"."TransactionID") AS "VoucherID",
+            (SELECT t."VoucherUnits" FROM "Transactions" t WHERE t."TransactionID" = "TunnelSessions"."TransactionID") AS "VoucherUnits"
      FROM "TunnelSessions"
      WHERE ${whereClause}
      ORDER BY "SessionDate" DESC
@@ -521,6 +752,23 @@ export async function getAllTunnelSessions(filters?: {
   };
 }
 
+export async function getTunnelSessionById(sessionId: number): Promise<TunnelSession | null> {
+  const userId = await getUserIdOrThrow();
+
+  const result = await query<TunnelRow>(
+    `SELECT "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
+            "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt",
+            (SELECT t."VoucherID" FROM "Transactions" t WHERE t."TransactionID" = "TunnelSessions"."TransactionID") AS "VoucherID",
+            (SELECT t."VoucherUnits" FROM "Transactions" t WHERE t."TransactionID" = "TunnelSessions"."TransactionID") AS "VoucherUnits"
+     FROM "TunnelSessions"
+     WHERE "SessionID" = $1 AND "UserID" = $2`,
+    [sessionId, userId],
+  );
+
+  const row = result[0];
+  return row ? rowToTunnelSession(row) : null;
+}
+
 export async function createTunnelSession(data: {
   sessionDate: Date | string;
   location?: string | null;
@@ -528,10 +776,30 @@ export async function createTunnelSession(data: {
   durationSec: number;
   notes?: string | null;
   priceCents?: number | null;
-  categoryId?: number | null;
+  voucherId?: number | null;
 }): Promise<TunnelSession> {
   const userId = await getUserIdOrThrow();
-  const shouldLinkTransaction = data.priceCents != null && data.priceCents > 0 && data.categoryId != null;
+
+  // Resolve how the session is paid: from a voucher (its own category) or as a cash
+  // expense filed under the "Túnel de viento" subcategory.
+  const voucherId = data.voucherId ?? null;
+  let effectivePriceCents = data.priceCents ?? null;
+  let categoryId: number | null = null;
+  let voucherUnits: number | null = null;
+  if (voucherId != null) {
+    const consumption = await resolveVoucherConsumption(voucherId, {
+      units: data.durationSec / 60,
+      manualPriceCents: data.priceCents ?? null,
+    });
+    effectivePriceCents = consumption.priceCents;
+    categoryId = consumption.categoryId;
+    voucherUnits = consumption.voucherUnits;
+  } else if (effectivePriceCents != null && effectivePriceCents > 0) {
+    categoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL, userId);
+  }
+
+  const shouldLinkTransaction =
+    voucherId != null || (effectivePriceCents != null && effectivePriceCents > 0 && categoryId != null);
 
   // Simple insert when no transaction linking is needed
   if (!shouldLinkTransaction) {
@@ -546,7 +814,7 @@ export async function createTunnelSession(data: {
         data.sessionType ?? null,
         data.durationSec,
         data.notes ?? null,
-        data.priceCents ?? null,
+        effectivePriceCents,
         userId,
       ],
     );
@@ -572,7 +840,7 @@ export async function createTunnelSession(data: {
         data.sessionType ?? null,
         data.durationSec,
         data.notes ?? null,
-        data.priceCents ?? null,
+        effectivePriceCents,
         userId,
       ],
     );
@@ -584,17 +852,19 @@ export async function createTunnelSession(data: {
     const sessionDate = typeof data.sessionDate === 'string' ? data.sessionDate : toDateString(data.sessionDate);
 
     const txResult = await client.query<{ TransactionID: number }>(
-      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "UserID")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "VoucherID", "VoucherUnits", "UserID")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING "TransactionID"`,
       [
-        data.categoryId,
-        data.priceCents,
+        categoryId,
+        effectivePriceCents,
         description,
         sessionDate,
         TRANSACTION_TYPE.EXPENSE,
         SHARED_EXPENSE.DEFAULT_DIVISOR,
         TRANSACTION_STATUS.PAID,
+        voucherId,
+        voucherUnits,
         userId,
       ],
     );
@@ -607,6 +877,8 @@ export async function createTunnelSession(data: {
       ]);
       sessionRow.TransactionID = txId;
     }
+    sessionRow.VoucherID = voucherId;
+    sessionRow.VoucherUnits = voucherUnits;
 
     await client.query('COMMIT');
     return rowToTunnelSession(sessionRow);
@@ -620,46 +892,112 @@ export async function createTunnelSession(data: {
 
 export async function updateTunnelSession(
   sessionId: number,
-  data: Record<string, unknown>,
+  data: {
+    sessionDate?: Date | string;
+    location?: string | null;
+    sessionType?: string | null;
+    durationSec?: number;
+    notes?: string | null;
+    priceCents?: number | null;
+    voucherId?: number | null;
+  },
 ): Promise<TunnelSession | null> {
   const userId = await getUserIdOrThrow();
 
-  const fields: string[] = [];
-  const params: unknown[] = [];
-  let paramIdx = 1;
+  const existing = await getTunnelSessionById(sessionId);
+  if (!existing) return null;
 
+  // Resolve the desired payment state: voucher (its own category) or cash expense
+  // filed under the "Túnel de viento" subcategory. A voucher consumes the minutes.
+  const voucherId = data.voucherId ?? null;
+  let effectivePriceCents = data.priceCents !== undefined ? data.priceCents : existing.priceCents;
+  let categoryId: number | null = null;
+  let voucherUnits: number | null = null;
+  const durationSec = data.durationSec !== undefined ? data.durationSec : existing.durationSec;
+  if (voucherId != null) {
+    const consumption = await resolveVoucherConsumption(voucherId, {
+      units: durationSec / 60,
+      manualPriceCents: effectivePriceCents,
+    });
+    effectivePriceCents = consumption.priceCents;
+    categoryId = consumption.categoryId;
+    voucherUnits = consumption.voucherUnits;
+  } else if (effectivePriceCents != null && effectivePriceCents > 0) {
+    categoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL, userId);
+  }
+  const shouldHaveTx =
+    voucherId != null || (effectivePriceCents != null && effectivePriceCents > 0 && categoryId != null);
+
+  // Scalar session fields that can be updated (PriceCents is synced separately).
   const allowedFields: Record<string, string> = {
     sessionDate: '"SessionDate"',
     location: '"Location"',
     sessionType: '"SessionType"',
     durationSec: '"DurationSec"',
     notes: '"Notes"',
-    priceCents: '"PriceCents"',
   };
 
-  Object.entries(data).forEach(([key, value]) => {
-    const col = allowedFields[key];
-    if (col) {
-      fields.push(`${col} = $${paramIdx}`);
-      params.push(value ?? null);
-      paramIdx++;
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Update scalar fields + keep PriceCents in sync with the effective amount.
+    const fields: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+    Object.entries(data).forEach(([key, value]) => {
+      const col = allowedFields[key];
+      if (col) {
+        fields.push(`${col} = $${paramIdx}`);
+        params.push(value ?? null);
+        paramIdx++;
+      }
+    });
+    fields.push(`"PriceCents" = $${paramIdx}`);
+    params.push(effectivePriceCents);
+    paramIdx++;
+    params.push(sessionId, userId);
+    await client.query(
+      `UPDATE "TunnelSessions" SET ${fields.join(', ')}
+       WHERE "SessionID" = $${paramIdx} AND "UserID" = $${paramIdx + 1}`,
+      params,
+    );
+
+    // 2. Reconcile the linked expense transaction.
+    const location = data.location !== undefined ? data.location : existing.location;
+    const description = location ? `Túnel – ${location}` : 'Túnel de viento';
+    const sessionDateVal = data.sessionDate !== undefined ? data.sessionDate : existing.sessionDate;
+    const transactionDate = typeof sessionDateVal === 'string' ? sessionDateVal : toDateString(sessionDateVal);
+
+    const newTxId = await syncLinkedExpenseTransaction(client, {
+      existingTxId: existing.transactionId,
+      shouldHaveTx,
+      categoryId,
+      priceCents: effectivePriceCents,
+      description,
+      transactionDate,
+      voucherId,
+      voucherUnits,
+      userId,
+    });
+
+    if (existing.transactionId == null && newTxId != null) {
+      await client.query('UPDATE "TunnelSessions" SET "TransactionID" = $1 WHERE "SessionID" = $2', [
+        newTxId,
+        sessionId,
+      ]);
     }
-  });
 
-  if (fields.length === 0) return null;
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 
-  params.push(sessionId, userId);
-
-  const result = await query<TunnelRow>(
-    `UPDATE "TunnelSessions" SET ${fields.join(', ')}
-     WHERE "SessionID" = $${paramIdx} AND "UserID" = $${paramIdx + 1}
-     RETURNING "SessionID", "SessionDate", "Location", "SessionType", "DurationSec",
-       "Notes", "PriceCents", "TransactionID", "CreatedAt", "UpdatedAt"`,
-    params,
-  );
-
-  const row = result[0];
-  return row ? rowToTunnelSession(row) : null;
+  return getTunnelSessionById(sessionId);
 }
 
 export async function deleteTunnelSession(sessionId: number): Promise<boolean> {

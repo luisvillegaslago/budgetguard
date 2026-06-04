@@ -23,6 +23,8 @@ export const CreateJumpSchema = z.object({
   landingDistanceM: z.number().int().min(0).optional().nullable(),
   comment: z.string().optional().nullable(),
   priceCents: z.number().int().min(0).optional().nullable(),
+  // When set, the jump is paid from a prepaid voucher ("bono") instead of cash.
+  voucherId: z.number().int().positive().optional().nullable(),
 });
 
 export type CreateJumpInput = z.infer<typeof CreateJumpSchema>;
@@ -44,6 +46,8 @@ export const CreateTunnelSessionSchema = z.object({
   durationMin: z.number().positive(VALIDATION_KEY.DURATION_POSITIVE),
   notes: z.string().optional().nullable(),
   price: z.number().min(0).optional().nullable(),
+  // When set, the session is paid from a prepaid voucher ("bono") instead of cash.
+  voucherId: z.number().int().positive().optional().nullable(),
 });
 
 export type CreateTunnelSessionInput = z.infer<typeof CreateTunnelSessionSchema>;

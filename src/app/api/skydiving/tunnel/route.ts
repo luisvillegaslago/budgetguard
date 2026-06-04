@@ -4,15 +4,9 @@
  * POST /api/skydiving/tunnel - Create a new tunnel session
  */
 
-import { SKYDIVE_CATEGORY } from '@/constants/finance';
-import { getUserIdOrThrow } from '@/libs/auth';
 import { CreateTunnelSessionSchema } from '@/schemas/skydive';
 import { validateRequest } from '@/schemas/transaction';
-import {
-  createTunnelSession,
-  findSkydiveSubcategoryId,
-  getAllTunnelSessions,
-} from '@/services/database/SkydiveRepository';
+import { createTunnelSession, getAllTunnelSessions } from '@/services/database/SkydiveRepository';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 import { eurosToCents } from '@/utils/money';
 
@@ -50,19 +44,13 @@ export const POST = withApiHandler(async (request) => {
   if (!validation.success) return validationError(validation.errors);
 
   const { price, durationMin, ...rest } = validation.data;
-  const priceCents = price != null ? eurosToCents(price) : null;
 
-  let categoryId: number | null = null;
-  if (priceCents != null && priceCents > 0) {
-    const userId = await getUserIdOrThrow();
-    categoryId = await findSkydiveSubcategoryId(SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL, userId);
-  }
-
+  // The repository resolves the category: voucher payments use the voucher's own
+  // category, cash expenses are filed under the "Túnel de viento" subcategory.
   const session = await createTunnelSession({
     ...rest,
     durationSec: Math.round(durationMin * 60),
-    priceCents,
-    categoryId,
+    priceCents: price != null ? eurosToCents(price) : null,
   });
 
   return { data: session, status: 201 };
