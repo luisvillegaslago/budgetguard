@@ -43,6 +43,7 @@ import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombob
 import { Tooltip } from '@/components/ui/Tooltip';
 import { KLINE_INTERVAL, type KlineInterval } from '@/constants/finance';
 import {
+  type ClosedTradeWithEur,
   type PairPositionDetail,
   type PairTradeWithEur,
   type PositionLotWithEur,
@@ -52,7 +53,7 @@ import {
   useCryptoTicker,
 } from '@/hooks/useCryptoChart';
 import { useTranslate } from '@/hooks/useTranslations';
-import type { Candle, ClosedTrade } from '@/types/cryptoChart';
+import type { Candle } from '@/types/cryptoChart';
 import { TRADE_SIDE } from '@/types/cryptoChart';
 import { formatCurrency } from '@/utils/money';
 
@@ -94,6 +95,55 @@ function formatSignedEur(euros: number, locale: string): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(euros);
+}
+
+/**
+ * Shared tooltip body for a "position tool" band — used by both closed
+ * round-trips and open lots. Shows the base quantity, the date(s), the amount
+ * invested in the quote asset plus its EUR equivalent, the entry/exit prices,
+ * and the P&L as a percentage and (when EUR is resolvable) signed euros.
+ *
+ * EUR figures are best-effort: invested EUR and the EUR P&L are each omitted
+ * gracefully when their underlying price (historical entry/exit or live) could
+ * not be resolved, so the line never shows a misleading "0 €".
+ *
+ * `entryEurPerBase` / `exitEurPerBase` are euros per ONE base unit at the entry
+ * and exit/live moments respectively.
+ */
+function buildBandTooltipLines(params: {
+  qty: number;
+  entryPrice: number;
+  exitPrice: number;
+  entryEurPerBase: number | null;
+  exitEurPerBase: number | null;
+  base: string;
+  quote: string;
+  locale: string;
+  dateLine: string;
+  investedLabel: string;
+  entryLabel: string;
+  exitLabel: string;
+}): string[] {
+  const { qty, entryPrice, exitPrice, entryEurPerBase, exitEurPerBase, base, quote, locale } = params;
+  const investedQuote = qty * entryPrice;
+  const investedEur = entryEurPerBase != null ? qty * entryEurPerBase : null;
+  const ratio = entryPrice !== 0 ? (exitPrice - entryPrice) / entryPrice : 0;
+  const pnlEur = entryEurPerBase != null && exitEurPerBase != null ? qty * (exitEurPerBase - entryEurPerBase) : null;
+
+  const investedLine =
+    `${params.investedLabel}: ${formatAmount(investedQuote, locale)} ${quote}` +
+    (investedEur != null ? ` (${formatCurrency(Math.round(investedEur * 100))})` : '');
+
+  return [
+    `${formatAmount(qty, locale)} ${base}`,
+    params.dateLine,
+    investedLine,
+    `${params.entryLabel}: ${formatAmount(entryPrice, locale)} ${quote}`,
+    `${params.exitLabel}: ${formatAmount(exitPrice, locale)} ${quote}`,
+    pnlEur != null
+      ? `${formatPercent(ratio, locale)} · ${formatSignedEur(pnlEur, locale)}`
+      : formatPercent(ratio, locale),
+  ];
 }
 
 export function CryptoPriceChart() {
@@ -213,6 +263,7 @@ export function CryptoPriceChart() {
           sellLabel={t('crypto.prices.marker.sell')}
           priceLabel={t('crypto.prices.tooltip.price')}
           costLabel={t('crypto.prices.tooltip.cost')}
+          investedLabel={t('crypto.prices.tooltip.invested')}
           entryLabel={t('crypto.prices.entry-line')}
           liveLabel={t('crypto.prices.live-line')}
           exitLabel={t('crypto.prices.exit-line')}
@@ -384,7 +435,7 @@ interface CandlestickChartProps {
   base: string;
   quote: string;
   openLots: PositionLotWithEur[];
-  closedTrades: ClosedTrade[];
+  closedTrades: ClosedTradeWithEur[];
   livePrice: number | null;
   baseEurPrice: number | null;
   locale: string;
@@ -392,6 +443,7 @@ interface CandlestickChartProps {
   sellLabel: string;
   priceLabel: string;
   costLabel: string;
+  investedLabel: string;
   entryLabel: string;
   liveLabel: string;
   exitLabel: string;
@@ -405,11 +457,9 @@ interface TooltipEntry {
   lines: string[];
 }
 
-/** A band plus its price bounds (for hover detection) and the tooltip to show. */
+/** A band plus the tooltip to show when its % badge is hovered. */
 interface BandWithTooltip {
   band: PositionBandData;
-  priceLo: number;
-  priceHi: number;
   tooltip: TooltipEntry;
 }
 
@@ -435,6 +485,7 @@ function CandlestickChart({
   sellLabel,
   priceLabel,
   costLabel,
+  investedLabel,
   entryLabel,
   liveLabel,
   exitLabel,
@@ -444,6 +495,9 @@ function CandlestickChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  // Live band primitives paired with the tooltip to show when their % badge is
+  // hovered. Read by the crosshair handler for badge-only hit-testing.
+  const bandHitsRef = useRef<Array<{ primitive: PositionBandPrimitive; tooltip: TooltipEntry }>>([]);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   // Anchor a trade to the candle that contains it (so markers and the band line
@@ -513,18 +567,23 @@ function CandlestickChart({
           lastCandleTime: lastCandle,
           isProfit: exit >= entry,
         },
-        priceLo: Math.min(entry, exit),
-        priceHi: Math.max(entry, exit),
         tooltip: {
           isBuy: exit >= entry,
           title: closedLabel,
-          lines: [
-            `${formatAmount(Number(closed.qtyBase), locale)} ${base}`,
-            `${dateFmt.format(new Date(closed.entryOccurredAt))} → ${dateFmt.format(new Date(closed.exitOccurredAt))}`,
-            `${entryLabel}: ${formatAmount(entry, locale)} ${quote}`,
-            `${exitLabel}: ${formatAmount(exit, locale)} ${quote}`,
-            formatPercent((exit - entry) / entry, locale),
-          ],
+          lines: buildBandTooltipLines({
+            qty: Number(closed.qtyBase),
+            entryPrice: entry,
+            exitPrice: exit,
+            entryEurPerBase: closed.entryEurCents != null ? closed.entryEurCents / 100 : null,
+            exitEurPerBase: closed.exitEurCents != null ? closed.exitEurCents / 100 : null,
+            base,
+            quote,
+            locale,
+            dateLine: `${dateFmt.format(new Date(closed.entryOccurredAt))} → ${dateFmt.format(new Date(closed.exitOccurredAt))}`,
+            investedLabel,
+            entryLabel,
+            exitLabel,
+          }),
         },
       });
     });
@@ -537,11 +596,6 @@ function CandlestickChart({
         const startTime = containingCandle(lot.occurredAt) ?? candleTimes[0];
         if (startTime == null) return;
         const qty = Number(lot.qtyOpen);
-        const pnlEur =
-          lot.entryEurCents != null && baseEurPrice != null && Number.isFinite(qty)
-            ? formatSignedEur(qty * baseEurPrice - (qty * lot.entryEurCents) / 100, locale)
-            : null;
-        const ratio = (livePrice - entry) / entry;
         result.push({
           band: {
             entryPrice: entry,
@@ -551,18 +605,24 @@ function CandlestickChart({
             lastCandleTime: lastCandle,
             isProfit: livePrice >= entry,
           },
-          priceLo: Math.min(entry, livePrice),
-          priceHi: Math.max(entry, livePrice),
           tooltip: {
             isBuy: true,
             title: buyLabel,
-            lines: [
-              `${formatAmount(qty, locale)} ${base}`,
-              dateFmt.format(new Date(lot.occurredAt)),
-              `${entryLabel}: ${formatAmount(entry, locale)} ${quote}`,
-              `${liveLabel}: ${formatAmount(livePrice, locale)} ${quote}`,
-              pnlEur ? `${formatPercent(ratio, locale)} · ${pnlEur}` : formatPercent(ratio, locale),
-            ],
+            lines: buildBandTooltipLines({
+              qty,
+              entryPrice: entry,
+              exitPrice: livePrice,
+              entryEurPerBase: lot.entryEurCents != null ? lot.entryEurCents / 100 : null,
+              // Live EUR price of one base unit (already euros, not cents).
+              exitEurPerBase: baseEurPrice,
+              base,
+              quote,
+              locale,
+              dateLine: dateFmt.format(new Date(lot.occurredAt)),
+              investedLabel,
+              entryLabel,
+              exitLabel: liveLabel,
+            }),
           },
         });
       });
@@ -580,13 +640,12 @@ function CandlestickChart({
     base,
     quote,
     buyLabel,
+    investedLabel,
     entryLabel,
     liveLabel,
     exitLabel,
     closedLabel,
   ]);
-
-  const bandsData = useMemo(() => bands.map((item) => item.band), [bands]);
 
   // Create the chart once on mount; dispose on unmount.
   useEffect(() => {
@@ -654,23 +713,27 @@ function CandlestickChart({
     series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 10 ** -precision } });
   }, [livePrice, candles]);
 
-  // Attach one band primitive per open lot, refreshing when they move (e.g. the
-  // live price ticks or a new pair loads).
+  // Attach one band primitive per band (open lot / closed round-trip), refreshing
+  // when they move (e.g. the live price ticks or a new pair loads). Each primitive
+  // is paired with its tooltip in bandHitsRef so the hover handler can map a
+  // hovered % badge back to the right detail.
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
 
-    const primitives = bandsData.map((band) => {
-      const primitive = new PositionBandPrimitive(band, (ratio) => formatPercent(ratio, locale));
+    const created = bands.map((item) => {
+      const primitive = new PositionBandPrimitive(item.band, (ratio) => formatPercent(ratio, locale));
       series.attachPrimitive(primitive);
-      return primitive;
+      return { primitive, tooltip: item.tooltip };
     });
+    bandHitsRef.current = created;
     return () => {
-      primitives.forEach((primitive) => {
+      created.forEach(({ primitive }) => {
         series.detachPrimitive(primitive);
       });
+      bandHitsRef.current = [];
     };
-  }, [bandsData, locale]);
+  }, [bands, locale]);
 
   // Hover tooltip: the order detail for the trades on the hovered candle, or —
   // if there are none — the lot detail for the position band under the cursor.
@@ -707,24 +770,17 @@ function CandlestickChart({
           ],
         }));
       } else {
-        // 2. Otherwise, is the cursor inside a position band? Match on the X
-        // coordinate (not time) so it works in the open band's right extension.
-        const price = series.coordinateToPrice(param.point.y);
-        const x = param.point.x;
-        if (price != null) {
-          const timeScale = chart.timeScale();
-          const hit = bands.find((item) => {
-            if (price < item.priceLo || price > item.priceHi) return false;
-            const startX = timeScale.timeToCoordinate(item.band.startTime);
-            if (startX == null || x < startX) return false;
-            // Right bound: exit time (closed) or last candle + overshoot (open).
-            const endRef = item.band.endTime ?? item.band.lastCandleTime;
-            const endX = endRef == null ? null : timeScale.timeToCoordinate(endRef);
-            const rightBound = endX == null ? Number.POSITIVE_INFINITY : endX + (item.band.endTime === null ? 28 : 0);
-            return x <= rightBound;
-          });
-          if (hit) entries = [hit.tooltip];
-        }
+        // 2. Otherwise, is the cursor over a band's % badge? Hit-test only the
+        // badge box (not the whole band) so the tooltip shows just on the
+        // percentage indicator — and overlapping bands stay individually
+        // reachable via their distinct badges. Stack every badge under the
+        // cursor when several coincide.
+        const { x, y } = param.point;
+        const hits = bandHitsRef.current.filter(({ primitive }) => {
+          const r = primitive.getBadgeRect();
+          return r != null && x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height;
+        });
+        if (hits.length > 0) entries = hits.map((hit) => hit.tooltip);
       }
 
       if (!entries) {
@@ -742,7 +798,7 @@ function CandlestickChart({
 
     chart.subscribeCrosshairMove(handler);
     return () => chart.unsubscribeCrosshairMove(handler);
-  }, [markerInfo, bands, base, quote, locale, buyLabel, sellLabel, priceLabel, costLabel]);
+  }, [markerInfo, base, quote, locale, buyLabel, sellLabel, priceLabel, costLabel]);
 
   return (
     <div ref={containerRef} className="relative w-full h-[28rem] rounded-lg overflow-hidden">

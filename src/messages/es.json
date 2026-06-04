@@ -1254,7 +1254,8 @@
       },
       "tooltip": {
         "price": "Precio",
-        "cost": "Coste"
+        "cost": "Coste",
+        "invested": "Invertido"
       },
       "trades-count": "{n} operaciones",
       "summary": {

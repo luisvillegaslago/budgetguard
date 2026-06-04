@@ -26,6 +26,14 @@ export interface PositionBandData {
   isProfit: boolean;
 }
 
+/** The % badge bounds in media (CSS-pixel) coordinates, for hover hit-testing. */
+export interface BadgeRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 // Minimal structural type for the bitmap drawing scope (avoids depending on the
 // `fancy-canvas` types transitively). Structurally compatible with the
 // CanvasRenderingTarget2D lightweight-charts passes to `draw`.
@@ -56,10 +64,18 @@ export class PositionBandPrimitive implements ISeriesPrimitive<Time> {
   private requestUpdate?: () => void;
   private data: PositionBandData | null;
   private readonly formatPct: (ratio: number) => string;
+  // Last drawn % badge bounds (media coords), or null if the band wasn't drawn
+  // this frame. Read by the chart's hover handler to hit-test only the badge.
+  private badgeRect: BadgeRect | null = null;
 
   constructor(data: PositionBandData | null, formatPct: (ratio: number) => string) {
     this.data = data;
     this.formatPct = formatPct;
+  }
+
+  /** The % badge bounds (media coords) from the last draw, or null. */
+  getBadgeRect(): BadgeRect | null {
+    return this.badgeRect;
   }
 
   attached(param: SeriesAttachedParameter<Time>): void {
@@ -100,6 +116,9 @@ export class PositionBandPrimitive implements ISeriesPrimitive<Time> {
     const chart = this.chart;
     const series = this.series;
     const data = this.data;
+    // Clear last frame's badge bounds up-front so an early return (band fully
+    // off-screen) leaves no stale hover target.
+    this.badgeRect = null;
     if (!chart || !series || !data) return;
 
     const timeScale = chart.timeScale();
@@ -188,6 +207,16 @@ export class PositionBandPrimitive implements ISeriesPrimitive<Time> {
       ctx.fillRect(cx - badgeW / 2, cy - badgeH / 2, badgeW, badgeH);
       ctx.fillStyle = '#FFFFFF';
       ctx.fillText(label, cx, cy);
+
+      // Record the badge bounds back in media coords for the hover hit-test, so
+      // the tooltip only triggers on this box (and overlapping bands stay
+      // individually reachable via their distinct badges).
+      this.badgeRect = {
+        left: (cx - badgeW / 2) / hp,
+        top: (cy - badgeH / 2) / vp,
+        width: badgeW / hp,
+        height: badgeH / vp,
+      };
     });
   }
 }

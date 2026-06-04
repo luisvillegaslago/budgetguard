@@ -13,7 +13,7 @@
 
 import { getPairTrades } from '@/services/database/CryptoPositionsRepository';
 import { getPriceEurCents } from '@/services/exchanges/binance/PriceService';
-import { type PairTrade, type PositionLot, TRADE_SIDE } from '@/types/cryptoChart';
+import { type ClosedTrade, type PairTrade, type PositionLot, TRADE_SIDE } from '@/types/cryptoChart';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 import { computePairPosition } from '@/utils/crypto/pairPnl';
 
@@ -30,14 +30,37 @@ export const GET = withApiHandler(async (_request, { params }) => {
   const { base, quote, symbol: canonicalSymbol, trades } = await getPairTrades(symbol);
   const position = computePairPosition({ base, quote, symbol: canonicalSymbol, trades });
 
-  const [tradesWithEur, openLotsWithEur] = await Promise.all([
+  const [tradesWithEur, openLotsWithEur, closedTradesWithEur] = await Promise.all([
     enrichTradesWithEur(quote, position.trades),
     enrichLotsWithEur(base, position.openLots),
+    enrichClosedTradesWithEur(base, position.closedTrades),
   ]);
   const avgEntryEurCents = computeAvgEntryEurCents(tradesWithEur);
 
-  return { data: { ...position, trades: tradesWithEur, openLots: openLotsWithEur, avgEntryEurCents } };
+  return {
+    data: {
+      ...position,
+      trades: tradesWithEur,
+      openLots: openLotsWithEur,
+      closedTrades: closedTradesWithEur,
+      avgEntryEurCents,
+    },
+  };
 }, 'GET /api/crypto/pairs/[symbol]');
+
+/**
+ * EUR price (cents) of one BASE unit at a given date. Best-effort: returns null
+ * on a price gap or network error instead of throwing. Shared by the open-lot
+ * and closed round-trip enrichers.
+ */
+async function resolveBaseEurCents(base: string, iso: string): Promise<number | null> {
+  try {
+    const resolved = await getPriceEurCents(base, new Date(iso));
+    return resolved.eurPriceCents > 0 ? resolved.eurPriceCents : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Attach the EUR price (cents) of one BASE unit at each lot's buy date, so the
@@ -48,13 +71,27 @@ async function enrichLotsWithEur(
   lots: PositionLot[],
 ): Promise<Array<PositionLot & { entryEurCents: number | null }>> {
   return Promise.all(
-    lots.map(async (lot) => {
-      try {
-        const resolved = await getPriceEurCents(base, new Date(lot.occurredAt));
-        return { ...lot, entryEurCents: resolved.eurPriceCents > 0 ? resolved.eurPriceCents : null };
-      } catch {
-        return { ...lot, entryEurCents: null };
-      }
+    lots.map(async (lot) => ({ ...lot, entryEurCents: await resolveBaseEurCents(base, lot.occurredAt) })),
+  );
+}
+
+/**
+ * Attach the base asset's EUR price (cents per base unit) at the entry and exit
+ * dates of each closed round-trip, so the chart tooltip can show the EUR
+ * invested and the EUR realized P&L (qty × (exitEur − entryEur)). Either side is
+ * null when its date can't be resolved.
+ */
+async function enrichClosedTradesWithEur(
+  base: string,
+  closedTrades: ClosedTrade[],
+): Promise<Array<ClosedTrade & { entryEurCents: number | null; exitEurCents: number | null }>> {
+  return Promise.all(
+    closedTrades.map(async (closed) => {
+      const [entryEurCents, exitEurCents] = await Promise.all([
+        resolveBaseEurCents(base, closed.entryOccurredAt),
+        resolveBaseEurCents(base, closed.exitOccurredAt),
+      ]);
+      return { ...closed, entryEurCents, exitEurCents };
     }),
   );
 }

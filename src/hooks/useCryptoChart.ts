@@ -12,7 +12,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, type KlineInterval, QUERY_KEY } from '@/constants/finance';
-import type { Candle, PairPosition, PairSummary, PairTrade, PositionLot } from '@/types/cryptoChart';
+import type { Candle, ClosedTrade, PairPosition, PairSummary, PairTrade, PositionLot } from '@/types/cryptoChart';
 import type { ApiResponse } from '@/types/finance';
 import { fetchApi } from '@/utils/fetchApi';
 
@@ -22,10 +22,18 @@ export type PairTradeWithEur = PairTrade & { valueEurCents: number | null };
 /** An open lot enriched with its EUR entry price (cents per base unit at buy date). */
 export type PositionLotWithEur = PositionLot & { entryEurCents: number | null };
 
+/**
+ * A closed round-trip enriched with the base asset's EUR price (cents per base
+ * unit) at the entry and exit dates, so the tooltip can show the EUR invested
+ * and the EUR realized P&L. Either side is null when its date can't be resolved.
+ */
+export type ClosedTradeWithEur = ClosedTrade & { entryEurCents: number | null; exitEurCents: number | null };
+
 /** Pair detail = full position enriched with EUR figures for the panel + tooltip. */
-export interface PairPositionDetail extends Omit<PairPosition, 'trades' | 'openLots'> {
+export interface PairPositionDetail extends Omit<PairPosition, 'trades' | 'openLots' | 'closedTrades'> {
   trades: PairTradeWithEur[];
   openLots: PositionLotWithEur[];
+  closedTrades: ClosedTradeWithEur[];
   avgEntryEurCents: number | null;
 }
 

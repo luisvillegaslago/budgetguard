@@ -1254,7 +1254,8 @@
       },
       "tooltip": {
         "price": "Price",
-        "cost": "Cost"
+        "cost": "Cost",
+        "invested": "Invested"
       },
       "trades-count": "{n} trades",
       "summary": {
