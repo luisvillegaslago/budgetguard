@@ -147,12 +147,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 
   const closeLabel = t('common.toast.close');
+  // Assertive when an error is on screen so screen readers announce it promptly;
+  // polite otherwise to avoid interrupting for success/info.
+  const hasError = toasts.some((toast) => toast.variant === TOAST_VARIANT.ERROR);
 
   return (
     <ToastContext.Provider value={value}>
       {children}
       <div
-        aria-live="polite"
+        aria-live={hasError ? 'assertive' : 'polite'}
         aria-atomic="false"
         className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-3"
       >
