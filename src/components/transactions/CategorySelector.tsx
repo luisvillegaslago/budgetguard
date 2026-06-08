@@ -35,6 +35,7 @@ function SearchableSelect({
   disabled,
   error,
 }: SearchableSelectProps) {
+  const { t } = useTranslate();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -217,7 +218,7 @@ function SearchableSelect({
       </div>
       {error && (
         <p role="alert" className="mt-1 text-sm text-guard-danger">
-          {error}
+          {t(error)}
         </p>
       )}
     </div>
