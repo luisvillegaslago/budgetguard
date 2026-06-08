@@ -40,13 +40,12 @@ export function SummaryCard({
 }: SummaryCardProps) {
   const content = (
     <>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-guard-muted">{title}</p>
-          <p className={cn('text-2xl font-bold mt-1', colors.value)}>{value}</p>
-        </div>
-        <div className={cn('p-2.5 rounded-xl', colors.iconBg)}>{icon}</div>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-guard-muted">{title}</p>
+        <div className={cn('p-2.5 rounded-xl flex-shrink-0', colors.iconBg)}>{icon}</div>
       </div>
+      {/* Full width + nowrap so large amounts keep the currency symbol on a single line */}
+      <p className={cn('text-2xl font-bold mt-1 whitespace-nowrap tabular-nums', colors.value)}>{value}</p>
       {footer && <div className="mt-3">{footer}</div>}
     </>
   );
@@ -76,13 +75,12 @@ export function SummaryCard({
 export function SummaryCardSkeleton() {
   return (
     <div className="balance-card animate-pulse">
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <div className="h-[20px] w-24 bg-muted rounded" />
-          <div className="h-[32px] w-16 bg-muted rounded" />
-        </div>
-        <div className="h-10 w-10 bg-muted rounded-xl" />
+      <div className="flex items-start justify-between gap-2">
+        <div className="h-[20px] w-20 bg-muted rounded" />
+        <div className="h-10 w-10 bg-muted rounded-xl flex-shrink-0" />
       </div>
+      <div className="h-[32px] w-24 bg-muted rounded mt-1" />
+      <div className="h-[16px] w-28 bg-muted rounded mt-3" />
     </div>
   );
 }

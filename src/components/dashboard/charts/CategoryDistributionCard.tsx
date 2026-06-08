@@ -50,7 +50,7 @@ function DonutTooltip({ active, payload }: DonutTooltipProps) {
 export function CategoryDistributionCard() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
-  const { expenseCategories, totalExpense, totalExpenseValue, isLoading, isError, refetch } =
+  const { expenseCategories, totalExpense, totalExpenseValue, isPending, isError, refetch } =
     useExpenseSummary(selectedMonth);
   const [selectedCategory, setSelectedCategory] = useState<FormattedCategorySummary | null>(null);
 
@@ -83,9 +83,9 @@ export function CategoryDistributionCard() {
   return (
     <ChartCard
       title={t('dashboard.charts.donut-title')}
-      isLoading={isLoading}
+      isLoading={isPending}
       isError={isError}
-      isEmpty={!isLoading && slices.length === 0}
+      isEmpty={!isPending && slices.length === 0}
       emptyMessage={t('dashboard.category-breakdown.empty')}
       errorMessage={t('errors.load-categories')}
       onRetry={() => refetch()}

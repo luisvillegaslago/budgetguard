@@ -66,7 +66,7 @@ export function FixedVsVariableCard() {
   const selectedMonth = useSelectedMonth();
   // Intentional client-side aggregation: reuses the cached month-transactions query
   // shared with the drill-down popups. Move to a SQL view if monthly volume grows large.
-  const { data, isLoading, isError, refetch } = useTransactions(selectedMonth);
+  const { data, isPending, isError, refetch } = useTransactions(selectedMonth);
 
   const { fixedCents, variableCents } = useMemo(() => splitFixedVariable(data?.data ?? []), [data]);
   const total = fixedCents + variableCents;
@@ -77,7 +77,7 @@ export function FixedVsVariableCard() {
     <div className="card flex flex-col">
       <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.widgets.fixed-variable-title')}</h3>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="flex flex-1 items-center justify-center py-10">
           <LoadingSpinner size="md" />
         </div>

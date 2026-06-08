@@ -54,7 +54,7 @@ export function TopVendorsWidget() {
   const selectedMonth = useSelectedMonth();
   // Intentional client-side aggregation: reuses the cached month-transactions query
   // shared with the drill-down popups. Move to a SQL view if monthly volume grows large.
-  const { data, isLoading, isError, refetch } = useTransactions(selectedMonth);
+  const { data, isPending, isError, refetch } = useTransactions(selectedMonth);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
 
   const vendors = useMemo(() => aggregateTopVendors(data?.data ?? [], TOP_COUNT), [data]);
@@ -64,7 +64,7 @@ export function TopVendorsWidget() {
     <div className="card flex flex-col">
       <h3 className="text-lg font-semibold text-foreground mb-4">{t('dashboard.widgets.top-vendors-title')}</h3>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="flex flex-1 items-center justify-center py-10">
           <LoadingSpinner size="md" />
         </div>
@@ -108,7 +108,7 @@ export function TopVendorsWidget() {
         </ol>
       )}
 
-      {!isLoading && !isError && vendors.length > 0 && (
+      {!isPending && !isError && vendors.length > 0 && (
         <div className="mt-auto pt-3 border-t border-border">
           <Link
             href="/movements"

@@ -44,7 +44,7 @@ export function FiscalSummaryCard() {
   const month = Number(selectedMonth.slice(5, 7));
   const quarter = Math.ceil(month / 3);
 
-  const { data: report, isLoading, isError, refetch } = useFiscalReport(year, quarter);
+  const { data: report, isPending, isError, refetch } = useFiscalReport(year, quarter);
   const { data: invoices } = useInvoices({ status: INVOICE_STATUS.FINALIZED });
   const { data: deadlines } = useUpcomingDeadlines();
 
@@ -67,7 +67,7 @@ export function FiscalSummaryCard() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="flex flex-1 items-center justify-center py-10">
           <LoadingSpinner size="md" />
         </div>

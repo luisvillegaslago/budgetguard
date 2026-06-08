@@ -20,10 +20,11 @@ import { VouchersWidget } from '@/components/dashboard/widgets/VouchersWidget';
 import { QuickExpenseActions } from '@/components/transactions/QuickExpenseActions';
 import { ActiveTripBanner } from '@/components/trips/ActiveTripBanner';
 import { TripExpenseForm } from '@/components/trips/TripExpenseForm';
+import { AnimatedHeight } from '@/components/ui/AnimatedHeight';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { useDashboardUrlSync } from '@/hooks/useDashboardUrlSync';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useMonthNavigation, useSelectedMonth } from '@/stores/useFinanceStore';
+import { useMonthNavigation, useSelectedMonth, useTrendPeriod } from '@/stores/useFinanceStore';
 import { getCurrentMonth } from '@/utils/helpers';
 
 function MobileTodayButton() {
@@ -47,6 +48,8 @@ function MobileTodayButton() {
 
 export default function DashboardPage() {
   const { t } = useTranslate();
+  const selectedMonth = useSelectedMonth();
+  const trendPeriod = useTrendPeriod();
   const [tripExpenseTarget, setTripExpenseTarget] = useState<{ tripId: number; startDate: string | null } | null>(null);
 
   // Bidirectional sync: URL ↔ Zustand (month, type filter)
@@ -74,15 +77,21 @@ export default function DashboardPage() {
             {t('dashboard.sections.monthly')}
           </h2>
 
+          {/* Each monthly widget fades + animates its height as the month changes, so nothing jumps */}
           <BalanceCards />
 
-          <CategoryDistributionCard />
+          <AnimatedHeight trigger={selectedMonth}>
+            <CategoryDistributionCard />
+          </AnimatedHeight>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8 items-stretch">
+          <AnimatedHeight
+            trigger={selectedMonth}
+            contentClassName="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8 items-stretch"
+          >
             <FixedVsVariableCard />
             <TopVendorsWidget />
             <FiscalSummaryCard />
-          </div>
+          </AnimatedHeight>
         </section>
 
         {/* ── Historical section (independent of the selected month) ── */}
@@ -94,16 +103,19 @@ export default function DashboardPage() {
             <PeriodSelector />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+          {/* Trend widgets fade + animate their height as the period changes */}
+          <AnimatedHeight trigger={trendPeriod} contentClassName="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
             <div className="lg:col-span-2">
               <CashFlowTrendChart />
             </div>
             <div>
               <YtdBalanceCard />
             </div>
-          </div>
+          </AnimatedHeight>
 
-          <CategoryTrendsCard />
+          <AnimatedHeight trigger={trendPeriod}>
+            <CategoryTrendsCard />
+          </AnimatedHeight>
 
           <VouchersWidget />
         </section>

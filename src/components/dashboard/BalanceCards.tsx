@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useState } from 'react';
+import { AnimatedHeight } from '@/components/ui/AnimatedHeight';
 import { SUMMARY_COLORS, SummaryCard, SummaryCardSkeleton } from '@/components/ui/SummaryCard';
 import { TRANSACTION_TYPE, type TransactionType } from '@/constants/finance';
 import { useFormattedSummary } from '@/hooks/useFormattedSummary';
@@ -42,9 +43,15 @@ interface DeltaBadgeProps {
   favorableWhenUp: boolean;
   noDataLabel: string;
   suffix: string;
+  /** Previous-month comparison still loading: show a placeholder instead of the "no data" text. */
+  loading?: boolean;
 }
 
-function DeltaBadge({ change, favorableWhenUp, noDataLabel, suffix }: DeltaBadgeProps) {
+function DeltaBadge({ change, favorableWhenUp, noDataLabel, suffix, loading }: DeltaBadgeProps) {
+  if (loading) {
+    return <span className="inline-block h-4 w-28 max-w-full rounded bg-muted animate-pulse" aria-hidden="true" />;
+  }
+
   if (change === null) {
     return <span className="text-xs text-guard-muted">{noDataLabel}</span>;
   }
@@ -70,19 +77,9 @@ function DeltaBadge({ change, favorableWhenUp, noDataLabel, suffix }: DeltaBadge
 export function BalanceCards() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
-  const { formatted, isLoading, isError, refetch } = useFormattedSummary(selectedMonth);
-  const { formatted: previous } = useFormattedSummary(addMonths(selectedMonth, -1));
+  const { formatted, isPending, isError, refetch } = useFormattedSummary(selectedMonth);
+  const { formatted: previous, isPending: isPreviousPending } = useFormattedSummary(addMonths(selectedMonth, -1));
   const [modalType, setModalType] = useState<TransactionType | null>(null);
-
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <SummaryCardSkeleton key={i} />
-        ))}
-      </div>
-    );
-  }
 
   if (isError) {
     return (
@@ -113,74 +110,86 @@ export function BalanceCards() {
   const dailyAverageCents = Math.round((expenseValue * 100) / daysInMonth);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-      <SummaryCard
-        title={t('dashboard.balance-cards.income')}
-        value={formatted?.income ?? defaultCurrency}
-        icon={<ArrowDownLeft className="h-5 w-5" aria-hidden="true" />}
-        colors={SUMMARY_COLORS.success}
-        staggerClass="stagger-1"
-        onClick={() => setModalType(TRANSACTION_TYPE.INCOME)}
-        footer={
-          <DeltaBadge
-            change={pctChange(incomeValue, previous?.incomeValue ?? 0)}
-            favorableWhenUp
-            noDataLabel={noPrev}
-            suffix={vsPrev}
-          />
-        }
-      />
+    <>
+      {/* Fade + height animation as the month changes; the skeleton lives inside so loading never flashes blank */}
+      <AnimatedHeight trigger={selectedMonth} contentClassName="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {isPending ? (
+          [1, 2, 3, 4, 5].map((i) => <SummaryCardSkeleton key={i} />)
+        ) : (
+          <>
+            <SummaryCard
+              title={t('dashboard.balance-cards.income')}
+              value={formatted?.income ?? defaultCurrency}
+              icon={<ArrowDownLeft className="h-5 w-5" aria-hidden="true" />}
+              colors={SUMMARY_COLORS.success}
+              staggerClass="stagger-1"
+              onClick={() => setModalType(TRANSACTION_TYPE.INCOME)}
+              footer={
+                <DeltaBadge
+                  change={pctChange(incomeValue, previous?.incomeValue ?? 0)}
+                  favorableWhenUp
+                  noDataLabel={noPrev}
+                  suffix={vsPrev}
+                  loading={isPreviousPending}
+                />
+              }
+            />
 
-      <SummaryCard
-        title={t('dashboard.balance-cards.expenses')}
-        value={formatted?.expense ?? defaultCurrency}
-        icon={<ArrowUpRight className="h-5 w-5" aria-hidden="true" />}
-        colors={SUMMARY_COLORS.danger}
-        staggerClass="stagger-2"
-        onClick={() => setModalType(TRANSACTION_TYPE.EXPENSE)}
-        footer={
-          <DeltaBadge
-            change={pctChange(expenseValue, previous?.expenseValue ?? 0)}
-            favorableWhenUp={false}
-            noDataLabel={noPrev}
-            suffix={vsPrev}
-          />
-        }
-      />
+            <SummaryCard
+              title={t('dashboard.balance-cards.expenses')}
+              value={formatted?.expense ?? defaultCurrency}
+              icon={<ArrowUpRight className="h-5 w-5" aria-hidden="true" />}
+              colors={SUMMARY_COLORS.danger}
+              staggerClass="stagger-2"
+              onClick={() => setModalType(TRANSACTION_TYPE.EXPENSE)}
+              footer={
+                <DeltaBadge
+                  change={pctChange(expenseValue, previous?.expenseValue ?? 0)}
+                  favorableWhenUp={false}
+                  noDataLabel={noPrev}
+                  suffix={vsPrev}
+                  loading={isPreviousPending}
+                />
+              }
+            />
 
-      <SummaryCard
-        title={t('dashboard.balance-cards.balance')}
-        value={formatted?.balance ?? defaultCurrency}
-        icon={<Scale className="h-5 w-5" aria-hidden="true" />}
-        colors={isBalancePositive ? SUMMARY_COLORS.success : SUMMARY_COLORS.danger}
-        staggerClass="stagger-3"
-        footer={
-          <DeltaBadge
-            change={pctChange(balanceValue, previous?.balanceValue ?? 0)}
-            favorableWhenUp
-            noDataLabel={noPrev}
-            suffix={vsPrev}
-          />
-        }
-      />
+            <SummaryCard
+              title={t('dashboard.balance-cards.balance')}
+              value={formatted?.balance ?? defaultCurrency}
+              icon={<Scale className="h-5 w-5" aria-hidden="true" />}
+              colors={isBalancePositive ? SUMMARY_COLORS.success : SUMMARY_COLORS.danger}
+              staggerClass="stagger-3"
+              footer={
+                <DeltaBadge
+                  change={pctChange(balanceValue, previous?.balanceValue ?? 0)}
+                  favorableWhenUp
+                  noDataLabel={noPrev}
+                  suffix={vsPrev}
+                  loading={isPreviousPending}
+                />
+              }
+            />
 
-      <SummaryCard
-        title={t('dashboard.kpi.savings-rate')}
-        value={savingsRate === null ? '—' : `${savingsRate}%`}
-        icon={<PiggyBank className="h-5 w-5" aria-hidden="true" />}
-        colors={SUMMARY_COLORS.violet}
-        staggerClass="stagger-1"
-      />
+            <SummaryCard
+              title={t('dashboard.kpi.savings-rate')}
+              value={savingsRate === null ? '—' : `${savingsRate}%`}
+              icon={<PiggyBank className="h-5 w-5" aria-hidden="true" />}
+              colors={SUMMARY_COLORS.violet}
+              staggerClass="stagger-1"
+            />
 
-      <SummaryCard
-        title={t('dashboard.kpi.daily-average')}
-        value={formatCurrency(dailyAverageCents)}
-        icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
-        colors={SUMMARY_COLORS.amber}
-        staggerClass="stagger-2"
-      />
+            <SummaryCard
+              title={t('dashboard.kpi.daily-average')}
+              value={formatCurrency(dailyAverageCents)}
+              icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
+              colors={SUMMARY_COLORS.amber}
+              staggerClass="stagger-2"
+            />
+          </>
+        )}
+      </AnimatedHeight>
 
       {modalType && <TypeTransactionsModal type={modalType} month={selectedMonth} onClose={() => setModalType(null)} />}
-    </div>
+    </>
   );
 }
