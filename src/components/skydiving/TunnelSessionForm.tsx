@@ -120,7 +120,7 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
               />
               {errors.sessionDate && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.sessionDate.message}
+                  {t(errors.sessionDate.message ?? '')}
                 </p>
               )}
             </div>
@@ -139,7 +139,7 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
               />
               {errors.durationMin && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.durationMin.message}
+                  {t(errors.durationMin.message ?? '')}
                 </p>
               )}
             </div>

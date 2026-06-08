@@ -11,6 +11,7 @@ import {
   TRANSACTION_TYPE,
   VALIDATION_KEY,
 } from '@/constants/finance';
+import { requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
 
 /**
  * Transaction type enum
@@ -31,22 +32,8 @@ export const TransactionStatusSchema = z.enum([
  * Used by both form validation and API request validation
  */
 export const CreateTransactionSchema = z.object({
-  // invalid_type_error/required_error cover the "no category selected" case where
-  // the form value coerces to NaN, so the user sees the translated key instead of
-  // Zod's default "Expected number, received nan".
-  categoryId: z
-    .number({
-      required_error: VALIDATION_KEY.CATEGORY_REQUIRED,
-      invalid_type_error: VALIDATION_KEY.CATEGORY_REQUIRED,
-    })
-    .int()
-    .positive(VALIDATION_KEY.CATEGORY_REQUIRED),
-  amount: z
-    .number({
-      required_error: VALIDATION_KEY.AMOUNT_POSITIVE,
-      invalid_type_error: VALIDATION_KEY.AMOUNT_POSITIVE,
-    })
-    .positive(VALIDATION_KEY.AMOUNT_POSITIVE),
+  categoryId: requiredPositiveInt(VALIDATION_KEY.CATEGORY_REQUIRED),
+  amount: requiredPositiveNumber(VALIDATION_KEY.AMOUNT_POSITIVE),
   description: z.string().max(255, VALIDATION_KEY.DESCRIPTION_TOO_LONG).optional().default(''),
   transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   type: TransactionTypeSchema,

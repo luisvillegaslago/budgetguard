@@ -151,7 +151,7 @@ export function VoucherFormModal({ onClose, voucher }: VoucherFormModalProps) {
               />
               {errors.totalAmount && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.totalAmount.message}
+                  {t(errors.totalAmount.message ?? '')}
                 </p>
               )}
             </div>

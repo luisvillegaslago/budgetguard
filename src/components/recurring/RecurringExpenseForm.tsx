@@ -284,7 +284,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
               />
               {errors.amount && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.amount.message}
+                  {t(errors.amount.message ?? '')}
                 </p>
               )}
             </div>
@@ -348,7 +348,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
             />
             {errors.startDate && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.startDate.message}
+                {t(errors.startDate.message ?? '')}
               </p>
             )}
             {/* Recurrence summary */}

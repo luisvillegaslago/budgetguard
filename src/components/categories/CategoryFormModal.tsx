@@ -238,7 +238,7 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
             />
             {errors.name && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.name.message}
+                {t(errors.name.message ?? '')}
               </p>
             )}
           </div>

@@ -5,12 +5,13 @@
 
 import { z } from 'zod';
 import { VALIDATION_KEY } from '@/constants/finance';
+import { requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
 
 /**
  * Schema for creating a new jump
  */
 export const CreateJumpSchema = z.object({
-  jumpNumber: z.number().int().positive(VALIDATION_KEY.JUMP_NUMBER_POSITIVE),
+  jumpNumber: requiredPositiveInt(VALIDATION_KEY.JUMP_NUMBER_POSITIVE),
   title: z.string().max(255).optional().nullable(),
   jumpDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   dropzone: z.string().max(150).optional().nullable(),
@@ -43,7 +44,7 @@ export const CreateTunnelSessionSchema = z.object({
   sessionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   location: z.string().max(150).optional().nullable(),
   sessionType: z.string().max(100).optional().nullable(),
-  durationMin: z.number().positive(VALIDATION_KEY.DURATION_POSITIVE),
+  durationMin: requiredPositiveNumber(VALIDATION_KEY.DURATION_POSITIVE),
   notes: z.string().optional().nullable(),
   price: z.number().min(0).optional().nullable(),
   // When set, the session is paid from a prepaid voucher ("bono") instead of cash.

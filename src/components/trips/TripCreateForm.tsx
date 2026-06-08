@@ -100,7 +100,7 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
             />
             {errors.name && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.name.message}
+                {t(errors.name.message ?? '')}
               </p>
             )}
           </div>
@@ -124,7 +124,7 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
               />
               {errors.startDate && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.startDate.message}
+                  {t(errors.startDate.message ?? '')}
                 </p>
               )}
             </div>
@@ -146,7 +146,7 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
               />
               {errors.endDate && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.endDate.message}
+                  {t(errors.endDate.message ?? '')}
                 </p>
               )}
             </div>

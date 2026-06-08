@@ -309,7 +309,7 @@ export function TransactionForm({
               />
               {errors.amount && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.amount.message}
+                  {t(errors.amount.message ?? '')}
                 </p>
               )}
             </div>
@@ -332,7 +332,7 @@ export function TransactionForm({
               />
               {errors.transactionDate && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.transactionDate.message}
+                  {t(errors.transactionDate.message ?? '')}
                 </p>
               )}
             </div>
@@ -407,7 +407,7 @@ export function TransactionForm({
             />
             {errors.description && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.description.message}
+                {t(errors.description.message ?? '')}
               </p>
             )}
           </div>

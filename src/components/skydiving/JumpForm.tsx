@@ -129,7 +129,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
               />
               {errors.jumpNumber && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.jumpNumber.message}
+                  {t(errors.jumpNumber.message ?? '')}
                 </p>
               )}
             </div>
@@ -140,7 +140,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
               <input id="jumpDate" type="date" {...register('jumpDate')} className={inputClass(!!errors.jumpDate)} />
               {errors.jumpDate && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.jumpDate.message}
+                  {t(errors.jumpDate.message ?? '')}
                 </p>
               )}
             </div>

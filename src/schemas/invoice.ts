@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { INVOICE_STATUS, PAYMENT_METHOD, VALIDATION_KEY } from '@/constants/finance';
+import { requiredPositiveInt } from '@/schemas/shared';
 
 /**
  * Schema for creating/updating a billing profile
@@ -67,7 +68,7 @@ const InvoiceLineItemSchema = z
     description: z.string().trim().min(1).max(2000).nullable().optional(),
     hours: z.number().positive().nullable().optional(),
     hourlyRateCents: z.number().int().positive().nullable().optional(),
-    amountCents: z.number().int().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
+    amountCents: requiredPositiveInt(VALIDATION_KEY.AMOUNT_POSITIVE),
   })
   .refine(
     (item) =>

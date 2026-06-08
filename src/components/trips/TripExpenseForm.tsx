@@ -133,7 +133,7 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
               />
               {errors.amount && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.amount.message}
+                  {t(errors.amount.message ?? '')}
                 </p>
               )}
             </div>
@@ -154,7 +154,7 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
               />
               {errors.transactionDate && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
-                  {errors.transactionDate.message}
+                  {t(errors.transactionDate.message ?? '')}
                 </p>
               )}
             </div>
@@ -206,7 +206,7 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
             />
             {errors.description && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.description.message}
+                {t(errors.description.message ?? '')}
               </p>
             )}
           </div>
@@ -249,7 +249,7 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
             <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
             {errors.categoryId && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.categoryId.message}
+                {t(errors.categoryId.message ?? '')}
               </p>
             )}
           </div>

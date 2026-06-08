@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { VALIDATION_KEY } from '@/constants/finance';
+import { requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
 
 /**
  * Schema for creating a new trip
@@ -48,8 +49,8 @@ export type UpdateTripInput = z.infer<typeof UpdateTripSchema>;
  * Schema for creating a trip expense (always expense type)
  */
 export const CreateTripExpenseSchema = z.object({
-  categoryId: z.number().int().positive(VALIDATION_KEY.CATEGORY_REQUIRED),
-  amount: z.number().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
+  categoryId: requiredPositiveInt(VALIDATION_KEY.CATEGORY_REQUIRED),
+  amount: requiredPositiveNumber(VALIDATION_KEY.AMOUNT_POSITIVE),
   description: z.string().max(255, VALIDATION_KEY.DESCRIPTION_TOO_LONG).optional().default(''),
   transactionDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   isShared: z.boolean().optional().default(false),

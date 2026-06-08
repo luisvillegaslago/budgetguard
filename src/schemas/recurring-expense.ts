@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { END_CONDITION, RECURRING_FREQUENCY, VALIDATION_KEY } from '@/constants/finance';
+import { requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
 
 export const RecurringFrequencySchema = z.enum([
   RECURRING_FREQUENCY.WEEKLY,
@@ -19,8 +20,8 @@ export const RecurringFrequencySchema = z.enum([
 export const EndConditionSchema = z.enum([END_CONDITION.NEVER, END_CONDITION.AFTER_OCCURRENCES, END_CONDITION.ON_DATE]);
 
 export const CreateRecurringExpenseSchema = z.object({
-  categoryId: z.number().int().positive(VALIDATION_KEY.CATEGORY_REQUIRED),
-  amount: z.number().positive(VALIDATION_KEY.AMOUNT_POSITIVE),
+  categoryId: requiredPositiveInt(VALIDATION_KEY.CATEGORY_REQUIRED),
+  amount: requiredPositiveNumber(VALIDATION_KEY.AMOUNT_POSITIVE),
   description: z.string().max(255, VALIDATION_KEY.DESCRIPTION_TOO_LONG).optional().default(''),
   frequency: RecurringFrequencySchema,
   dayOfWeek: z.number().int().min(0).max(6).nullable().optional().default(null),

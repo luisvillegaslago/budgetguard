@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { VALIDATION_KEY } from '@/constants/finance';
+import { requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
 
 /**
  * Schema for creating a new voucher.
@@ -14,9 +15,9 @@ import { VALIDATION_KEY } from '@/constants/finance';
  * the API converts the amount to cents for storage.
  */
 export const CreateVoucherSchema = z.object({
-  categoryId: z.number().int().positive(VALIDATION_KEY.CATEGORY_REQUIRED),
+  categoryId: requiredPositiveInt(VALIDATION_KEY.CATEGORY_REQUIRED),
   description: z.string().max(255, VALIDATION_KEY.DESCRIPTION_TOO_LONG).optional().default(''),
-  totalAmount: z.number().positive(VALIDATION_KEY.VOUCHER_TOTAL_POSITIVE),
+  totalAmount: requiredPositiveNumber(VALIDATION_KEY.VOUCHER_TOTAL_POSITIVE),
   totalUnits: z.number().positive(VALIDATION_KEY.VOUCHER_UNITS_POSITIVE).optional().nullable(),
   unitLabel: z.string().max(20).optional().nullable(),
   purchaseDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
