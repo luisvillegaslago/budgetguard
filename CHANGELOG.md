@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.40.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.39.0...v0.40.0) (2026-06-08)
+
+
+### Features
+
+* **dashboard:** animate widget resize with fade and skeletons on month change ([dca9d0b](https://github.com/luisvillegaslago/budgetguard/commit/dca9d0b00120cd97f059b0248e51b62b71891ddf))
+* **ux:** remediate UX/UI audit findings across all modules ([25fbc31](https://github.com/luisvillegaslago/budgetguard/commit/25fbc317eb4f6764e7727f2fbbb0059b80fc2a36))
+
+
+### Bug Fixes
+
+* **a11y:** make toast aria-live assertive when an error is shown ([7a4b166](https://github.com/luisvillegaslago/budgetguard/commit/7a4b166e6aab6cfac1633b38abba0c4926e6090d))
+* **forms:** always render translated validation messages ([4c0ba55](https://github.com/luisvillegaslago/budgetguard/commit/4c0ba55fc228fe779b800f43a4b638c02323960f))
+* **transactions:** show translated category/amount validation instead of raw Zod error ([91afff9](https://github.com/luisvillegaslago/budgetguard/commit/91afff9f9289e1c17dacc422ac5a52bc9c1c7489))
+
 ## [0.39.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.38.0...v0.39.0) (2026-06-04)
 
 
