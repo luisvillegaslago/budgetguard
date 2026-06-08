@@ -5,7 +5,7 @@
  * Collapsible row showing all expenses from a trip, grouped into a single entry
  */
 
-import { ArrowUpRight, ChevronDown, ChevronRight, ExternalLink, Layers, Plane } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, ExternalLink, Layers, Plane } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
@@ -69,9 +69,15 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
                 },
               )}
             >
-              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tripGroup.totalAmountCents)}
+              {isIncome ? (
+                <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              )}
+              {isIncome ? '+' : '-'}
+              {formatCurrency(tripGroup.totalAmountCents)}
             </span>
-            <div className="flex items-center overflow-hidden max-w-0 ml-2 group-hover:max-w-[96px] group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart group-hover:delay-300">
+            <div className="flex items-center overflow-hidden ml-2 max-w-[96px] sm:max-w-0 sm:group-hover:max-w-[96px] sm:group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart sm:group-hover:delay-300">
               <button
                 type="button"
                 className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
@@ -116,7 +122,13 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
                 },
               )}
             >
-              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tripGroup.totalAmountCents)}
+              {isIncome ? (
+                <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              )}
+              {isIncome ? '+' : '-'}
+              {formatCurrency(tripGroup.totalAmountCents)}
             </span>
           </div>
           {/* Row 2: Date · Count ... Badge + Chevron */}
@@ -208,7 +220,8 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
                       'text-guard-danger': !isIncome,
                     })}
                   >
-                    -{formatCurrency(tx.amountCents)}
+                    {isIncome ? '+' : '-'}
+                    {formatCurrency(tx.amountCents)}
                   </span>
                 </div>
 
@@ -225,7 +238,8 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
                         'text-guard-danger': !isIncome,
                       })}
                     >
-                      -{formatCurrency(tx.amountCents)}
+                      {isIncome ? '+' : '-'}
+                      {formatCurrency(tx.amountCents)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5 ml-6 text-[11px] text-guard-muted">

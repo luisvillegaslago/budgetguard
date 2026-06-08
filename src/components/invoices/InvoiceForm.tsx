@@ -5,6 +5,7 @@
  * Modal for creating or editing an invoice with dynamic line items
  */
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { type Control, type UseFormRegister, useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -12,31 +13,38 @@ import { z } from 'zod';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
 import { INVOICE_BILLING_MODE, type InvoiceBillingMode, VALIDATION_KEY } from '@/constants/finance';
 import { useBillingProfile, useCreateInvoice, useInvoicePrefixes, useUpdateInvoice } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
-import { centsToEuros, eurosToCents } from '@/utils/money';
+import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 // Form schema (user enters euros, we convert to cents on submit)
 // SubItems are wrapped in objects so react-hook-form's useFieldArray can manage them
 const SubItemFormSchema = z.object({ text: z.string() });
 
-const LineItemFormSchema = z.object({
-  title: z.string(),
-  subItems: z.array(SubItemFormSchema),
-  description: z.string(),
-  hours: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
-  hourlyRate: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
-  amount: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
-});
+const LineItemFormSchema = z
+  .object({
+    title: z.string(),
+    subItems: z.array(SubItemFormSchema),
+    description: z.string(),
+    hours: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
+    hourlyRate: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
+    amount: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
+  })
+  // Each line must resolve to a positive amount (direct or hours × rate auto-fill).
+  .refine((item) => typeof item.amount === 'number' && item.amount > 0, {
+    message: VALIDATION_KEY.AMOUNT_POSITIVE,
+    path: ['amount'],
+  });
 
 const InvoiceFormSchema = z.object({
   prefixId: z.number().int().positive(VALIDATION_KEY.SELECT_PREFIX),
   invoiceDate: z.string().min(1, VALIDATION_KEY.DATE_REQUIRED),
   companyId: z.number().int().positive(VALIDATION_KEY.SELECT_CLIENT),
   notes: z.string().optional(),
-  lineItems: z.array(LineItemFormSchema).min(1),
+  lineItems: z.array(LineItemFormSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED),
 });
 
 type InvoiceFormValues = z.infer<typeof InvoiceFormSchema>;
@@ -140,6 +148,7 @@ function SubItemsEditor({ control, register, lineItemIndex }: SubItemsEditorProp
 
 export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const { data: prefixes } = useInvoicePrefixes();
   const { data: billingProfile } = useBillingProfile();
   const createInvoice = useCreateInvoice();
@@ -155,6 +164,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
     setValue,
     formState: { errors },
   } = useForm<InvoiceFormValues>({
+    resolver: zodResolver(InvoiceFormSchema),
     defaultValues: buildDefaultValues(invoice, billingProfile?.defaultHourlyRateCents),
   });
 
@@ -250,6 +260,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
             notes: values.notes || null,
           },
         });
+        toast.success(t('invoices.toast.updated'));
       } else {
         const created = await createInvoice.mutateAsync({
           prefixId: Number(values.prefixId),
@@ -258,6 +269,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           lineItems,
           notes: values.notes || null,
         });
+        toast.success(t('invoices.toast.created'));
         onCreated?.(created.invoiceId);
       }
       onClose();
@@ -328,7 +340,11 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           <div>
             <span className="block text-sm font-medium text-foreground mb-1">{t('invoices.form.fields.client')}</span>
             <CompanySelector value={watchedCompanyId || null} onChange={handleCompanyChange} disabled={isEditing} />
-            {errors.companyId && <p className="text-xs text-guard-danger mt-1">{errors.companyId.message}</p>}
+            {errors.companyId && (
+              <p role="alert" className="text-xs text-guard-danger mt-1">
+                {t(errors.companyId.message ?? '')}
+              </p>
+            )}
           </div>
 
           {/* Prefix + Date row */}
@@ -351,7 +367,11 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                   ))}
                 </Select>
               )}
-              {errors.prefixId && <p className="text-xs text-guard-danger mt-1">{errors.prefixId.message}</p>}
+              {errors.prefixId && (
+                <p role="alert" className="text-xs text-guard-danger mt-1">
+                  {t(errors.prefixId.message ?? '')}
+                </p>
+              )}
             </div>
 
             <div>
@@ -359,7 +379,11 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                 {t('invoices.form.fields.date')}
               </label>
               <input id="invoiceDate" type="date" {...register('invoiceDate')} className="w-full input-sm" />
-              {errors.invoiceDate && <p className="text-xs text-guard-danger mt-1">{errors.invoiceDate.message}</p>}
+              {errors.invoiceDate && (
+                <p role="alert" className="text-xs text-guard-danger mt-1">
+                  {t(errors.invoiceDate.message ?? '')}
+                </p>
+              )}
             </div>
           </div>
 
@@ -501,6 +525,11 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                         {...register(`lineItems.${index}.amount`, { valueAsNumber: true })}
                         className="w-full input-sm"
                       />
+                      {errors.lineItems?.[index]?.amount && (
+                        <p role="alert" className="text-xs text-guard-danger mt-1">
+                          {t(errors.lineItems[index]?.amount?.message ?? '')}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -511,12 +540,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           {/* Total */}
           <div className="flex justify-end items-center gap-3 pt-2 border-t border-border">
             <span className="text-sm font-medium text-guard-muted">{t('invoices.form.total')}:</span>
-            <span className="text-lg font-bold text-foreground">
-              {new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-                totalEuros,
-              )}{' '}
-              €
-            </span>
+            <span className="text-lg font-bold text-foreground">{formatCurrency(eurosToCents(totalEuros))}</span>
           </div>
 
           {/* Notes */}

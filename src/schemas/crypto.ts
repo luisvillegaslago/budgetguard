@@ -6,7 +6,13 @@
  */
 
 import { z } from 'zod';
-import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, CRYPTO_SYNC_MODE, KLINE_INTERVAL } from '@/constants/finance';
+import {
+  CRYPTO_EVENT_TYPE,
+  CRYPTO_EXCHANGE,
+  CRYPTO_SYNC_MODE,
+  KLINE_INTERVAL,
+  VALIDATION_KEY,
+} from '@/constants/finance';
 
 // Binance API key format: 64 alphanumeric characters.
 // Binance API secret format: 64 alphanumeric characters.
@@ -14,10 +20,22 @@ import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, CRYPTO_SYNC_MODE, KLINE_INTERVAL } 
 // still reject obvious garbage and any whitespace.
 const BINANCE_KEY_PATTERN = /^[A-Za-z0-9]+$/;
 
+// Validation messages use i18n keys (VALIDATION_KEY) so the UI renders them
+// translated via t(errors.field.message) instead of Zod's English defaults.
 export const CreateCryptoCredentialSchema = z.object({
   exchange: z.enum([CRYPTO_EXCHANGE.BINANCE]),
-  apiKey: z.string().trim().min(50).max(80).regex(BINANCE_KEY_PATTERN),
-  apiSecret: z.string().trim().min(50).max(80).regex(BINANCE_KEY_PATTERN),
+  apiKey: z
+    .string()
+    .trim()
+    .min(50, VALIDATION_KEY.API_KEY_LENGTH)
+    .max(80, VALIDATION_KEY.API_KEY_LENGTH)
+    .regex(BINANCE_KEY_PATTERN, VALIDATION_KEY.API_KEY_FORMAT),
+  apiSecret: z
+    .string()
+    .trim()
+    .min(50, VALIDATION_KEY.API_SECRET_LENGTH)
+    .max(80, VALIDATION_KEY.API_SECRET_LENGTH)
+    .regex(BINANCE_KEY_PATTERN, VALIDATION_KEY.API_SECRET_FORMAT),
 });
 
 export type CreateCryptoCredentialInput = z.infer<typeof CreateCryptoCredentialSchema>;

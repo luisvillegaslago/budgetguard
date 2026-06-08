@@ -47,7 +47,7 @@ export function FiscalQuarterSelector({ year, quarter, onYearChange, onQuarterCh
       </div>
 
       {/* Quarter Buttons */}
-      <fieldset className="flex gap-2 border-0 p-0 m-0" aria-label="Fiscal quarter">
+      <fieldset className="flex gap-2 border-0 p-0 m-0" aria-label={t('fiscal.a11y.quarter-selector')}>
         {QUARTERS.map((q, i) => (
           <button
             key={q}

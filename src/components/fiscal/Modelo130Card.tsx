@@ -69,6 +69,7 @@ export function Modelo130Card({ data }: Modelo130CardProps) {
   const { t } = useTranslate();
 
   const hasGastosDificil = data.gastosDificilCents > 0;
+  const hasActivity = data.casilla1Cents !== 0 || data.casilla2Cents !== 0;
 
   return (
     <div className="card border-l-4 border-l-guard-primary">
@@ -76,6 +77,8 @@ export function Modelo130Card({ data }: Modelo130CardProps) {
         <h3 className="text-lg font-bold text-foreground">{t('fiscal.modelo130.title')}</h3>
         <span className="text-xs text-guard-muted">{t('fiscal.modelo130.cumulative-note')}</span>
       </div>
+
+      {!hasActivity && <p className="text-xs text-guard-muted mb-3 -mt-1">{t('fiscal.no-activity')}</p>}
 
       <div className="space-y-0.5">
         <CasillaRow number="01" label={t('fiscal.modelo130.casilla1')} cents={data.casilla1Cents} />

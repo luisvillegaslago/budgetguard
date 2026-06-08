@@ -24,7 +24,7 @@ interface TripDetailProps {
 }
 
 export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProps) {
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const [isEditing, setIsEditing] = useState(false);
   const deleteExpense = useDeleteTripExpense(trip.tripId);
 
@@ -62,8 +62,14 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
         <div className="flex items-center gap-1.5 text-sm text-guard-muted">
           <Calendar className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
           {trip.startDate && trip.endDate ? (
-            <span>
-              {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+            <span
+              role="img"
+              aria-label={t('trips.date-range-label', {
+                start: formatDate(trip.startDate, 'short', locale),
+                end: formatDate(trip.endDate, 'short', locale),
+              })}
+            >
+              {formatDate(trip.startDate, 'short', locale)} — {formatDate(trip.endDate, 'short', locale)}
             </span>
           ) : (
             <span>{t('trips.card.no-dates')}</span>

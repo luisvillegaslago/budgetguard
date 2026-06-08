@@ -8,9 +8,11 @@
 
 import { Layers } from 'lucide-react';
 import { useMemo } from 'react';
+import { CHART_COLORS } from '@/components/dashboard/charts/chartConfig';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { TRANSACTION_TYPE } from '@/constants/finance';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -18,8 +20,9 @@ import { useSelectedMonth } from '@/stores/useFinanceStore';
 import type { Transaction } from '@/types/finance';
 import { formatCurrency } from '@/utils/money';
 
-const FIXED_COLOR = '#4F46E5'; // guard-primary
-const VARIABLE_COLOR = '#F59E0B'; // guard-warning
+// Derive from the centralized chart palette to stay in sync with the brand tokens.
+const FIXED_COLOR = CHART_COLORS.balance; // guard-primary
+const VARIABLE_COLOR = CHART_COLORS.warning; // guard-warning
 
 export interface FixedVariableSplit {
   fixedCents: number;
@@ -88,9 +91,11 @@ export function FixedVsVariableCard() {
       ) : (
         <div className="flex flex-1 flex-col gap-4">
           {/* Month total */}
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-guard-muted">{t('dashboard.widgets.total-expenses')}</p>
-            <p className="text-2xl font-bold text-foreground tabular-nums">{formatCurrency(total)}</p>
+            <OverflowTooltip content={formatCurrency(total)}>
+              <p className="text-2xl font-bold text-foreground tabular-nums truncate">{formatCurrency(total)}</p>
+            </OverflowTooltip>
           </div>
 
           {/* Stacked bar */}

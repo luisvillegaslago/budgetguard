@@ -6,10 +6,11 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Save } from 'lucide-react';
+import { CheckCircle2, Loader2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Select } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
 import { PAYMENT_METHOD } from '@/constants/finance';
 import { useBillingProfile, useUpdateBillingProfile } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -18,6 +19,7 @@ import { centsToEuros, eurosToCents } from '@/utils/money';
 
 export function BillingProfileForm() {
   const { t } = useTranslate();
+  const toast = useToast();
   const { data: profile, isLoading } = useBillingProfile();
   const updateProfile = useUpdateBillingProfile();
 
@@ -72,19 +74,25 @@ export function BillingProfileForm() {
 
   const onSubmit = async (data: BillingProfileInput) => {
     const rateCents = hourlyRateEuros !== '' ? eurosToCents(Number(hourlyRateEuros)) : null;
-    await updateProfile.mutateAsync({
-      ...data,
-      defaultHourlyRateCents: rateCents,
-    });
-    setHourlyRateDirty(false);
+    try {
+      await updateProfile.mutateAsync({
+        ...data,
+        defaultHourlyRateCents: rateCents,
+      });
+      setHourlyRateDirty(false);
+      toast.success(t('settings.billing.saved'));
+    } catch {
+      // Error surfaced inline via updateProfile.errorMessage + toast below
+      toast.error(updateProfile.errorMessage ?? t('settings.billing.save-error'));
+    }
   };
 
   if (isLoading) {
-    return <div className="h-48 bg-muted/50 rounded-lg animate-pulse" />;
+    return <div className="card h-48 bg-muted/50 animate-pulse" />;
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-6">
+    <div className="card">
       <h3 className="text-base font-semibold text-foreground mb-4">{t('settings.billing.profile-title')}</h3>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -95,14 +103,22 @@ export function BillingProfileForm() {
               {t('settings.billing.fields.full-name')}
             </label>
             <input id="fullName" type="text" {...register('fullName')} className="w-full input-sm" />
-            {errors.fullName && <p className="text-xs text-guard-danger mt-1">{errors.fullName.message}</p>}
+            {errors.fullName && (
+              <p role="alert" className="text-xs text-guard-danger mt-1">
+                {t(errors.fullName.message ?? '')}
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="nif" className="block text-sm font-medium text-foreground mb-1">
               NIF
             </label>
             <input id="nif" type="text" {...register('nif')} className="w-full input-sm" />
-            {errors.nif && <p className="text-xs text-guard-danger mt-1">{errors.nif.message}</p>}
+            {errors.nif && (
+              <p role="alert" className="text-xs text-guard-danger mt-1">
+                {t(errors.nif.message ?? '')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -185,8 +201,17 @@ export function BillingProfileForm() {
         </div>
 
         {/* Submit */}
-        {updateProfile.isError && <p className="text-sm text-guard-danger">{updateProfile.error.message}</p>}
-        {updateProfile.isSuccess && <p className="text-sm text-guard-success">{t('settings.billing.saved')}</p>}
+        {updateProfile.errorMessage && (
+          <p role="alert" className="text-sm text-guard-danger">
+            {updateProfile.errorMessage}
+          </p>
+        )}
+        {updateProfile.isSuccess && (
+          <output aria-live="polite" className="flex items-center gap-1.5 text-sm text-guard-success">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            {t('settings.billing.saved')}
+          </output>
+        )}
 
         <div className="flex justify-end">
           <button

@@ -20,13 +20,13 @@ async function fetchVouchers(): Promise<Voucher[]> {
   const response = await fetchApi(API_ENDPOINT.VOUCHERS);
 
   if (!response.ok) {
-    throw new Error('Error al cargar bonos');
+    throw new Error(API_ERROR.LOAD.VOUCHERS);
   }
 
   const data: ApiResponse<Voucher[]> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.LOAD.VOUCHERS);
   }
 
   return data.data;
@@ -36,13 +36,13 @@ async function fetchVoucher(id: number): Promise<VoucherDetail> {
   const response = await fetchApi(`${API_ENDPOINT.VOUCHERS}/${id}`);
 
   if (!response.ok) {
-    throw new Error('Error al cargar bono');
+    throw new Error(API_ERROR.LOAD.VOUCHERS);
   }
 
   const data: ApiResponse<VoucherDetail> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.LOAD.VOUCHERS);
   }
 
   return data.data;
@@ -63,7 +63,7 @@ async function createVoucherRequest(input: CreateVoucherInput): Promise<Voucher>
   const data: ApiResponse<Voucher> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.MUTATION.CREATE.VOUCHER);
   }
 
   return data.data;
@@ -84,7 +84,7 @@ async function updateVoucherRequest(id: number, input: UpdateVoucherInput): Prom
   const data: ApiResponse<Voucher> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.MUTATION.UPDATE.VOUCHER);
   }
 
   return data.data;

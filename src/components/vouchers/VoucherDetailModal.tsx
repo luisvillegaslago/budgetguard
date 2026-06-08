@@ -6,12 +6,14 @@
  * consumptions. Allows editing or deleting the voucher.
  */
 
-import { Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { useToast } from '@/components/ui/Toast';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteVoucher, useVoucher } from '@/hooks/useVouchers';
 import type { Voucher } from '@/types/finance';
@@ -31,20 +33,20 @@ function formatUnits(value: number): string {
 
 export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetailModalProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const { data, isLoading, isError, refetch } = useVoucher(voucherId);
   const deleteVoucher = useDeleteVoucher();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
+  const handleConfirmDelete = async () => {
     try {
       await deleteVoucher.mutateAsync(voucherId);
+      toast.success(t('vouchers.delete.success'));
+      setConfirmOpen(false);
       onClose();
     } catch (_error) {
-      // Error surfaced via mutation state
+      // Error surfaced via toast + deleteVoucher.errorMessage (kept dialog open)
+      toast.error(deleteVoucher.errorMessage ?? t('vouchers.delete.error'));
     }
   };
 
@@ -56,6 +58,8 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
       ? Math.min(100, Math.round((voucher.consumedCents / voucher.totalAmountCents) * 100))
       : 0;
   const isDepleted = voucher ? voucher.remainingCents <= 0 : false;
+  // Overconsumed: linked expenses exceeded the prepaid balance (negative remaining).
+  const isExceeded = voucher ? voucher.remainingCents < 0 : false;
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="voucher-detail-title">
@@ -97,17 +101,37 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
               <div className="flex items-baseline justify-between">
                 <span className="text-xs text-guard-muted">{t('vouchers.remaining')}</span>
                 <span className="text-xs text-guard-muted tabular-nums">
-                  {formatCurrency(voucher.consumedCents)} / {formatCurrency(voucher.totalAmountCents)}
+                  {t('vouchers.consumed-of-total', {
+                    consumed: formatCurrency(voucher.consumedCents),
+                    total: formatCurrency(voucher.totalAmountCents),
+                    pct: consumedPct,
+                  })}
                 </span>
               </div>
-              <p className={cn('text-2xl font-bold tabular-nums', isDepleted ? 'text-guard-muted' : 'text-foreground')}>
-                {formatCurrency(Math.max(0, voucher.remainingCents))}
-              </p>
+              <div className="flex items-center gap-2">
+                <p
+                  className={cn(
+                    'text-2xl font-bold tabular-nums',
+                    isExceeded ? 'text-guard-danger' : isDepleted ? 'text-guard-muted' : 'text-foreground',
+                  )}
+                >
+                  {formatCurrency(voucher.remainingCents)}
+                </p>
+                {isExceeded && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-guard-danger/10 px-2 py-0.5 text-xs font-medium text-guard-danger">
+                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                    {t('vouchers.exceeded')}
+                  </span>
+                )}
+              </div>
 
               {/* Progress bar */}
               <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted">
                 <div
-                  className={cn('h-full rounded-full', isDepleted ? 'bg-guard-muted' : 'bg-guard-primary')}
+                  className={cn(
+                    'h-full rounded-full',
+                    isExceeded ? 'bg-guard-danger' : isDepleted ? 'bg-guard-muted' : 'bg-guard-primary',
+                  )}
                   style={{ width: `${consumedPct}%` }}
                 />
               </div>
@@ -160,8 +184,8 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                             : ''}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-foreground tabular-nums">
-                        {formatCurrency(tx.amountCents)}
+                      <span className="flex flex-shrink-0 items-center gap-1 text-sm font-semibold text-guard-danger tabular-nums">
+                        <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tx.amountCents)}
                       </span>
                     </li>
                   ))}
@@ -181,23 +205,33 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
               </button>
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setConfirmOpen(true)}
                 disabled={deleteVoucher.isPending}
                 className={cn(
                   'flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
-                  confirmDelete
-                    ? 'bg-guard-danger text-white hover:bg-guard-danger/90'
-                    : 'bg-guard-danger/10 text-guard-danger hover:bg-guard-danger/20',
+                  'bg-guard-danger/10 text-guard-danger hover:bg-guard-danger/20',
                 )}
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
-                {confirmDelete ? t('vouchers.delete.confirm') : t('common.buttons.delete')}
+                {t('common.buttons.delete')}
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Destructive confirmation */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t('vouchers.delete.title')}
+        message={t('vouchers.delete.message')}
+        confirmLabel={t('common.buttons.delete')}
+        variant="danger"
+        isLoading={deleteVoucher.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </ModalBackdrop>
   );
 }

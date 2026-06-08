@@ -6,12 +6,14 @@
  * Appears in the dashboard between BalanceCards and the grid
  */
 
-import { Check, ChevronDown, ChevronUp, Pencil, Repeat, X } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown, ChevronUp, Pencil, Repeat, X } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import {
+  type ConfirmAllResult,
   useConfirmAllOccurrences,
   useConfirmOccurrence,
   usePendingOccurrences,
@@ -21,7 +23,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import { useIsRecurringPanelCollapsed, useToggleRecurringPanel } from '@/stores/useFinanceStore';
 import type { PendingOccurrenceMonth, RecurringOccurrence } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
-import { centsToEuros, formatCurrency } from '@/utils/money';
+import { formatCurrency } from '@/utils/money';
 
 interface OccurrenceItemProps {
   occurrence: RecurringOccurrence;
@@ -29,6 +31,7 @@ interface OccurrenceItemProps {
 
 function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const [isModifying, setIsModifying] = useState(false);
   const [modifiedAmount, setModifiedAmount] = useState<string>('');
   const confirmMutation = useConfirmOccurrence();
@@ -36,6 +39,9 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
 
   const isProcessing = confirmMutation.isPending || skipMutation.isPending;
   const iconColor = occurrence.recurringExpense.category?.color ?? '#EF4444';
+  // Original amount shown as a formatted reference next to the modify input,
+  // so the expected format ("1.234,56 €") matches the rest of the UI.
+  const originalAmount = formatCurrency(occurrence.recurringExpense.amountCents);
 
   const handleConfirm = () => {
     const params: { occurrenceId: number; modifiedAmount?: number } = {
@@ -50,16 +56,21 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
       onSuccess: () => {
         setIsModifying(false);
         setModifiedAmount('');
+        toast.success(t('recurring.pending.toast.confirmed'));
       },
+      onError: () => toast.error(t('recurring.pending.error')),
     });
   };
 
   const handleSkip = () => {
-    skipMutation.mutate(occurrence.occurrenceId);
+    skipMutation.mutate(occurrence.occurrenceId, {
+      onSuccess: () => toast.info(t('recurring.pending.toast.skipped')),
+      onError: () => toast.error(t('recurring.pending.error')),
+    });
   };
 
   return (
-    <div className="py-2.5 px-3 rounded-lg hover:bg-guard-warning/5 transition-colors">
+    <div className="py-2.5 px-3 rounded-lg hover:bg-guard-warning/10 transition-colors">
       {/* Desktop: single row. Mobile: two rows */}
       <div className="flex items-center gap-3">
         {/* Category Icon */}
@@ -78,24 +89,28 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
           </div>
         </div>
 
-        {/* Amount (always visible in row) */}
+        {/* Amount (always visible in row). Secondary indicators beyond color
+            (icon + minus sign) per DESIGN.md, matching the transactions list. */}
         {!isModifying && (
-          <span className="text-sm font-semibold text-guard-danger flex-shrink-0">
-            {formatCurrency(occurrence.recurringExpense.amountCents)}
+          <span className="text-sm font-semibold text-guard-danger flex-shrink-0 flex items-center gap-1 tabular-nums">
+            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{originalAmount}
           </span>
         )}
 
         {/* Desktop actions */}
         {isModifying ? (
           <div className="hidden sm:flex items-center gap-1.5">
+            <span className="text-xs text-guard-muted whitespace-nowrap" aria-hidden="true">
+              {t('recurring.pending.original-amount', { amount: originalAmount })}
+            </span>
             <input
               type="number"
               step="0.01"
               min="0.01"
               value={modifiedAmount}
               onChange={(e) => setModifiedAmount(e.target.value)}
-              placeholder={String(centsToEuros(occurrence.recurringExpense.amountCents))}
-              className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              placeholder={t('recurring.pending.amount-placeholder')}
+              className="w-28 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
               aria-label={t('recurring.pending.modified-amount')}
             />
             <button
@@ -158,14 +173,17 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
       <div className="flex sm:hidden items-center justify-end gap-1.5 mt-2 pl-10">
         {isModifying ? (
           <>
+            <span className="text-xs text-guard-muted whitespace-nowrap" aria-hidden="true">
+              {t('recurring.pending.original-amount', { amount: originalAmount })}
+            </span>
             <input
               type="number"
               step="0.01"
               min="0.01"
               value={modifiedAmount}
               onChange={(e) => setModifiedAmount(e.target.value)}
-              placeholder={String(centsToEuros(occurrence.recurringExpense.amountCents))}
-              className="w-20 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              placeholder={t('recurring.pending.amount-placeholder')}
+              className="w-28 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
               aria-label={t('recurring.pending.modified-amount')}
             />
             <button
@@ -227,13 +245,39 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
   );
 }
 
+/**
+ * Reports the outcome of a batch confirm-all to the user via toast.
+ * On full success: a single success toast. On partial failure: an error toast with
+ * an explicit "X of N" count so the user knows exactly what was created and that a
+ * blind retry of the whole batch could duplicate the ones that already succeeded.
+ */
+function useConfirmAllFeedback() {
+  const { t } = useTranslate();
+  const toast = useToast();
+
+  return (result: ConfirmAllResult) => {
+    if (result.failed === 0) {
+      toast.success(t('recurring.pending.toast.confirmed-all', { count: result.succeeded }));
+    } else {
+      toast.error(
+        t('recurring.pending.toast.confirmed-partial', {
+          succeeded: result.succeeded,
+          total: result.total,
+        }),
+      );
+    }
+  };
+}
+
 interface MonthSectionProps {
   monthData: PendingOccurrenceMonth;
 }
 
 function MonthSection({ monthData }: MonthSectionProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const confirmAllMutation = useConfirmAllOccurrences();
+  const reportResult = useConfirmAllFeedback();
 
   const [year, month] = monthData.month.split('-');
   const monthName = t(`recurring.months.${Number(month)}`);
@@ -242,7 +286,10 @@ function MonthSection({ monthData }: MonthSectionProps) {
   const occurrenceIds = monthData.occurrences.map((o) => o.occurrenceId);
 
   const handleConfirmAll = () => {
-    confirmAllMutation.mutate(occurrenceIds);
+    confirmAllMutation.mutate(occurrenceIds, {
+      onSuccess: reportResult,
+      onError: () => toast.error(t('recurring.pending.error')),
+    });
   };
 
   return (
@@ -256,11 +303,10 @@ function MonthSection({ monthData }: MonthSectionProps) {
           type="button"
           onClick={handleConfirmAll}
           disabled={confirmAllMutation.isPending}
+          aria-busy={confirmAllMutation.isPending}
           className="text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors"
         >
-          {confirmAllMutation.isPending
-            ? t('recurring.pending.processing')
-            : t('recurring.pending.confirm-all-month', { month: monthName })}
+          {confirmAllMutation.isPending ? t('recurring.pending.processing') : t('recurring.pending.confirm-all-short')}
         </button>
       </div>
 
@@ -274,10 +320,12 @@ function MonthSection({ monthData }: MonthSectionProps) {
 
 export function RecurringPendingPanel() {
   const { t } = useTranslate();
+  const toast = useToast();
   const { data, isLoading, isError, refetch } = usePendingOccurrences();
   const isCollapsed = useIsRecurringPanelCollapsed();
   const togglePanel = useToggleRecurringPanel();
   const confirmAllMutation = useConfirmAllOccurrences();
+  const reportResult = useConfirmAllFeedback();
 
   // Don't render if loading or no pending occurrences
   if (isLoading || (!data && !isError) || (data && data.totalCount === 0)) {
@@ -309,7 +357,10 @@ export function RecurringPendingPanel() {
   const allOccurrenceIds = data.months.flatMap((m) => m.occurrences.map((o) => o.occurrenceId));
 
   const handleConfirmAll = () => {
-    confirmAllMutation.mutate(allOccurrenceIds);
+    confirmAllMutation.mutate(allOccurrenceIds, {
+      onSuccess: reportResult,
+      onError: () => toast.error(t('recurring.pending.error')),
+    });
   };
 
   return (
@@ -330,7 +381,7 @@ export function RecurringPendingPanel() {
         <div className="flex items-center gap-3">
           <Repeat className="h-5 w-5 shrink-0 text-guard-warning" aria-hidden="true" />
           <h3 className="text-sm font-semibold text-foreground">
-            {t('recurring.pending.title')} {t('recurring.pending.count', { count: data.totalCount })}
+            {t('recurring.pending.title-count', { count: data.totalCount })}
           </h3>
         </div>
         {isCollapsed ? (
@@ -358,6 +409,7 @@ export function RecurringPendingPanel() {
                   type="button"
                   onClick={handleConfirmAll}
                   disabled={confirmAllMutation.isPending}
+                  aria-busy={confirmAllMutation.isPending}
                   className={cn(
                     'w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200',
                     'bg-guard-success/10 text-guard-success hover:bg-guard-success/20',

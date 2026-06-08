@@ -25,7 +25,7 @@ import { TRANSACTION_TYPE, type TransactionType } from '@/constants/finance';
 import { useFormattedSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useSelectedMonth } from '@/stores/useFinanceStore';
-import { addMonths, getMonthDateRange } from '@/utils/helpers';
+import { addMonths, getCurrentMonth, getMonthDateRange } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { TypeTransactionsModal } from './charts/TypeTransactionsModal';
 
@@ -36,6 +36,22 @@ import { TypeTransactionsModal } from './charts/TypeTransactionsModal';
 function pctChange(current: number, previous: number): number | null {
   if (previous === 0) return null;
   return Math.round(((current - previous) / Math.abs(previous)) * 100);
+}
+
+/**
+ * Number of days to divide the month's spend by for the daily average.
+ * - Past months: the full calendar length.
+ * - Current month: days elapsed up to today (so the average is not diluted by
+ *   days that have not happened yet).
+ * - Future months: null (no elapsed days → the average is not meaningful).
+ */
+function dailyAverageDivisor(selectedMonth: string): number | null {
+  const currentMonth = getCurrentMonth();
+
+  if (selectedMonth > currentMonth) return null;
+  if (selectedMonth === currentMonth) return new Date().getDate();
+
+  return getMonthDateRange(selectedMonth).end.getDate();
 }
 
 interface DeltaBadgeProps {
@@ -105,9 +121,11 @@ export function BalanceCards() {
   // Savings rate: share of income kept as balance.
   const savingsRate = incomeValue > 0 ? Math.round((balanceValue / incomeValue) * 100) : null;
 
-  // Average daily spend across the calendar days of the selected month.
-  const daysInMonth = getMonthDateRange(selectedMonth).end.getDate();
-  const dailyAverageCents = Math.round((expenseValue * 100) / daysInMonth);
+  // Average daily spend across the relevant days of the selected month
+  // (elapsed days for the current month, full month for past months, n/a for future).
+  const averageDivisor = dailyAverageDivisor(selectedMonth);
+  const dailyAverageCents =
+    averageDivisor && averageDivisor > 0 ? Math.round((expenseValue * 100) / averageDivisor) : null;
 
   return (
     <>
@@ -173,14 +191,22 @@ export function BalanceCards() {
             <SummaryCard
               title={t('dashboard.kpi.savings-rate')}
               value={savingsRate === null ? '—' : `${savingsRate}%`}
+              valueAriaLabel={savingsRate === null ? t('dashboard.kpi.no-data') : undefined}
               icon={<PiggyBank className="h-5 w-5" aria-hidden="true" />}
-              colors={SUMMARY_COLORS.violet}
+              colors={
+                savingsRate === null
+                  ? SUMMARY_COLORS.violet
+                  : savingsRate >= 0
+                    ? SUMMARY_COLORS.success
+                    : SUMMARY_COLORS.danger
+              }
               staggerClass="stagger-1"
             />
 
             <SummaryCard
               title={t('dashboard.kpi.daily-average')}
-              value={formatCurrency(dailyAverageCents)}
+              value={dailyAverageCents === null ? '—' : formatCurrency(dailyAverageCents)}
+              valueAriaLabel={dailyAverageCents === null ? t('dashboard.kpi.no-data') : undefined}
               icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
               colors={SUMMARY_COLORS.amber}
               staggerClass="stagger-2"

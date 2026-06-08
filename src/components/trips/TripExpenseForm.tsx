@@ -12,6 +12,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { useToast } from '@/components/ui/Toast';
 import { SHARED_EXPENSE, TRIP_COLOR } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useTripCategories } from '@/hooks/useTripCategories';
@@ -30,6 +31,7 @@ interface TripExpenseFormProps {
 
 export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }: TripExpenseFormProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const isEditing = !!transaction;
   const { data: categories, isLoading: categoriesLoading } = useTripCategories();
   const createExpense = useCreateTripExpense(tripId);
@@ -70,12 +72,14 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
     try {
       if (isEditing) {
         await updateExpense.mutateAsync({ expenseId: transaction.transactionId, data });
+        toast.success(t('trips.expense-form.toast.updated'));
       } else {
         await createExpense.mutateAsync(data);
+        toast.success(t('trips.expense-form.toast.created'));
       }
       onClose();
     } catch (_error) {
-      // Error handled by mutation state
+      // Error surfaced via mutation.errorMessage in the alert block
     }
   };
 
@@ -250,11 +254,12 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
             )}
           </div>
 
-          {/* Error Message */}
+          {/* Error Message — surfaces the specific translated cause (conflict, validation) */}
           {mutation.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
               <p className="text-sm text-guard-danger">
-                {isEditing ? t('trips.expense-form.errors.update') : t('trips.expense-form.errors.create')}
+                {mutation.errorMessage ??
+                  (isEditing ? t('trips.expense-form.errors.update') : t('trips.expense-form.errors.create'))}
               </p>
             </div>
           )}
@@ -266,7 +271,7 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
             className={cn(
               'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
               'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
-              'bg-guard-danger hover:bg-guard-danger/90',
+              'bg-guard-primary hover:bg-guard-primary/90',
             )}
           >
             {isSubmitting || mutation.isPending ? (

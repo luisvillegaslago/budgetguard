@@ -3,7 +3,7 @@
  * TanStack Query hooks for billing profile, prefixes, and invoice CRUD
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type {
@@ -306,7 +306,7 @@ export function useDeleteInvoice() {
 
 export function useFinalizeInvoice() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: async (invoiceId: number) => {
       const response = await fetchApi(`${API_ENDPOINT.INVOICES}/${invoiceId}/finalize`, {
         method: 'POST',

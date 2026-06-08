@@ -7,10 +7,10 @@
  * Global widget: not tied to the selected month (a voucher spans many months).
  */
 
-import { ChevronDown, Plus, Ticket } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Plus, Ticket } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { DataState } from '@/components/ui/DataState';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { VoucherDetailModal } from '@/components/vouchers/VoucherDetailModal';
 import { VoucherFormModal } from '@/components/vouchers/VoucherFormModal';
@@ -43,42 +43,48 @@ function VoucherRow({ voucher, onSelect }: VoucherRowProps) {
       ? Math.min(100, Math.round((voucher.consumedCents / voucher.totalAmountCents) * 100))
       : 0;
   const isDepleted = voucher.remainingCents <= 0;
+  // Overconsumed: linked expenses exceeded the prepaid balance (negative remaining).
+  const isExceeded = voucher.remainingCents < 0;
   const hasUnits = voucher.totalUnits != null && voucher.totalUnits > 0;
   const days = daysUntilExpiry(voucher.expiryDate);
   const expired = days != null && days < 0;
   const expiringSoon = days != null && days >= 0 && days <= EXPIRY_SOON_DAYS;
+  const name = voucher.description || voucher.categoryName || t('vouchers.untitled');
 
   return (
     <button
       type="button"
       onClick={() => onSelect(voucher)}
+      aria-label={t('vouchers.row.aria', { name, remaining: formatCurrency(voucher.remainingCents) })}
       className="w-full text-left rounded-lg border border-border px-3 py-2.5 hover:bg-muted/50 transition-colors"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium text-foreground">
-          {voucher.description || voucher.categoryName || t('vouchers.untitled')}
-        </span>
+      <div className="flex items-center justify-between gap-2" aria-hidden="true">
+        <span className="truncate text-sm font-medium text-foreground">{name}</span>
         <span
           className={cn(
-            'text-sm font-semibold tabular-nums flex-shrink-0',
-            isDepleted ? 'text-guard-muted' : 'text-foreground',
+            'flex items-center gap-1 text-sm font-semibold tabular-nums flex-shrink-0',
+            isExceeded ? 'text-guard-danger' : isDepleted ? 'text-guard-muted' : 'text-foreground',
           )}
         >
-          {formatCurrency(Math.max(0, voucher.remainingCents))}
+          {isExceeded && <AlertTriangle className="h-3 w-3" aria-hidden="true" />}
+          {formatCurrency(voucher.remainingCents)}
         </span>
       </div>
 
-      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
         <div
-          className={cn('h-full rounded-full', isDepleted ? 'bg-guard-muted' : 'bg-guard-primary')}
+          className={cn(
+            'h-full rounded-full',
+            isExceeded ? 'bg-guard-danger' : isDepleted ? 'bg-guard-muted' : 'bg-guard-primary',
+          )}
           style={{ width: `${consumedPct}%` }}
         />
       </div>
 
-      <div className="mt-1 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs text-guard-muted tabular-nums">
+      <div className="mt-1 flex items-center justify-between gap-2" aria-hidden="true">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-guard-muted tabular-nums">
           {hasUnits && (
-            <span className="font-semibold text-foreground">
+            <span className="truncate font-semibold text-foreground">
               {t('vouchers.units-count', {
                 consumed: voucher.consumedUnits,
                 total: voucher.totalUnits as number,
@@ -86,12 +92,19 @@ function VoucherRow({ voucher, onSelect }: VoucherRowProps) {
               {voucher.unitLabel ? ` ${voucher.unitLabel}` : ''}
             </span>
           )}
-          {t('vouchers.of-total', { total: formatCurrency(voucher.totalAmountCents) })}
+          <span className="truncate">
+            {t('vouchers.percent-used', { pct: consumedPct, total: formatCurrency(voucher.totalAmountCents) })}
+          </span>
         </span>
-        {expired ? (
-          <span className="text-xs font-medium text-guard-danger">{t('vouchers.expired')}</span>
+        {isExceeded ? (
+          <span className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-guard-danger">
+            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+            {t('vouchers.exceeded')}
+          </span>
+        ) : expired ? (
+          <span className="flex-shrink-0 text-xs font-medium text-guard-danger">{t('vouchers.expired')}</span>
         ) : expiringSoon ? (
-          <span className="text-xs font-medium text-guard-warning">
+          <span className="flex-shrink-0 text-xs font-medium text-guard-warning">
             {t('vouchers.expires-in-days', { days: days as number })}
           </span>
         ) : null}
@@ -139,15 +152,35 @@ export function VouchersWidget() {
         </button>
       </div>
 
-      {isLoading ? (
-        <div className="flex flex-1 items-center justify-center py-10">
-          <LoadingSpinner size="md" />
-        </div>
-      ) : isError ? (
-        <ErrorState message={t('vouchers.errors.load')} onRetry={() => refetch()} />
-      ) : active.length === 0 && spent.length === 0 ? (
-        <EmptyState icon={Ticket} title={t('vouchers.widget.empty')} subtitle={t('vouchers.widget.empty-subtitle')} />
-      ) : (
+      <DataState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={active.length === 0 && spent.length === 0}
+        onRetry={() => refetch()}
+        errorMessage={t('vouchers.errors.load')}
+        loadingFallback={
+          <div className="flex flex-1 items-center justify-center py-10">
+            <LoadingSpinner size="md" />
+          </div>
+        }
+        emptyState={
+          <EmptyState
+            icon={Ticket}
+            title={t('vouchers.widget.empty')}
+            subtitle={t('vouchers.widget.empty-subtitle')}
+            action={
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-guard-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-guard-primary/90"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t('vouchers.widget.new')}
+              </button>
+            }
+          />
+        }
+      >
         <div className="flex flex-1 flex-col gap-2">
           {/* Active vouchers */}
           {active.length === 0 ? (
@@ -184,7 +217,7 @@ export function VouchersWidget() {
             </div>
           )}
         </div>
-      )}
+      </DataState>
 
       {/* Modals */}
       {createOpen && <VoucherFormModal onClose={() => setCreateOpen(false)} />}

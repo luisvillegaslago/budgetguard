@@ -13,6 +13,7 @@ import { CompanyPrefixSection } from '@/components/settings/CompanyPrefixSection
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
 import type { CompanyRole } from '@/constants/finance';
 import { COMPANY_ROLE } from '@/constants/finance';
 import { useCreateCompany, useUpdateCompany } from '@/hooks/useCompanies';
@@ -30,6 +31,7 @@ interface CompanyFormModalProps {
 
 export function CompanyFormModal({ onClose, company, role }: CompanyFormModalProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const isEditing = !!company;
   const createMutation = useCreateCompany();
   const updateMutation = useUpdateCompany();
@@ -61,22 +63,39 @@ export function CompanyFormModal({ onClose, company, role }: CompanyFormModalPro
 
   const watchedRole = watch('role');
 
+  // Bank fee is parsed outside RHF; surface an inline error instead of
+  // silently discarding an invalid (non-numeric / negative) entry.
+  const [bankFeeError, setBankFeeError] = useState<string | null>(null);
+
   const onSubmit = async (data: CreateCompanyInput) => {
-    const parsedFee = bankFeeEuros.trim() ? parseFloat(bankFeeEuros.replace(',', '.')) : Number.NaN;
+    const trimmedFee = bankFeeEuros.trim();
+    const parsedFee = trimmedFee ? parseFloat(trimmedFee.replace(',', '.')) : Number.NaN;
+    const hasFee = trimmedFee.length > 0;
+    const isFeeValid = !hasFee || (Number.isFinite(parsedFee) && parsedFee >= 0);
+
+    if (!isFeeValid) {
+      setBankFeeError(t('companies.form.errors.bank-fee-invalid'));
+      return;
+    }
+    setBankFeeError(null);
+
     const payload: CreateCompanyInput = {
       ...data,
-      defaultBankFeeCents: Number.isFinite(parsedFee) && parsedFee >= 0 ? eurosToCents(parsedFee) : null,
+      defaultBankFeeCents: hasFee ? eurosToCents(parsedFee) : null,
     };
 
     try {
       if (isEditing && company) {
         await updateMutation.mutateAsync({ id: company.companyId, data: payload });
+        toast.success(t('companies.toast.updated'));
       } else {
         await createMutation.mutateAsync(payload);
+        toast.success(t('companies.toast.created'));
       }
       onClose();
     } catch {
-      // Error handled by mutation state
+      // Error handled inline by mutation state; also surface a toast
+      toast.error(isEditing ? t('companies.form.errors.update') : t('companies.form.errors.create'));
     }
   };
 
@@ -146,7 +165,7 @@ export function CompanyFormModal({ onClose, company, role }: CompanyFormModalPro
             />
             {errors.name && (
               <p role="alert" className="mt-1 text-sm text-guard-danger">
-                {errors.name.message}
+                {t(errors.name.message ?? '')}
               </p>
             )}
           </div>
@@ -256,17 +275,25 @@ export function CompanyFormModal({ onClose, company, role }: CompanyFormModalPro
               </label>
               <input
                 id="company-defaultBankFee"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                min="0"
                 placeholder="0,00"
                 autoComplete="off"
                 value={bankFeeEuros}
-                onChange={(e) => setBankFeeEuros(e.target.value)}
-                className={inputClass(false)}
+                onChange={(e) => {
+                  setBankFeeEuros(e.target.value);
+                  if (bankFeeError) setBankFeeError(null);
+                }}
+                aria-invalid={!!bankFeeError}
+                className={inputClass(!!bankFeeError)}
               />
-              <p className="mt-1 text-xs text-guard-muted">{t('companies.form.fields.default-bank-fee-help')}</p>
+              {bankFeeError ? (
+                <p role="alert" className="mt-1 text-xs text-guard-danger">
+                  {bankFeeError}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-guard-muted">{t('companies.form.fields.default-bank-fee-help')}</p>
+              )}
             </div>
           )}
 

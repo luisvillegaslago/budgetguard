@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { CompanyFormModal } from '@/components/settings/CompanyFormModal';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { useToast } from '@/components/ui/Toast';
 import type { CompanyRole } from '@/constants/finance';
 import { COMPANY_ROLE } from '@/constants/finance';
 import { useAllCompanies, useUpdateCompany } from '@/hooks/useCompanies';
@@ -30,6 +31,7 @@ function resolveInitialRole(param: string | null): CompanyRole {
 
 export function CompanyManagementPanel() {
   const { t } = useTranslate();
+  const toast = useToast();
   const searchParams = useSearchParams();
   const [activeRole, setActiveRoleState] = useState<CompanyRole>(() => resolveInitialRole(searchParams.get('role')));
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,10 +52,15 @@ export function CompanyManagementPanel() {
   }, [companies, searchQuery]);
 
   const handleToggleActive = async (company: Company) => {
-    await updateCompany.mutateAsync({
-      id: company.companyId,
-      data: { isActive: !company.isActive },
-    });
+    try {
+      await updateCompany.mutateAsync({
+        id: company.companyId,
+        data: { isActive: !company.isActive },
+      });
+      toast.success(company.isActive ? t('companies.toast.deactivated') : t('companies.toast.activated'));
+    } catch {
+      toast.error(updateCompany.errorMessage ?? t('companies.errors.update'));
+    }
   };
 
   const setActiveRole = useCallback((role: CompanyRole) => {

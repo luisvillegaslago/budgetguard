@@ -11,6 +11,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo390Summary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+import { classifyFiscalResult, FISCAL_RESULT_KIND } from './fiscalResult';
 
 interface Modelo390CardProps {
   data: Modelo390Summary;
@@ -47,7 +48,8 @@ function CasillaRow({ number, label, cents, isTotal = false }: CasillaRowProps) 
 export function Modelo390Card({ data }: Modelo390CardProps) {
   const { t } = useTranslate();
 
-  const isNegativeResult = data.casilla65Cents < 0;
+  const result = classifyFiscalResult(data.casilla65Cents);
+  const isToCompensate = result.kind === FISCAL_RESULT_KIND.TO_COMPENSATE;
 
   return (
     <div className="card border-l-4 border-l-guard-primary">
@@ -85,18 +87,17 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
           {t('fiscal.modelo390.casilla65')} <span className="text-xs font-normal text-guard-muted">([47] − [64])</span>
         </span>
         <div className="text-right">
-          <span
-            className={cn(
-              'text-lg font-bold tabular-nums',
-              isNegativeResult ? 'text-guard-success' : 'text-guard-danger',
-            )}
-          >
+          <span className={cn('text-lg font-bold tabular-nums', result.amountClassName)}>
             {formatCurrency(data.casilla65Cents, false)}
             <span className="ml-1">€</span>
           </span>
-          {isNegativeResult && (
+          {isToCompensate ? (
             <p className="text-xs mt-0.5 text-guard-success/70">
               {t('fiscal.modelo390.casilla97')}: {formatCurrency(data.casilla97Cents, false)} €
+            </p>
+          ) : (
+            <p className={cn('text-xs mt-0.5', result.labelClassName)}>
+              {result.kind === FISCAL_RESULT_KIND.TO_PAY ? t('fiscal.modelo303.to-pay') : t('fiscal.result.neutral')}
             </p>
           )}
         </div>

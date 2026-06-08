@@ -10,7 +10,11 @@
  */
 
 import { AlertTriangle, Download, Loader2, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Select } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
 import { API_ENDPOINT } from '@/constants/finance';
 import { useCryptoModelo100Summary, useRecomputeCryptoFiscal } from '@/hooks/useCryptoFiscal';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -23,16 +27,38 @@ interface Props {
 
 export function CryptoModelo100Section({ year, onYearChange }: Props) {
   const { t } = useTranslate();
+  const toast = useToast();
   const summary = useCryptoModelo100Summary(year);
   const recompute = useRecomputeCryptoFiscal();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Recompute every year, not just the selected one — see endpoint docs.
-  const handleRecompute = async () => {
-    await recompute.mutateAsync(undefined);
+  // Recompute every year, not just the selected one — see endpoint docs. The
+  // operation is global and potentially costly, so it goes through a confirm
+  // dialog and reports the number of recomputed disposals on success.
+  const handleRecomputeConfirm = async () => {
+    try {
+      const result = await recompute.mutateAsync(undefined);
+      setConfirmOpen(false);
+      toast.success(t('crypto.fiscal.recompute-success', { count: result.totalDisposalsInserted ?? 0 }));
+    } catch {
+      // useApiMutation surfaces the translated message via recompute.errorMessage.
+      setConfirmOpen(false);
+      toast.error(recompute.errorMessage ?? t('crypto.fiscal.recompute-error'));
+    }
   };
 
   if (summary.isLoading) {
     return <div className="bg-card rounded-xl border border-border p-6 h-64 animate-pulse" />;
+  }
+
+  // Distinguish a failed load from a genuinely empty result: a network error must
+  // not look like "no data yet" (the user could re-import/re-sync needlessly).
+  if (summary.isError) {
+    return (
+      <div className="bg-card rounded-xl border border-border p-6">
+        <ErrorState message={t('crypto.fiscal.load-error')} onRetry={() => summary.refetch()} />
+      </div>
+    );
   }
 
   const data = summary.data?.summary;
@@ -74,7 +100,7 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
           </a>
           <button
             type="button"
-            onClick={handleRecompute}
+            onClick={() => setConfirmOpen(true)}
             disabled={recompute.isPending}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('crypto.fiscal.recompute-hint')}
@@ -122,6 +148,16 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
           valueCents={data.casilla0033Cents}
         />
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t('crypto.fiscal.recompute-confirm-title')}
+        message={t('crypto.fiscal.recompute-confirm-message')}
+        confirmLabel={t('crypto.fiscal.recompute')}
+        isLoading={recompute.isPending}
+        onConfirm={handleRecomputeConfirm}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

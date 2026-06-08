@@ -20,13 +20,13 @@ async function fetchCategories(type?: TransactionType, hierarchical = false): Pr
   const response = await fetchApi(url);
 
   if (!response.ok) {
-    throw new Error('Error al cargar categorias');
+    throw new Error(API_ERROR.LOAD.CATEGORIES);
   }
 
   const data: ApiResponse<Category[]> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.INTERNAL);
   }
 
   return data.data;
@@ -42,13 +42,13 @@ async function fetchAllCategories(type?: TransactionType, hierarchical = false):
   const response = await fetchApi(url);
 
   if (!response.ok) {
-    throw new Error('Error al cargar categorias');
+    throw new Error(API_ERROR.LOAD.CATEGORIES);
   }
 
   const data: ApiResponse<Category[]> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.INTERNAL);
   }
 
   return data.data;
@@ -69,7 +69,7 @@ async function createCategoryRequest(input: CreateCategoryInput): Promise<Catego
   const data: ApiResponse<Category> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.MUTATION.CREATE.CATEGORY);
   }
 
   return data.data;
@@ -90,7 +90,7 @@ async function updateCategoryRequest(id: number, input: UpdateCategoryInput): Pr
   const data: ApiResponse<Category> = await response.json();
 
   if (!data.success || !data.data) {
-    throw new Error(data.error ?? 'Error desconocido');
+    throw new Error(data.error ?? API_ERROR.MUTATION.UPDATE.CATEGORY);
   }
 
   return data.data;

@@ -5,11 +5,14 @@
  * Displays all recurring expense rules with management actions
  */
 
-import { Pencil, Power, Repeat, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Pencil, Power, Repeat, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE } from '@/constants/finance';
 import {
@@ -30,6 +33,8 @@ interface RecurringExpenseItemProps {
 
 function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
   const { t } = useTranslate();
+  const toast = useToast();
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteMutation = useDeleteRecurringExpense();
   const hardDeleteMutation = useHardDeleteRecurringExpense();
   const updateMutation = useUpdateRecurringExpense();
@@ -53,41 +58,48 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
 
   const handleToggleActive = () => {
     if (expense.isActive) {
-      deleteMutation.mutate(expense.recurringExpenseId);
-    } else {
-      updateMutation.mutate({
-        id: expense.recurringExpenseId,
-        data: { isActive: true },
+      deleteMutation.mutate(expense.recurringExpenseId, {
+        onSuccess: () => toast.success(t('recurring.management.toast.deactivated')),
+        onError: () => toast.error(t('recurring.management.toast.toggle-error')),
       });
+    } else {
+      updateMutation.mutate(
+        {
+          id: expense.recurringExpenseId,
+          data: { isActive: true },
+        },
+        {
+          onSuccess: () => toast.success(t('recurring.management.toast.activated')),
+          onError: () => toast.error(t('recurring.management.toast.toggle-error')),
+        },
+      );
     }
   };
 
   const handleHardDelete = () => {
-    if (window.confirm(t('recurring.management.actions.confirm-delete'))) {
-      hardDeleteMutation.mutate(expense.recurringExpenseId);
-    }
+    hardDeleteMutation.mutate(expense.recurringExpenseId, {
+      onSuccess: () => {
+        setIsConfirmingDelete(false);
+        toast.success(t('recurring.management.toast.deleted'));
+      },
+      onError: () => toast.error(t('recurring.management.toast.delete-error')),
+    });
   };
 
   const isProcessing = deleteMutation.isPending || updateMutation.isPending || hardDeleteMutation.isPending;
 
+  // Expense amount with secondary indicators (icon + minus sign) beyond color,
+  // per DESIGN.md, consistent with the transactions list.
   const amountEl = (
-    <span className="text-sm font-semibold text-guard-danger flex-shrink-0 tabular-nums">
-      {formatCurrency(expense.amountCents)}
+    <span className="text-sm font-semibold text-guard-danger flex-shrink-0 tabular-nums flex items-center gap-1">
+      <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(expense.amountCents)}
     </span>
   );
 
+  // Frequency badge uses a single neutral brand-palette style; the frequency is
+  // conveyed by the label text, not by arbitrary out-of-palette colors.
   const frequencyBadge = (
-    <span
-      className={cn(
-        'text-[10px] font-bold px-1.5 py-0.5 rounded',
-        expense.frequency === RECURRING_FREQUENCY.WEEKLY &&
-          'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-        expense.frequency === RECURRING_FREQUENCY.MONTHLY &&
-          'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-        expense.frequency === RECURRING_FREQUENCY.YEARLY &&
-          'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
-      )}
-    >
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary">
       {frequencyLabel}
     </span>
   );
@@ -127,7 +139,7 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
       <Tooltip content={t('recurring.management.actions.delete')}>
         <button
           type="button"
-          onClick={handleHardDelete}
+          onClick={() => setIsConfirmingDelete(true)}
           disabled={isProcessing}
           className="p-1.5 rounded-md text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 transition-colors"
           aria-label={t('recurring.management.actions.delete')}
@@ -136,6 +148,19 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
         </button>
       </Tooltip>
     </>
+  );
+
+  const deleteDialog = (
+    <ConfirmDialog
+      open={isConfirmingDelete}
+      title={t('recurring.management.actions.delete')}
+      message={t('recurring.management.actions.confirm-delete')}
+      confirmLabel={t('recurring.management.actions.delete')}
+      variant="danger"
+      isLoading={hardDeleteMutation.isPending}
+      onConfirm={handleHardDelete}
+      onCancel={() => setIsConfirmingDelete(false)}
+    />
   );
 
   return (
@@ -211,6 +236,8 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
           </div>
         </div>
       </div>
+
+      {deleteDialog}
     </div>
   );
 }

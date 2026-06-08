@@ -8,6 +8,7 @@
 
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import type { Transaction } from '@/types/finance';
+import { CHART_COLORS } from './chartConfig';
 import { MonthTransactionsModal } from './MonthTransactionsModal';
 
 interface CategoryTransactionsModalProps {
@@ -27,7 +28,7 @@ export function CategoryTransactionsModal({
   month,
   onClose,
 }: CategoryTransactionsModalProps) {
-  const color = categoryColor ?? '#6366F1';
+  const color = categoryColor ?? CHART_COLORS.balance;
 
   // Match transactions on the parent category itself or any of its subcategories.
   const filter = (tx: Transaction) => tx.categoryId === categoryId || tx.parentCategory?.categoryId === categoryId;

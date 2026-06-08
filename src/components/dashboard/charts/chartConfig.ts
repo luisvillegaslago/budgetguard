@@ -9,6 +9,7 @@ export const CHART_COLORS = {
   expense: '#EF4444', // guard-danger
   balance: '#4F46E5', // guard-primary
   accent: '#8B5CF6', // guard-accent
+  warning: '#F59E0B', // guard-warning
   muted: '#64748B', // guard-muted
 } as const;
 

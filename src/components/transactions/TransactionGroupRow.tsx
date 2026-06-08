@@ -5,7 +5,7 @@
  * Collapsible row showing a group of linked transactions with expandable breakdown
  */
 
-import { ArrowUpRight, ChevronDown, ChevronRight, Layers, Pencil, Users } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, Layers, Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { DeleteButton } from '@/components/ui/DeleteButton';
@@ -72,8 +72,8 @@ export function TransactionGroupRow({
               </p>
             </OverflowTooltip>
             <p className="text-xs text-guard-muted truncate">
-              {formatDate(group.transactionDate)} · {group.transactions.length}{' '}
-              {t('common.records', { count: group.transactions.length }).split(' ').slice(1).join(' ')}
+              {formatDate(group.transactionDate)} ·{' '}
+              {t('transactions.groups.item-count', { count: group.transactions.length })}
             </p>
           </div>
           <div className="flex items-center justify-end gap-1.5 flex-shrink-0 w-20">
@@ -100,9 +100,15 @@ export function TransactionGroupRow({
                 },
               )}
             >
-              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(group.totalAmountCents)}
+              {isIncome ? (
+                <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              )}
+              {isIncome ? '+' : '-'}
+              {formatCurrency(group.totalAmountCents)}
             </span>
-            <div className="flex items-center overflow-hidden max-w-0 ml-2 group-hover:max-w-[96px] group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart group-hover:delay-300">
+            <div className="flex items-center overflow-hidden ml-2 max-w-[96px] pointer-fine:max-w-0 pointer-fine:group-hover:max-w-[96px] pointer-fine:group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart pointer-fine:group-hover:delay-300">
               <button
                 type="button"
                 className="p-1.5 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
@@ -162,7 +168,13 @@ export function TransactionGroupRow({
                 },
               )}
             >
-              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(group.totalAmountCents)}
+              {isIncome ? (
+                <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              )}
+              {isIncome ? '+' : '-'}
+              {formatCurrency(group.totalAmountCents)}
             </span>
           </div>
           {/* Row 2: Date · Count ... Badge + Chevron | Delete */}
@@ -170,8 +182,7 @@ export function TransactionGroupRow({
             <span className="text-xs text-guard-muted flex-shrink-0">{formatDate(group.transactionDate)}</span>
             <span className="text-xs text-guard-muted truncate min-w-0">
               {'· '}
-              {group.transactions.length}{' '}
-              {t('common.records', { count: group.transactions.length }).split(' ').slice(1).join(' ')}
+              {t('transactions.groups.item-count', { count: group.transactions.length })}
             </span>
             <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
               <Tooltip content={t('transactions.groups.badge')}>
@@ -285,7 +296,8 @@ export function TransactionGroupRow({
                       'text-guard-danger': !isIncome,
                     })}
                   >
-                    -{formatCurrency(tx.amountCents)}
+                    {isIncome ? '+' : '-'}
+                    {formatCurrency(tx.amountCents)}
                   </span>
                 </div>
 
@@ -302,7 +314,8 @@ export function TransactionGroupRow({
                         'text-guard-danger': !isIncome,
                       })}
                     >
-                      -{formatCurrency(tx.amountCents)}
+                      {isIncome ? '+' : '-'}
+                      {formatCurrency(tx.amountCents)}
                     </span>
                   </div>
                   {hasOwnDescription && (

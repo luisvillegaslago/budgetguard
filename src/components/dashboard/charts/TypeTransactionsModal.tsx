@@ -11,6 +11,7 @@ import { TRANSACTION_TYPE, type TransactionType } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useSetFilters } from '@/stores/useFinanceStore';
 import type { Transaction } from '@/types/finance';
+import { CHART_COLORS } from './chartConfig';
 import { MonthTransactionsModal } from './MonthTransactionsModal';
 
 interface TypeTransactionsModalProps {
@@ -24,7 +25,7 @@ export function TypeTransactionsModal({ type, month, onClose }: TypeTransactions
   const setFilters = useSetFilters();
 
   const isIncome = type === TRANSACTION_TYPE.INCOME;
-  const color = isIncome ? '#10B981' : '#EF4444';
+  const color = isIncome ? CHART_COLORS.income : CHART_COLORS.expense;
   const Icon = isIncome ? ArrowDownLeft : ArrowUpRight;
   const title = isIncome ? t('dashboard.balance-cards.income') : t('dashboard.balance-cards.expenses');
 

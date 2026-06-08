@@ -16,7 +16,7 @@ import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import type { DateRangePreset } from '@/constants/finance';
-import { DATE_RANGE_PRESET, QUERY_KEY } from '@/constants/finance';
+import { DATE_RANGE_PRESET, QUERY_KEY, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCompanyTransactions } from '@/hooks/useCompanyTransactions';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -106,12 +106,13 @@ export function CompanyMovementDetail({ company }: CompanyMovementDetailProps) {
       </div>
 
       {/* Stats cards */}
-      <CategoryHistoryStats summary={summary} />
+      <CategoryHistoryStats summary={summary} categoryType={TRANSACTION_TYPE.INCOME} />
 
       {/* Monthly transaction sections */}
       {months.length > 0 ? (
         <CategoryHistoryMonths
           months={months}
+          categoryType={TRANSACTION_TYPE.INCOME}
           groupByMonth={groupByMonth}
           onEditTransaction={handleEdit}
           onDeleteTransaction={handleDelete}

@@ -14,9 +14,11 @@
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertTriangle, CheckCircle2, KeyRound, Loader2, Plug, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Plug, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 import { CRYPTO_EXCHANGE } from '@/constants/finance';
 import {
   type CryptoCredentialPermissions,
@@ -29,6 +31,7 @@ import { type CreateCryptoCredentialInput, CreateCryptoCredentialSchema } from '
 
 export function BinanceCredentialsForm() {
   const { t } = useTranslate();
+  const toast = useToast();
   const status = useCryptoCredentialStatus(CRYPTO_EXCHANGE.BINANCE);
   const connect = useConnectCryptoCredential();
   const disconnect = useDisconnectCryptoCredential();
@@ -45,23 +48,34 @@ export function BinanceCredentialsForm() {
   });
 
   const [showSecret, setShowSecret] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   const onSubmit = async (data: CreateCryptoCredentialInput) => {
-    await connect.mutateAsync(data);
-    reset({ exchange: CRYPTO_EXCHANGE.BINANCE, apiKey: '', apiSecret: '' });
+    try {
+      await connect.mutateAsync(data);
+      reset({ exchange: CRYPTO_EXCHANGE.BINANCE, apiKey: '', apiSecret: '' });
+      toast.success(t('settings.crypto.form.success'));
+    } catch {
+      toast.error(connect.errorMessage ?? t('settings.crypto.errors.connect'));
+    }
   };
 
   const handleDisconnect = async () => {
-    if (!window.confirm(t('settings.crypto.actions.disconnect-confirm'))) return;
-    await disconnect.mutateAsync(CRYPTO_EXCHANGE.BINANCE);
+    try {
+      await disconnect.mutateAsync(CRYPTO_EXCHANGE.BINANCE);
+      setConfirmDisconnect(false);
+      toast.success(t('settings.crypto.actions.disconnected'));
+    } catch {
+      toast.error(disconnect.errorMessage ?? t('settings.crypto.errors.disconnect'));
+    }
   };
 
   if (status.isLoading) {
-    return <div className="h-48 bg-muted/50 rounded-lg animate-pulse" />;
+    return <div className="card h-48 bg-muted/50 animate-pulse" />;
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+    <div className="card space-y-6">
       <div>
         <h3 className="text-base font-semibold text-foreground">{t('settings.crypto.title')}</h3>
         <p className="text-sm text-guard-muted mt-1">{t('settings.crypto.subtitle')}</p>
@@ -72,7 +86,7 @@ export function BinanceCredentialsForm() {
           last4={status.data.apiKeyLast4 ?? '????'}
           permissions={status.data.permissions}
           lastValidatedAt={status.data.lastValidatedAt}
-          onDisconnect={handleDisconnect}
+          onDisconnect={() => setConfirmDisconnect(true)}
           isDisconnecting={disconnect.isPending}
           errorMessage={disconnect.errorMessage}
         />
@@ -95,7 +109,11 @@ export function BinanceCredentialsForm() {
               {...register('apiKey')}
               className="w-full input-sm font-mono"
             />
-            {errors.apiKey && <p className="text-xs text-guard-danger mt-1">{errors.apiKey.message}</p>}
+            {errors.apiKey && (
+              <p role="alert" className="text-xs text-guard-danger mt-1">
+                {t(errors.apiKey.message ?? '')}
+              </p>
+            )}
           </div>
 
           <div>
@@ -114,13 +132,22 @@ export function BinanceCredentialsForm() {
               <button
                 type="button"
                 onClick={() => setShowSecret((v) => !v)}
-                className="btn-ghost px-3 text-xs"
+                className="btn-ghost px-3"
                 aria-pressed={showSecret}
+                aria-label={t('settings.crypto.fields.toggle-secret')}
               >
-                {showSecret ? '••••' : 'abc'}
+                {showSecret ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                )}
               </button>
             </div>
-            {errors.apiSecret && <p className="text-xs text-guard-danger mt-1">{errors.apiSecret.message}</p>}
+            {errors.apiSecret && (
+              <p role="alert" className="text-xs text-guard-danger mt-1">
+                {t(errors.apiSecret.message ?? '')}
+              </p>
+            )}
             <p className="text-xs text-guard-muted mt-2 flex items-start gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
               <span>{t('settings.crypto.form.secret-warning')}</span>
@@ -146,6 +173,17 @@ export function BinanceCredentialsForm() {
           </div>
         </form>
       )}
+
+      <ConfirmDialog
+        open={confirmDisconnect}
+        title={t('settings.crypto.disconnect-confirm-title')}
+        message={t('settings.crypto.disconnect-confirm-message')}
+        confirmLabel={t('settings.crypto.actions.disconnect')}
+        variant="danger"
+        isLoading={disconnect.isPending}
+        onConfirm={handleDisconnect}
+        onCancel={() => setConfirmDisconnect(false)}
+      />
     </div>
   );
 }

@@ -10,7 +10,10 @@
  * stays available behind an expandable row for debugging/reconciliation.
  */
 
-import { useState } from 'react';
+import { Inbox } from 'lucide-react';
+import { type KeyboardEvent, useState } from 'react';
+import { DataState } from '@/components/ui/DataState';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
 import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
@@ -77,75 +80,80 @@ export function CryptoEventsTable() {
         </div>
       </div>
 
-      {events.isLoading && <div className="h-32 bg-muted/50 rounded animate-pulse" />}
-
-      {events.data && events.data.data.length === 0 && (
-        <p className="text-sm text-guard-muted text-center py-8">{t('crypto.events.empty')}</p>
-      )}
-
-      {events.data && events.data.data.length > 0 && (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border text-left text-xs uppercase text-guard-muted">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">{t('crypto.events.col.date')}</th>
-                  <th className="py-2 pr-4 font-medium">{t('crypto.events.col.concept')}</th>
-                  <th className="py-2 pr-4 font-medium text-right">{t('crypto.events.col.amount')}</th>
-                  <th className="py-2 w-8" aria-hidden />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {events.data.data.map((event) => {
-                  const presentation = presentCryptoEvent(event.eventType, event.rawPayload);
-                  const isExpanded = expandedId === event.eventId;
-                  const subParts: string[] = [];
-                  if (presentation.avgPrice) {
-                    subParts.push(
-                      t('crypto.events.avg-price', {
-                        price: `${formatCryptoAmount(presentation.avgPrice.amount, locale)} ${presentation.avgPrice.asset}`,
-                      }),
+      <DataState
+        isLoading={events.isLoading}
+        isError={events.isError}
+        isEmpty={events.data?.data.length === 0}
+        onRetry={() => events.refetch()}
+        errorMessage={t('crypto.events.error')}
+        loadingFallback={<div className="h-32 bg-muted/50 rounded animate-pulse" />}
+        emptyState={<EmptyState icon={Inbox} title={t('crypto.events.empty')} />}
+      >
+        {events.data && events.data.data.length > 0 && (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border text-left text-xs uppercase text-guard-muted">
+                  <tr>
+                    <th className="py-2 pr-4 font-medium">{t('crypto.events.col.date')}</th>
+                    <th className="py-2 pr-4 font-medium">{t('crypto.events.col.concept')}</th>
+                    <th className="py-2 pr-4 font-medium text-right">{t('crypto.events.col.amount')}</th>
+                    <th className="py-2 w-8" aria-hidden />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {events.data.data.map((event) => {
+                    const presentation = presentCryptoEvent(event.eventType, event.rawPayload);
+                    const isExpanded = expandedId === event.eventId;
+                    const subParts: string[] = [];
+                    if (presentation.avgPrice) {
+                      subParts.push(
+                        t('crypto.events.avg-price', {
+                          price: `${formatCryptoAmount(presentation.avgPrice.amount, locale)} ${presentation.avgPrice.asset}`,
+                        }),
+                      );
+                    }
+                    if (presentation.fills) {
+                      subParts.push(t('crypto.events.fills', { count: presentation.fills }));
+                    }
+                    return (
+                      <FragmentRow
+                        key={event.eventId}
+                        date={fmt.format(new Date(event.occurredAt))}
+                        concept={t(presentation.conceptKey)}
+                        pair={presentation.pair}
+                        note={presentation.note}
+                        detail={subParts.length > 0 ? subParts.join(' · ') : undefined}
+                        legs={presentation.legs}
+                        locale={locale}
+                        isExpanded={isExpanded}
+                        onToggle={() => setExpandedId(isExpanded ? null : event.eventId)}
+                        externalId={event.externalId}
+                        rawType={t(`crypto.events.type.${event.eventType}`)}
+                        rawTypeCode={event.eventType}
+                        rawPayload={event.rawPayload}
+                        labels={{
+                          externalId: t('crypto.events.col.external-id'),
+                          rawType: t('crypto.events.col.type'),
+                          payload: t('crypto.events.col.payload'),
+                        }}
+                      />
                     );
-                  }
-                  if (presentation.fills) {
-                    subParts.push(t('crypto.events.fills', { count: presentation.fills }));
-                  }
-                  return (
-                    <FragmentRow
-                      key={event.eventId}
-                      date={fmt.format(new Date(event.occurredAt))}
-                      concept={t(presentation.conceptKey)}
-                      pair={presentation.pair}
-                      note={presentation.note}
-                      detail={subParts.length > 0 ? subParts.join(' · ') : undefined}
-                      legs={presentation.legs}
-                      locale={locale}
-                      isExpanded={isExpanded}
-                      onToggle={() => setExpandedId(isExpanded ? null : event.eventId)}
-                      externalId={event.externalId}
-                      rawType={event.eventType}
-                      rawPayload={event.rawPayload}
-                      labels={{
-                        externalId: t('crypto.events.col.external-id'),
-                        rawType: t('crypto.events.col.type'),
-                        payload: t('crypto.events.col.payload'),
-                      }}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-          <Pagination
-            currentPage={zeroBasedPage}
-            totalPages={events.data.meta.totalPages}
-            totalItems={events.data.meta.total}
-            pageSize={events.data.meta.pageSize}
-            onPageChange={setZeroBasedPage}
-          />
-        </>
-      )}
+            <Pagination
+              currentPage={zeroBasedPage}
+              totalPages={events.data.meta.totalPages}
+              totalItems={events.data.meta.total}
+              pageSize={events.data.meta.pageSize}
+              onPageChange={setZeroBasedPage}
+            />
+          </>
+        )}
+      </DataState>
     </div>
   );
 }
@@ -161,7 +169,10 @@ interface FragmentRowProps {
   isExpanded: boolean;
   onToggle: () => void;
   externalId: string;
+  /** Human-readable, translated event type label shown in the detail panel. */
   rawType: string;
+  /** Raw technical event type code (kept for debugging/reconciliation). */
+  rawTypeCode: string;
   rawPayload: Record<string, unknown>;
   labels: { externalId: string; rawType: string; payload: string };
 }
@@ -178,12 +189,30 @@ function FragmentRow({
   onToggle,
   externalId,
   rawType,
+  rawTypeCode,
   rawPayload,
   labels,
 }: FragmentRowProps) {
+  // Keyboard support: a <tr> with onClick is not reachable by keyboard, so we
+  // expose it as a button-like row (Enter/Space toggles, aria-expanded announces).
+  const handleKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onToggle();
+    }
+  };
+
   return (
     <>
-      <tr className="hover:bg-muted/30 cursor-pointer" onClick={onToggle}>
+      {/* biome-ignore lint/a11y/useSemanticElements: a table row cannot be a native <button>; expose it as a button-like row for keyboard access */}
+      <tr
+        className="hover:bg-muted/30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guard-primary focus-visible:ring-inset"
+        onClick={onToggle}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+      >
         <td className="py-3 pr-4 whitespace-nowrap text-xs text-guard-muted align-top">{date}</td>
         <td className="py-3 pr-4 align-top">
           <div className="font-medium text-foreground">{concept}</div>
@@ -203,7 +232,9 @@ function FragmentRow({
           </div>
         </td>
         <td className="py-3 text-guard-muted align-top">
-          <span className={`inline-block transition-transform ${isExpanded ? 'rotate-90' : ''}`}>›</span>
+          <span className={`inline-block transition-transform ${isExpanded ? 'rotate-90' : ''}`} aria-hidden="true">
+            ›
+          </span>
         </td>
       </tr>
       {isExpanded && (
@@ -211,7 +242,9 @@ function FragmentRow({
           <td colSpan={4} className="px-4 py-3">
             <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-xs">
               <dt className="text-guard-muted">{labels.rawType}</dt>
-              <dd className="font-mono">{rawType}</dd>
+              <dd>
+                {rawType} <span className="font-mono text-guard-muted">({rawTypeCode})</span>
+              </dd>
               <dt className="text-guard-muted">{labels.externalId}</dt>
               <dd className="font-mono break-all">{externalId}</dd>
               <dt className="text-guard-muted">{labels.payload}</dt>

@@ -32,7 +32,7 @@ function ActiveTripItem({
   trip: TripDisplay;
   onAddExpense: (target: TripExpenseTarget) => void;
 }) {
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
 
   const expenseBadge = trip.expenseCount > 0 && (
     <span
@@ -62,16 +62,32 @@ function ActiveTripItem({
           </Link>
           {trip.startDate && trip.endDate && (
             <>
-              <span className="text-guard-muted text-xs hidden sm:inline">-</span>
-              <span className="text-guard-muted text-xs whitespace-nowrap hidden sm:inline">
-                {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+              <span className="text-guard-muted text-xs hidden sm:inline" aria-hidden="true">
+                -
+              </span>
+              <span
+                className="text-guard-muted text-xs whitespace-nowrap hidden sm:inline"
+                role="img"
+                aria-label={t('trips.date-range-label', {
+                  start: formatDate(trip.startDate, 'short', locale),
+                  end: formatDate(trip.endDate, 'short', locale),
+                })}
+              >
+                {formatDate(trip.startDate, 'short', locale)} — {formatDate(trip.endDate, 'short', locale)}
               </span>
             </>
           )}
         </div>
         {trip.startDate && trip.endDate && (
-          <span className="text-guard-muted text-xs pl-6 sm:hidden">
-            {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+          <span
+            className="text-guard-muted text-xs pl-6 sm:hidden"
+            role="img"
+            aria-label={t('trips.date-range-label', {
+              start: formatDate(trip.startDate, 'short', locale),
+              end: formatDate(trip.endDate, 'short', locale),
+            })}
+          >
+            {formatDate(trip.startDate, 'short', locale)} — {formatDate(trip.endDate, 'short', locale)}
           </span>
         )}
         <div className="pl-6 sm:pl-0">{expenseBadge}</div>
@@ -79,8 +95,7 @@ function ActiveTripItem({
       <button
         type="button"
         onClick={() => onAddExpense({ tripId: trip.tripId, startDate: trip.startDate })}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white rounded-md transition-colors shrink-0"
-        style={{ backgroundColor: TRIP_COLOR }}
+        className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-sm shrink-0"
       >
         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
         {t('dashboard.active-trip.add-expense')}

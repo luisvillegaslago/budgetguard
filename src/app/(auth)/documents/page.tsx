@@ -12,6 +12,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { FiscalBulkUpload } from '@/components/fiscal/FiscalBulkUpload';
 import { FiscalDocumentList } from '@/components/fiscal/FiscalDocumentList';
 import { FiscalDocumentUpload } from '@/components/fiscal/FiscalDocumentUpload';
+import { DataState } from '@/components/ui/DataState';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Select } from '@/components/ui/Select';
 import {
   SUMMARY_COLORS,
@@ -117,7 +119,7 @@ export default function DocumentsPage() {
   );
 
   // Fetch all documents for the year
-  const { data: allDocuments, isLoading } = useFiscalDocuments(year);
+  const { data: allDocuments, isLoading, isError, refetch } = useFiscalDocuments(year);
 
   // Filter by quarter
   const quarterFiltered = useMemo(
@@ -222,8 +224,36 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Document List */}
-      {!isLoading && <FiscalDocumentList documents={displayedDocuments} year={year} />}
+      {/* Document List — distinguishes loading / error / empty / data */}
+      <DataState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={displayedDocuments.length === 0}
+        onRetry={() => refetch()}
+        errorMessage={t('fiscal.documents.load-error')}
+        loadingFallback={<span className="sr-only">{t('common.loading')}</span>}
+        emptyState={
+          <div className="card">
+            <EmptyState
+              icon={FileText}
+              title={t('fiscal.documents.empty')}
+              subtitle={t('fiscal.documents.empty-hint')}
+              action={
+                <button
+                  type="button"
+                  onClick={() => setShowUpload(true)}
+                  className="btn-primary inline-flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  {t('documents.upload')}
+                </button>
+              }
+            />
+          </div>
+        }
+      >
+        <FiscalDocumentList documents={displayedDocuments} year={year} />
+      </DataState>
 
       {/* Upload Modal */}
       {showUpload && <FiscalDocumentUpload year={year} onClose={() => setShowUpload(false)} />}

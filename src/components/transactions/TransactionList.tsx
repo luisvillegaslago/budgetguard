@@ -182,7 +182,8 @@ function TransactionRow({
         </div>
         <div className="flex items-center justify-end flex-shrink-0">
           {amountEl}
-          <div className="flex items-center overflow-hidden max-w-0 ml-2 group-hover:max-w-[96px] group-focus-within:max-w-[96px] transition-all duration-200 ease-out-quart group-hover:delay-300">
+          {/* Actions reveal on hover for fine pointers; stay visible on touch (coarse) where hover is unavailable */}
+          <div className="flex items-center overflow-hidden ml-2 max-w-[120px] pointer-fine:max-w-0 pointer-fine:group-hover:max-w-[120px] pointer-fine:group-focus-within:max-w-[120px] transition-all duration-200 ease-out-quart pointer-fine:group-hover:delay-300">
             {isPending && onMarkAsPaid && (
               <Tooltip content={t('transactions.mark-as-paid')}>
                 <button

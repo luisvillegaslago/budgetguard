@@ -60,6 +60,18 @@ async function skipOccurrenceRequest(occurrenceId: number): Promise<void> {
 }
 
 /**
+ * Outcome of a batch confirm-all operation. Because each occurrence creates a real
+ * financial transaction, a partial failure must be reported precisely so the user
+ * knows how many were created and how many remain (a blind retry could duplicate
+ * charges otherwise).
+ */
+export interface ConfirmAllResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+/**
  * Hook to fetch all pending occurrences (retroactive, no month filter)
  */
 export function usePendingOccurrences() {
@@ -101,16 +113,31 @@ export function useSkipOccurrence() {
 }
 
 /**
- * Hook to confirm all occurrences for a specific month (batch)
+ * Hook to confirm all occurrences for a month (or globally) as a batch.
+ *
+ * Uses Promise.allSettled instead of Promise.all so a single failure never leaves
+ * the user without a count of what was actually created. Each settled request maps
+ * to a real transaction, so the resolved ConfirmAllResult reports succeeded/failed
+ * and the caller surfaces a partial-success message ("X of N"). Queries are always
+ * invalidated, even on partial failure, to reflect the transactions that did persist.
  */
 export function useConfirmAllOccurrences() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<ConfirmAllResult, Error, number[]>({
     mutationFn: async (occurrenceIds: number[]) => {
-      await Promise.all(occurrenceIds.map((occurrenceId) => confirmOccurrenceRequest({ occurrenceId })));
+      const results = await Promise.allSettled(
+        occurrenceIds.map((occurrenceId) => confirmOccurrenceRequest({ occurrenceId })),
+      );
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const result: ConfirmAllResult = {
+        total: occurrenceIds.length,
+        succeeded,
+        failed: occurrenceIds.length - succeeded,
+      };
+      return result;
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });

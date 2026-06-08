@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { type DefaultValues, useForm, useWatch } from 'react-hook-form';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { useToast } from '@/components/ui/Toast';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useUpdateTrip } from '@/hooks/useTrips';
 import { type UpdateTripInput, UpdateTripSchema } from '@/schemas/trip';
@@ -24,6 +25,7 @@ interface TripEditFormProps {
 
 export function TripEditForm({ trip, onClose }: TripEditFormProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const updateTrip = useUpdateTrip();
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -47,9 +49,10 @@ export function TripEditForm({ trip, onClose }: TripEditFormProps) {
   const onSubmit = async (data: UpdateTripInput) => {
     try {
       await updateTrip.mutateAsync({ tripId: trip.tripId, data });
+      toast.success(t('trips.toast.updated'));
       onClose();
     } catch (_error) {
-      // Error handled by mutation state
+      // Error surfaced via updateTrip.errorMessage in the alert block
     }
   };
 
@@ -149,10 +152,10 @@ export function TripEditForm({ trip, onClose }: TripEditFormProps) {
             </div>
           </div>
 
-          {/* Error Message */}
+          {/* Error Message — surfaces the specific translated cause (conflict, validation) */}
           {updateTrip.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
-              <p className="text-sm text-guard-danger">{t('trips.errors.update')}</p>
+              <p className="text-sm text-guard-danger">{updateTrip.errorMessage ?? t('trips.errors.update')}</p>
             </div>
           )}
 

@@ -4,10 +4,15 @@
  * Sortable table displaying skydive jump log with search and pagination
  */
 
-import { Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { Cloud, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DataState } from '@/components/ui/DataState';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useDeleteJump, useSkydiveJumps } from '@/hooks/useSkydiveJumps';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -28,9 +33,10 @@ function formatFreefall(sec: number | null): string {
   return `${sec}s`;
 }
 
-function formatAltitude(meters: number | null): string {
-  if (meters === null) return '—';
-  return `${meters.toLocaleString()} m`;
+// Exit altitude is stored in feet (DB column ExitAltitudeFt); keep label/suffix consistent with the unit.
+function formatAltitude(feet: number | null, locale: string): string {
+  if (feet === null) return '—';
+  return `${feet.toLocaleString(locale)} ft`;
 }
 
 const PLACEHOLDER_DATE = '1900-01-01';
@@ -48,10 +54,12 @@ function matchesSearch(jump: SkydiveJump, query: string): boolean {
 }
 
 export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpLogTableProps) {
-  const { t } = useTranslate();
-  const { data: jumps, isLoading } = useSkydiveJumps(filters);
+  const { t, locale } = useTranslate();
+  const toast = useToast();
+  const { data: jumps, isLoading, isError, refetch } = useSkydiveJumps(filters);
   const deleteJump = useDeleteJump();
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  // Jump pending deletion confirmation (drives the ConfirmDialog).
+  const [jumpToDelete, setJumpToDelete] = useState<SkydiveJump | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
 
@@ -70,18 +78,17 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
     setPage(0);
   };
 
-  const handleDelete = async (jumpId: number) => {
-    if (deletingId === jumpId) {
-      await deleteJump.mutateAsync(jumpId);
-      setDeletingId(null);
-    } else {
-      setDeletingId(jumpId);
+  const handleConfirmDelete = async () => {
+    if (!jumpToDelete) return;
+    try {
+      await deleteJump.mutateAsync(jumpToDelete.jumpId);
+      toast.success(t('skydiving.jumps.delete.success'));
+      setJumpToDelete(null);
+    } catch {
+      // useApiMutation exposes the translated message; surface it as a toast.
+      toast.error(deleteJump.errorMessage ?? t('skydiving.jumps.form.errors.delete'));
     }
   };
-
-  if (isLoading) {
-    return <div className="bg-card border border-border rounded-lg p-8 animate-pulse h-48 md:h-64" />;
-  }
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -120,168 +127,195 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
         />
       )}
 
-      {/* Table */}
-      {!jumps || jumps.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-guard-muted">
-          <p className="font-medium">{t('skydiving.jumps.empty.title')}</p>
-          <p className="text-sm mt-1">{t('skydiving.jumps.empty.subtitle')}</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-guard-muted">
-          <p className="font-medium">{t('skydiving.jumps.search-empty')}</p>
-        </div>
-      ) : (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-guard-muted uppercase tracking-wider border-b border-border">
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.number')}</th>
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.date')}</th>
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.dropzone')}</th>
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.type')}</th>
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.freefall')}</th>
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.altitude')}</th>
-                    <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.aircraft')}</th>
-                    <th className="px-4 py-2 font-semibold w-20" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {pageItems.map((jump) => (
-                    <tr key={jump.jumpId} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-4 py-2.5 font-mono font-semibold text-foreground">{jump.jumpNumber}</td>
-                      <td className="px-4 py-2.5 text-foreground">
+      {/* Data states: loading / error / empty / ready */}
+      <DataState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={!jumps || jumps.length === 0}
+        onRetry={() => refetch()}
+        errorMessage={t('skydiving.jumps.errors.load')}
+        loadingFallback={<div className="p-8 animate-pulse h-48 md:h-64" />}
+        emptyState={
+          <EmptyState
+            icon={Cloud}
+            title={t('skydiving.jumps.empty.title')}
+            subtitle={t('skydiving.jumps.empty.subtitle')}
+          />
+        }
+      >
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-guard-muted">
+            <p className="font-medium">{t('skydiving.jumps.search-empty')}</p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-guard-muted uppercase tracking-wider border-b border-border">
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.number')}</th>
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.date')}</th>
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.dropzone')}</th>
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.type')}</th>
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.freefall')}</th>
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.altitude')}</th>
+                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.aircraft')}</th>
+                      <th className="px-4 py-2 font-semibold w-20" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {pageItems.map((jump) => (
+                      <tr key={jump.jumpId} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-4 py-2.5 font-mono font-semibold text-foreground">{jump.jumpNumber}</td>
+                        <td className="px-4 py-2.5 text-foreground whitespace-nowrap">
+                          {String(jump.jumpDate).startsWith(PLACEHOLDER_DATE) ? (
+                            <span className="text-guard-muted italic">{t('skydiving.jumps.prior-jump')}</span>
+                          ) : (
+                            formatDate(jump.jumpDate, 'long')
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-foreground max-w-[12rem]">
+                          <OverflowTooltip content={jump.dropzone ?? ''}>
+                            <p className="truncate">{jump.dropzone ?? '—'}</p>
+                          </OverflowTooltip>
+                        </td>
+                        <td className="px-4 py-2.5 text-guard-muted max-w-[10rem]">
+                          <OverflowTooltip content={jump.jumpType ?? ''}>
+                            <p className="truncate">{jump.jumpType ?? '—'}</p>
+                          </OverflowTooltip>
+                        </td>
+                        <td className="px-4 py-2.5 text-guard-muted">{formatFreefall(jump.freefallTimeSec)}</td>
+                        <td className="px-4 py-2.5 text-guard-muted whitespace-nowrap">
+                          {formatAltitude(jump.exitAltitudeFt, locale)}
+                        </td>
+                        <td className="px-4 py-2.5 text-guard-muted max-w-[10rem]">
+                          <OverflowTooltip content={jump.aircraft ?? ''}>
+                            <p className="truncate">{jump.aircraft ?? '—'}</p>
+                          </OverflowTooltip>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => onEditJump(jump)}
+                              className="p-1.5 text-guard-muted hover:text-foreground rounded transition-colors"
+                              aria-label={t('category-management.actions.edit')}
+                            >
+                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setJumpToDelete(jump)}
+                              className="p-1.5 rounded transition-colors text-guard-muted hover:text-guard-danger"
+                              aria-label={t('skydiving.jumps.delete.button')}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-border">
+              {pageItems.map((jump) => (
+                <div key={jump.jumpId} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold text-foreground">#{jump.jumpNumber}</span>
+                      <span className="text-sm text-guard-muted">
                         {String(jump.jumpDate).startsWith(PLACEHOLDER_DATE) ? (
-                          <span className="text-guard-muted italic">{t('skydiving.jumps.prior-jump')}</span>
+                          <span className="italic">{t('skydiving.jumps.prior-jump')}</span>
                         ) : (
                           formatDate(jump.jumpDate, 'long')
                         )}
-                      </td>
-                      <td className="px-4 py-2.5 text-foreground">{jump.dropzone ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-guard-muted">{jump.jumpType ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-guard-muted">{formatFreefall(jump.freefallTimeSec)}</td>
-                      <td className="px-4 py-2.5 text-guard-muted">{formatAltitude(jump.exitAltitudeFt)}</td>
-                      <td className="px-4 py-2.5 text-guard-muted">{jump.aircraft ?? '—'}</td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onEditJump(jump)}
-                            className="p-1.5 text-guard-muted hover:text-foreground rounded transition-colors"
-                            aria-label={t('category-management.actions.edit')}
-                          >
-                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(jump.jumpId)}
-                            className={`p-1.5 rounded transition-colors ${
-                              deletingId === jump.jumpId
-                                ? 'text-guard-danger bg-guard-danger/10'
-                                : 'text-guard-muted hover:text-guard-danger'
-                            }`}
-                            aria-label={
-                              deletingId === jump.jumpId
-                                ? t('skydiving.jumps.delete.confirm')
-                                : t('skydiving.jumps.delete.button')
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onEditJump(jump)}
+                        className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground rounded-lg transition-colors"
+                        aria-label={t('category-management.actions.edit')}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setJumpToDelete(jump)}
+                        className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors text-guard-muted hover:text-guard-danger"
+                        aria-label={t('skydiving.jumps.delete.button')}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    {jump.dropzone && (
+                      <div className="min-w-0">
+                        <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.dropzone')}</span>
+                        <OverflowTooltip content={jump.dropzone}>
+                          <p className="text-foreground truncate">{jump.dropzone}</p>
+                        </OverflowTooltip>
+                      </div>
+                    )}
+                    {jump.jumpType && (
+                      <div className="min-w-0">
+                        <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.type')}</span>
+                        <OverflowTooltip content={jump.jumpType}>
+                          <p className="text-guard-muted truncate">{jump.jumpType}</p>
+                        </OverflowTooltip>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.freefall')}</span>
+                      <p className="text-guard-muted">{formatFreefall(jump.freefallTimeSec)}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.altitude')}</span>
+                      <p className="text-guard-muted">{formatAltitude(jump.exitAltitudeFt, locale)}</p>
+                    </div>
+                    {jump.aircraft && (
+                      <div className="min-w-0">
+                        <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.aircraft')}</span>
+                        <OverflowTooltip content={jump.aircraft}>
+                          <p className="text-guard-muted truncate">{jump.aircraft}</p>
+                        </OverflowTooltip>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y divide-border">
-            {pageItems.map((jump) => (
-              <div key={jump.jumpId} className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold text-foreground">#{jump.jumpNumber}</span>
-                    <span className="text-sm text-guard-muted">
-                      {String(jump.jumpDate).startsWith(PLACEHOLDER_DATE) ? (
-                        <span className="italic">{t('skydiving.jumps.prior-jump')}</span>
-                      ) : (
-                        formatDate(jump.jumpDate, 'long')
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onEditJump(jump)}
-                      className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground rounded-lg transition-colors"
-                      aria-label={t('category-management.actions.edit')}
-                    >
-                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(jump.jumpId)}
-                      className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors ${
-                        deletingId === jump.jumpId
-                          ? 'text-guard-danger bg-guard-danger/10'
-                          : 'text-guard-muted hover:text-guard-danger'
-                      }`}
-                      aria-label={
-                        deletingId === jump.jumpId
-                          ? t('skydiving.jumps.delete.confirm')
-                          : t('skydiving.jumps.delete.button')
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  {jump.dropzone && (
-                    <div>
-                      <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.dropzone')}</span>
-                      <p className="text-foreground truncate">{jump.dropzone}</p>
-                    </div>
-                  )}
-                  {jump.jumpType && (
-                    <div>
-                      <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.type')}</span>
-                      <p className="text-guard-muted">{jump.jumpType}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.freefall')}</span>
-                    <p className="text-guard-muted">{formatFreefall(jump.freefallTimeSec)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.altitude')}</span>
-                    <p className="text-guard-muted">{formatAltitude(jump.exitAltitudeFt)}</p>
-                  </div>
-                  {jump.aircraft && (
-                    <div>
-                      <span className="text-xs text-guard-muted">{t('skydiving.jumps.columns.aircraft')}</span>
-                      <p className="text-guard-muted">{jump.aircraft}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          </>
+        )}
+      </DataState>
 
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={filtered.length}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
-          />
-        </>
-      )}
+      {/* Destructive confirmation */}
+      <ConfirmDialog
+        open={jumpToDelete !== null}
+        title={t('skydiving.jumps.delete.title')}
+        message={t('skydiving.jumps.delete.confirm')}
+        confirmLabel={t('skydiving.jumps.delete.button')}
+        variant="danger"
+        isLoading={deleteJump.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setJumpToDelete(null)}
+      />
     </div>
   );
 }

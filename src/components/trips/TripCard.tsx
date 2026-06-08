@@ -23,7 +23,7 @@ interface TripCardProps {
 }
 
 export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress }: TripCardProps) {
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
 
   // Category color bar: horizontal stacked bar proportional to totals
   const totalForBar = trip.categorySummary.reduce((sum, cat) => sum + cat.totalCents, 0);
@@ -37,8 +37,8 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress 
         isInProgress && 'border-guard-success/50 ring-1 ring-guard-success/20',
       )}
     >
-      {/* Category color bar */}
-      <div className="flex h-1.5 rounded-full overflow-hidden mb-4 bg-muted/50">
+      {/* Category color bar — decorative; the textual breakdown lives in the detail's SummaryCards */}
+      <div className="flex h-1.5 rounded-full overflow-hidden mb-4 bg-muted/50" aria-hidden="true">
         {trip.categorySummary.length > 0 &&
           totalForBar > 0 &&
           trip.categorySummary.map((cat) => (
@@ -59,8 +59,11 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <MapPin className="h-4 w-4 text-guard-primary flex-shrink-0" aria-hidden="true" />
-            <h3 className="text-lg font-semibold text-foreground truncate">
-              {trip.name} {formatTripPeriod(trip.startDate, trip.endDate)}
+            <h3 className="text-lg font-semibold text-foreground min-w-0 flex items-baseline gap-1.5">
+              <span className="truncate">{trip.name}</span>
+              <span className="text-sm font-normal text-guard-muted flex-shrink-0">
+                {formatTripPeriod(trip.startDate, trip.endDate, locale)}
+              </span>
             </h3>
             {isInProgress && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-guard-success/10 text-guard-success flex-shrink-0 flex items-center gap-1">
@@ -79,8 +82,14 @@ export function TripCard({ trip, onDelete, isDeleting, isUpcoming, isInProgress 
           <div className="flex items-center gap-1.5 text-sm text-guard-muted mb-2">
             <Calendar className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
             {trip.startDate && trip.endDate ? (
-              <span>
-                {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+              <span
+                role="img"
+                aria-label={t('trips.date-range-label', {
+                  start: formatDate(trip.startDate, 'short', locale),
+                  end: formatDate(trip.endDate, 'short', locale),
+                })}
+              >
+                {formatDate(trip.startDate, 'short', locale)} — {formatDate(trip.endDate, 'short', locale)}
               </span>
             ) : (
               <span>{t('trips.card.no-dates')}</span>

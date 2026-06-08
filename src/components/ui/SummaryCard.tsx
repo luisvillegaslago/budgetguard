@@ -6,6 +6,7 @@
  */
 
 import type { ReactNode } from 'react';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { cn } from '@/utils/helpers';
 
 export interface SummaryCardColorScheme {
@@ -25,6 +26,8 @@ interface SummaryCardProps {
   staggerClass?: string;
   className?: string;
   footer?: ReactNode;
+  /** Accessible label for the value (e.g. read "Sin datos" for the "—" placeholder). */
+  valueAriaLabel?: string;
 }
 
 export function SummaryCard({
@@ -37,6 +40,7 @@ export function SummaryCard({
   staggerClass,
   className,
   footer,
+  valueAriaLabel,
 }: SummaryCardProps) {
   const content = (
     <>
@@ -44,8 +48,17 @@ export function SummaryCard({
         <p className="text-sm font-medium text-guard-muted">{title}</p>
         <div className={cn('p-2.5 rounded-xl flex-shrink-0', colors.iconBg)}>{icon}</div>
       </div>
-      {/* Full width + nowrap so large amounts keep the currency symbol on a single line */}
-      <p className={cn('text-2xl font-bold mt-1 whitespace-nowrap tabular-nums', colors.value)}>{value}</p>
+      {/* Truncate large amounts so they never overflow a narrow column; the full
+          value is still available via the overflow tooltip (and aria-label). */}
+      <OverflowTooltip content={valueAriaLabel ? '' : value}>
+        <p
+          className={cn('text-2xl font-bold mt-1 truncate tabular-nums', colors.value)}
+          aria-hidden={valueAriaLabel ? true : undefined}
+        >
+          {value}
+        </p>
+      </OverflowTooltip>
+      {valueAriaLabel && <span className="sr-only">{valueAriaLabel}</span>}
       {footer && <div className="mt-3">{footer}</div>}
     </>
   );

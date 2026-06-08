@@ -5,11 +5,15 @@
  * Shows invoice preview with status actions and PDF download
  */
 
-import { ArrowLeft, Download, Loader2, Pencil } from 'lucide-react';
+import { ArrowLeft, Download, FolderPlus, Loader2, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { InvoiceForm } from '@/components/invoices/InvoiceForm';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { useToast } from '@/components/ui/Toast';
 import { COMPANY_ROLE, INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
 import { useCategories } from '@/hooks/useCategories';
 import { useCompanies } from '@/hooks/useCompanies';
@@ -29,6 +33,7 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
 
 export default function InvoiceDetailPage() {
   const { t } = useTranslate();
+  const toast = useToast();
   const router = useRouter();
   const params = useParams();
   const invoiceId = Number(params.id);
@@ -52,7 +57,7 @@ export default function InvoiceDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-guard-primary" />
+        <LoadingSpinner size="md" label={t('common.loading')} />
       </div>
     );
   }
@@ -78,35 +83,60 @@ export default function InvoiceDetailPage() {
   };
 
   const handleFinalize = async () => {
-    await finalizeInvoice.mutateAsync(invoiceId);
-    setConfirmFinalize(false);
+    try {
+      await finalizeInvoice.mutateAsync(invoiceId);
+      setConfirmFinalize(false);
+      toast.success(t('invoices.toast.finalized'));
+    } catch {
+      // Error surfaced via finalizeInvoice.errorMessage in the confirm dialog.
+    }
   };
 
   const handleMarkPaid = async (categoryId: number) => {
     const parsedFee = bankFeeEuros.trim() ? parseFloat(bankFeeEuros.replace(',', '.')) : 0;
     const bankFeeCents = parsedFee > 0 ? eurosToCents(parsedFee) : undefined;
-    await updateStatus.mutateAsync({
-      invoiceId,
-      data: { status: INVOICE_STATUS.PAID, categoryId, bankFeeCents },
-    });
-    setShowCategoryPicker(false);
-    setBankFeeEuros('');
+    try {
+      await updateStatus.mutateAsync({
+        invoiceId,
+        data: { status: INVOICE_STATUS.PAID, categoryId, bankFeeCents },
+      });
+      setShowCategoryPicker(false);
+      setBankFeeEuros('');
+      toast.success(t('invoices.toast.marked-paid'));
+    } catch {
+      // Error surfaced via updateStatus.errorMessage in the picker.
+    }
   };
 
   const handleCancel = async () => {
-    await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.CANCELLED } });
-    setConfirmCancel(false);
+    try {
+      await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.CANCELLED } });
+      setConfirmCancel(false);
+      toast.success(t('invoices.toast.cancelled'));
+    } catch {
+      // Error surfaced via updateStatus.errorMessage in the confirm dialog.
+    }
   };
 
   const handleRevertToDraft = async () => {
-    await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } });
-    setConfirmRevert(false);
+    try {
+      await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } });
+      setConfirmRevert(false);
+      toast.success(t('invoices.toast.reverted'));
+    } catch {
+      // Error surfaced via updateStatus.errorMessage in the confirm dialog.
+    }
   };
 
   const handleDelete = async () => {
-    await deleteInvoice.mutateAsync(invoiceId);
-    setConfirmDelete(false);
-    router.push('/invoices');
+    try {
+      await deleteInvoice.mutateAsync(invoiceId);
+      setConfirmDelete(false);
+      toast.success(t('invoices.toast.deleted'));
+      router.push('/invoices');
+    } catch {
+      // Error surfaced via deleteInvoice.errorMessage in the confirm dialog.
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -142,8 +172,13 @@ export default function InvoiceDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      // Fallback: open in new tab
-      window.open(`/api/invoices/${invoiceId}/pdf`, '_blank');
+      // Fallback: open in a new tab. If the browser blocks the popup, warn the
+      // user instead of failing silently (the spinner would otherwise vanish and
+      // fake success on a fiscally relevant action).
+      const opened = window.open(`/api/invoices/${invoiceId}/pdf`, '_blank');
+      if (!opened) {
+        toast.error(t('invoices.errors.pdf-download'));
+      }
     } finally {
       setPdfProgress(null);
     }
@@ -154,10 +189,8 @@ export default function InvoiceDetailPage() {
   const showHourlyColumns = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
   const tableGridClass = showHourlyColumns ? 'grid-cols-[2fr_1fr_1fr_1fr]' : 'grid-cols-[3fr_1fr]';
 
-  const formatRate = (cents: number) => {
-    const euros = centsToEuros(cents);
-    return `${new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(euros)} €/hr`;
-  };
+  // Reuse the central money formatter (DRY) and append the per-hour unit suffix.
+  const formatRate = (cents: number) => `${formatCurrency(cents)}${t('invoices.per-hour-suffix')}`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -426,9 +459,17 @@ export default function InvoiceDetailPage() {
 
       {/* Category Picker Modal (for marking as paid) */}
       {showCategoryPicker && (
-        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-foreground mb-4">{t('invoices.actions.select-category')}</h3>
+        <ModalBackdrop
+          onClose={() => {
+            setShowCategoryPicker(false);
+            setBankFeeEuros('');
+          }}
+          labelledBy="category-picker-title"
+        >
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm animate-modal-in">
+            <h3 id="category-picker-title" className="text-lg font-semibold text-foreground mb-4">
+              {t('invoices.actions.select-category')}
+            </h3>
 
             <label className="block mb-4">
               <span className="text-sm font-medium text-foreground">{t('invoices.actions.bank-fee-label')}</span>
@@ -439,26 +480,47 @@ export default function InvoiceDetailPage() {
                 min="0"
                 value={bankFeeEuros}
                 onChange={(e) => setBankFeeEuros(e.target.value)}
-                placeholder="0,00"
+                placeholder="0.00"
                 className="mt-1 block w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-guard-primary"
               />
               <span className="mt-1 block text-xs text-guard-muted">{t('invoices.actions.bank-fee-help')}</span>
             </label>
 
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {categories?.map((cat) => (
-                <button
-                  key={cat.categoryId}
-                  type="button"
-                  onClick={() => handleMarkPaid(cat.categoryId)}
-                  disabled={updateStatus.isPending}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors text-sm text-foreground flex items-center gap-2"
-                >
-                  {updateStatus.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+            {categories && categories.length === 0 ? (
+              <EmptyState
+                icon={FolderPlus}
+                title={t('invoices.actions.no-income-categories')}
+                subtitle={t('invoices.actions.no-income-categories-help')}
+                action={
+                  <Link href="/categories" className="btn-secondary inline-flex items-center gap-2">
+                    <FolderPlus className="h-4 w-4" aria-hidden="true" />
+                    {t('invoices.actions.create-income-category')}
+                  </Link>
+                }
+              />
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {categories?.map((cat) => (
+                  <button
+                    key={cat.categoryId}
+                    type="button"
+                    onClick={() => handleMarkPaid(cat.categoryId)}
+                    disabled={updateStatus.isPending}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors text-sm text-foreground flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {updateStatus.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {updateStatus.errorMessage && (
+              <p role="alert" className="mt-3 text-sm text-guard-danger">
+                {updateStatus.errorMessage}
+              </p>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -470,7 +532,7 @@ export default function InvoiceDetailPage() {
               {t('common.buttons.cancel')}
             </button>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Edit Form Modal */}

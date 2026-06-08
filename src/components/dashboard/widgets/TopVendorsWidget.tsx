@@ -9,6 +9,7 @@
 import { ArrowRight, Store } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { CHART_COLORS } from '@/components/dashboard/charts/chartConfig';
 import { MonthTransactionsModal } from '@/components/dashboard/charts/MonthTransactionsModal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -21,7 +22,8 @@ import type { Transaction } from '@/types/finance';
 import { formatCurrency } from '@/utils/money';
 
 const TOP_COUNT = 6;
-const VENDOR_COLOR = '#8B5CF6'; // guard-accent
+// Derive from the centralized chart palette to stay in sync with the brand tokens.
+const VENDOR_COLOR = CHART_COLORS.accent; // guard-accent
 
 export interface VendorTotal {
   vendor: string;

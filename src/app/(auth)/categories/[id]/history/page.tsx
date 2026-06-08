@@ -78,12 +78,12 @@ export default function CategoryHistoryPage() {
 
       {/* Stats cards */}
       <div className="mb-6">
-        <CategoryHistoryStats summary={summary} />
+        <CategoryHistoryStats summary={summary} categoryType={category.type} />
       </div>
 
       {/* Monthly transaction sections */}
       {months.length > 0 ? (
-        <CategoryHistoryMonths months={months} />
+        <CategoryHistoryMonths months={months} categoryType={category.type} />
       ) : (
         <div className="card">
           <EmptyState

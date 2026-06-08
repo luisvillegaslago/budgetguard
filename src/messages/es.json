@@ -22,6 +22,12 @@
     "labels": {
       "optional": "opcional"
     },
+    "toast": {
+      "close": "Cerrar notificación"
+    },
+    "data-state": {
+      "empty-title": "No hay datos para mostrar"
+    },
     "amount-sum": {
       "open": "Sumar varios importes",
       "title": "Sumar importes",
@@ -115,7 +121,8 @@
       "savings-rate": "Tasa de ahorro",
       "daily-average": "Gasto medio diario",
       "vs-previous-month": "vs mes anterior",
-      "no-previous-data": "Sin datos del mes anterior"
+      "no-previous-data": "Sin datos del mes anterior",
+      "no-data": "Sin datos suficientes"
     },
     "charts": {
       "cashflow-title": "Flujo de dinero",
@@ -142,7 +149,6 @@
     "actions": {
       "group-expense": "Agrupar",
       "add-invoice": "Factura",
-
       "menu": "Menú"
     },
     "active-trip": {
@@ -167,7 +173,11 @@
       "load": "Error al cargar los bonos"
     },
     "delete": {
-      "confirm": "Confirmar"
+      "confirm": "Confirmar",
+      "error": "No se pudo eliminar el bono",
+      "message": "Esta acción no se puede deshacer.",
+      "success": "Bono eliminado",
+      "title": "¿Eliminar bono?"
     },
     "widget": {
       "title": "Bonos",
@@ -204,6 +214,15 @@
         "unit-label-placeholder": "Ej: min, clases",
         "expiry-date": "Fecha de caducidad"
       }
+    },
+    "consumed-of-total": "{consumed} de {total}",
+    "exceeded": "Excedido",
+    "percent-used": "{percent}% usado",
+    "row": {
+      "aria": "Ver detalle del bono {name}"
+    },
+    "toast": {
+      "created": "Bono creado"
     }
   },
   "transactions": {
@@ -259,7 +278,8 @@
         "create": "Error al crear el grupo. Intenta de nuevo.",
         "update": "Error al actualizar el grupo. Intenta de nuevo.",
         "min-items": "Añade al menos un monto"
-      }
+      },
+      "item-count": "{count} líneas"
     },
     "trip-group": {
       "expand": "Expandir viaje",
@@ -489,7 +509,17 @@
       "modify": "Modificar monto",
       "modified-amount": "Nuevo monto (€)",
       "processing": "Procesando...",
-      "error": "Error al procesar ocurrencia"
+      "error": "Error al procesar ocurrencia",
+      "amount-placeholder": "Importe",
+      "confirm-all-short": "Confirmar todo",
+      "original-amount": "Importe original: {amount}",
+      "title-count": "Gastos recurrentes pendientes ({count})",
+      "toast": {
+        "confirmed": "Gasto registrado",
+        "confirmed-all": "Se registraron todos los gastos",
+        "confirmed-partial": "Se registraron {succeeded} de {total}",
+        "skipped": "Ocurrencia omitida"
+      }
     },
     "management": {
       "title": "Gastos Recurrentes",
@@ -508,6 +538,13 @@
         "activate": "Activar",
         "delete": "Eliminar permanentemente",
         "confirm-delete": "Esto eliminará permanentemente este gasto recurrente y todas sus ocurrencias. Esta acción no se puede deshacer. ¿Continuar?"
+      },
+      "toast": {
+        "activated": "Regla activada",
+        "deactivated": "Regla desactivada",
+        "delete-error": "No se pudo eliminar la regla",
+        "deleted": "Regla eliminada",
+        "toggle-error": "No se pudo cambiar el estado de la regla"
       }
     },
     "form": {
@@ -609,6 +646,10 @@
       "errors": {
         "create": "Error al crear el gasto. Intenta de nuevo.",
         "update": "Error al actualizar. Inténtalo de nuevo."
+      },
+      "toast": {
+        "created": "Gasto añadido",
+        "updated": "Gasto actualizado"
       }
     },
     "create-form": {
@@ -638,6 +679,11 @@
       "create": "Error al crear el viaje. Intenta de nuevo.",
       "update": "Error al actualizar el viaje. Intenta de nuevo.",
       "not-found": "Viaje no encontrado"
+    },
+    "date-range-label": "Del {start} al {end}",
+    "toast": {
+      "created": "Viaje creado",
+      "updated": "Viaje actualizado"
     }
   },
   "movements": {
@@ -681,6 +727,9 @@
     "errors": {
       "load": "Error al cargar historial",
       "not-found": "Categoría no encontrada"
+    },
+    "delete": {
+      "confirm": "¿Eliminar esta transacción?"
     }
   },
   "fiscal": {
@@ -857,7 +906,17 @@
         "amount": "Importe",
         "size": "Tamaño",
         "actions": "Acciones"
-      }
+      },
+      "empty-hint": "Sube tu primer documento para empezar",
+      "errors": {
+        "tax-amount-invalid": "Introduce un importe válido (0 o mayor)",
+        "upload-failed": "No se pudo subir el documento"
+      },
+      "linked-empty": "Sin transacciones vinculadas",
+      "linked-error": "No se pudo cargar la transacción vinculada",
+      "load-error": "No se pudieron cargar los documentos",
+      "status-toggle": "Cambiar estado de presentación",
+      "upload-success": "Documento subido"
     },
     "deferral-reminder": {
       "title": "Solicitud de aplazamiento",
@@ -915,6 +974,14 @@
     },
     "errors": {
       "load": "Error al cargar el informe fiscal"
+    },
+    "a11y": {
+      "quarter-selector": "Selector de trimestre fiscal",
+      "view-toggle": "Cambiar vista fiscal"
+    },
+    "no-activity": "Sin operaciones registradas en este trimestre",
+    "result": {
+      "neutral": "Sin resultado"
     }
   },
   "auth": {
@@ -1004,7 +1071,8 @@
       "payment-methods": {
         "bank-transfer": "Transferencia Bancaria",
         "other": "Otro"
-      }
+      },
+      "save-error": "No se pudieron guardar los datos de facturación"
     },
     "crypto": {
       "title": "Conexión con Binance",
@@ -1025,7 +1093,8 @@
       "permission-unsafe": "Permisos peligrosos detectados",
       "fields": {
         "api-key": "API Key",
-        "api-secret": "API Secret"
+        "api-secret": "API Secret",
+        "toggle-secret": "Mostrar u ocultar el secreto"
       },
       "form": {
         "title": "Conectar nueva cuenta",
@@ -1037,7 +1106,14 @@
       },
       "actions": {
         "disconnect": "Desconectar",
-        "disconnect-confirm": "¿Desconectar la cuenta de Binance? Tus datos sincronizados se conservarán."
+        "disconnect-confirm": "¿Desconectar la cuenta de Binance? Tus datos sincronizados se conservarán.",
+        "disconnected": "Cuenta desconectada"
+      },
+      "disconnect-confirm-title": "¿Desconectar Binance?",
+      "disconnect-confirm-message": "Se eliminarán tus credenciales de Binance. Tendrás que volver a conectarlas para sincronizar.",
+      "errors": {
+        "connect": "No se pudo conectar la cuenta",
+        "disconnect": "No se pudo desconectar la cuenta"
       }
     }
   },
@@ -1090,7 +1166,13 @@
         "transmission": "Transmisión",
         "acquisition": "Adquisición",
         "gain-loss": "G/P"
-      }
+      },
+      "disposals-error": "No se pudieron cargar las transmisiones",
+      "load-error": "No se pudieron cargar los datos fiscales",
+      "recompute-confirm-title": "¿Recalcular FIFO?",
+      "recompute-confirm-message": "Se recalcularán todas las transmisiones (FIFO) de todos los años. Puede tardar unos segundos.",
+      "recompute-error": "No se pudo recalcular",
+      "recompute-success": "Recalculadas {count} transmisiones"
     },
     "aeat": {
       "title": "Cómo declararlo en Renta Web",
@@ -1229,7 +1311,8 @@
         "dust": "Saldos pequeños (dust)",
         "c2c": "P2P",
         "csv_import": "Importado de CSV"
-      }
+      },
+      "error": "No se pudieron cargar los movimientos"
     },
     "prices": {
       "title": "Cotizaciones",
@@ -1295,6 +1378,9 @@
       "result-normalizing": "Normalizando precios EUR en segundo plano… consulta el progreso en el panel de sincronización.",
       "result-skipped-ops": "Operaciones ignoradas (no soportadas):",
       "result-recompute-hint": "Cuando termine la normalización, pulsa \"Recalcular FIFO\" en la pestaña Fiscal para refrescar las casillas."
+    },
+    "errors": {
+      "load": "Error al cargar los datos de crypto"
     }
   },
   "invoices": {
@@ -1377,10 +1463,24 @@
       "confirm-revert-title": "¿Volver a borrador?",
       "confirm-revert-message": "Se eliminará el PDF de Documentos Fiscales y la factura dejará de aparecer en los informes fiscales.",
       "confirm-delete-title": "¿Eliminar factura?",
-      "confirm-delete-message": "Esta factura borrador se eliminará permanentemente."
+      "confirm-delete-message": "Esta factura borrador se eliminará permanentemente.",
+      "create-income-category": "Crear categoría de ingreso",
+      "no-income-categories": "No hay categorías de ingreso",
+      "no-income-categories-help": "Crea una categoría de ingreso para poder marcar la factura como cobrada."
     },
     "errors": {
-      "load": "Error al cargar factura"
+      "load": "Error al cargar factura",
+      "pdf-download": "No se pudo descargar el PDF"
+    },
+    "per-hour-suffix": "/ hora",
+    "toast": {
+      "cancelled": "Factura cancelada",
+      "created": "Factura creada",
+      "deleted": "Factura eliminada",
+      "finalized": "Factura emitida",
+      "marked-paid": "Factura marcada como cobrada",
+      "reverted": "Factura revertida a borrador",
+      "updated": "Factura actualizada"
     }
   },
   "companies": {
@@ -1443,7 +1543,8 @@
       "saving": "Guardando...",
       "errors": {
         "create": "Error al crear la empresa. Intenta de nuevo.",
-        "update": "Error al actualizar la empresa. Intenta de nuevo."
+        "update": "Error al actualizar la empresa. Intenta de nuevo.",
+        "bank-fee-invalid": "Introduce una comisión válida"
       }
     },
     "actions": {
@@ -1460,12 +1561,19 @@
     },
     "errors": {
       "load": "Error al cargar empresas",
-      "load-transactions": "Error al cargar transacciones de la empresa"
+      "load-transactions": "Error al cargar transacciones de la empresa",
+      "update": "No se pudo actualizar la empresa"
     },
     "back-to-list": "Volver a Empresas",
     "empty-transactions": {
       "title": "Sin transacciones",
       "subtitle": "No hay transacciones vinculadas a esta empresa en el período seleccionado"
+    },
+    "toast": {
+      "activated": "Empresa activada",
+      "created": "Empresa creada",
+      "deactivated": "Empresa desactivada",
+      "updated": "Empresa actualizada"
     }
   },
   "skydiving": {
@@ -1540,16 +1648,22 @@
         "saving": "Guardando...",
         "errors": {
           "create": "Error al crear el salto. Intenta de nuevo.",
-          "update": "Error al actualizar el salto. Intenta de nuevo."
+          "update": "Error al actualizar el salto. Intenta de nuevo.",
+          "delete": "No se pudo eliminar el salto"
         }
       },
       "delete": {
         "button": "Eliminar salto",
-        "confirm": "¿Eliminar este salto?"
+        "confirm": "¿Eliminar este salto?",
+        "success": "Salto eliminado",
+        "title": "¿Eliminar salto?"
       },
       "search-placeholder": "Buscar por dropzone, tipo, avión...",
       "search-empty": "No se encontraron saltos",
-      "prior-jump": "Salto previo"
+      "prior-jump": "Salto previo",
+      "errors": {
+        "load": "No se pudieron cargar los saltos"
+      }
     },
     "tunnel": {
       "title": "Túnel de Viento",
@@ -1588,12 +1702,18 @@
         "saving": "Guardando...",
         "errors": {
           "create": "Error al crear la sesión. Intenta de nuevo.",
-          "update": "Error al actualizar la sesión. Intenta de nuevo."
+          "update": "Error al actualizar la sesión. Intenta de nuevo.",
+          "delete": "No se pudo eliminar la sesión"
         }
       },
       "delete": {
         "button": "Eliminar sesión",
-        "confirm": "¿Eliminar esta sesión?"
+        "confirm": "¿Eliminar esta sesión?",
+        "success": "Sesión eliminada",
+        "title": "¿Eliminar sesión de túnel?"
+      },
+      "errors": {
+        "load": "No se pudieron cargar las sesiones"
       }
     },
     "import": {
@@ -1681,7 +1801,11 @@
     "modelo-type-mismatch": "Los modelos requieren tipo de modelo; las facturas no deben tenerlo",
     "quarterly-mismatch": "Los modelos trimestrales requieren trimestre; los anuales no",
     "invalid-month-format": "Formato de mes inválido. Usa YYYY-MM",
-    "end-date-before-start": "La fecha de fin debe ser igual o posterior a la de inicio"
+    "end-date-before-start": "La fecha de fin debe ser igual o posterior a la de inicio",
+    "api-key-length": "La clave API debe tener entre 50 y 80 caracteres",
+    "api-key-format": "La clave API solo puede contener letras y números",
+    "api-secret-length": "El secreto API debe tener entre 50 y 80 caracteres",
+    "api-secret-format": "El secreto API solo puede contener letras y números"
   },
   "api-error": {
     "unauthorized": "Necesitas iniciar sesión para acceder a este recurso",
@@ -1813,6 +1937,16 @@
       "sync": {
         "crypto": "Error al iniciar la sincronización con Binance"
       }
+    },
+    "load": {
+      "categories": "Error al cargar las categorías",
+      "category-history": "Error al cargar el historial de la categoría",
+      "vouchers": "Error al cargar los bonos"
+    }
+  },
+  "pages": {
+    "home": {
+      "title": "Inicio"
     }
   }
 }

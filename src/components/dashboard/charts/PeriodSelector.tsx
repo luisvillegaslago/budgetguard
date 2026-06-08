@@ -33,7 +33,8 @@ export function PeriodSelector() {
           aria-pressed={period === option}
           className={cn(
             'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
-            period === option ? 'bg-guard-primary text-white' : 'text-guard-muted hover:text-foreground',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guard-primary',
+            period === option ? 'bg-guard-primary text-white' : 'text-foreground/70 hover:text-foreground',
           )}
         >
           {t(`dashboard.charts.period.${option}`)}

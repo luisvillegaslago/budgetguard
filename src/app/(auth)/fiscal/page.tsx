@@ -48,6 +48,36 @@ function getFilingInfo(
   return match ? { status: FISCAL_STATUS.FILED, document: match } : { status: FISCAL_STATUS.PENDING, document: null };
 }
 
+interface ModeloStatusRowProps {
+  filing: { status: string; document: FiscalDocument | null };
+  modeloType: ModeloType;
+  onUpload: (modelo: ModeloType) => void;
+}
+
+/**
+ * Status badge + single download/upload affordance for a modelo card.
+ * Download is delegated to the FiscalFilingStatus badge (single visual pattern, DRY);
+ * upload is offered only when no filed document exists yet.
+ */
+function ModeloStatusRow({ filing, modeloType, onUpload }: ModeloStatusRowProps) {
+  const { t } = useTranslate();
+
+  return (
+    <div className="flex items-center justify-between">
+      <FiscalFilingStatus status={filing.status as FiscalStatus} document={filing.document} />
+      {!filing.document && (
+        <button
+          type="button"
+          onClick={() => onUpload(modeloType)}
+          className="text-xs text-guard-primary hover:underline"
+        >
+          {t('fiscal.documents.upload-button')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function FiscalPage() {
   const { t } = useTranslate();
   const { searchParams, updateParams } = useUrlParams('/fiscal');
@@ -98,7 +128,10 @@ export default function FiscalPage() {
 
         <div className="flex items-center gap-4">
           {/* View Toggle */}
-          <fieldset className="flex gap-1 bg-muted rounded-lg p-1 border-0 m-0" aria-label="Fiscal view">
+          <fieldset
+            className="flex gap-1 bg-muted rounded-lg p-1 border-0 m-0"
+            aria-label={t('fiscal.a11y.view-toggle')}
+          >
             <button
               type="button"
               aria-pressed={view === 'quarterly'}
@@ -146,51 +179,11 @@ export default function FiscalPage() {
         <div className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m303.status as FiscalStatus} />
-                {m303.document ? (
-                  <a
-                    href={m303.document.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-guard-success hover:underline"
-                  >
-                    {t('fiscal.documents.download')}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setUploadModelo(MODELO_TYPE.M303)}
-                    className="text-xs text-guard-primary hover:underline"
-                  >
-                    {t('fiscal.documents.upload-button')}
-                  </button>
-                )}
-              </div>
+              <ModeloStatusRow filing={m303} modeloType={MODELO_TYPE.M303} onUpload={setUploadModelo} />
               <Modelo303Card data={report.modelo303} />
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m130.status as FiscalStatus} />
-                {m130.document ? (
-                  <a
-                    href={m130.document.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-guard-success hover:underline"
-                  >
-                    {t('fiscal.documents.download')}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setUploadModelo(MODELO_TYPE.M130)}
-                    className="text-xs text-guard-primary hover:underline"
-                  >
-                    {t('fiscal.documents.upload-button')}
-                  </button>
-                )}
-              </div>
+              <ModeloStatusRow filing={m130} modeloType={MODELO_TYPE.M130} onUpload={setUploadModelo} />
               <Modelo130Card data={report.modelo130} />
             </div>
           </div>
@@ -206,51 +199,11 @@ export default function FiscalPage() {
         <div className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m390.status as FiscalStatus} />
-                {m390.document ? (
-                  <a
-                    href={m390.document.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-guard-success hover:underline"
-                  >
-                    {t('fiscal.documents.download')}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setUploadModelo(MODELO_TYPE.M390)}
-                    className="text-xs text-guard-primary hover:underline"
-                  >
-                    {t('fiscal.documents.upload-button')}
-                  </button>
-                )}
-              </div>
+              <ModeloStatusRow filing={m390} modeloType={MODELO_TYPE.M390} onUpload={setUploadModelo} />
               <Modelo390Card data={annualReport.modelo390} />
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <FiscalFilingStatus status={m100.status as FiscalStatus} />
-                {m100.document ? (
-                  <a
-                    href={m100.document.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-guard-success hover:underline"
-                  >
-                    {t('fiscal.documents.download')}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setUploadModelo(MODELO_TYPE.M100)}
-                    className="text-xs text-guard-primary hover:underline"
-                  >
-                    {t('fiscal.documents.upload-button')}
-                  </button>
-                )}
-              </div>
+              <ModeloStatusRow filing={m100} modeloType={MODELO_TYPE.M100} onUpload={setUploadModelo} />
               <Modelo100Card data={annualReport.modelo100} />
             </div>
           </div>

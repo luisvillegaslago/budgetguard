@@ -9,6 +9,7 @@
 import { ChevronRight, History, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { CHART_COLORS } from '@/components/dashboard/charts/chartConfig';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -29,7 +30,7 @@ interface SubcategoryRowProps {
 
 function SubcategoryRow({ subcategory, parentTotalCents, index }: SubcategoryRowProps) {
   const { t } = useTranslate();
-  const barColor = subcategory.subcategoryColor ?? '#6366F1';
+  const barColor = subcategory.subcategoryColor ?? CHART_COLORS.balance;
   const percentage = calculatePercentage(subcategory.totalCents, parentTotalCents);
 
   // Label for uncategorized transactions (assigned directly to parent)
@@ -124,7 +125,7 @@ interface CategoryRowProps {
 
 function CategoryRow({ category, index, isExpanded, onToggle, month }: CategoryRowProps) {
   const { t } = useTranslate();
-  const barColor = category.categoryColor ?? '#6366F1';
+  const barColor = category.categoryColor ?? CHART_COLORS.balance;
 
   return (
     <div>

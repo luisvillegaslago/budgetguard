@@ -9,8 +9,9 @@ import { ExternalLink, Upload, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
 import type { ModeloType } from '@/constants/finance';
-import { FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
+import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
 import { useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
@@ -31,15 +32,22 @@ const INPUT_CLASSES = cn(
 
 export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: ModeloDocumentUploadProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [status, setStatus] = useState<string>(FISCAL_STATUS.FILED);
+  // Default to PENDING: uploading/archiving a modelo does not imply it was filed.
+  const [status, setStatus] = useState<string>(FISCAL_STATUS.PENDING);
   const [taxAmount, setTaxAmount] = useState('');
   const [description, setDescription] = useState('');
   const [showDeferralReminder, setShowDeferralReminder] = useState(false);
   const uploadMutation = useUploadFiscalDocument(year);
 
-  const isAnnual = modeloType === '390' || modeloType === '100';
+  const isAnnual = modeloType === MODELO_TYPE.M390 || modeloType === MODELO_TYPE.M100;
+
+  // Tax amount is optional; when present it must be a non-negative number.
+  const trimmedTaxAmount = taxAmount.trim();
+  const parsedTaxAmount = trimmedTaxAmount === '' ? null : Number(trimmedTaxAmount);
+  const isTaxAmountInvalid = parsedTaxAmount !== null && (Number.isNaN(parsedTaxAmount) || parsedTaxAmount < 0);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -59,19 +67,26 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile) return;
+    if (!selectedFile || isTaxAmountInvalid) return;
 
     const metadata: Record<string, unknown> = {
-      documentType: 'modelo',
+      documentType: FISCAL_DOCUMENT_TYPE.MODELO,
       modeloType,
       fiscalYear: year,
       fiscalQuarter: isAnnual ? null : (quarter ?? null),
       status,
-      taxAmountCents: taxAmount ? eurosToCents(Number(taxAmount)) : null,
+      taxAmountCents: parsedTaxAmount !== null ? eurosToCents(parsedTaxAmount) : null,
       description: description || null,
     };
 
-    await uploadMutation.mutateAsync({ file: selectedFile, metadata });
+    try {
+      await uploadMutation.mutateAsync({ file: selectedFile, metadata });
+      toast.success(t('fiscal.documents.upload-success'));
+    } catch {
+      // Surface the translated upload error instead of a generic "load" message.
+      toast.error(uploadMutation.errorMessage ?? t('fiscal.documents.errors.upload-failed'));
+      return;
+    }
 
     if (modeloType === MODELO_TYPE.M130) {
       setShowDeferralReminder(true);
@@ -203,7 +218,13 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
               onChange={(e) => setTaxAmount(e.target.value)}
               className={INPUT_CLASSES}
               placeholder="0.00"
+              aria-invalid={isTaxAmountInvalid}
             />
+            {isTaxAmountInvalid && (
+              <p role="alert" className="text-xs text-guard-danger mt-1">
+                {t('fiscal.documents.errors.tax-amount-invalid')}
+              </p>
+            )}
           </div>
 
           {/* Description */}
@@ -225,14 +246,16 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
           {/* Error */}
           {uploadMutation.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
-              <p className="text-sm text-guard-danger">{t('fiscal.errors.load')}</p>
+              <p className="text-sm text-guard-danger">
+                {uploadMutation.errorMessage ?? t('fiscal.documents.errors.upload-failed')}
+              </p>
             </div>
           )}
 
           {/* Submit */}
           <button
             type="submit"
-            disabled={!selectedFile || uploadMutation.isPending}
+            disabled={!selectedFile || isTaxAmountInvalid || uploadMutation.isPending}
             className={cn(
               'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
               'bg-guard-primary hover:bg-guard-primary/90',

@@ -155,6 +155,7 @@ export function MonthPicker() {
                   onClick={() => handleMonthSelect(m)}
                   className={cn(
                     'py-2 px-1 rounded-lg text-sm font-medium transition-all duration-200 ease-out-quart',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guard-primary',
                     isCurrent ? 'bg-guard-primary text-white' : 'text-foreground hover:bg-muted',
                   )}
                 >

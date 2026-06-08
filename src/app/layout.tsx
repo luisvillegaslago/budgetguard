@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
+import { ToastProvider } from '@/components/ui/Toast';
 import { DEFAULT_LOCALE, isValidLocale, type Locale } from '@/libs/i18n';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SessionProvider } from '@/providers/SessionProvider';
@@ -37,7 +38,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <QueryProvider>
             <TranslationProvider>
               <TooltipProvider>
-                <div className="relative min-h-screen">{children}</div>
+                <ToastProvider>
+                  <div className="relative min-h-screen">{children}</div>
+                </ToastProvider>
               </TooltipProvider>
             </TranslationProvider>
           </QueryProvider>

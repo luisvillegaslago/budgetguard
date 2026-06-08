@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type { LinkTransactionInput } from '@/schemas/fiscal-document';
-import type { ApiResponse, ExtractedInvoiceData, FiscalDocument } from '@/types/finance';
+import type { ApiResponse, ExtractedInvoiceData, FiscalDocument, Transaction } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
@@ -35,6 +35,43 @@ export function useFiscalDocuments(year: number, quarter?: number, documentType?
   return useQuery({
     queryKey: [QUERY_KEY.FISCAL_DOCUMENTS, year, quarter, documentType],
     queryFn: () => fetchDocuments(year, quarter, documentType),
+    staleTime: CACHE_TIME.FIVE_MINUTES,
+  });
+}
+
+/**
+ * Fetch a single transaction by id. Used by the inline linked-transaction detail
+ * in the document list so it benefits from TanStack Query caching/dedupe instead
+ * of an ad-hoc fetchApi + useEffect.
+ */
+export function useTransaction(transactionId: number) {
+  return useQuery({
+    queryKey: [QUERY_KEY.TRANSACTIONS, transactionId],
+    queryFn: async (): Promise<Transaction> => {
+      const response = await fetchApi(`${API_ENDPOINT.TRANSACTIONS}/${transactionId}`);
+      if (!response.ok) throw new Error('Error loading transaction');
+      const data: ApiResponse<Transaction> = await response.json();
+      if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
+      return data.data;
+    },
+    staleTime: CACHE_TIME.FIVE_MINUTES,
+  });
+}
+
+/**
+ * Fetch all transactions belonging to a transaction group. Used by the inline
+ * linked-group detail in the document list (replaces ad-hoc fetchApi + useEffect).
+ */
+export function useTransactionGroup(transactionGroupId: number) {
+  return useQuery({
+    queryKey: [QUERY_KEY.TRANSACTION_GROUPS, transactionGroupId],
+    queryFn: async (): Promise<Transaction[]> => {
+      const response = await fetchApi(`${API_ENDPOINT.TRANSACTION_GROUPS}/${transactionGroupId}`);
+      if (!response.ok) throw new Error('Error loading transaction group');
+      const data: ApiResponse<Transaction[]> = await response.json();
+      if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
+      return data.data;
+    },
     staleTime: CACHE_TIME.FIVE_MINUTES,
   });
 }

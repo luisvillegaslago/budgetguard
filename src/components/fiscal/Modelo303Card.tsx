@@ -12,6 +12,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo303Summary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+import { classifyFiscalResult, FISCAL_RESULT_KIND } from './fiscalResult';
 
 interface Modelo303CardProps {
   data: Modelo303Summary;
@@ -48,14 +49,22 @@ function CasillaRow({ number, label, cents, isTotal = false }: CasillaRowProps) 
 export function Modelo303Card({ data }: Modelo303CardProps) {
   const { t } = useTranslate();
 
-  const isPositiveResult = data.resultCents > 0;
-  const resultLabel = isPositiveResult ? t('fiscal.modelo303.to-pay') : t('fiscal.modelo303.to-compensate');
+  const result = classifyFiscalResult(data.resultCents);
+  const resultLabel =
+    result.kind === FISCAL_RESULT_KIND.TO_PAY
+      ? t('fiscal.modelo303.to-pay')
+      : result.kind === FISCAL_RESULT_KIND.TO_COMPENSATE
+        ? t('fiscal.modelo303.to-compensate')
+        : t('fiscal.result.neutral');
   const hasDevengado = data.casilla07Cents > 0 || data.casilla09Cents > 0;
   const hasExempt = data.casilla120Cents > 0;
+  const hasActivity = data.casilla27Cents !== 0 || data.casilla45Cents !== 0 || hasExempt;
 
   return (
     <div className="card border-l-4 border-l-guard-primary">
       <h3 className="text-lg font-bold text-foreground mb-4">{t('fiscal.modelo303.title')}</h3>
+
+      {!hasActivity && <p className="text-xs text-guard-muted mb-4 -mt-2">{t('fiscal.no-activity')}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* IVA Devengado (Income) */}
@@ -100,18 +109,11 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
           {t('fiscal.modelo303.result')} <span className="text-xs font-normal text-guard-muted">([27] − [45])</span>
         </span>
         <div className="text-right">
-          <span
-            className={cn(
-              'text-lg font-bold tabular-nums',
-              isPositiveResult ? 'text-guard-danger' : 'text-guard-success',
-            )}
-          >
+          <span className={cn('text-lg font-bold tabular-nums', result.amountClassName)}>
             {formatCurrency(data.resultCents, false)}
             <span className="ml-1">€</span>
           </span>
-          <p className={cn('text-xs mt-0.5', isPositiveResult ? 'text-guard-danger/70' : 'text-guard-success/70')}>
-            {resultLabel}
-          </p>
+          <p className={cn('text-xs mt-0.5', result.labelClassName)}>{resultLabel}</p>
         </div>
       </div>
     </div>

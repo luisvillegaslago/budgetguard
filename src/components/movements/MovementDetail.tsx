@@ -189,12 +189,13 @@ export function MovementDetail({ category, initialSubcategoryId = null }: Moveme
       </div>
 
       {/* Stats cards */}
-      <CategoryHistoryStats summary={summary} />
+      <CategoryHistoryStats summary={summary} categoryType={category.type} />
 
       {/* Monthly transaction sections */}
       {filteredMonths.length > 0 ? (
         <CategoryHistoryMonths
           months={filteredMonths}
+          categoryType={category.type}
           groupByMonth={groupByMonth}
           onEditTransaction={handleEdit}
           onDeleteTransaction={handleDelete}

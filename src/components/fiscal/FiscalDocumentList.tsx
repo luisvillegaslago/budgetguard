@@ -7,15 +7,20 @@
  * Linked transactions are expandable inline.
  */
 
-import { AlertTriangle, ChevronDown, Download, FileText, Link2, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertTriangle, Check, ChevronDown, Clock, Download, FileText, Link2, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import type { FiscalDocumentType } from '@/constants/finance';
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
-import { useDeleteFiscalDocument, useUpdateDocumentStatus } from '@/hooks/useFiscalDocuments';
+import {
+  useDeleteFiscalDocument,
+  useTransaction,
+  useTransactionGroup,
+  useUpdateDocumentStatus,
+} from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
-import type { ApiResponse, FiscalDocument, Transaction } from '@/types/finance';
-import { fetchApi } from '@/utils/fetchApi';
+import type { FiscalDocument } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
@@ -25,9 +30,16 @@ interface FiscalDocumentListProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
+  // Filed: success token. Pending: foreground text on muted bg to keep AA contrast for text-xs.
   [FISCAL_STATUS.FILED]: 'bg-guard-success/10 text-guard-success',
-  [FISCAL_STATUS.PENDING]: 'bg-muted text-guard-muted',
+  [FISCAL_STATUS.PENDING]: 'bg-muted text-foreground',
 };
+
+/** Secondary (non-color) cue for filing status: check = filed, clock = pending. */
+const STATUS_ICON = {
+  [FISCAL_STATUS.FILED]: Check,
+  [FISCAL_STATUS.PENDING]: Clock,
+} as const;
 
 export const DOC_TYPE_STYLES: Record<FiscalDocumentType, { badge: string; label: string }> = {
   [FISCAL_DOCUMENT_TYPE.MODELO]: {
@@ -56,27 +68,60 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Filing-status pill that doubles as a toggle. Communicates state with an icon
+ * (check / clock) in addition to color, and exposes aria-pressed + a title so the
+ * toggle affordance is discoverable for keyboard and screen-reader users.
+ */
+function StatusToggle({
+  document,
+  onToggle,
+  disabled,
+}: {
+  document: FiscalDocument;
+  onToggle: () => void;
+  disabled: boolean;
+}) {
+  const { t } = useTranslate();
+  const isFiled = document.status === FISCAL_STATUS.FILED;
+  const StatusIcon = STATUS_ICON[document.status];
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      aria-pressed={isFiled}
+      title={t('fiscal.documents.status-toggle')}
+      className={cn(
+        'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed',
+        STATUS_STYLES[document.status],
+      )}
+    >
+      <StatusIcon className="h-3 w-3" aria-hidden="true" />
+      {t(`fiscal.documents.status.${document.status}`)}
+    </button>
+  );
+}
+
 function LinkedGroupDetail({ transactionGroupId }: { transactionGroupId: number }) {
   const { t } = useTranslate();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: transactions, isLoading, isError, refetch } = useTransactionGroup(transactionGroupId);
 
-  useEffect(() => {
-    fetchApi(`/api/transaction-groups/${transactionGroupId}`)
-      .then((res) => res.json())
-      .then((data: ApiResponse<Transaction[]>) => {
-        if (data.success && data.data) setTransactions(data.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [transactionGroupId]);
-
-  if (loading) {
+  if (isLoading) {
     return <div className="px-4 py-3 text-xs text-guard-muted animate-pulse">{t('common.loading')}</div>;
   }
 
-  if (transactions.length === 0) {
-    return <div className="px-4 py-3 text-xs text-guard-muted">{t('common.error')}</div>;
+  if (isError) {
+    return (
+      <div className="px-4 py-3">
+        <ErrorState message={t('fiscal.documents.linked-error')} onRetry={() => refetch()} />
+      </div>
+    );
+  }
+
+  if (!transactions || transactions.length === 0) {
+    return <div className="px-4 py-3 text-xs text-guard-muted">{t('fiscal.documents.linked-empty')}</div>;
   }
 
   const totalCents = transactions.reduce((sum, tx) => sum + (tx.originalAmountCents ?? tx.amountCents), 0);
@@ -110,27 +155,18 @@ function LinkedGroupDetail({ transactionGroupId }: { transactionGroupId: number 
 
 function LinkedTransactionDetail({ transactionId }: { transactionId: number }) {
   const { t } = useTranslate();
-  const [transaction, setTransaction] = useState<Transaction | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { data: transaction, isLoading, isError, refetch } = useTransaction(transactionId);
 
-  useEffect(() => {
-    fetchApi(`/api/transactions/${transactionId}`)
-      .then((res) => res.json())
-      .then((data: ApiResponse<Transaction>) => {
-        if (data.success && data.data) setTransaction(data.data);
-        else setError(true);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [transactionId]);
-
-  if (loading) {
+  if (isLoading) {
     return <div className="px-4 py-3 text-xs text-guard-muted animate-pulse">{t('common.loading')}</div>;
   }
 
-  if (error || !transaction) {
-    return <div className="px-4 py-3 text-xs text-guard-danger">{t('common.error')}</div>;
+  if (isError || !transaction) {
+    return (
+      <div className="px-4 py-3">
+        <ErrorState message={t('fiscal.documents.linked-error')} onRetry={() => refetch()} />
+      </div>
+    );
   }
 
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
@@ -258,17 +294,7 @@ function DocumentMobileCard({
         <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', typeStyle.badge)}>
           {typeLabel}
         </span>
-        <button
-          type="button"
-          onClick={handleStatusToggle}
-          disabled={updateStatus.isPending}
-          className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer transition-opacity hover:opacity-80',
-            STATUS_STYLES[document.status],
-          )}
-        >
-          {t(`fiscal.documents.status.${document.status}`)}
-        </button>
+        <StatusToggle document={document} onToggle={handleStatusToggle} disabled={updateStatus.isPending} />
         <span className="text-xs text-guard-muted tabular-nums">
           {formatFiscalPeriod(document.fiscalYear, document.fiscalQuarter)}
         </span>
@@ -378,17 +404,7 @@ function DocumentRow({
           </span>
         </td>
         <td className="py-2.5 px-3">
-          <button
-            type="button"
-            onClick={handleStatusToggle}
-            disabled={updateStatus.isPending}
-            className={cn(
-              'text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer transition-opacity hover:opacity-80',
-              STATUS_STYLES[document.status],
-            )}
-          >
-            {t(`fiscal.documents.status.${document.status}`)}
-          </button>
+          <StatusToggle document={document} onToggle={handleStatusToggle} disabled={updateStatus.isPending} />
         </td>
         <td className="py-2.5 px-3 text-sm text-guard-muted tabular-nums">
           {formatFiscalPeriod(document.fiscalYear, document.fiscalQuarter)}

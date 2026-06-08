@@ -22,6 +22,12 @@
     "labels": {
       "optional": "optional"
     },
+    "toast": {
+      "close": "Dismiss notification"
+    },
+    "data-state": {
+      "empty-title": "No data to display"
+    },
     "amount-sum": {
       "open": "Sum multiple amounts",
       "title": "Sum amounts",
@@ -115,7 +121,8 @@
       "savings-rate": "Savings rate",
       "daily-average": "Avg. daily spend",
       "vs-previous-month": "vs last month",
-      "no-previous-data": "No data for previous month"
+      "no-previous-data": "No data for previous month",
+      "no-data": "Not enough data"
     },
     "charts": {
       "cashflow-title": "Cash flow",
@@ -142,7 +149,6 @@
     "actions": {
       "group-expense": "Group",
       "add-invoice": "Invoice",
-
       "menu": "Menu"
     },
     "active-trip": {
@@ -167,7 +173,11 @@
       "load": "Error loading vouchers"
     },
     "delete": {
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "error": "Could not delete the voucher",
+      "message": "This action cannot be undone.",
+      "success": "Voucher deleted",
+      "title": "Delete voucher?"
     },
     "widget": {
       "title": "Vouchers",
@@ -204,6 +214,15 @@
         "unit-label-placeholder": "Ex: min, classes",
         "expiry-date": "Expiry date"
       }
+    },
+    "consumed-of-total": "{consumed} of {total}",
+    "exceeded": "Exceeded",
+    "percent-used": "{percent}% used",
+    "row": {
+      "aria": "View voucher details for {name}"
+    },
+    "toast": {
+      "created": "Voucher created"
     }
   },
   "transactions": {
@@ -259,7 +278,8 @@
         "create": "Error creating group. Please try again.",
         "update": "Error updating group. Please try again.",
         "min-items": "Add at least one amount"
-      }
+      },
+      "item-count": "{count} items"
     },
     "trip-group": {
       "expand": "Expand trip",
@@ -489,7 +509,17 @@
       "modify": "Modify amount",
       "modified-amount": "New amount (€)",
       "processing": "Processing...",
-      "error": "Error processing occurrence"
+      "error": "Error processing occurrence",
+      "amount-placeholder": "Amount",
+      "confirm-all-short": "Confirm all",
+      "original-amount": "Original amount: {amount}",
+      "title-count": "Pending recurring expenses ({count})",
+      "toast": {
+        "confirmed": "Expense recorded",
+        "confirmed-all": "All expenses recorded",
+        "confirmed-partial": "Recorded {succeeded} of {total}",
+        "skipped": "Occurrence skipped"
+      }
     },
     "management": {
       "title": "Recurring Expenses",
@@ -508,6 +538,13 @@
         "activate": "Activate",
         "delete": "Delete permanently",
         "confirm-delete": "This will permanently delete this recurring expense and all its occurrences. This action cannot be undone. Continue?"
+      },
+      "toast": {
+        "activated": "Rule activated",
+        "deactivated": "Rule deactivated",
+        "delete-error": "Could not delete the rule",
+        "deleted": "Rule deleted",
+        "toggle-error": "Could not change the rule status"
       }
     },
     "form": {
@@ -609,6 +646,10 @@
       "errors": {
         "create": "Error creating expense. Please try again.",
         "update": "Error updating expense. Please try again."
+      },
+      "toast": {
+        "created": "Expense added",
+        "updated": "Expense updated"
       }
     },
     "create-form": {
@@ -638,6 +679,11 @@
       "create": "Error creating trip. Please try again.",
       "update": "Error updating trip. Please try again.",
       "not-found": "Trip not found"
+    },
+    "date-range-label": "From {start} to {end}",
+    "toast": {
+      "created": "Trip created",
+      "updated": "Trip updated"
     }
   },
   "movements": {
@@ -681,6 +727,9 @@
     "errors": {
       "load": "Error loading history",
       "not-found": "Category not found"
+    },
+    "delete": {
+      "confirm": "Delete this transaction?"
     }
   },
   "fiscal": {
@@ -857,7 +906,17 @@
         "amount": "Amount",
         "size": "Size",
         "actions": "Actions"
-      }
+      },
+      "empty-hint": "Upload your first document to get started",
+      "errors": {
+        "tax-amount-invalid": "Enter a valid amount (0 or greater)",
+        "upload-failed": "Could not upload the document"
+      },
+      "linked-empty": "No linked transactions",
+      "linked-error": "Could not load the linked transaction",
+      "load-error": "Could not load documents",
+      "status-toggle": "Toggle filing status",
+      "upload-success": "Document uploaded"
     },
     "deferral-reminder": {
       "title": "Debt deferral request",
@@ -915,6 +974,14 @@
     },
     "errors": {
       "load": "Error loading fiscal report"
+    },
+    "a11y": {
+      "quarter-selector": "Fiscal quarter selector",
+      "view-toggle": "Toggle fiscal view"
+    },
+    "no-activity": "No operations recorded this quarter",
+    "result": {
+      "neutral": "No result"
     }
   },
   "auth": {
@@ -1004,7 +1071,8 @@
       "payment-methods": {
         "bank-transfer": "Bank Transfer",
         "other": "Other"
-      }
+      },
+      "save-error": "Could not save billing details"
     },
     "crypto": {
       "title": "Binance connection",
@@ -1025,7 +1093,8 @@
       "permission-unsafe": "Unsafe permissions detected",
       "fields": {
         "api-key": "API Key",
-        "api-secret": "API Secret"
+        "api-secret": "API Secret",
+        "toggle-secret": "Show or hide the secret"
       },
       "form": {
         "title": "Connect a new account",
@@ -1037,7 +1106,14 @@
       },
       "actions": {
         "disconnect": "Disconnect",
-        "disconnect-confirm": "Disconnect Binance? Your synchronised data will be kept."
+        "disconnect-confirm": "Disconnect Binance? Your synchronised data will be kept.",
+        "disconnected": "Account disconnected"
+      },
+      "disconnect-confirm-title": "Disconnect Binance?",
+      "disconnect-confirm-message": "Your Binance credentials will be removed. You'll need to reconnect them to sync.",
+      "errors": {
+        "connect": "Could not connect the account",
+        "disconnect": "Could not disconnect the account"
       }
     }
   },
@@ -1090,7 +1166,13 @@
         "transmission": "Transmission",
         "acquisition": "Acquisition",
         "gain-loss": "G/L"
-      }
+      },
+      "disposals-error": "Could not load disposals",
+      "load-error": "Could not load fiscal data",
+      "recompute-confirm-title": "Recalculate FIFO?",
+      "recompute-confirm-message": "All disposals (FIFO) for every year will be recalculated. This may take a few seconds.",
+      "recompute-error": "Could not recalculate",
+      "recompute-success": "{count} disposals recalculated"
     },
     "aeat": {
       "title": "How to file in Renta Web",
@@ -1229,7 +1311,8 @@
         "dust": "Small balances (dust)",
         "c2c": "P2P",
         "csv_import": "CSV import"
-      }
+      },
+      "error": "Could not load movements"
     },
     "prices": {
       "title": "Quotes",
@@ -1295,6 +1378,9 @@
       "result-normalizing": "Normalizing EUR prices in the background — check progress in the sync panel.",
       "result-skipped-ops": "Skipped operations (not supported):",
       "result-recompute-hint": "When normalization finishes, press \"Recompute FIFO\" in the Fiscal tab to refresh the boxes."
+    },
+    "errors": {
+      "load": "Failed to load crypto data"
     }
   },
   "invoices": {
@@ -1377,10 +1463,24 @@
       "confirm-revert-title": "Revert to draft?",
       "confirm-revert-message": "The issued PDF will be deleted from Fiscal Documents and the invoice will no longer appear in fiscal reports.",
       "confirm-delete-title": "Delete invoice?",
-      "confirm-delete-message": "This draft invoice will be permanently deleted."
+      "confirm-delete-message": "This draft invoice will be permanently deleted.",
+      "create-income-category": "Create income category",
+      "no-income-categories": "No income categories",
+      "no-income-categories-help": "Create an income category to mark the invoice as paid."
     },
     "errors": {
-      "load": "Error loading invoice"
+      "load": "Error loading invoice",
+      "pdf-download": "Could not download the PDF"
+    },
+    "per-hour-suffix": "/ hour",
+    "toast": {
+      "cancelled": "Invoice cancelled",
+      "created": "Invoice created",
+      "deleted": "Invoice deleted",
+      "finalized": "Invoice finalized",
+      "marked-paid": "Invoice marked as paid",
+      "reverted": "Invoice reverted to draft",
+      "updated": "Invoice updated"
     }
   },
   "companies": {
@@ -1443,7 +1543,8 @@
       "saving": "Saving...",
       "errors": {
         "create": "Error creating company. Please try again.",
-        "update": "Error updating company. Please try again."
+        "update": "Error updating company. Please try again.",
+        "bank-fee-invalid": "Enter a valid fee"
       }
     },
     "actions": {
@@ -1460,12 +1561,19 @@
     },
     "errors": {
       "load": "Error loading companies",
-      "load-transactions": "Error loading company transactions"
+      "load-transactions": "Error loading company transactions",
+      "update": "Could not update the company"
     },
     "back-to-list": "Back to Companies",
     "empty-transactions": {
       "title": "No transactions",
       "subtitle": "No transactions linked to this company in the selected period"
+    },
+    "toast": {
+      "activated": "Company activated",
+      "created": "Company created",
+      "deactivated": "Company deactivated",
+      "updated": "Company updated"
     }
   },
   "skydiving": {
@@ -1540,16 +1648,22 @@
         "saving": "Saving...",
         "errors": {
           "create": "Error creating jump. Please try again.",
-          "update": "Error updating jump. Please try again."
+          "update": "Error updating jump. Please try again.",
+          "delete": "Could not delete the jump"
         }
       },
       "delete": {
         "button": "Delete jump",
-        "confirm": "Delete this jump?"
+        "confirm": "Delete this jump?",
+        "success": "Jump deleted",
+        "title": "Delete jump?"
       },
       "search-placeholder": "Search by dropzone, type, aircraft...",
       "search-empty": "No jumps found",
-      "prior-jump": "Prior jump"
+      "prior-jump": "Prior jump",
+      "errors": {
+        "load": "Could not load jumps"
+      }
     },
     "tunnel": {
       "title": "Wind Tunnel",
@@ -1588,12 +1702,18 @@
         "saving": "Saving...",
         "errors": {
           "create": "Error creating session. Please try again.",
-          "update": "Error updating session. Please try again."
+          "update": "Error updating session. Please try again.",
+          "delete": "Could not delete the session"
         }
       },
       "delete": {
         "button": "Delete session",
-        "confirm": "Delete this session?"
+        "confirm": "Delete this session?",
+        "success": "Session deleted",
+        "title": "Delete tunnel session?"
+      },
+      "errors": {
+        "load": "Could not load sessions"
       }
     },
     "import": {
@@ -1681,7 +1801,11 @@
     "modelo-type-mismatch": "Modelos require modeloType; invoices must not have it",
     "quarterly-mismatch": "Quarterly modelos require quarter; annual modelos must not",
     "invalid-month-format": "Invalid month format. Use YYYY-MM",
-    "end-date-before-start": "End date must be on or after start date"
+    "end-date-before-start": "End date must be on or after start date",
+    "api-key-length": "The API key must be 50–80 characters long",
+    "api-key-format": "The API key may only contain letters and numbers",
+    "api-secret-length": "The API secret must be 50–80 characters long",
+    "api-secret-format": "The API secret may only contain letters and numbers"
   },
   "api-error": {
     "unauthorized": "You need to sign in to access this resource",
@@ -1813,6 +1937,16 @@
       "sync": {
         "crypto": "Error starting Binance sync"
       }
+    },
+    "load": {
+      "categories": "Failed to load categories",
+      "category-history": "Failed to load category history",
+      "vouchers": "Failed to load vouchers"
+    }
+  },
+  "pages": {
+    "home": {
+      "title": "Home"
     }
   }
 }

@@ -510,6 +510,11 @@ export const API_ERROR = {
   UNAUTHORIZED: 'api-error.unauthorized',
   INTERNAL: 'api-error.internal',
   INVALID_ID: 'api-error.invalid-id',
+  LOAD: {
+    CATEGORIES: 'api-error.load.categories',
+    CATEGORY_HISTORY: 'api-error.load.category-history',
+    VOUCHERS: 'api-error.load.vouchers',
+  },
   NOT_FOUND: {
     TRANSACTION: 'api-error.not-found.transaction',
     CATEGORY: 'api-error.not-found.category',
@@ -675,4 +680,8 @@ export const VALIDATION_KEY = {
   QUARTERLY_MISMATCH: 'validation.quarterly-mismatch',
   INVALID_MONTH_FORMAT: 'validation.invalid-month-format',
   END_DATE_BEFORE_START: 'validation.end-date-before-start',
+  API_KEY_LENGTH: 'validation.api-key-length',
+  API_KEY_FORMAT: 'validation.api-key-format',
+  API_SECRET_LENGTH: 'validation.api-secret-length',
+  API_SECRET_FORMAT: 'validation.api-secret-format',
 } as const;

@@ -140,6 +140,8 @@ jest.mock('@/hooks/useTranslations', () => ({
       const translations: Record<string, string> = {
         'recurring.pending.title': 'Gastos recurrentes pendientes',
         'recurring.pending.count': `(${params?.count ?? 0})`,
+        'recurring.pending.title-count': `Gastos recurrentes pendientes (${params?.count ?? 0})`,
+        'recurring.pending.confirm-all-short': 'Confirmar todo',
         'recurring.pending.confirm': 'Confirmar',
         'recurring.pending.skip': 'Omitir',
         'recurring.pending.modify': 'Modificar',
@@ -196,6 +198,10 @@ jest.mock('@/components/ui/CategoryIcon', () => ({
 
 jest.mock('@/components/ui/LoadingSpinner', () => ({
   LoadingSpinner: () => <span>Loading...</span>,
+}));
+
+jest.mock('@/components/ui/Toast', () => ({
+  useToast: () => ({ success: jest.fn(), error: jest.fn(), info: jest.fn() }),
 }));
 
 import { RecurringPendingPanel } from '@/components/recurring/RecurringPendingPanel';
@@ -272,7 +278,7 @@ describe('RecurringPendingPanel', () => {
     const skipButtons = screen.getAllByLabelText('Omitir');
     fireEvent.click(skipButtons[0]!);
 
-    expect(mockSkipMutate).toHaveBeenCalledWith(1);
+    expect(mockSkipMutate).toHaveBeenCalledWith(1, expect.objectContaining({ onSuccess: expect.any(Function) }));
   });
 
   it('should toggle panel when header is clicked', () => {
