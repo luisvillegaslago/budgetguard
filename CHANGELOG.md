@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.41.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.40.0...v0.41.0) (2026-06-19)
+
+
+### Features
+
+* **trips:** show trip expenses popup from active trip badge ([8dc73d3](https://github.com/luisvillegaslago/budgetguard/commit/8dc73d3a18cd32469ee5c44b58ef11181a13e53b))
+
 ## [0.40.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.39.0...v0.40.0) (2026-06-08)
 
 
