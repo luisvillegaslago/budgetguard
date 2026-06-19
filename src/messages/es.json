@@ -154,7 +154,9 @@
     "active-trip": {
       "banner-title": "Viaje en curso",
       "add-expense": "Añadir gasto",
-      "expenses-count": "{count} gastos · {total}"
+      "expenses-count": "{count} gastos · {total}",
+      "expenses-modal-title": "Gastos del viaje",
+      "view-trip": "Ver viaje completo"
     }
   },
   "vouchers": {

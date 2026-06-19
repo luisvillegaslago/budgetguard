@@ -9,12 +9,14 @@
 
 import { Calendar, Pencil, Plane, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { TRIP_COLOR } from '@/constants/finance';
 import { useActiveTrips } from '@/hooks/useActiveTrips';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { TripDisplay } from '@/types/finance';
 import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+import { TripExpensesModal } from './TripExpensesModal';
 
 interface TripExpenseTarget {
   tripId: number;
@@ -33,17 +35,21 @@ function ActiveTripItem({
   onAddExpense: (target: TripExpenseTarget) => void;
 }) {
   const { t, locale } = useTranslate();
+  const [showExpenses, setShowExpenses] = useState(false);
 
   const expenseBadge = trip.expenseCount > 0 && (
-    <span
-      className="text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap"
+    <button
+      type="button"
+      onClick={() => setShowExpenses(true)}
+      className="text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap transition-colors hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-guard-primary"
       style={{ backgroundColor: `${TRIP_COLOR}15`, color: TRIP_COLOR }}
+      aria-label={t('dashboard.active-trip.expenses-modal-title')}
     >
       {t('dashboard.active-trip.expenses-count', {
         count: trip.expenseCount,
         total: formatCurrency(trip.totalCents),
       })}
-    </span>
+    </button>
   );
 
   return (
@@ -100,6 +106,10 @@ function ActiveTripItem({
         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
         {t('dashboard.active-trip.add-expense')}
       </button>
+
+      {showExpenses && (
+        <TripExpensesModal tripId={trip.tripId} tripName={trip.name} onClose={() => setShowExpenses(false)} />
+      )}
     </div>
   );
 }

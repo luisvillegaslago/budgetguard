@@ -154,7 +154,9 @@
     "active-trip": {
       "banner-title": "Active Trip",
       "add-expense": "Add Expense",
-      "expenses-count": "{count} expenses · {total}"
+      "expenses-count": "{count} expenses · {total}",
+      "expenses-modal-title": "Trip Expenses",
+      "view-trip": "View full trip"
     }
   },
   "vouchers": {
