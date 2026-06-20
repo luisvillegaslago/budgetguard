@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.42.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.41.0...v0.42.0) (2026-06-20)
+
+
+### Features
+
+* **ui:** add reusable client-side sorting to tables and expense popups ([f02f37b](https://github.com/luisvillegaslago/budgetguard/commit/f02f37bcd5b79de0e05d89a02dba4aa40105cbd0))
+
 ## [0.41.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.40.0...v0.41.0) (2026-06-19)
 
 
