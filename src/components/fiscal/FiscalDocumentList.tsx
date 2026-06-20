@@ -11,14 +11,22 @@ import { AlertTriangle, Check, ChevronDown, Clock, Download, FileText, Link2, Tr
 import { useState } from 'react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { SortableHeader } from '@/components/ui/SortableHeader';
 import type { FiscalDocumentType } from '@/constants/finance';
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  FISCAL_DOCUMENT_TYPE,
+  FISCAL_STATUS,
+  SHARED_EXPENSE,
+  SORT_DIRECTION,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 import {
   useDeleteFiscalDocument,
   useTransaction,
   useTransactionGroup,
   useUpdateDocumentStatus,
 } from '@/hooks/useFiscalDocuments';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { FiscalDocument } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -67,6 +75,20 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** Chronological numeric key for a fiscal period (year, then quarter; null quarter sorts before Q1). */
+function fiscalPeriodSortValue(document: FiscalDocument): number {
+  return document.fiscalYear * 10 + (document.fiscalQuarter ?? 0);
+}
+
+const SORT_FIELDS: SortableField<FiscalDocument>[] = [
+  { key: 'name', accessor: (doc) => doc.displayName ?? doc.fileName ?? '' },
+  { key: 'type', accessor: (doc) => doc.documentType },
+  { key: 'period', accessor: fiscalPeriodSortValue },
+  { key: 'amount', accessor: (doc) => doc.taxAmountCents },
+];
+
+const SORT_INITIAL = { key: 'period', direction: SORT_DIRECTION.DESC };
 
 /**
  * Filing-status pill that doubles as a toggle. Communicates state with an icon
@@ -455,6 +477,7 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
   const { t } = useTranslate();
   const deleteMutation = useDeleteFiscalDocument(year);
   const [deleteTarget, setDeleteTarget] = useState<FiscalDocument | null>(null);
+  const { sorted, sort, toggleSort } = useSortableData(documents, SORT_FIELDS, { initial: SORT_INITIAL });
 
   if (documents.length === 0) {
     return (
@@ -478,19 +501,25 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
             <thead>
               <tr className="border-b border-border">
                 <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.documents.columns.name')}
+                  <SortableHeader label={t('sort.fields.name')} sortKey="name" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.documents.columns.type')}
+                  <SortableHeader label={t('sort.fields.type')} sortKey="type" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.documents.columns.status')}
                 </th>
                 <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.documents.columns.period')}
+                  <SortableHeader label={t('sort.fields.period')} sortKey="period" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider text-right">
-                  {t('fiscal.documents.columns.amount')}
+                  <SortableHeader
+                    label={t('sort.fields.amount')}
+                    sortKey="amount"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                 </th>
                 <th className="py-2 px-3 text-xs font-semibold text-guard-muted uppercase tracking-wider text-right">
                   {t('fiscal.documents.columns.size')}
@@ -501,7 +530,7 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
               </tr>
             </thead>
             <tbody>
-              {documents.map((doc) => (
+              {sorted.map((doc) => (
                 <DocumentRow key={doc.documentId} document={doc} year={year} onRequestDelete={setDeleteTarget} />
               ))}
             </tbody>
@@ -510,7 +539,7 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
 
         {/* Mobile/Tablet cards */}
         <div className="lg:hidden divide-y divide-border">
-          {documents.map((doc) => (
+          {sorted.map((doc) => (
             <DocumentMobileCard key={doc.documentId} document={doc} year={year} onRequestDelete={setDeleteTarget} />
           ))}
         </div>

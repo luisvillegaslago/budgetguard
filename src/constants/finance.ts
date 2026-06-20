@@ -36,6 +36,14 @@ export const STATUS_FILTER = {
 
 export type StatusFilter = (typeof STATUS_FILTER)[keyof typeof STATUS_FILTER];
 
+// Sort direction for sortable lists and tables
+export const SORT_DIRECTION = {
+  ASC: 'asc',
+  DESC: 'desc',
+} as const;
+
+export type SortDirection = (typeof SORT_DIRECTION)[keyof typeof SORT_DIRECTION];
+
 // Shared Expense Configuration
 export const SHARED_EXPENSE = {
   DIVISOR: 2,

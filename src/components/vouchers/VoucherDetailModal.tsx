@@ -7,16 +7,19 @@
  */
 
 import { AlertTriangle, ArrowUpRight, Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
 import { useToast } from '@/components/ui/Toast';
+import { SORT_DIRECTION } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteVoucher, useVoucher } from '@/hooks/useVouchers';
-import type { Voucher } from '@/types/finance';
+import type { Transaction, Voucher } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
@@ -52,6 +55,31 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
 
   const voucher = data?.voucher;
   const consumptions = data?.consumptions ?? [];
+
+  // Sortable fields for the consumptions list (title matches the row's primary label).
+  const sortFields = useMemo<SortableField<Transaction>[]>(
+    () => [
+      { key: 'date', accessor: (tx) => tx.transactionDate },
+      { key: 'amount', accessor: (tx) => tx.amountCents },
+      { key: 'title', accessor: (tx) => tx.description || tx.category?.name || '' },
+    ],
+    [],
+  );
+  const {
+    sorted: sortedConsumptions,
+    sort,
+    toggleSort,
+  } = useSortableData<Transaction>(consumptions, sortFields, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
+  const sortOptions = useMemo<SortControlOption[]>(
+    () => [
+      { key: 'date', label: t('sort.fields.date') },
+      { key: 'amount', label: t('sort.fields.amount') },
+      { key: 'title', label: t('sort.fields.title') },
+    ],
+    [t],
+  );
 
   const consumedPct =
     voucher && voucher.totalAmountCents > 0
@@ -167,11 +195,16 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 {t('vouchers.consumptions')} ({voucher.consumptionCount})
               </h3>
+              {consumptions.length > 1 && (
+                <div className="mb-2">
+                  <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} />
+                </div>
+              )}
               {consumptions.length === 0 ? (
                 <EmptyState icon={Receipt} title={t('vouchers.no-consumptions')} />
               ) : (
                 <ul className="divide-y divide-border rounded-lg border border-border">
-                  {consumptions.map((tx) => (
+                  {sortedConsumptions.map((tx) => (
                     <li key={tx.transactionId} className="flex items-center justify-between gap-3 px-3 py-2.5">
                       <div className="min-w-0">
                         <p className="truncate text-sm text-foreground">

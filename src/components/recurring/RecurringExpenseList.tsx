@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { SortControl } from '@/components/ui/SortControl';
 import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { RECURRING_FREQUENCY, SHARED_EXPENSE } from '@/constants/finance';
@@ -21,6 +22,7 @@ import {
   useRecurringExpenses,
   useUpdateRecurringExpense,
 } from '@/hooks/useRecurringExpenses';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { RecurringExpense } from '@/types/finance';
 import { cn } from '@/utils/helpers';
@@ -242,6 +244,13 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
   );
 }
 
+// Sortable fields for the recurring expense list (stable module-level reference).
+const SORTABLE_FIELDS: SortableField<RecurringExpense>[] = [
+  { key: 'category', accessor: (expense) => expense.category?.name ?? '' },
+  { key: 'amount', accessor: (expense) => expense.amountCents },
+  { key: 'frequency', accessor: (expense) => expense.frequency },
+];
+
 interface RecurringExpenseListProps {
   onEdit: (expense: RecurringExpense) => void;
   onAdd: () => void;
@@ -250,6 +259,15 @@ interface RecurringExpenseListProps {
 export function RecurringExpenseList({ onEdit, onAdd }: RecurringExpenseListProps) {
   const { t } = useTranslate();
   const { data, isLoading, isError, refetch } = useRecurringExpenses();
+  const expenses = data?.data ?? [];
+  // useRecurringExpenses() returns the full dataset in memory, so sorting spans all rows.
+  const { sorted, sort, toggleSort } = useSortableData<RecurringExpense>(expenses, SORTABLE_FIELDS);
+  // Default initial sort is null to preserve the current API ordering.
+  const sortOptions = [
+    { key: 'category', label: t('sort.fields.category') },
+    { key: 'amount', label: t('sort.fields.amount') },
+    { key: 'frequency', label: t('sort.fields.frequency') },
+  ];
 
   if (isLoading) {
     return (
@@ -278,8 +296,6 @@ export function RecurringExpenseList({ onEdit, onAdd }: RecurringExpenseListProp
     );
   }
 
-  const expenses = data?.data ?? [];
-
   if (expenses.length === 0) {
     return (
       <div className="card">
@@ -299,12 +315,13 @@ export function RecurringExpenseList({ onEdit, onAdd }: RecurringExpenseListProp
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <h3 className="text-lg font-semibold text-foreground">{t('common.records', { count: expenses.length })}</h3>
+        <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} />
       </div>
 
       <ul className="-mx-4">
-        {expenses.map((expense) => (
+        {sorted.map((expense) => (
           <li key={expense.recurringExpenseId}>
             <RecurringExpenseItem expense={expense} onEdit={onEdit} />
           </li>

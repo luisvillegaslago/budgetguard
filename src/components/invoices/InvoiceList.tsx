@@ -7,7 +7,9 @@
 
 import { FileText } from 'lucide-react';
 import Link from 'next/link';
-import { INVOICE_STATUS } from '@/constants/finance';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { INVOICE_STATUS, SORT_DIRECTION } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { InvoiceListItem, InvoiceStatus } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
@@ -26,6 +28,14 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
   [INVOICE_STATUS.CANCELLED]: 'bg-guard-danger/20 text-guard-danger',
 };
 
+const SORT_FIELDS: SortableField<InvoiceListItem>[] = [
+  { key: 'number', accessor: (invoice) => invoice.invoiceNumber ?? '' },
+  { key: 'client', accessor: (invoice) => invoice.clientTradingName ?? invoice.clientName },
+  { key: 'date', accessor: (invoice) => invoice.invoiceDate },
+  { key: 'amount', accessor: (invoice) => invoice.totalCents },
+  { key: 'status', accessor: (invoice) => invoice.status },
+];
+
 function StatusBadge({ status }: { status: InvoiceStatus }) {
   const { t } = useTranslate();
   return (
@@ -39,6 +49,9 @@ function StatusBadge({ status }: { status: InvoiceStatus }) {
 
 export function InvoiceList({ invoices, isLoading }: InvoiceListProps) {
   const { t } = useTranslate();
+  const { sorted, sort, toggleSort } = useSortableData<InvoiceListItem>(invoices, SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
 
   if (isLoading) {
     return (
@@ -63,15 +76,23 @@ export function InvoiceList({ invoices, isLoading }: InvoiceListProps) {
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       {/* Header */}
       <div className="hidden sm:grid sm:grid-cols-[8rem_1fr_1fr_auto_auto] gap-4 px-4 py-3 bg-muted/30 text-xs font-medium text-guard-muted uppercase tracking-wide">
-        <span>{t('invoices.table.number')}</span>
-        <span>{t('invoices.table.client')}</span>
-        <span>{t('invoices.table.date')}</span>
-        <span className="text-right">{t('invoices.table.total')}</span>
-        <span className="text-center w-28">{t('invoices.table.status')}</span>
+        <SortableHeader label={t('sort.fields.number')} sortKey="number" sort={sort} onToggle={toggleSort} />
+        <SortableHeader label={t('sort.fields.client')} sortKey="client" sort={sort} onToggle={toggleSort} />
+        <SortableHeader label={t('sort.fields.date')} sortKey="date" sort={sort} onToggle={toggleSort} />
+        <SortableHeader
+          label={t('sort.fields.amount')}
+          sortKey="amount"
+          sort={sort}
+          onToggle={toggleSort}
+          align="right"
+        />
+        <span className="w-28">
+          <SortableHeader label={t('sort.fields.status')} sortKey="status" sort={sort} onToggle={toggleSort} />
+        </span>
       </div>
 
       {/* Rows */}
-      {invoices.map((invoice) => (
+      {sorted.map((invoice) => (
         <Link
           key={invoice.invoiceId}
           href={`/invoices/${invoice.invoiceId}`}

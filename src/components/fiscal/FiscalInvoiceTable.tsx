@@ -6,6 +6,9 @@
  */
 
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { SORT_DIRECTION } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { FiscalTransaction } from '@/types/finance';
 import { formatDate } from '@/utils/helpers';
@@ -15,8 +18,19 @@ interface FiscalInvoiceTableProps {
   invoices: FiscalTransaction[];
 }
 
+const SORT_FIELDS: SortableField<FiscalTransaction>[] = [
+  { key: 'number', accessor: (invoice) => invoice.invoiceNumber ?? '' },
+  { key: 'date', accessor: (invoice) => invoice.transactionDate },
+  { key: 'client', accessor: (invoice) => invoice.vendorName ?? invoice.parentCategoryName },
+  { key: 'base', accessor: (invoice) => invoice.baseCents },
+  { key: 'vat', accessor: (invoice) => invoice.ivaCents },
+];
+
 export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
   const { t } = useTranslate();
+  const { sorted, sort, toggleSort } = useSortableData(invoices, SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
 
   if (invoices.length === 0) {
     return (
@@ -37,27 +51,39 @@ export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.invoices.number')}
+                  <SortableHeader label={t('sort.fields.number')} sortKey="number" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.invoices.date')}
+                  <SortableHeader label={t('sort.fields.date')} sortKey="date" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.invoices.client')}
+                  <SortableHeader label={t('sort.fields.client')} sortKey="client" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.invoices.description')}
                 </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.invoices.base')}
+                  <SortableHeader
+                    label={t('sort.fields.base')}
+                    sortKey="base"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                 </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.invoices.vat')}
+                  <SortableHeader
+                    label={t('sort.fields.vat')}
+                    sortKey="vat"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {invoices.map((invoice) => (
+              {sorted.map((invoice) => (
                 <tr key={invoice.transactionId} className="hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-2 font-medium text-guard-primary">{invoice.invoiceNumber ?? '—'}</td>
                   <td className="px-4 py-2 tabular-nums text-guard-muted whitespace-nowrap">
@@ -94,7 +120,7 @@ export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
 
       {/* Mobile/Tablet cards */}
       <div className="lg:hidden divide-y divide-border">
-        {invoices.map((invoice) => (
+        {sorted.map((invoice) => (
           <div key={invoice.transactionId} className="px-2 py-3 space-y-2">
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">

@@ -8,16 +8,25 @@
 
 import { ArrowUpRight, ExternalLink, Receipt, X } from 'lucide-react';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
-import { TRIP_COLOR } from '@/constants/finance';
+import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
+import { SORT_DIRECTION, TRIP_COLOR } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useTrip } from '@/hooks/useTrips';
 import type { Transaction } from '@/types/finance';
 import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+
+const SORT_FIELDS: readonly SortableField<Transaction>[] = [
+  { key: 'date', accessor: (expense) => expense.transactionDate },
+  { key: 'amount', accessor: (expense) => expense.amountCents },
+  { key: 'category', accessor: (expense) => expense.category?.name ?? '' },
+];
 
 interface TripExpensesModalProps {
   tripId: number;
@@ -57,6 +66,19 @@ export function TripExpensesModal({ tripId, tripName, onClose }: TripExpensesMod
   const { t } = useTranslate();
   const { data: trip, isLoading } = useTrip(tripId);
 
+  const { sorted, sort, toggleSort } = useSortableData<Transaction>(trip?.expenses ?? [], SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
+
+  const sortOptions = useMemo<SortControlOption[]>(
+    () => [
+      { key: 'date', label: t('sort.fields.date') },
+      { key: 'amount', label: t('sort.fields.amount') },
+      { key: 'category', label: t('sort.fields.category') },
+    ],
+    [t],
+  );
+
   return (
     <ModalBackdrop onClose={onClose} labelledBy="trip-expenses-modal-title">
       <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] flex flex-col">
@@ -91,8 +113,11 @@ export function TripExpensesModal({ tripId, tripName, onClose }: TripExpensesMod
           />
         ) : (
           <>
+            {trip.expenses.length > 1 && (
+              <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} className="mb-3" />
+            )}
             <ul className="-mx-3 sm:-mx-4 overflow-y-auto flex-1">
-              {trip.expenses.map((expense, index) => (
+              {sorted.map((expense, index) => (
                 <ExpenseRow key={expense.transactionId} transaction={expense} index={index} />
               ))}
             </ul>

@@ -1,4 +1,33 @@
 {
+  "sort": {
+    "order-by": "Ordenar por",
+    "ascending": "ascendente",
+    "descending": "descendente",
+    "fields": {
+      "date": "Fecha",
+      "amount": "Importe",
+      "title": "Título",
+      "category": "Categoría",
+      "description": "Descripción",
+      "concept": "Concepto",
+      "client": "Cliente",
+      "vendor": "Proveedor",
+      "status": "Estado",
+      "number": "Número",
+      "asset": "Activo",
+      "gain-loss": "Ganancia/Pérdida",
+      "base": "Base",
+      "vat": "IVA",
+      "type": "Tipo",
+      "period": "Periodo",
+      "name": "Nombre",
+      "frequency": "Frecuencia",
+      "freefall-time": "Tiempo de caída",
+      "location": "Lugar",
+      "duration": "Duración",
+      "price": "Precio"
+    }
+  },
   "common": {
     "app-name": "BudgetGuard",
     "loading": "Cargando...",

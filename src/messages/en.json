@@ -1,4 +1,33 @@
 {
+  "sort": {
+    "order-by": "Sort by",
+    "ascending": "ascending",
+    "descending": "descending",
+    "fields": {
+      "date": "Date",
+      "amount": "Amount",
+      "title": "Title",
+      "category": "Category",
+      "description": "Description",
+      "concept": "Concept",
+      "client": "Client",
+      "vendor": "Vendor",
+      "status": "Status",
+      "number": "Number",
+      "asset": "Asset",
+      "gain-loss": "Gain/Loss",
+      "base": "Base",
+      "vat": "VAT",
+      "type": "Type",
+      "period": "Period",
+      "name": "Name",
+      "frequency": "Frequency",
+      "freefall-time": "Freefall time",
+      "location": "Location",
+      "duration": "Duration",
+      "price": "Price"
+    }
+  },
   "common": {
     "app-name": "BudgetGuard",
     "loading": "Loading...",

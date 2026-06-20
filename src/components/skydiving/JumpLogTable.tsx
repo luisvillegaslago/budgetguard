@@ -12,14 +12,25 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { SortableHeader } from '@/components/ui/SortableHeader';
 import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { SORT_DIRECTION } from '@/constants/finance';
 import { useDeleteJump, useSkydiveJumps } from '@/hooks/useSkydiveJumps';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { SkydiveJump } from '@/types/skydive';
 import { formatDate } from '@/utils/helpers';
 
 const PAGE_SIZE = 20;
+
+// Stable field definitions for sortable jump log columns.
+const SORT_FIELDS: SortableField<SkydiveJump>[] = [
+  { key: 'number', accessor: (jump) => jump.jumpNumber },
+  { key: 'date', accessor: (jump) => jump.jumpDate },
+  { key: 'type', accessor: (jump) => jump.jumpType ?? '' },
+  { key: 'freefall-time', accessor: (jump) => jump.freefallTimeSec },
+];
 
 interface JumpLogTableProps {
   onNewJump: () => void;
@@ -69,9 +80,14 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
     return jumps.filter((j) => matchesSearch(j, search.trim()));
   }, [jumps, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Sort the full filtered dataset before paginating so ordering spans all pages.
+  const { sorted, sort, toggleSort } = useSortableData<SkydiveJump>(filtered, SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
-  const pageItems = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const pageItems = sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -155,11 +171,40 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-guard-muted uppercase tracking-wider border-b border-border">
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.number')}</th>
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.date')}</th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('skydiving.jumps.columns.number')}
+                          sortKey="number"
+                          sort={sort}
+                          onToggle={toggleSort}
+                        />
+                      </th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('skydiving.jumps.columns.date')}
+                          sortKey="date"
+                          sort={sort}
+                          onToggle={toggleSort}
+                        />
+                      </th>
                       <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.dropzone')}</th>
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.type')}</th>
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.freefall')}</th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('skydiving.jumps.columns.type')}
+                          sortKey="type"
+                          sort={sort}
+                          onToggle={toggleSort}
+                        />
+                      </th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('skydiving.jumps.columns.freefall')}
+                          sortKey="freefall-time"
+                          sort={sort}
+                          onToggle={toggleSort}
+                          align="right"
+                        />
+                      </th>
                       <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.altitude')}</th>
                       <th className="px-4 py-2 font-semibold">{t('skydiving.jumps.columns.aircraft')}</th>
                       <th className="px-4 py-2 font-semibold w-20" />
@@ -297,7 +342,7 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              totalItems={filtered.length}
+              totalItems={sorted.length}
               pageSize={PAGE_SIZE}
               onPageChange={setPage}
             />

@@ -27,8 +27,17 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { FILTER_TYPE, SHARED_EXPENSE, STATUS_FILTER, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  FILTER_TYPE,
+  SHARED_EXPENSE,
+  SORT_DIRECTION,
+  STATUS_FILTER,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useDeleteTransactionGroup } from '@/hooks/useTransactionGroups';
 import { useDeleteTransaction, useGroupedTransactions, useUpdateTransactionStatus } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -325,6 +334,33 @@ type ListItem =
   | { kind: 'group'; data: TransactionGroupDisplay }
   | { kind: 'trip'; data: TripGroupDisplay };
 
+// Sortable fields for the movements list — accessors handle all three union kinds.
+// Module-level constant so the reference stays stable across renders.
+const SORT_FIELDS: SortableField<ListItem>[] = [
+  {
+    key: 'date',
+    accessor: (item) =>
+      item.kind === 'transaction'
+        ? item.data.transactionDate
+        : item.kind === 'group'
+          ? item.data.transactionDate
+          : item.data.startDate,
+  },
+  {
+    key: 'amount',
+    accessor: (item) => (item.kind === 'transaction' ? item.data.amountCents : item.data.totalAmountCents),
+  },
+  {
+    key: 'title',
+    accessor: (item) =>
+      item.kind === 'transaction'
+        ? (item.data.parentCategory?.name ?? item.data.category?.name ?? item.data.description ?? '')
+        : item.kind === 'group'
+          ? item.data.parentCategoryName || (item.data.description ?? '')
+          : item.data.tripName,
+  },
+];
+
 interface TransactionListProps {
   onAddTransaction?: () => void;
   onEditTransaction?: (transaction: Transaction) => void;
@@ -375,8 +411,8 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
     deleteGroup.mutate(groupId);
   };
 
-  // Merge ungrouped transactions and groups into a single sorted list by date
-  const sortedItems = useMemo((): ListItem[] => {
+  // Merge ungrouped transactions and groups into a single unsorted list
+  const mergedItems = useMemo((): ListItem[] => {
     const items: ListItem[] = [];
 
     grouped.ungrouped.forEach((tx) => {
@@ -391,25 +427,27 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
       items.push({ kind: 'trip', data: trip });
     });
 
-    // Sort by date descending
-    items.sort((a, b) => {
-      const dateA =
-        a.kind === 'transaction'
-          ? a.data.transactionDate
-          : a.kind === 'group'
-            ? a.data.transactionDate
-            : a.data.startDate;
-      const dateB =
-        b.kind === 'transaction'
-          ? b.data.transactionDate
-          : b.kind === 'group'
-            ? b.data.transactionDate
-            : b.data.startDate;
-      return dateB.localeCompare(dateA);
-    });
-
     return items;
   }, [grouped]);
+
+  // User-controlled sorting (default: date descending)
+  const {
+    sorted: sortedItems,
+    sort,
+    toggleSort,
+  } = useSortableData<ListItem>(mergedItems, SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
+
+  // Sort options for the SortControl (labels already translated)
+  const sortOptions = useMemo(
+    (): SortControlOption[] => [
+      { key: 'date', label: t('sort.fields.date') },
+      { key: 'amount', label: t('sort.fields.amount') },
+      { key: 'title', label: t('sort.fields.title') },
+    ],
+    [t],
+  );
 
   // Client-side type + search filter
   const filteredItems = useMemo((): ListItem[] => {
@@ -544,6 +582,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
             </button>
           ))}
         </div>
+        <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} className="overflow-x-auto" />
       </div>
 
       <ul className="-mx-3 sm:-mx-4">

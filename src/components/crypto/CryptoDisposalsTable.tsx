@@ -12,8 +12,10 @@ import { DataState } from '@/components/ui/DataState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
-import { CRYPTO_CONTRAPRESTACION, type CryptoContraprestacion } from '@/constants/finance';
-import { useCryptoDisposals } from '@/hooks/useCryptoFiscal';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { CRYPTO_CONTRAPRESTACION, type CryptoContraprestacion, SORT_DIRECTION } from '@/constants/finance';
+import { type DisposalDto, useCryptoDisposals } from '@/hooks/useCryptoFiscal';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import { formatCurrency } from '@/utils/money';
 
@@ -22,6 +24,13 @@ const CONTRAPRESTACION_LABEL_KEY: Record<CryptoContraprestacion, string> = {
   [CRYPTO_CONTRAPRESTACION.FIAT]: 'crypto.fiscal.contraprestacion-f',
   [CRYPTO_CONTRAPRESTACION.NON_FIAT]: 'crypto.fiscal.contraprestacion-n',
 };
+
+/** Sortable fields for the disposals table (stable module-level reference). */
+const SORT_FIELDS: SortableField<DisposalDto>[] = [
+  { key: 'date', accessor: (d) => d.occurredAt },
+  { key: 'asset', accessor: (d) => d.asset },
+  { key: 'gain-loss', accessor: (d) => d.gainLossCents },
+];
 
 export function CryptoDisposalsTable({ year }: { year: number }) {
   const { t, locale } = useTranslate();
@@ -33,6 +42,12 @@ export function CryptoDisposalsTable({ year }: { year: number }) {
     year,
     contraprestacion: contraprestacion || undefined,
     page: zeroBasedPage + 1,
+  });
+
+  // NOTE: server-paginated data — sorting only spans the current page's rows.
+  // A backend sort param would be the complete fix to sort the whole dataset.
+  const { sorted, sort, toggleSort } = useSortableData<DisposalDto>(disposals.data?.data ?? [], SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
   });
 
   const fmt = new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
@@ -74,16 +89,33 @@ export function CryptoDisposalsTable({ year }: { year: number }) {
                 <thead className="border-b border-border text-left text-xs uppercase text-guard-muted">
                   <tr>
                     <th className="py-2 pr-3" />
-                    <th className="py-2 pr-3">{t('crypto.fiscal.col.date')}</th>
-                    <th className="py-2 pr-3">{t('crypto.fiscal.col.asset')}</th>
+                    <th className="py-2 pr-3">
+                      <SortableHeader label={t('sort.fields.date')} sortKey="date" sort={sort} onToggle={toggleSort} />
+                    </th>
+                    <th className="py-2 pr-3">
+                      <SortableHeader
+                        label={t('sort.fields.asset')}
+                        sortKey="asset"
+                        sort={sort}
+                        onToggle={toggleSort}
+                      />
+                    </th>
                     <th className="py-2 pr-3">{t('crypto.fiscal.col.contraprestacion')}</th>
                     <th className="py-2 pr-3 text-right">{t('crypto.fiscal.col.transmission')}</th>
                     <th className="py-2 pr-3 text-right">{t('crypto.fiscal.col.acquisition')}</th>
-                    <th className="py-2 pr-3 text-right">{t('crypto.fiscal.col.gain-loss')}</th>
+                    <th className="py-2 pr-3 text-right">
+                      <SortableHeader
+                        label={t('sort.fields.gain-loss')}
+                        sortKey="gain-loss"
+                        sort={sort}
+                        onToggle={toggleSort}
+                        align="right"
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {disposals.data.data.map((d) => {
+                  {sorted.map((d) => {
                     const isExpanded = expandedRow === d.disposalId;
                     const isGain = d.gainLossCents >= 0;
                     return (

@@ -12,8 +12,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { SortableHeader } from '@/components/ui/SortableHeader';
 import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { SORT_DIRECTION } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteTunnelSession, useTunnelSessions } from '@/hooks/useTunnelSessions';
 import type { TunnelSession } from '@/types/skydive';
@@ -21,6 +24,14 @@ import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 
 const PAGE_SIZE = 20;
+
+// Stable sortable field definitions (module-level for a stable reference).
+const SORT_FIELDS: SortableField<TunnelSession>[] = [
+  { key: 'date', accessor: (s) => s.sessionDate },
+  { key: 'location', accessor: (s) => s.location ?? '' },
+  { key: 'duration', accessor: (s) => s.durationSec },
+  { key: 'price', accessor: (s) => s.priceCents ?? 0 },
+];
 
 interface TunnelSessionTableProps {
   onNewSession: () => void;
@@ -61,9 +72,14 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
     return sessions.filter((s) => matchesSearch(s, search.trim()));
   }, [sessions, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Sort the full filtered dataset before slicing the current page.
+  const { sorted, sort, toggleSort } = useSortableData<TunnelSession>(filtered, SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
-  const pageItems = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const pageItems = sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -147,11 +163,41 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-guard-muted uppercase tracking-wider border-b border-border">
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.tunnel.columns.date')}</th>
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.tunnel.columns.location')}</th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('sort.fields.date')}
+                          sortKey="date"
+                          sort={sort}
+                          onToggle={toggleSort}
+                        />
+                      </th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('sort.fields.location')}
+                          sortKey="location"
+                          sort={sort}
+                          onToggle={toggleSort}
+                        />
+                      </th>
                       <th className="px-4 py-2 font-semibold">{t('skydiving.tunnel.columns.type')}</th>
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.tunnel.columns.duration')}</th>
-                      <th className="px-4 py-2 font-semibold">{t('skydiving.tunnel.columns.price')}</th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('sort.fields.duration')}
+                          sortKey="duration"
+                          sort={sort}
+                          onToggle={toggleSort}
+                          align="right"
+                        />
+                      </th>
+                      <th className="px-4 py-2 font-semibold">
+                        <SortableHeader
+                          label={t('sort.fields.price')}
+                          sortKey="price"
+                          sort={sort}
+                          onToggle={toggleSort}
+                          align="right"
+                        />
+                      </th>
                       <th className="px-4 py-2 font-semibold w-20" />
                     </tr>
                   </thead>

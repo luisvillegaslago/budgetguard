@@ -11,18 +11,23 @@
  */
 
 import { Inbox } from 'lucide-react';
-import { type KeyboardEvent, useState } from 'react';
+import { type KeyboardEvent, useMemo, useState } from 'react';
 import { DataState } from '@/components/ui/DataState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
+import { SortableHeader } from '@/components/ui/SortableHeader';
 import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
-import { CRYPTO_EVENT_TYPE, type CryptoEventType } from '@/constants/finance';
-import { useCryptoAssets, useCryptoEvents } from '@/hooks/useCryptoSync';
+import { CRYPTO_EVENT_TYPE, type CryptoEventType, SORT_DIRECTION } from '@/constants/finance';
+import { type RawEvent, useCryptoAssets, useCryptoEvents } from '@/hooks/useCryptoSync';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import { AMOUNT_DIRECTION, type AmountLeg, formatCryptoAmount, presentCryptoEvent } from '@/utils/cryptoEventPresenter';
 
 const ALL_TYPES: CryptoEventType[] = Object.values(CRYPTO_EVENT_TYPE);
+
+// Sort keys for the movements table (only columns with a single clean value).
+const SORT_KEY = { DATE: 'date', CONCEPT: 'concept' } as const;
 
 export function CryptoEventsTable() {
   const { t, locale } = useTranslate();
@@ -42,6 +47,25 @@ export function CryptoEventsTable() {
     dateStyle: 'short',
     timeStyle: 'short',
     timeZone: 'UTC',
+  });
+
+  // Sortable fields for the in-memory current page. Concept needs `presentCryptoEvent` + `t`,
+  // so the field list depends on `t` and must be memoised for a stable reference.
+  const sortFields = useMemo<SortableField<RawEvent>[]>(
+    () => [
+      { key: SORT_KEY.DATE, accessor: (event) => event.occurredAt },
+      {
+        key: SORT_KEY.CONCEPT,
+        accessor: (event) => t(presentCryptoEvent(event.eventType, event.rawPayload).conceptKey),
+      },
+    ],
+    [t],
+  );
+
+  // NOTE: useCryptoEvents is server-paginated, so this sorts ONLY the current page's rows.
+  // A backend sort param (sort/direction in the query) would be the complete fix.
+  const { sorted, sort, toggleSort } = useSortableData<RawEvent>(events.data?.data ?? [], sortFields, {
+    initial: { key: SORT_KEY.DATE, direction: SORT_DIRECTION.DESC },
   });
 
   return (
@@ -95,14 +119,28 @@ export function CryptoEventsTable() {
               <table className="w-full text-sm">
                 <thead className="border-b border-border text-left text-xs uppercase text-guard-muted">
                   <tr>
-                    <th className="py-2 pr-4 font-medium">{t('crypto.events.col.date')}</th>
-                    <th className="py-2 pr-4 font-medium">{t('crypto.events.col.concept')}</th>
+                    <th className="py-2 pr-4 font-medium">
+                      <SortableHeader
+                        label={t('sort.fields.date')}
+                        sortKey={SORT_KEY.DATE}
+                        sort={sort}
+                        onToggle={toggleSort}
+                      />
+                    </th>
+                    <th className="py-2 pr-4 font-medium">
+                      <SortableHeader
+                        label={t('sort.fields.concept')}
+                        sortKey={SORT_KEY.CONCEPT}
+                        sort={sort}
+                        onToggle={toggleSort}
+                      />
+                    </th>
                     <th className="py-2 pr-4 font-medium text-right">{t('crypto.events.col.amount')}</th>
                     <th className="py-2 w-8" aria-hidden />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {events.data.data.map((event) => {
+                  {sorted.map((event) => {
                     const presentation = presentCryptoEvent(event.eventType, event.rawPayload);
                     const isExpanded = expandedId === event.eventId;
                     const subParts: string[] = [];

@@ -6,6 +6,9 @@
  */
 
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { SORT_DIRECTION } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { FiscalTransaction } from '@/types/finance';
 import { formatDate } from '@/utils/helpers';
@@ -15,8 +18,20 @@ interface FiscalExpenseTableProps {
   expenses: FiscalTransaction[];
 }
 
+// Stable module-level sortable field definitions
+const SORT_FIELDS: SortableField<FiscalTransaction>[] = [
+  { key: 'date', accessor: (e) => e.transactionDate },
+  { key: 'vendor', accessor: (e) => e.vendorName ?? e.parentCategoryName },
+  { key: 'amount', accessor: (e) => e.fullAmountCents },
+  { key: 'vat', accessor: (e) => e.ivaDeducibleCents },
+  { key: 'base', accessor: (e) => e.baseDeducibleCents },
+];
+
 export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
   const { t } = useTranslate();
+  const { sorted, sort, toggleSort } = useSortableData(expenses, SORT_FIELDS, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
 
   if (expenses.length === 0) {
     return (
@@ -39,16 +54,22 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.expenses.date')}
+                  <SortableHeader label={t('sort.fields.date')} sortKey="date" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.expenses.vendor')}
+                  <SortableHeader label={t('sort.fields.vendor')} sortKey="vendor" sort={sort} onToggle={toggleSort} />
                 </th>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.expenses.description')}
                 </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.expenses.total')}
+                  <SortableHeader
+                    label={t('sort.fields.amount')}
+                    sortKey="amount"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                 </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
                   {t('fiscal.expenses.vat-rate')}
@@ -57,15 +78,27 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
                   {t('fiscal.expenses.deduction-rate')}
                 </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.expenses.base-deductible')}
+                  <SortableHeader
+                    label={t('sort.fields.base')}
+                    sortKey="base"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                 </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-guard-muted uppercase tracking-wider">
-                  {t('fiscal.expenses.vat-deductible')}
+                  <SortableHeader
+                    label={t('sort.fields.vat')}
+                    sortKey="vat"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {expenses.map((expense) => (
+              {sorted.map((expense) => (
                 <tr key={expense.transactionId} className="hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-2 tabular-nums text-guard-muted whitespace-nowrap">
                     {formatDate(expense.transactionDate)}
@@ -110,7 +143,7 @@ export function FiscalExpenseTable({ expenses }: FiscalExpenseTableProps) {
 
       {/* Mobile/Tablet cards */}
       <div className="lg:hidden divide-y divide-border">
-        {expenses.map((expense) => (
+        {sorted.map((expense) => (
           <div key={expense.transactionId} className="px-2 py-3 space-y-2">
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">

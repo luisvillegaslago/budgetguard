@@ -13,6 +13,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
+import { SORT_DIRECTION } from '@/constants/finance';
+import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Transaction } from '@/types/finance';
@@ -49,6 +52,26 @@ export function MonthTransactionsModal({
 
   const transactions = useMemo(() => (data?.data ?? []).filter(filter), [data, filter]);
   const totalCents = transactions.reduce((sum, tx) => sum + tx.amountCents, 0);
+
+  // Capture title/secondary so the accessors stay pure between renders.
+  const sortFields = useMemo<SortableField<Transaction>[]>(
+    () => [
+      { key: 'date', accessor: (tx) => tx.transactionDate },
+      { key: 'amount', accessor: (tx) => tx.amountCents },
+      { key: 'title', accessor: (tx) => tx.description || secondary?.(tx) || title },
+    ],
+    [secondary, title],
+  );
+
+  const { sorted, sort, toggleSort } = useSortableData<Transaction>(transactions, sortFields, {
+    initial: { key: 'date', direction: SORT_DIRECTION.DESC },
+  });
+
+  const sortOptions: SortControlOption[] = [
+    { key: 'date', label: t('sort.fields.date') },
+    { key: 'amount', label: t('sort.fields.amount') },
+    { key: 'title', label: t('sort.fields.title') },
+  ];
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy={TITLE_ID}>
@@ -94,8 +117,14 @@ export function MonthTransactionsModal({
               </span>
             </div>
 
+            {transactions.length > 1 && (
+              <div className="mb-2 px-1">
+                <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} />
+              </div>
+            )}
+
             <ul className="divide-y divide-border overflow-y-auto -mx-1 px-1">
-              {transactions.map((tx) => {
+              {sorted.map((tx) => {
                 const sub = secondary?.(tx) ?? null;
                 return (
                   <li key={tx.transactionId} className="flex items-center gap-3 py-2.5">
