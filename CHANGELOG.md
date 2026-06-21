@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.42.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.42.0...v0.42.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **ui:** keep modals within the viewport and pad the trip expenses list ([8e7aa6a](https://github.com/luisvillegaslago/budgetguard/commit/8e7aa6ad614bd2d26ee2f381927f508091078605))
+
 ## [0.42.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.41.0...v0.42.0) (2026-06-20)
 
 
