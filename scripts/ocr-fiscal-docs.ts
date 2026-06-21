@@ -180,7 +180,7 @@ Reply with ONLY the numeric ID, or "none" if no match.`;
 
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 20,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -266,7 +266,7 @@ Reply with ONLY the numeric ID, or "none" if no match.`;
             ];
 
         const aiResponse = await anthropic!.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1024,
           messages: [{ role: 'user', content }],
         });
