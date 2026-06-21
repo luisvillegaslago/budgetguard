@@ -40,7 +40,7 @@ function ExpenseRow({ transaction, index }: { transaction: Transaction; index: n
 
   return (
     <li
-      className="flex items-center gap-3 py-2.5 px-3 sm:px-4 rounded-lg animate-fade-in"
+      className="flex items-center gap-3 py-2.5 rounded-lg animate-fade-in"
       style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
     >
       <span className="w-12 sm:w-16 flex-shrink-0 text-xs text-guard-muted">
@@ -116,7 +116,7 @@ export function TripExpensesModal({ tripId, tripName, onClose }: TripExpensesMod
             {trip.expenses.length > 1 && (
               <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} className="mb-3" />
             )}
-            <ul className="-mx-3 sm:-mx-4 overflow-y-auto flex-1">
+            <ul className="-mx-3 sm:-mx-4 px-3 sm:px-4 overflow-y-auto flex-1 divide-y divide-border">
               {sorted.map((expense, index) => (
                 <ExpenseRow key={expense.transactionId} transaction={expense} index={index} />
               ))}

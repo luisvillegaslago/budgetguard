@@ -52,7 +52,9 @@ export function ModalBackdrop({ children, onClose, labelledBy, escapeClose = tru
         if (e.key === 'Escape' && escapeClose) onClose();
       }}
     >
-      <div ref={dialogRef}>{children}</div>
+      <div ref={dialogRef} className="flex w-full justify-center">
+        {children}
+      </div>
     </div>
   );
 }
