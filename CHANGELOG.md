@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.43.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.42.2...v0.43.0) (2026-06-25)
+
+
+### Features
+
+* **vouchers:** add quick-consume action to voucher detail modal ([2d798ad](https://github.com/luisvillegaslago/budgetguard/commit/2d798ad1322af302b6588e3994568407c29a5c86))
+
 ## [0.42.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.42.1...v0.42.2) (2026-06-21)
 
 
