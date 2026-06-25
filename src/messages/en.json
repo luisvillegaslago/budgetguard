@@ -248,7 +248,20 @@
     },
     "consumed-of-total": "{consumed} of {total}",
     "exceeded": "Exceeded",
-    "percent-used": "{percent}% used",
+    "percent-used": "{pct}% used",
+    "use": {
+      "button": "Use voucher",
+      "title": "Log consumption",
+      "date": "Date",
+      "units": "Units to consume",
+      "amount": "Amount (€)",
+      "amount-placeholder": "0.00",
+      "amount-preview": "Consumption amount: {amount}",
+      "submit": "Log consumption",
+      "saving": "Logging...",
+      "success": "Consumption logged",
+      "error": "Could not log the consumption"
+    },
     "row": {
       "aria": "View voucher details for {name}"
     },

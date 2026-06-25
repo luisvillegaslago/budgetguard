@@ -248,7 +248,20 @@
     },
     "consumed-of-total": "{consumed} de {total}",
     "exceeded": "Excedido",
-    "percent-used": "{percent}% usado",
+    "percent-used": "{pct}% usado",
+    "use": {
+      "button": "Usar bono",
+      "title": "Registrar consumo",
+      "date": "Fecha",
+      "units": "Unidades a consumir",
+      "amount": "Importe (€)",
+      "amount-placeholder": "0,00",
+      "amount-preview": "Importe del consumo: {amount}",
+      "submit": "Registrar consumo",
+      "saving": "Registrando...",
+      "success": "Consumo registrado",
+      "error": "No se pudo registrar el consumo"
+    },
     "row": {
       "aria": "Ver detalle del bono {name}"
     },

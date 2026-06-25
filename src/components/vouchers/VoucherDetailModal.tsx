@@ -15,13 +15,19 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
 import { useToast } from '@/components/ui/Toast';
-import { SORT_DIRECTION } from '@/constants/finance';
+import { SORT_DIRECTION, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
+import { useCreateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteVoucher, useVoucher } from '@/hooks/useVouchers';
 import type { Transaction, Voucher } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
-import { formatCurrency } from '@/utils/money';
+import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
+
+const CONSUME_INPUT_CLASS = cn(
+  'w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm',
+  'focus:ring-2 focus:ring-guard-primary focus:border-transparent transition-colors',
+);
 
 interface VoucherDetailModalProps {
   voucherId: number;
@@ -34,12 +40,153 @@ function formatUnits(value: number): string {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 
+interface VoucherConsumeFormProps {
+  voucher: Voucher;
+  onDone: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * Quick-consume form embedded in the detail modal: logs an expense transaction
+ * linked to this voucher. Date defaults to today and units to 1 (editable).
+ * Unit-based vouchers prorate the amount; unit-less vouchers ask for the amount.
+ */
+function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormProps) {
+  const { t } = useTranslate();
+  const toast = useToast();
+  const createTransaction = useCreateTransaction();
+
+  const today = new Date().toISOString().split('T')[0];
+  const hasUnits = voucher.totalUnits != null && voucher.totalUnits > 0;
+  const unitPriceCents = hasUnits ? voucher.totalAmountCents / (voucher.totalUnits as number) : null;
+
+  const [date, setDate] = useState(today);
+  const [units, setUnits] = useState('1');
+  const [amount, setAmount] = useState('');
+
+  const unitsNum = Number(units);
+  // Unit-based vouchers prorate the price; otherwise fall back to the typed amount.
+  const computedAmountCents = unitPriceCents != null && unitsNum > 0 ? Math.round(unitPriceCents * unitsNum) : null;
+  const amountCents = computedAmountCents ?? eurosToCents(Number(amount) || 0);
+  const canSubmit = Boolean(date) && amountCents > 0 && (hasUnits ? unitsNum > 0 : true);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    try {
+      await createTransaction.mutateAsync({
+        categoryId: voucher.categoryId,
+        amount: centsToEuros(amountCents),
+        description: '',
+        transactionDate: new Date(`${date}T00:00:00Z`),
+        type: TRANSACTION_TYPE.EXPENSE,
+        isShared: false,
+        status: TRANSACTION_STATUS.PAID,
+        voucherId: voucher.voucherId,
+        voucherUnits: hasUnits ? unitsNum : null,
+      });
+      toast.success(t('vouchers.use.success'));
+      onDone();
+    } catch (_error) {
+      // Error surfaced via toast + createTransaction.errorMessage
+      toast.error(createTransaction.errorMessage ?? t('vouchers.use.error'));
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-guard-primary/40 bg-guard-primary/5 p-4 space-y-3 animate-fade-in">
+      <p className="text-sm font-semibold text-foreground">{t('vouchers.use.title')}</p>
+
+      <div className="grid grid-cols-2 gap-3">
+        {/* Consumption date (defaults to today) */}
+        <div>
+          <label htmlFor="consume-date" className="block text-xs font-medium text-guard-muted mb-1">
+            {t('vouchers.use.date')}
+          </label>
+          <input
+            id="consume-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={CONSUME_INPUT_CLASS}
+          />
+        </div>
+
+        {/* Units (prorated) or raw amount for unit-less vouchers */}
+        {hasUnits ? (
+          <div>
+            <label htmlFor="consume-units" className="block text-xs font-medium text-guard-muted mb-1">
+              {t('vouchers.use.units')}
+              {voucher.unitLabel ? ` (${voucher.unitLabel})` : ''}
+            </label>
+            <input
+              id="consume-units"
+              type="number"
+              min="0"
+              step="any"
+              value={units}
+              onChange={(e) => setUnits(e.target.value)}
+              className={CONSUME_INPUT_CLASS}
+            />
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="consume-amount" className="block text-xs font-medium text-guard-muted mb-1">
+              {t('vouchers.use.amount')}
+            </label>
+            <input
+              id="consume-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={t('vouchers.use.amount-placeholder')}
+              className={CONSUME_INPUT_CLASS}
+            />
+          </div>
+        )}
+      </div>
+
+      {hasUnits && amountCents > 0 && (
+        <p className="text-xs text-guard-muted tabular-nums">
+          {t('vouchers.use.amount-preview', { amount: formatCurrency(amountCents) })}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!canSubmit || createTransaction.isPending}
+          className={cn(
+            'flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors',
+            'bg-guard-primary text-white hover:bg-guard-primary/90',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+          )}
+        >
+          <Ticket className="h-4 w-4" aria-hidden="true" />
+          {createTransaction.isPending ? t('vouchers.use.saving') : t('vouchers.use.submit')}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={createTransaction.isPending}
+          className="inline-flex items-center justify-center rounded-lg bg-muted px-4 py-2.5 font-medium text-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+        >
+          {t('common.buttons.cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetailModalProps) {
   const { t } = useTranslate();
   const toast = useToast();
   const { data, isLoading, isError, refetch } = useVoucher(voucherId);
   const deleteVoucher = useDeleteVoucher();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [consumeOpen, setConsumeOpen] = useState(false);
 
   const handleConfirmDelete = async () => {
     try {
@@ -225,6 +372,24 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                 </ul>
               )}
             </div>
+
+            {/* Quick-consume: log a new consumption against this voucher */}
+            {consumeOpen ? (
+              <VoucherConsumeForm
+                voucher={voucher}
+                onDone={() => setConsumeOpen(false)}
+                onCancel={() => setConsumeOpen(false)}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConsumeOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-guard-primary text-white hover:bg-guard-primary/90 transition-colors font-medium"
+              >
+                <Ticket className="h-4 w-4" aria-hidden="true" />
+                {t('vouchers.use.button')}
+              </button>
+            )}
 
             {/* Actions */}
             <div className="flex items-center gap-2 pt-2">
