@@ -281,7 +281,10 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
          COUNT(*)::text                     AS "RowCount",
          COUNT(*) FILTER (
            WHERE jsonb_array_length("AcquisitionLotsJson") = 0
-              OR ("AcquisitionLotsJson"->-1->>'quantityConsumed')::numeric < "QuantityNative"
+              OR (
+                   SELECT COALESCE(SUM((lot->>'quantityConsumed')::numeric), 0)
+                   FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
+                 ) < "QuantityNative" - 1e-9
          )::text AS "IncompleteCount"
        FROM "CryptoDisposals"
        WHERE "UserID" = $1 AND "FiscalYear" = $2
