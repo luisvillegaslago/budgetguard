@@ -34,6 +34,10 @@ export default function CryptoPage() {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [fiscalYear, setFiscalYear] = useState<number>(new Date().getUTCFullYear() - 1);
   const status = useCryptoCredentialStatus(CRYPTO_EXCHANGE.BINANCE);
+  // CSV import + price normalization use Binance's public endpoints, so the
+  // whole page stays usable without API credentials — only the live API sync
+  // panel is gated behind a connected exchange.
+  const connected = status.data?.connected ?? false;
 
   const tabs: { id: TabId; label: string; icon: typeof Bitcoin }[] = [
     { id: 'summary', label: t('crypto.tabs.summary'), icon: Bitcoin },
@@ -48,10 +52,6 @@ export default function CryptoPage() {
         <div className="h-48 bg-muted/50 rounded-xl animate-pulse" />
       </div>
     );
-  }
-
-  if (!status.data?.connected) {
-    return <NotConnectedState />;
   }
 
   return (
@@ -88,7 +88,7 @@ export default function CryptoPage() {
 
       {activeTab === 'summary' && (
         <div className="space-y-6">
-          <CryptoSyncPanel />
+          {connected ? <CryptoSyncPanel /> : <ApiSyncDisabledNotice />}
           <CryptoCsvUploader />
         </div>
       )}
@@ -105,13 +105,20 @@ export default function CryptoPage() {
   );
 }
 
-function NotConnectedState() {
+/**
+ * Inline notice shown in place of the live API sync panel when no exchange
+ * credentials are connected. CSV import below still works, so this only nudges
+ * the user toward automatic sync rather than blocking the page.
+ */
+function ApiSyncDisabledNotice() {
   const { t } = useTranslate();
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center space-y-4">
-      <Bitcoin className="h-12 w-12 text-guard-muted mx-auto" aria-hidden="true" />
-      <h1 className="text-2xl font-bold text-foreground">{t('crypto.empty.title')}</h1>
-      <p className="text-sm text-guard-muted">{t('crypto.empty.body')}</p>
+    <div className="bg-card rounded-xl border border-border p-6 space-y-3">
+      <div className="flex items-center gap-2">
+        <Bitcoin className="h-5 w-5 text-guard-muted" aria-hidden="true" />
+        <h2 className="text-lg font-semibold text-foreground">{t('crypto.not-connected.title')}</h2>
+      </div>
+      <p className="text-sm text-guard-muted">{t('crypto.not-connected.body')}</p>
       <Link href="/settings?tab=crypto" className="btn-primary inline-flex items-center gap-2">
         {t('crypto.empty.cta')}
       </Link>

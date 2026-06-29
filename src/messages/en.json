@@ -1274,6 +1274,10 @@
       "body": "To start importing your trades, connect a read-only API key from Settings.",
       "cta": "Go to Settings → Crypto"
     },
+    "not-connected": {
+      "title": "Automatic sync not connected",
+      "body": "Connect your Binance API to sync automatically. In the meantime, you can import your trades manually with a CSV below — no API key required."
+    },
     "sync": {
       "title": "Binance sync",
       "subtitle": "Import trades, rewards and airdrops from the Binance API.",

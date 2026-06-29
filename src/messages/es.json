@@ -1274,6 +1274,10 @@
       "body": "Para empezar a importar tus operaciones, conecta una API key de solo lectura desde Ajustes.",
       "cta": "Ir a Ajustes → Criptomonedas"
     },
+    "not-connected": {
+      "title": "Sincronización automática no conectada",
+      "body": "Conecta tu API de Binance para sincronizar automáticamente. Mientras tanto, puedes importar tus operaciones manualmente con un CSV aquí abajo: no necesitas API key para ello."
+    },
     "sync": {
       "title": "Sincronización con Binance",
       "subtitle": "Importa operaciones, recompensas y airdrops desde la API de Binance.",
