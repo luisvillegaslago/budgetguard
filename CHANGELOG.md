@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.44.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.43.1...v0.44.0) (2026-06-29)
+
+
+### Features
+
+* **crypto:** allow CSV import without API credentials ([f01b574](https://github.com/luisvillegaslago/budgetguard/commit/f01b5741e1de67ecbfe5dd47237f1fa856f57cfe))
+
 ## [0.43.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.43.0...v0.43.1) (2026-06-29)
 
 
