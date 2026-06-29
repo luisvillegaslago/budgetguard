@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.43.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.43.0...v0.43.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* **vouchers:** align consume form fields and stack actions on mobile ([4f4f265](https://github.com/luisvillegaslago/budgetguard/commit/4f4f265f35cbacdfafc22bed2e7052afec92e0d2))
+
 ## [0.43.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.42.2...v0.43.0) (2026-06-25)
 
 
