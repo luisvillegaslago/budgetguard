@@ -94,6 +94,67 @@ describe('normalizeSpotTrade', () => {
     });
     expect(legs).toHaveLength(0);
   });
+
+  it('CSV trade with explicit base/quote splits even when the suffix is unknown (BTC bought with ADA)', () => {
+    // The CSV importer synthesises symbols like "BTCADA" whose quote (ADA) is
+    // not a known suffix, so splitSymbol would fail. It carries baseAsset/
+    // quoteAsset explicitly — we must trust those and still emit the ADA
+    // disposal (casilla 1804-N).
+    const legs = normalizeSpotTrade({
+      eventType: CRYPTO_EVENT_TYPE.SPOT_TRADE,
+      occurredAt: FIXED_DATE,
+      rawPayload: {
+        symbol: 'BTCADA',
+        baseAsset: 'BTC',
+        quoteAsset: 'ADA',
+        isBuyer: true,
+        qty: '0.01508625',
+        quoteQty: '1862.5',
+        commission: '0.00000121',
+        commissionAsset: 'BTC',
+        csvSource: true,
+      },
+    });
+
+    expect(legs).toHaveLength(2);
+    expect(legs[0]).toMatchObject({
+      kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+      asset: 'BTC',
+      contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+    });
+    expect(legs[1]).toMatchObject({
+      kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+      asset: 'ADA',
+      quantityNative: '1862.5',
+      counterAsset: 'BTC',
+      contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+    });
+  });
+
+  it('CSV sell of crypto for fiat with explicit base/quote (EURADA) emits the ADA disposal as F', () => {
+    // "EURADA": base EUR acquired, quote ADA disposed → disposal of ADA vs
+    // fiat (1804-F). Suffix heuristic fails (ends in ADA); explicit fields win.
+    const legs = normalizeSpotTrade({
+      eventType: CRYPTO_EVENT_TYPE.SPOT_TRADE,
+      occurredAt: FIXED_DATE,
+      rawPayload: {
+        symbol: 'EURADA',
+        baseAsset: 'EUR',
+        quoteAsset: 'ADA',
+        isBuyer: true,
+        qty: '11.5655',
+        quoteQty: '25',
+        csvSource: true,
+      },
+    });
+
+    expect(legs).toHaveLength(1);
+    expect(legs[0]).toMatchObject({
+      kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+      asset: 'ADA',
+      contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+    });
+  });
 });
 
 describe('normalizeConvert', () => {

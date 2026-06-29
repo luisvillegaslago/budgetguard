@@ -92,14 +92,19 @@ function contraprestacionFor(counterAsset: string | undefined): CryptoContrapres
  * which side the user took from `isBuyer`. A buy of BTCUSDT means the user
  * disposed of USDT and acquired BTC (and vice-versa).
  *
- * Symbol parsing: Binance returns the symbol as a concatenation
- * (`BTCUSDT`, `BNBBTC`). We rely on a fixed list of well-known quote suffixes
- * to split the base/quote unambiguously (see `@/utils/cryptoSymbol`).
+ * Symbol parsing: the API returns the symbol as a concatenation
+ * (`BTCUSDT`, `BNBBTC`) of a real market, which we split via a fixed list of
+ * well-known quote suffixes (see `@/utils/cryptoSymbol`). CSV-sourced trades
+ * instead carry `baseAsset`/`quoteAsset` explicitly, because their synthesised
+ * symbol can pair any two coins (e.g. `BTCADA`) and would defeat the
+ * suffix heuristic — we trust those fields when present.
  */
 export function normalizeSpotTrade(ctx: NormaliserContext): NormalisedLeg[] {
   const p = ctx.rawPayload;
   const symbol = String(p.symbol ?? '');
-  const split = splitSymbol(symbol);
+  const baseAsset = typeof p.baseAsset === 'string' ? p.baseAsset : '';
+  const quoteAsset = typeof p.quoteAsset === 'string' ? p.quoteAsset : '';
+  const split = baseAsset && quoteAsset ? { base: baseAsset, quote: quoteAsset } : splitSymbol(symbol);
   if (!split) return [];
 
   const isBuyer = Boolean(p.isBuyer);

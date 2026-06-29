@@ -404,9 +404,15 @@ function synthesizeSpotTrade(group: BinanceCsvRow[]): RawEventInput | null {
 
   // myTrades shape we rely on inside normalizeSpotTrade:
   //   { symbol, isBuyer, qty, quoteQty, commission, commissionAsset, time }
+  // We also carry base/quote explicitly: unlike the API `symbol` (a real
+  // market we can split heuristically), the CSV-synthesised symbol can pair
+  // any two coins (e.g. BTC/ADA), so the suffix-based splitSymbol would fail.
+  // The importer already knows both sides — preserve them.
   const symbol = `${baseRow.coin}${quoteRow.coin}`;
   const payload = {
     symbol,
+    baseAsset: baseRow.coin,
+    quoteAsset: quoteRow.coin,
     isBuyer: true, // base coin was acquired
     qty: String(baseRow.change),
     quoteQty: String(Math.abs(quoteRow.change)),
