@@ -3,13 +3,19 @@
 /**
  * Embedded AEAT (Renta Web) walkthrough — replaces the finbooks PDF.
  *
- * For each casilla (1804-F, 1804-N, 0304, 0033) shows the precomputed
- * amount and the numbered steps to file it in the Spanish tax portal.
- * Each section is collapsible; the first one is open by default.
+ * Shows the precomputed amounts and the numbered steps to file them in the
+ * Spanish tax portal. The app groups disposals into two internal buckets by
+ * the consideration key (F = fiat / N = non-fiat): note that on the real form
+ * the F/N key is casilla 1803, while 1804 is only "valor de transmisión" — the
+ * "1804 (F)/(N)" labels are an internal grouping, not literal box numbers.
+ * Airdrops go to box 0304 (general base) and staking to box 0033 (savings base).
+ * Each section is collapsible; the first one is open by default. A "which box
+ * do I use?" popup maps every app bucket to the exact AEAT casillas.
  */
 
-import { ChevronDown, Info } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, HelpCircle, Info, X } from 'lucide-react';
+import { useId, useState } from 'react';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { useCryptoModelo100Summary } from '@/hooks/useCryptoFiscal';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
@@ -64,6 +70,7 @@ export function CryptoAeatGuide({ year }: Props) {
   const { t } = useTranslate();
   const summary = useCryptoModelo100Summary(year);
   const [openSection, setOpenSection] = useState<string | null>(CASILLAS[0]?.keyPrefix ?? null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   if (summary.isLoading) {
     return <div className="bg-card rounded-xl border border-border p-6 h-32 animate-pulse" />;
@@ -74,10 +81,22 @@ export function CryptoAeatGuide({ year }: Props) {
 
   return (
     <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{t('crypto.aeat.title')}</h2>
-        <p className="text-sm text-guard-muted mt-1">{t('crypto.aeat.subtitle')}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">{t('crypto.aeat.title')}</h2>
+          <p className="text-sm text-guard-muted mt-1">{t('crypto.aeat.subtitle')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-guard-primary hover:bg-guard-primary/10 transition-colors shrink-0"
+        >
+          <HelpCircle className="h-4 w-4" aria-hidden="true" />
+          {t('crypto.aeat.casilla-help')}
+        </button>
       </div>
+
+      {helpOpen && <CasillaHelpModal onClose={() => setHelpOpen(false)} />}
 
       <div className="flex items-start gap-2 rounded-lg border border-guard-warning/30 bg-guard-warning/10 p-3 text-xs">
         <Info className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
@@ -180,5 +199,40 @@ function CasillaAccordion({ keyPrefix, stepCount, amount, isOpen, onToggle }: Ac
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "Which box do I use?" popup — maps the app's buckets to the exact AEAT
+ * casillas (1802/1803/1804/1806/1807/1809) so the user knows the F/N key is
+ * box 1803, not 1804, plus where airdrops (0304) and staking (0033) go.
+ */
+function CasillaHelpModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslate();
+  const titleId = useId();
+
+  return (
+    <ModalBackdrop onClose={onClose} labelledBy={titleId}>
+      <div className="bg-card rounded-xl border border-border shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col animate-modal-in">
+        <div className="flex items-start justify-between gap-3 p-5 border-b border-border">
+          <h2 id={titleId} className="text-base font-semibold text-foreground">
+            {t('crypto.aeat.casilla-popup.title')}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-guard-muted hover:text-foreground transition-colors shrink-0"
+            aria-label={t('common.close')}
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+            {t('crypto.aeat.casilla-popup.body')}
+          </p>
+        </div>
+      </div>
+    </ModalBackdrop>
   );
 }

@@ -1223,48 +1223,53 @@
       "subtitle": "Sigue estos pasos en la AEAT con los importes calculados arriba.",
       "disclaimer": "Herramienta informativa. Los cálculos se basan en la normativa actual de criptomonedas (Modelo 100 IRPF). Revisa con tu asesor fiscal antes de presentar la declaración.",
       "amount-to-enter": "Importe a introducir:",
+      "casilla-help": "¿Qué casilla uso?",
+      "casilla-popup": {
+        "title": "¿Qué casilla uso? — Monedas virtuales, Página 15 (II)",
+        "body": "Ventas y permutas de cripto (apartado F2, base del ahorro). Botón: \"Alta Elemento patrimonial\" → un elemento por cada moneda.\n\n• 1802 — Denominación de la moneda (una sola por elemento: bitcoin, ethereum…).\n• 1803 — Clave tipo de contraprestación: F = vendida por euros/fiat · N = permutada por otra cripto, NFT, bien o servicio. (Aquí va la F/N, NO en la 1804.)\n• 1804 — Valor de transmisión (un único importe, neto de gastos).\n• 1806 — Valor de adquisición (FIFO, neto de gastos).\n• 1807 — Pérdida (si 1804 − 1806 < 0) · 1809 — Ganancia (si 1804 − 1806 > 0). Las calcula Renta Web.\n\nLos cubos de la app \"1804 (F)\" y \"1804 (N)\" son solo una agrupación por clave: en el formulario, F/N se elige en la casilla 1803 y el importe va en la 1804.\n\nFuera de la Página 15 (II):\n• Airdrops / tokens gratis → casilla 0304 (apartado F1, base GENERAL, no es transmisión).\n• Staking / Earn / lending → casilla 0033 (apartado B, rendimiento del capital mobiliario, base del ahorro)."
+      },
       "casilla-1804-f": {
-        "title": "Casilla 1804 (F) — Transmisiones contra fiat",
-        "intro": "Ganancias y pérdidas por venta de cripto contra euros u otra moneda fiduciaria.",
+        "title": "Ventas de cripto por euros (clave F) — Página 15 (II)",
+        "intro": "Ganancias y pérdidas por vender cripto a cambio de euros u otra moneda de curso legal (apartado F2, base imponible del ahorro). Cada moneda se declara como un \"Elemento patrimonial\" independiente.",
         "steps": [
-          "En Renta Web ve a la página 17 (II) — \"Ganancias y pérdidas patrimoniales por transmisión de monedas virtuales por particulares\".",
-          "Pulsa \"Alta\" para añadir una nueva fila.",
-          "En \"Tipo de contraprestación\" selecciona F (Fiat).",
-          "Introduce el importe de transmisión (suma) y el importe de adquisición (suma) tal como aparecen arriba.",
-          "Renta Web calcula automáticamente la ganancia o pérdida y la traslada a la base imponible del ahorro."
+          "En Renta Web abre la \"Página 15 (II)\", apartado \"F2. Ganancias y pérdidas patrimoniales derivadas de la transmisión de elementos patrimoniales (base del ahorro)\", subapartado \"transmisión o permuta de monedas virtuales por particulares\".",
+          "Pulsa \"Alta Elemento patrimonial\". Crearás un \"Elemento patrimonial X de Y\": uno por cada moneda distinta que hayas vendido.",
+          "En la casilla 1802 escribe la denominación de la moneda (p. ej. bitcoin, ethereum). Cada elemento admite UNA sola moneda; si vendiste varias, repite el alta por cada una.",
+          "En la casilla 1803 (\"clave tipo de contraprestación\") elige F, porque recibiste euros u otra moneda de curso legal.",
+          "En la casilla 1804 escribe el valor de transmisión de esa moneda y en la casilla 1806 el valor de adquisición (FIFO), tal como aparecen arriba. Renta Web calcula sola la ganancia (casilla 1809) o la pérdida (casilla 1807) y la lleva a la base del ahorro."
         ],
-        "note": "Si tienes pérdidas, podrás compensarlas con ganancias del mismo grupo en los próximos 4 ejercicios."
+        "note": "Recuerda: la 1804 es solo el valor de transmisión; lo que marca que es venta por euros es la clave F de la casilla 1803. Las pérdidas se pueden compensar con ganancias del mismo grupo en los 4 ejercicios siguientes."
       },
       "casilla-1804-n": {
-        "title": "Casilla 1804 (N) — Transmisiones contra otra cripto",
-        "intro": "Permutas de una criptomoneda por otra (BTC↔ETH, swap por USDT, dust, etc.). Se valoran al precio en EUR de cada operación.",
+        "title": "Permutas de cripto por cripto (clave N) — Página 15 (II)",
+        "intro": "Permutas de una criptomoneda por otra cripto, NFT, bien o servicio (BTC↔ETH, swap a USDT, dust, etc.). Misma pantalla que las ventas por euros, pero con clave N. Se valoran al precio en EUR de cada operación.",
         "steps": [
-          "En la misma página 17 (II) pulsa \"Alta\" otra vez.",
-          "En \"Tipo de contraprestación\" selecciona N (No fiduciaria).",
-          "Introduce el importe de transmisión y el importe de adquisición.",
-          "Si tienes muchas operaciones puedes agruparlas por activo o cargar todo como una sola fila — la AEAT acepta importes agregados siempre que conserves el detalle."
+          "En la misma \"Página 15 (II)\" pulsa \"Alta Elemento patrimonial\" para crear un elemento por cada moneda que hayas permutado.",
+          "En la casilla 1802 indica la moneda que entregaste (una por elemento) y en la casilla 1803 elige la clave N (no fiduciaria: recibiste otra cripto, un NFT, un bien o un servicio).",
+          "En la casilla 1804 pon el valor de transmisión (valor de mercado en EUR de lo recibido) y en la casilla 1806 el valor de adquisición (FIFO). El sistema calcula la ganancia (1809) o la pérdida (1807).",
+          "Crea un elemento por cada moneda distinta: la casilla 1802 solo admite una denominación, así que NO mezcles monedas diferentes en una misma fila. Dentro de una misma moneda sí puedes consolidar los lotes FIFO en un único elemento; guarda el detalle por operación (pestaña \"Detalle de transmisiones\") por si te lo piden."
         ],
-        "note": "Guarda el desglose por operación (pestaña \"Detalle de transmisiones\" arriba) por si te lo solicitan en una comprobación."
+        "note": "La clave N (casilla 1803) significa contraprestación no fiduciaria; la 1804 sigue siendo solo el valor de transmisión. Conserva el desglose por operación por si te lo solicitan en una comprobación."
       },
       "casilla-0304": {
-        "title": "Casilla 0304 — Otras ganancias patrimoniales",
-        "intro": "Airdrops, recompensas Launchpool no derivadas de staking y promociones recibidas en cripto.",
+        "title": "Casilla 0304 — Airdrops y otras ganancias patrimoniales",
+        "intro": "Airdrops, recompensas Launchpool no derivadas de staking y promociones recibidas en cripto. NO es una transmisión: va en la base general.",
         "steps": [
-          "En Renta Web ve a la página 14 — \"Ganancias y pérdidas patrimoniales que no derivan de la transmisión de elementos patrimoniales\".",
-          "Localiza la casilla 0304.",
-          "Introduce el importe en euros (valor de mercado al recibir cada airdrop, sumado para todo el ejercicio).",
-          "Tributa en la base imponible general (escala progresiva del IRPF), no en la del ahorro."
+          "Este importe NO va en la Página 15 (II). Ve al apartado \"F1. Ganancias y pérdidas patrimoniales que no derivan de la transmisión de elementos patrimoniales (a integrar en la base imponible general)\".",
+          "Localiza la casilla 0304 (\"Otras ganancias patrimoniales imputables al ejercicio que no derivan de la transmisión\").",
+          "Introduce el importe en euros: el valor de mercado de cada airdrop o token gratis en el momento exacto de recibirlo, sumado para todo el ejercicio.",
+          "Tributa en la base imponible GENERAL (escala progresiva 19%-47%), no en la del ahorro, y no se compensa con pérdidas de la base del ahorro."
         ],
-        "note": "Si vendes después esos tokens, la ganancia o pérdida adicional irá a la casilla 1804."
+        "note": "El valor que declaras aquí pasa a ser el valor de adquisición de esos tokens: cuando luego los vendas o permutes, la ganancia o pérdida irá a la Página 15 (II), casillas 1804/1806."
       },
       "casilla-0033": {
-        "title": "Casilla 0033 — Rendimientos del capital mobiliario",
+        "title": "Casilla 0033 — Rendimientos del capital mobiliario (staking)",
         "intro": "Recompensas de staking, Earn flexible/locked, ETH staking e intereses on-chain. Se declaran al valor de mercado en el momento de recibirlas.",
         "steps": [
-          "En Renta Web ve a la página 6 — \"Rendimientos del capital mobiliario\".",
-          "Localiza la casilla 0033 (Otros rendimientos del capital mobiliario).",
-          "Introduce el importe total en euros sumando todas las recompensas del año.",
-          "Tributa en la base imponible del ahorro (mismo tipo que dividendos)."
+          "Ve al apartado B \"Rendimientos del capital mobiliario a integrar en la base imponible del ahorro\".",
+          "Localiza la casilla cajón de \"otros rendimientos del capital mobiliario a integrar en la base del ahorro\" (en ejercicios recientes es la 0033; el número puede variar según el año, verifícalo en tu Renta Web).",
+          "Introduce el importe total en euros, sumando todas las recompensas del año a su valor de mercado el día en que las cobraste.",
+          "Tributa en la base imponible del ahorro (mismos tramos que los dividendos, 19%-30%), como rendimiento del capital mobiliario por cesión de capitales."
         ],
         "note": "El coste de adquisición de los tokens recibidos es ese mismo valor declarado, lo que evita tributar dos veces si después los vendes."
       }

@@ -1223,48 +1223,53 @@
       "subtitle": "Follow these steps in the Spanish tax portal with the amounts shown above.",
       "disclaimer": "Informational tool. Calculations follow the current crypto regulation (Modelo 100 IRPF). Review with your tax advisor before filing.",
       "amount-to-enter": "Amount to enter:",
+      "casilla-help": "Which box do I use?",
+      "casilla-popup": {
+        "title": "Which box do I use? — Virtual currencies, Page 15 (II)",
+        "body": "Crypto sales and swaps (section F2, savings base). Button: \"Alta Elemento patrimonial\" → one element per coin.\n\n• 1802 — Coin name (one only per element: bitcoin, ethereum…).\n• 1803 — Type-of-consideration key: F = sold for euros/fiat · N = swapped for another crypto, NFT, good or service. (F/N goes HERE, NOT in 1804.)\n• 1804 — Transmission value (a single amount, net of fees).\n• 1806 — Acquisition value (FIFO, net of fees).\n• 1807 — Loss (if 1804 − 1806 < 0) · 1809 — Gain (if 1804 − 1806 > 0). Renta Web computes these.\n\nThe app's \"1804 (F)\" and \"1804 (N)\" buckets are just a grouping by key: in the form, F/N is chosen in box 1803 and the amount goes in box 1804.\n\nOutside Page 15 (II):\n• Airdrops / free tokens → box 0304 (section F1, GENERAL base, not a transfer).\n• Staking / Earn / lending → box 0033 (section B, income from movable capital, savings base)."
+      },
       "casilla-1804-f": {
-        "title": "Box 1804 (F) — Disposals against fiat",
-        "intro": "Capital gains and losses from selling crypto for euros or other fiat currency.",
+        "title": "Selling crypto for euros (key F) — Page 15 (II)",
+        "intro": "Capital gains and losses from selling crypto for euros or other legal-tender currency (section F2, savings tax base). Each coin is filed as its own \"Elemento patrimonial\".",
         "steps": [
-          "In Renta Web go to page 17 (II) — \"Capital gains and losses from the transmission of virtual currencies by individuals\".",
-          "Click \"Add\" to create a new row.",
-          "In \"Type of consideration\" select F (Fiat).",
-          "Enter the transmission value (sum) and the acquisition value (sum) shown above.",
-          "Renta Web will automatically compute the gain or loss and move it to the savings tax base."
+          "In Renta Web open \"Page 15 (II)\", section \"F2. Capital gains and losses from the transfer of assets (savings tax base)\", subsection \"transfer or exchange of virtual currencies by individuals\".",
+          "Click \"Alta Elemento patrimonial\". This creates an \"Elemento patrimonial X de Y\": one per distinct coin you sold.",
+          "In box 1802 enter the coin's name (e.g. bitcoin, ethereum). Each element holds ONE coin only; if you sold several, add a new element for each.",
+          "In box 1803 (\"type of consideration key\") choose F, because you received euros or other legal-tender money.",
+          "In box 1804 enter that coin's transmission value and in box 1806 the acquisition value (FIFO), as shown above. Renta Web computes the gain (box 1809) or loss (box 1807) and moves it to the savings tax base."
         ],
-        "note": "If you have losses, they can be offset against gains from the same group during the next 4 fiscal years."
+        "note": "Remember: box 1804 is only the transmission value; what marks it as a fiat sale is key F in box 1803. Losses can be offset against gains of the same group over the next 4 fiscal years."
       },
       "casilla-1804-n": {
-        "title": "Box 1804 (N) — Disposals against another crypto",
-        "intro": "Swaps from one crypto to another (BTC↔ETH, swap to USDT, dust, etc.). Valued at the EUR price of each operation.",
+        "title": "Crypto-to-crypto swaps (key N) — Page 15 (II)",
+        "intro": "Exchanges of one crypto for another crypto, NFT, good or service (BTC↔ETH, swap to USDT, dust, etc.). Same screen as fiat sales but with key N. Valued at the EUR price of each operation.",
         "steps": [
-          "On the same page 17 (II) click \"Add\" again.",
-          "In \"Type of consideration\" select N (Non-fiat).",
-          "Enter the transmission value and the acquisition value.",
-          "If you have many operations you can group them by asset or upload everything as a single row — the AEAT accepts aggregated amounts as long as you keep the detail."
+          "On the same \"Page 15 (II)\" click \"Alta Elemento patrimonial\" to create one element per coin you swapped.",
+          "In box 1802 enter the coin you gave up (one per element) and in box 1803 choose key N (non-fiat: you received another crypto, an NFT, a good or a service).",
+          "In box 1804 enter the transmission value (EUR market value of what you received) and in box 1806 the acquisition value (FIFO). The system computes the gain (1809) or loss (1807).",
+          "Create one element per distinct coin: box 1802 only accepts a single denomination, so do NOT merge different coins into one row. Within the same coin you may consolidate FIFO lots into a single element; keep the per-operation detail (\"Disposals detail\" tab) as backup."
         ],
-        "note": "Keep the per-operation breakdown (\"Disposals detail\" tab above) in case they ask during an audit."
+        "note": "Key N (box 1803) means non-fiat consideration; box 1804 is still only the transmission value. Keep the per-operation breakdown in case of an audit."
       },
       "casilla-0304": {
-        "title": "Box 0304 — Other capital gains",
-        "intro": "Airdrops, Launchpool rewards not derived from staking, and crypto promotions received.",
+        "title": "Box 0304 — Airdrops and other capital gains",
+        "intro": "Airdrops, Launchpool rewards not derived from staking, and crypto promotions received. NOT a transfer: it goes in the general base.",
         "steps": [
-          "In Renta Web go to page 14 — \"Capital gains and losses not derived from the transmission of patrimonial elements\".",
-          "Find box 0304.",
-          "Enter the amount in euros (market value when receiving each airdrop, summed for the year).",
-          "Taxed at the general tax base (progressive IRPF scale), not the savings base."
+          "This amount does NOT go on Page 15 (II). Go to section \"F1. Capital gains and losses not derived from the transfer of assets (to be included in the general tax base)\".",
+          "Find box 0304 (\"Other capital gains attributable to the year not derived from a transfer\").",
+          "Enter the amount in euros: the market value of each airdrop or free token at the exact moment of receipt, summed for the whole year.",
+          "Taxed in the GENERAL tax base (progressive 19%-47% scale), not the savings base, and cannot be offset against savings-base losses."
         ],
-        "note": "If you later sell those tokens, the additional gain or loss goes into box 1804."
+        "note": "The value you declare here becomes the acquisition value of those tokens: when you later sell or swap them, the gain or loss goes to Page 15 (II), boxes 1804/1806."
       },
       "casilla-0033": {
-        "title": "Box 0033 — Capital income (capital mobiliario)",
+        "title": "Box 0033 — Income from movable capital (staking)",
         "intro": "Staking rewards, Earn flexible/locked, ETH staking and on-chain interest. Declared at market value at the time of receipt.",
         "steps": [
-          "In Renta Web go to page 6 — \"Income from movable capital\".",
-          "Find box 0033 (Other income from movable capital).",
-          "Enter the total amount in euros summing all rewards for the year.",
-          "Taxed at the savings base (same rate as dividends)."
+          "Go to section B \"Income from movable capital to be included in the savings tax base\".",
+          "Find the catch-all box for \"other income from movable capital, savings base\" (recent years it is box 0033; the number can change by year, so confirm it in your Renta Web).",
+          "Enter the total amount in euros, summing all rewards for the year at their market value on the day you received them.",
+          "Taxed in the savings base (same brackets as dividends, 19%-30%), as income from movable capital from lending of capital."
         ],
         "note": "The acquisition cost of the received tokens equals the declared value, which prevents double taxation if you sell them later."
       }
