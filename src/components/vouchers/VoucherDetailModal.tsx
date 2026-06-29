@@ -96,7 +96,7 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
     <div className="rounded-lg border border-guard-primary/40 bg-guard-primary/5 p-4 space-y-3 animate-fade-in">
       <p className="text-sm font-semibold text-foreground">{t('vouchers.use.title')}</p>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 items-end gap-3">
         {/* Consumption date (defaults to today) */}
         <div>
           <label htmlFor="consume-date" className="block text-xs font-medium text-guard-muted mb-1">
@@ -153,25 +153,25 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
         </p>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={!canSubmit || createTransaction.isPending}
           className={cn(
-            'flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors',
+            'w-full sm:flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors',
             'bg-guard-primary text-white hover:bg-guard-primary/90',
             'disabled:opacity-50 disabled:cursor-not-allowed',
           )}
         >
-          <Ticket className="h-4 w-4" aria-hidden="true" />
+          <Ticket className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           {createTransaction.isPending ? t('vouchers.use.saving') : t('vouchers.use.submit')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           disabled={createTransaction.isPending}
-          className="inline-flex items-center justify-center rounded-lg bg-muted px-4 py-2.5 font-medium text-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+          className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-muted px-4 py-2.5 font-medium text-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
         >
           {t('common.buttons.cancel')}
         </button>
