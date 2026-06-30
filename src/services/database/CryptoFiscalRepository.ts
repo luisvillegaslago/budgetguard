@@ -343,12 +343,10 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
          )::text AS "IncompleteCount",
          COUNT(*) FILTER (
            WHERE "PriceSource" = $3
-              OR "TransmissionValueCents" = 0
               OR EXISTS (
                    SELECT 1
                    FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
                    WHERE (lot->>'sourcePriceSource') = $3
-                      OR (lot->>'acquisitionValueCents')::numeric = 0
                       OR (lot->>'fmvProxy')::boolean
                  )
          )::text AS "NeedsReviewCount"

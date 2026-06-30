@@ -108,9 +108,10 @@ export interface CryptoDisposalDraft {
   /** True when the FIFO queue ran out of lots before covering the disposal. */
   incompleteCoverage: boolean;
   /**
-   * True when the disposal's transmission price was unresolved/0, OR any
-   * consumed lot's cost was unresolved/0, OR any consumed lot is a transfer_in
-   * FMV-proxy. Distinct from incompleteCoverage (queue exhaustion).
+   * True when the disposal's transmission price was unresolved, OR any consumed
+   * lot's acquisition price was unresolved, OR any consumed lot is a transfer_in
+   * FMV-proxy. A 0 € value from a RESOLVED price is reliable and NOT flagged.
+   * Distinct from incompleteCoverage (queue exhaustion).
    */
   needsReview: boolean;
 }
@@ -238,14 +239,14 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
   const gainLossCents =
     transmissionValueCents - transmissionFeeCents - totalAcquisitionCents - totalAcquisitionFeeCents;
 
-  // needsReview: the transmission price is unresolved/0, OR any consumed lot's
-  // cost is unresolved/0, OR any consumed lot is a transfer_in FMV proxy (M1).
-  // Lot cost is checked via acquisitionValueCents (the apportioned basis), NOT
-  // unitCostCents — after the sub-cent fix a valid lot can have unitCostCents=0.
-  const transmissionUnreliable = event.priceSource === CRYPTO_PRICE_SOURCE.UNRESOLVED || transmissionValueCents === 0;
+  // needsReview flags only UNRELIABLE valuations: an unresolved transmission
+  // price, a lot whose acquisition price was unresolved, or a transfer_in
+  // FMV-proxy lot (M1). A 0 € value from a RESOLVED price is reliable (a tiny
+  // staking reward genuinely worth ~0 €), so it is NOT flagged — otherwise a
+  // heavy Earn user would see thousands of false positives.
+  const transmissionUnreliable = event.priceSource === CRYPTO_PRICE_SOURCE.UNRESOLVED;
   const lotUnreliable = consumedLots.some(
-    (lot) =>
-      lot.sourcePriceSource === CRYPTO_PRICE_SOURCE.UNRESOLVED || lot.acquisitionValueCents === 0 || lot.fmvProxy,
+    (lot) => lot.sourcePriceSource === CRYPTO_PRICE_SOURCE.UNRESOLVED || lot.fmvProxy,
   );
   const needsReview = transmissionUnreliable || lotUnreliable;
 
