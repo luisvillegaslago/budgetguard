@@ -23,11 +23,10 @@ import {
 const FIXED_DATE = new Date('2025-06-15T10:00:00Z');
 
 describe('normalizeSpotTrade', () => {
-  it('BUY of BTCUSDT → acquisition of BTC (F, USD-stablecoin counter) + disposal of USDT (N, BTC counter)', () => {
-    // USD-pegged stablecoins (USDC, USDT, BUSD, FDUSD, DAI, TUSD) are
-    // treated as pseudo-fiat counters per the finbooks alignment: a
-    // disposal whose counter is one of them is routed to box 1804-F.
-    // The other side (USDT disposal vs BTC) keeps N because BTC isn't fiat.
+  it('BUY of BTCUSDT → acquisition of BTC (N, stablecoin counter) + disposal of USDT (N, BTC counter)', () => {
+    // Stablecoins (USDC, USDT, BUSD, FDUSD, DAI, TUSD) are monedas virtuales,
+    // not legal-tender fiat, so the AEAT clave (casilla 1803) is N, not F.
+    // Both legs of a crypto↔stablecoin trade are non-fiat permutas.
     const legs = normalizeSpotTrade({
       eventType: CRYPTO_EVENT_TYPE.SPOT_TRADE,
       occurredAt: FIXED_DATE,
@@ -50,7 +49,7 @@ describe('normalizeSpotTrade', () => {
       counterQuantityNative: '600',
       feeAsset: 'BTC',
       feeQuantityNative: '0.000005',
-      contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+      contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
     });
     expect(legs[1]).toEqual({
       kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
@@ -158,7 +157,7 @@ describe('normalizeSpotTrade', () => {
 });
 
 describe('normalizeConvert', () => {
-  it('BTC → USDT routes BTC disposal as F (USDT is a USD-stablecoin counter)', () => {
+  it('BTC → USDT routes BTC disposal as N (stablecoin is crypto, not fiat)', () => {
     const legs = normalizeConvert({
       eventType: CRYPTO_EVENT_TYPE.CONVERT,
       occurredAt: FIXED_DATE,
@@ -168,7 +167,7 @@ describe('normalizeConvert', () => {
     expect(legs).toHaveLength(2);
     expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.DISPOSAL);
     expect(legs[0]?.asset).toBe('BTC');
-    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.FIAT);
+    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.NON_FIAT);
     expect(legs[1]?.kind).toBe(CRYPTO_TAXABLE_KIND.ACQUISITION);
     expect(legs[1]?.asset).toBe('USDT');
     expect(legs[1]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.NON_FIAT);
@@ -195,14 +194,14 @@ describe('normalizeConvert', () => {
     'FDUSD',
     'DAI',
     'TUSD',
-  ])('BTC → %s routes BTC disposal as F (USD-stablecoin counter)', (stable) => {
+  ])('BTC → %s routes BTC disposal as N (stablecoin counter is crypto)', (stable) => {
     const legs = normalizeConvert({
       eventType: CRYPTO_EVENT_TYPE.CONVERT,
       occurredAt: FIXED_DATE,
       rawPayload: { fromAsset: 'BTC', toAsset: stable, fromAmount: '0.01', toAmount: '600' },
     });
     expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.DISPOSAL);
-    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.FIAT);
+    expect(legs[0]?.contraprestacion).toBe(CRYPTO_CONTRAPRESTACION.NON_FIAT);
   });
 });
 
@@ -290,6 +289,26 @@ describe('normalizeDividend (classification)', () => {
       eventType: CRYPTO_EVENT_TYPE.DIVIDEND,
       occurredAt: FIXED_DATE,
       rawPayload: { asset: 'XYZ', amount: '1', enInfo: 'Some New Thing' },
+    });
+    expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.AIRDROP);
+  });
+
+  it('classifies "Megadrop Rewards" as airdrop — specific airdrop label beats generic "rewards"', () => {
+    // "rewards" is a staking keyword and "megadrop" an airdrop keyword; the
+    // airdrop label must win (casilla 0304, base general) over staking (0033).
+    const legs = normalizeDividend({
+      eventType: CRYPTO_EVENT_TYPE.DIVIDEND,
+      occurredAt: FIXED_DATE,
+      rawPayload: { asset: 'ZK', amount: '10', enInfo: 'Megadrop Rewards' },
+    });
+    expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.AIRDROP);
+  });
+
+  it('classifies "HODLer Airdrops Rewards" as airdrop despite the "rewards" token', () => {
+    const legs = normalizeDividend({
+      eventType: CRYPTO_EVENT_TYPE.DIVIDEND,
+      occurredAt: FIXED_DATE,
+      rawPayload: { asset: 'BREV', amount: '100', enInfo: 'HODLer Airdrops Rewards' },
     });
     expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.AIRDROP);
   });

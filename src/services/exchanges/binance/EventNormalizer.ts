@@ -57,30 +57,23 @@ export interface NormaliserContext {
 
 const FIAT_CURRENCIES = new Set(['EUR', 'USD', 'GBP', 'CHF', 'TRY', 'ARS', 'BRL', 'MXN', 'AUD', 'CAD', 'JPY']);
 
-/**
- * USD-pegged stablecoins. Technically AEAT classifies them as crypto
- * (so a swap into USDC is `N`, not `F`), but tax tools like finbooks
- * treat them as "pseudo-fiat" because the user economic exposure is to
- * USD, not to a volatile asset. We follow the finbooks convention: a
- * disposal whose counter is a USD-stablecoin gets routed to box 1804-F.
- *
- * `isFiat` (real fiat only) keeps doing its job — suppressing EUR/USD
- * legs entirely so we don't emit "disposal of EUR" rows. Stablecoins
- * remain emittable (USDC dust → BNB is a real disposal of USDC).
- */
-const STABLECOIN_USD = new Set(['USDC', 'USDT', 'BUSD', 'FDUSD', 'DAI', 'TUSD']);
-
 function isFiat(asset: string | undefined): boolean {
   return !!asset && FIAT_CURRENCIES.has(asset);
 }
 
-function isFiatLikeCounter(asset: string | undefined): boolean {
-  return !!asset && (FIAT_CURRENCIES.has(asset) || STABLECOIN_USD.has(asset));
-}
-
+/**
+ * Maps the counter asset to the AEAT casilla-1803 "clave tipo de
+ * contraprestación": F only when the consideration is legal-tender fiat,
+ * N otherwise.
+ *
+ * Stablecoins (USDT/USDC/DAI…) are monedas virtuales, NOT legal tender, so a
+ * crypto→stablecoin trade is a permuta and carries key N — not F. They stay
+ * emittable (only real fiat is suppressed via `isFiat`), so USDT/USDC
+ * disposals and lots are still tracked.
+ */
 function contraprestacionFor(counterAsset: string | undefined): CryptoContraprestacion | null {
   if (!counterAsset) return null;
-  return isFiatLikeCounter(counterAsset) ? CRYPTO_CONTRAPRESTACION.FIAT : CRYPTO_CONTRAPRESTACION.NON_FIAT;
+  return isFiat(counterAsset) ? CRYPTO_CONTRAPRESTACION.FIAT : CRYPTO_CONTRAPRESTACION.NON_FIAT;
 }
 
 // ============================================================
@@ -285,8 +278,12 @@ const AIRDROP_INFO_KEYWORDS = ['airdrop', 'launchpool', 'megadrop', 'distributio
 
 function classifyDividend(enInfo: string): CryptoTaxableKind {
   const lower = enInfo.toLowerCase();
-  if (STAKING_INFO_KEYWORDS.some((kw) => lower.includes(kw))) return CRYPTO_TAXABLE_KIND.STAKING_REWARD;
+  // Specific airdrop labels must win over the broad staking 'rewards' keyword:
+  // labels like "Megadrop Rewards" or "HODLer Airdrops" contain both, and the
+  // airdrop (casilla 0304, base general) vs staking (0033, base ahorro) split
+  // changes the tax base and rate.
   if (AIRDROP_INFO_KEYWORDS.some((kw) => lower.includes(kw))) return CRYPTO_TAXABLE_KIND.AIRDROP;
+  if (STAKING_INFO_KEYWORDS.some((kw) => lower.includes(kw))) return CRYPTO_TAXABLE_KIND.STAKING_REWARD;
   return CRYPTO_TAXABLE_KIND.AIRDROP; // conservative fallback
 }
 
