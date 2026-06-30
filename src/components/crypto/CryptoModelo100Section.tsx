@@ -243,6 +243,48 @@ const ELEMENT_CONTRAPRESTACION_LABEL_KEY: Record<CryptoContraprestacion, string>
   [CRYPTO_CONTRAPRESTACION.NON_FIAT]: 'crypto.fiscal.contraprestacion-n',
 };
 
+/**
+ * A euro figure whose digits double-click-copy cleanly: the "€" lives in its
+ * own node, so the browser word-selection never includes a trailing space
+ * before the symbol. The user transcribes these into Renta Web by double-click
+ * + copy, so the selection must be exactly the number.
+ */
+function EuroAmount({ cents }: { cents: number }) {
+  return (
+    <span>
+      <span>{formatCurrency(cents, false)}</span>
+      <span> €</span>
+    </span>
+  );
+}
+
+/**
+ * "(importe ± gastos)" split shown inline after casilla 1804 / 1806. Renta
+ * Web's adquisición/transmisión sub-dialog asks for the importe and the gastos
+ * in SEPARATE fields, so the user needs both components (even when gastos is 0),
+ * not just the net total. Each number sits in its own node so it
+ * double-click-copies cleanly too.
+ */
+function ElementBreakdown({
+  baseCents,
+  feeCents,
+  operator,
+}: {
+  baseCents: number;
+  feeCents: number;
+  operator: '+' | '−';
+}) {
+  return (
+    <span className="font-normal text-guard-muted">
+      <span aria-hidden="true"> (</span>
+      <span>{formatCurrency(baseCents, false)}</span>
+      <span aria-hidden="true">{` ${operator} `}</span>
+      <span>{formatCurrency(feeCents, false)}</span>
+      <span aria-hidden="true">)</span>
+    </span>
+  );
+}
+
 function Modelo100ElementsTable({ elements }: { elements: Modelo100Element[] }) {
   const { t } = useTranslate();
   if (elements.length === 0) return null;
@@ -274,13 +316,27 @@ function Modelo100ElementsTable({ elements }: { elements: Modelo100Element[] }) 
                     <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{el.asset}</span>
                   </td>
                   <td className="py-2 pr-3 text-xs">{t(ELEMENT_CONTRAPRESTACION_LABEL_KEY[el.contraprestacion])}</td>
-                  <td className="py-2 pr-3 text-right font-mono">{formatCurrency(boxes.box1804Cents)}</td>
-                  <td className="py-2 pr-3 text-right font-mono">{formatCurrency(boxes.box1806Cents)}</td>
+                  <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
+                    <EuroAmount cents={boxes.box1804Cents} />
+                    <ElementBreakdown
+                      baseCents={el.transmissionValueCents}
+                      feeCents={el.transmissionFeeCents}
+                      operator="−"
+                    />
+                  </td>
+                  <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
+                    <EuroAmount cents={boxes.box1806Cents} />
+                    <ElementBreakdown
+                      baseCents={el.acquisitionValueCents}
+                      feeCents={el.acquisitionFeeCents}
+                      operator="+"
+                    />
+                  </td>
                   <td className="py-2 pr-3 text-right font-mono text-guard-danger">
-                    {boxes.box1807Cents > 0 ? formatCurrency(boxes.box1807Cents) : '—'}
+                    {boxes.box1807Cents > 0 ? <EuroAmount cents={boxes.box1807Cents} /> : '—'}
                   </td>
                   <td className="py-2 pr-3 text-right font-mono text-guard-success">
-                    {boxes.box1809Cents > 0 ? formatCurrency(boxes.box1809Cents) : '—'}
+                    {boxes.box1809Cents > 0 ? <EuroAmount cents={boxes.box1809Cents} /> : '—'}
                   </td>
                 </tr>
               );

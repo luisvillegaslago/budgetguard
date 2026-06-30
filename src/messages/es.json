@@ -1281,10 +1281,10 @@
         "title": "Casilla 0033 — Rendimientos del capital mobiliario (staking)",
         "intro": "Recompensas de staking, Earn flexible/locked, ETH staking e intereses on-chain. Se declaran al valor de mercado en el momento de recibirlas.",
         "steps": [
-          "Ve al apartado B \"Rendimientos del capital mobiliario a integrar en la base imponible del ahorro\".",
-          "Localiza la casilla cajón de \"otros rendimientos del capital mobiliario a integrar en la base del ahorro\" (en ejercicios recientes es la 0033; el número puede variar según el año, verifícalo en tu Renta Web).",
+          "Ve al apartado B \"Rendimientos del capital mobiliario\" (Página 5), subapartado \"Rendimientos del capital mobiliario a integrar en la base imponible del ahorro\".",
+          "Localiza la casilla 0033 \"Rendimientos procedentes de rentas que tengan por causa la imposición de capitales y otros rendimientos del capital mobiliario a integrar en la base imponible del ahorro\".",
           "Introduce el importe total en euros, sumando todas las recompensas del año a su valor de mercado el día en que las cobraste.",
-          "Tributa en la base imponible del ahorro (mismos tramos que los dividendos, 19%-30%), como rendimiento del capital mobiliario por cesión de capitales."
+          "Tributa en la base imponible del ahorro (mismos tramos que los dividendos, 19%-30%), como rendimiento del capital mobiliario."
         ],
         "note": "El coste de adquisición de los tokens recibidos es ese mismo valor declarado, lo que evita tributar dos veces si después los vendes."
       }

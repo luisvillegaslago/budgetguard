@@ -1281,10 +1281,10 @@
         "title": "Box 0033 — Income from movable capital (staking)",
         "intro": "Staking rewards, Earn flexible/locked, ETH staking and on-chain interest. Declared at market value at the time of receipt.",
         "steps": [
-          "Go to section B \"Income from movable capital to be included in the savings tax base\".",
-          "Find the catch-all box for \"other income from movable capital, savings base\" (recent years it is box 0033; the number can change by year, so confirm it in your Renta Web).",
+          "Go to section B \"Income from movable capital\" (Page 5), subsection \"Income from movable capital to be included in the savings tax base\".",
+          "Find box 0033 \"Income from annuities arising from the investment of capital and other income from movable capital to be included in the savings tax base\".",
           "Enter the total amount in euros, summing all rewards for the year at their market value on the day you received them.",
-          "Taxed in the savings base (same brackets as dividends, 19%-30%), as income from movable capital from lending of capital."
+          "Taxed in the savings base (same brackets as dividends, 19%-30%), as income from movable capital."
         ],
         "note": "The acquisition cost of the received tokens equals the declared value, which prevents double taxation if you sell them later."
       }
