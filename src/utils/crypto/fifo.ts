@@ -37,6 +37,7 @@ import {
   type CryptoContraprestacion,
   type CryptoTaxableKind,
 } from '@/constants/finance';
+import { fiscalYearOf } from '@/utils/crypto/fiscalYear';
 
 // ============================================================
 // Types
@@ -205,7 +206,7 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
 
   return {
     taxableEventId: event.taxableEventId,
-    fiscalYear: new Date(event.occurredAt).getUTCFullYear(),
+    fiscalYear: fiscalYearOf(event.occurredAt),
     occurredAt: event.occurredAt,
     asset: event.asset,
     contraprestacion: event.contraprestacion,
@@ -286,13 +287,13 @@ export function summariseForModelo100(
   });
 
   airdropEvents
-    .filter((e) => new Date(e.occurredAt).getUTCFullYear() === fiscalYear)
+    .filter((e) => fiscalYearOf(e.occurredAt) === fiscalYear)
     .forEach((e) => {
       summary.casilla0304Cents += e.grossValueEurCents;
     });
 
   stakingRewardEvents
-    .filter((e) => new Date(e.occurredAt).getUTCFullYear() === fiscalYear)
+    .filter((e) => fiscalYearOf(e.occurredAt) === fiscalYear)
     .forEach((e) => {
       summary.casilla0033Cents += e.grossValueEurCents;
     });

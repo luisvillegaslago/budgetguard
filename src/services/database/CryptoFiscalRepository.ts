@@ -19,6 +19,7 @@ import {
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { type CryptoDisposalDraft, type FifoTaxableEvent, runFifo } from '@/utils/crypto/fifo';
+import { madridYearStartUtc } from '@/utils/crypto/fiscalYear';
 import { query } from './connection';
 
 interface TaxableEventForFifoRow {
@@ -48,9 +49,9 @@ export interface RecomputeResult {
  * Idempotent: calling twice yields the same disposals.
  */
 export async function recomputeYearForUser(userId: number, fiscalYear: number): Promise<RecomputeResult> {
-  // Pull every taxable event up to the END of `fiscalYear`. Anything later
-  // is irrelevant for this year's FIFO.
-  const yearEnd = new Date(Date.UTC(fiscalYear + 1, 0, 1)).toISOString();
+  // Pull every taxable event up to the END of `fiscalYear` (Madrid civil
+  // time). Anything later is irrelevant for this year's FIFO.
+  const yearEnd = madridYearStartUtc(fiscalYear + 1).toISOString();
   const rows = await query<TaxableEventForFifoRow>(
     `SELECT "EventID"::text AS "EventID", "Kind", "OccurredAt", "Asset",
             "QuantityNative", "UnitPriceEurCents", "GrossValueEurCents",
@@ -266,8 +267,10 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
   const userId = await getUserIdOrThrow();
 
   // Aggregate disposals by Contraprestacion (1804-F vs 1804-N).
-  const yearStart = new Date(Date.UTC(fiscalYear, 0, 1)).toISOString();
-  const yearEnd = new Date(Date.UTC(fiscalYear + 1, 0, 1)).toISOString();
+  // Airdrop/staking rows are filtered by OccurredAt, so the year bounds must
+  // match Madrid civil time (same basis as the disposals' FiscalYear column).
+  const yearStart = madridYearStartUtc(fiscalYear).toISOString();
+  const yearEnd = madridYearStartUtc(fiscalYear + 1).toISOString();
 
   const [bucketRows, airdropStakingRows] = await Promise.all([
     query<BucketRow>(
@@ -432,7 +435,7 @@ export async function listDisposals(filters: {
 export async function listFiscalYearsWithData(): Promise<number[]> {
   const userId = await getUserIdOrThrow();
   const rows = await query<{ year: number }>(
-    `SELECT DISTINCT EXTRACT(YEAR FROM "OccurredAt")::int AS year
+    `SELECT DISTINCT EXTRACT(YEAR FROM "OccurredAt" AT TIME ZONE 'Europe/Madrid')::int AS year
      FROM "TaxableEvents"
      WHERE "UserID" = $1
      ORDER BY year DESC`,
