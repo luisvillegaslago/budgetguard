@@ -1029,6 +1029,10 @@ CREATE TABLE "CryptoPriceCache" (
     "Asset" VARCHAR(20) NOT NULL,
     "DateUtc" DATE NOT NULL,
     "EurPriceCents" BIGINT NOT NULL,
+    -- High-resolution per-unit price in micro-cents (cents x 1e6 = EUR x 1e8)
+    -- so sub-cent tokens (SHIB/PEPE) don't quantize to 0 before being
+    -- multiplied by quantity.
+    "EurPriceMicroCents" BIGINT NOT NULL,
     "Source" VARCHAR(30) NOT NULL,
     "ResolvedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("Asset", "DateUtc")

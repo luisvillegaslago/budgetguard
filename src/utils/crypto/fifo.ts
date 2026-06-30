@@ -62,8 +62,10 @@ interface Lot {
   sourceDate: string;
   /** Quantity still available in the lot (after partial consumption). */
   quantityRemaining: number;
-  /** Per-unit acquisition cost (EUR cents per native unit). */
+  /** Per-unit acquisition cost (EUR cents per native unit). Display only — may be 0 for sub-cent assets; cost basis is apportioned from grossCentsRemaining, NOT this. */
   unitCostCents: number;
+  /** Precise stored gross still available in the lot (EUR cents). Apportioned pro-rata as the lot is consumed so sub-cent assets keep their basis. */
+  grossCentsRemaining: number;
   /** Total fee paid on this lot (EUR cents). Allocated pro-rata when the lot is partially consumed. */
   feeCentsRemaining: number;
 }
@@ -142,6 +144,7 @@ function pushLot(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): void
     sourceDate: event.occurredAt,
     quantityRemaining: qty,
     unitCostCents: event.unitPriceEurCents,
+    grossCentsRemaining: event.grossValueEurCents,
     feeCentsRemaining: event.feeEurCents,
   });
   lotsByAsset.set(event.asset, queue);
@@ -172,7 +175,14 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
       continue;
     }
 
-    const acquisitionValueCents = Math.round(take * lot.unitCostCents);
+    // Apportion the lot's STORED gross (precise, sub-cent safe) proportionally
+    // to the slice consumed. Multiplying a per-unit cent price here would
+    // re-quantize sub-cent assets to 0. Full consumption takes whatever gross
+    // is left so the apportioned slices sum to the lot's original gross exactly.
+    const acquisitionValueCents =
+      take >= lot.quantityRemaining
+        ? lot.grossCentsRemaining
+        : Math.round(lot.grossCentsRemaining * (take / lot.quantityRemaining));
     // Allocate the lot's remaining fee proportionally to the slice consumed.
     const feeShare = lot.quantityRemaining > 0 ? Math.round(lot.feeCentsRemaining * (take / lot.quantityRemaining)) : 0;
 
@@ -189,6 +199,7 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
     totalAcquisitionFeeCents += feeShare;
 
     lot.quantityRemaining -= take;
+    lot.grossCentsRemaining -= acquisitionValueCents;
     lot.feeCentsRemaining -= feeShare;
     remaining -= take;
 

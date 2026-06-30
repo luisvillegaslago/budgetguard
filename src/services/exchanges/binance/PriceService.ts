@@ -54,7 +54,10 @@ export type PriceSource =
 export interface ResolvedPrice {
   asset: string;
   dateUtc: string; // YYYY-MM-DD
+  /** Rounded integer cents. Display / chart use only — may be 0 for sub-cent assets. */
   eurPriceCents: number;
+  /** Micro-cents (cents x 1e6 = EUR x 1e8). Use this to compute gross precisely. */
+  eurPriceMicroCents: number;
   source: PriceSource;
 }
 
@@ -80,7 +83,13 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
   // 1. Cache
   const cached = await getCachedPrice(asset, dateUtc);
   if (cached) {
-    return { asset, dateUtc, eurPriceCents: cached.eurPriceCents, source: 'cache' };
+    return {
+      asset,
+      dateUtc,
+      eurPriceCents: cached.eurPriceCents,
+      eurPriceMicroCents: cached.eurPriceMicroCents,
+      source: 'cache',
+    };
   }
 
   const resolved = await resolveFromCascade(asset, dateUtc, at);
@@ -97,6 +106,7 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
       asset: resolved.asset,
       dateUtc: resolved.dateUtc,
       eurPriceCents: resolved.eurPriceCents,
+      eurPriceMicroCents: resolved.eurPriceMicroCents,
       source: resolved.source,
     } satisfies CachedPrice);
   }
@@ -108,7 +118,7 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
 async function resolveFromCascade(asset: string, dateUtc: string, at: Date): Promise<ResolvedPrice> {
   // 2a. Asset is itself EUR/EUR-stablecoin → 1 EUR per unit
   if (EUR_STABLECOINS.has(asset)) {
-    return { asset, dateUtc, eurPriceCents: 100, source: 'eur_self' };
+    return buildResolved(asset, dateUtc, 1, 'eur_self');
   }
 
   // 2b. Asset is USD-pegged stablecoin → 1 USD per unit; convert via EURUSDT
@@ -117,14 +127,14 @@ async function resolveFromCascade(asset: string, dateUtc: string, at: Date): Pro
     if (eurUsdt != null) {
       // Price of 1 USDT in EUR = 1 / eurUsdt (since EURUSDT close is "USDT per EUR")
       const eurPerUsdt = 1 / eurUsdt;
-      return { asset, dateUtc, eurPriceCents: toEurCents(eurPerUsdt), source: 'stablecoin_usd_cross' };
+      return buildResolved(asset, dateUtc, eurPerUsdt, 'stablecoin_usd_cross');
     }
   }
 
   // 3. Direct EUR pair on Binance
   const directEur = await fetchKlineEurClose(`${asset}EUR`, at);
   if (directEur != null) {
-    return { asset, dateUtc, eurPriceCents: toEurCents(directEur), source: 'binance_eur' };
+    return buildResolved(asset, dateUtc, directEur, 'binance_eur');
   }
 
   // 4. {Asset}USDT × EURUSDT cross-rate
@@ -132,19 +142,19 @@ async function resolveFromCascade(asset: string, dateUtc: string, at: Date): Pro
   const eurUsdt = await fetchKlineEurClose('EURUSDT', at);
   if (usdtPrice != null && eurUsdt != null && eurUsdt > 0) {
     const eurPrice = usdtPrice / eurUsdt;
-    return { asset, dateUtc, eurPriceCents: toEurCents(eurPrice), source: 'binance_usdt_cross' };
+    return buildResolved(asset, dateUtc, eurPrice, 'binance_usdt_cross');
   }
 
   // 5. CoinGecko fallback
   const coingecko = await fetchCoinGeckoEur(asset, dateUtc);
   if (coingecko != null) {
-    return { asset, dateUtc, eurPriceCents: toEurCents(coingecko), source: 'coingecko' };
+    return buildResolved(asset, dateUtc, coingecko, 'coingecko');
   }
 
   // 6. Last resort: persist as unresolved (price=0). The taxable event still
   // gets stored so the user can see it flagged in the events table, instead
   // of the whole raw event being dropped at every normalization pass.
-  return { asset, dateUtc, eurPriceCents: 0, source: 'unresolved' };
+  return buildResolved(asset, dateUtc, 0, 'unresolved');
 }
 
 // ============================================================
@@ -278,6 +288,14 @@ function startOfUtcDay(d: Date): Date {
 }
 
 /**
+ * Micro-cents per cent. The price cache and ResolvedPrice carry the per-unit
+ * EUR price at this resolution (cents x 1e6 = EUR x 1e8) so sub-cent assets
+ * (SHIB/PEPE ~ 0.00085 cents/unit) don't round to 0 before being multiplied
+ * by quantity.
+ */
+const MICRO_CENTS_PER_CENT = 1_000_000;
+
+/**
  * Convert a EUR float to BIGINT cents. Rounded to nearest cent. Inputs above
  * Number.MAX_SAFE_INTEGER / 100 (≈ 9·10^13 EUR) are not supported but no
  * realistic crypto trade ever reaches that.
@@ -290,15 +308,38 @@ function toEurCents(eur: number): number {
 }
 
 /**
- * Multiply a native quantity (string from Binance, can be 0.00000001) by an
- * EUR/cent price to get gross value in cents. Goes via a string-based
- * decimal split to avoid floating-point drift on values like 0.1 + 0.2.
- *
- * Returns Math.round of (qty × price), so the final cent value is always
- * an integer.
+ * Convert a EUR float to BIGINT micro-cents (EUR x 1e8). Keeps 8 decimal
+ * places of EUR resolution, enough for sub-cent tokens.
  */
-export function computeGrossEurCents(quantityNative: string | number, eurPriceCents: number): number {
+function toEurMicroCents(eur: number): number {
+  if (!Number.isFinite(eur) || eur < 0) {
+    throw new BinanceClientError(API_ERROR.CRYPTO.PRICE_NOT_FOUND, undefined, { reason: 'invalid_price', value: eur });
+  }
+  return Math.round(eur * 100 * MICRO_CENTS_PER_CENT);
+}
+
+/**
+ * Build a ResolvedPrice from a single EUR float, filling both the rounded
+ * cents (display) and the micro-cents (precise gross) representations.
+ */
+function buildResolved(asset: string, dateUtc: string, eur: number, source: PriceSource): ResolvedPrice {
+  return {
+    asset,
+    dateUtc,
+    eurPriceCents: toEurCents(eur),
+    eurPriceMicroCents: toEurMicroCents(eur),
+    source,
+  };
+}
+
+/**
+ * Multiply a native quantity (string from Binance, can be 0.00000001) by a
+ * per-unit EUR price expressed in MICRO-CENTS, then round ONCE to integer
+ * cents. Multiplying in micro-cent space first is what keeps sub-cent assets
+ * from collapsing to 0: 1e8 SHIB * 850 micro-cents / 1e6 = 85000 cents.
+ */
+export function computeGrossEurCents(quantityNative: string | number, eurPriceMicroCents: number): number {
   const qty = typeof quantityNative === 'string' ? Number(quantityNative) : quantityNative;
   if (!Number.isFinite(qty) || qty < 0) return 0;
-  return Math.round(qty * eurPriceCents);
+  return Math.round((qty * eurPriceMicroCents) / MICRO_CENTS_PER_CENT);
 }

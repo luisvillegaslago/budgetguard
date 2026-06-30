@@ -16,6 +16,7 @@ interface PriceRow {
   // Accept both shapes here so the repository works in both environments.
   DateUtc: string | Date;
   EurPriceCents: string;
+  EurPriceMicroCents: string;
   Source: string;
   ResolvedAt: string | Date;
 }
@@ -24,6 +25,8 @@ export interface CachedPrice {
   asset: string;
   dateUtc: string; // YYYY-MM-DD
   eurPriceCents: number;
+  // Micro-cents (cents x 1e6 = EUR x 1e8). High-resolution per-unit price.
+  eurPriceMicroCents: number;
   source: string;
 }
 
@@ -37,13 +40,14 @@ function rowToPrice(row: PriceRow): CachedPrice {
     asset: row.Asset,
     dateUtc: toDateString(row.DateUtc),
     eurPriceCents: Number(row.EurPriceCents),
+    eurPriceMicroCents: Number(row.EurPriceMicroCents),
     source: row.Source,
   };
 }
 
 export async function getCachedPrice(asset: string, dateUtc: string): Promise<CachedPrice | null> {
   const rows = await query<PriceRow>(
-    `SELECT "Asset", "DateUtc", "EurPriceCents", "Source", "ResolvedAt"
+    `SELECT "Asset", "DateUtc", "EurPriceCents", "EurPriceMicroCents", "Source", "ResolvedAt"
      FROM "CryptoPriceCache"
      WHERE "Asset" = $1 AND "DateUtc" = $2::date`,
     [asset, dateUtc],
@@ -58,9 +62,9 @@ export async function getCachedPrice(asset: string, dateUtc: string): Promise<Ca
  */
 export async function putCachedPrice(input: CachedPrice): Promise<void> {
   await query(
-    `INSERT INTO "CryptoPriceCache" ("Asset", "DateUtc", "EurPriceCents", "Source")
-     VALUES ($1, $2::date, $3, $4)
+    `INSERT INTO "CryptoPriceCache" ("Asset", "DateUtc", "EurPriceCents", "EurPriceMicroCents", "Source")
+     VALUES ($1, $2::date, $3, $4, $5)
      ON CONFLICT ("Asset", "DateUtc") DO NOTHING`,
-    [input.asset, input.dateUtc, input.eurPriceCents, input.source],
+    [input.asset, input.dateUtc, input.eurPriceCents, input.eurPriceMicroCents, input.source],
   );
 }

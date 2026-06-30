@@ -147,8 +147,10 @@ async function enrichLegsWithPrices(
       priceSource = 'fiat_counter';
     } else {
       const price = await getPriceEurCents(leg.asset, occurredAt);
+      // UnitPriceEurCents is display-only (may be 0 for sub-cent assets); gross
+      // is computed from the micro-cent price so it doesn't quantize to 0.
       unitPriceEurCents = price.eurPriceCents;
-      grossValueEurCents = computeGrossEurCents(leg.quantityNative, price.eurPriceCents);
+      grossValueEurCents = computeGrossEurCents(leg.quantityNative, price.eurPriceMicroCents);
       priceSource = price.source;
     }
 
@@ -157,7 +159,7 @@ async function enrichLegsWithPrices(
       // EUR fees resolve to 1 EUR/unit via PriceService (eur_self), so this
       // already yields the exact euro fee; non-EUR fees are priced to EUR.
       const feePrice = await getPriceEurCents(leg.feeAsset, occurredAt);
-      feeEurCents = computeGrossEurCents(leg.feeQuantityNative, feePrice.eurPriceCents);
+      feeEurCents = computeGrossEurCents(leg.feeQuantityNative, feePrice.eurPriceMicroCents);
     }
 
     enriched.push({

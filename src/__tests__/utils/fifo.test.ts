@@ -435,3 +435,70 @@ describe('summariseForModelo100', () => {
     expect(summary.casilla0033Cents).toBe(3_00);
   });
 });
+
+describe('runFifo — sub-cent assets (gross apportionment)', () => {
+  it('apportions basis from stored gross when unit price rounds to 0', () => {
+    const result = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'SHIB',
+        quantityNative: '100000000',
+        unitPriceEurCents: 0, // 0.0000085 EUR/unit rounds to 0 cents
+        grossValueEurCents: 85_000, // but the precise stored gross is 850 EUR
+        occurredAt: '2024-06-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'SHIB',
+        quantityNative: '100000000',
+        unitPriceEurCents: 0,
+        grossValueEurCents: 90_000, // sold for 900 EUR
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2025-03-15T00:00:00Z',
+      }),
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.acquisitionValueCents).toBe(85_000); // not 0
+    expect(result[0]?.transmissionValueCents).toBe(90_000);
+    expect(result[0]?.gainLossCents).toBe(5_000);
+    expect(result[0]?.incompleteCoverage).toBe(false);
+  });
+
+  it('apportions a partial sub-cent disposal proportionally and conserves gross', () => {
+    const result = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'PEPE',
+        quantityNative: '100000000',
+        unitPriceEurCents: 0,
+        grossValueEurCents: 85_000,
+        occurredAt: '2024-06-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'PEPE',
+        quantityNative: '40000000', // 40% of the lot
+        unitPriceEurCents: 0,
+        grossValueEurCents: 40_000,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2025-07-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'PEPE',
+        quantityNative: '60000000', // remaining 60%
+        unitPriceEurCents: 0,
+        grossValueEurCents: 60_000,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2025-08-01T00:00:00Z',
+      }),
+    ]);
+
+    expect(result).toHaveLength(2);
+    // 40% of 85_000 = 34_000; remainder takes the rest = 51_000; sum == 85_000.
+    expect(result[0]?.acquisitionValueCents).toBe(34_000);
+    expect(result[1]?.acquisitionValueCents).toBe(51_000);
+    expect((result[0]?.acquisitionValueCents ?? 0) + (result[1]?.acquisitionValueCents ?? 0)).toBe(85_000);
+  });
+});
