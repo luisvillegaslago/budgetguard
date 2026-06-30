@@ -339,7 +339,7 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
               OR (
                    SELECT COALESCE(SUM((lot->>'quantityConsumed')::numeric), 0)
                    FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
-                 ) < "QuantityNative" - 1e-9
+                 ) < "QuantityNative" - GREATEST("QuantityNative" * 1e-9, 1e-9)
          )::text AS "IncompleteCount",
          COUNT(*) FILTER (
            WHERE "PriceSource" = $3

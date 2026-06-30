@@ -233,7 +233,13 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
     }
   }
 
-  const incompleteCoverage = remaining > 1e-12;
+  // Relative tolerance (1e-9 of the disposed quantity, floored at 1e-9): a
+  // fully-covered disposal leaves only float residual (~qty x 2e-16), far below
+  // this, while a genuine lot gap is much larger. A fixed absolute 1e-12 would
+  // false-positive on high-count tokens (1e9+ units) whose float residual
+  // exceeds it. Mirrors the SQL FILTER so the TS and SQL counts agree.
+  const coverageTolerance = Math.max(Number(event.quantityNative) * 1e-9, 1e-9);
+  const incompleteCoverage = remaining > coverageTolerance;
   const transmissionValueCents = event.grossValueEurCents;
   const transmissionFeeCents = event.feeEurCents;
   const gainLossCents =
@@ -376,13 +382,13 @@ export interface Modelo100ElementBoxInput {
 }
 
 export interface Modelo100ElementBoxes {
-  /** 1804 — valor de transmisión NETO de gastos de venta. */
+  /** 1804 — transmission value, NET of selling fees. */
   box1804Cents: number;
-  /** 1806 — valor de adquisición + gastos de compra. */
+  /** 1806 — acquisition value plus buying fees. */
   box1806Cents: number;
-  /** 1807 — pérdida (>= 0; 0 cuando hay ganancia o empate). */
+  /** 1807 — loss (>= 0; 0 when there is a gain or break-even). */
   box1807Cents: number;
-  /** 1809 — ganancia (>= 0; 0 cuando hay pérdida o empate). */
+  /** 1809 — gain (>= 0; 0 when there is a loss or break-even). */
   box1809Cents: number;
 }
 
