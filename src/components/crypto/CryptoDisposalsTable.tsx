@@ -6,7 +6,7 @@
  * disclosure for verification when needed.
  */
 
-import { ChevronDown, ChevronRight, Inbox } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Inbox } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { DataState } from '@/components/ui/DataState';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -141,7 +141,17 @@ export function CryptoDisposalsTable({ year }: { year: number }) {
                             {fmt.format(new Date(d.occurredAt))}
                           </td>
                           <td className="py-2 pr-3">
-                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{d.asset}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{d.asset}</span>
+                              {(d.needsReview || d.incompleteCoverage) && (
+                                <span title={t('crypto.fiscal.row-review-hint')} className="inline-flex">
+                                  <AlertTriangle
+                                    className="h-3.5 w-3.5 text-guard-warning shrink-0"
+                                    aria-label={t('crypto.fiscal.row-review-hint')}
+                                  />
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2 pr-3">
                             <span className="text-xs">{t(CONTRAPRESTACION_LABEL_KEY[d.contraprestacion])}</span>

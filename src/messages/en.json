@@ -1208,6 +1208,7 @@
         "gain-loss": "Gain / loss"
       },
       "disposals-title": "Disposals detail (FIFO)",
+      "row-review-hint": "Review: unreliable valuation or incomplete lot coverage",
       "contraprestacion-all": "All",
       "contraprestacion-f": "F — fiat",
       "contraprestacion-n": "N — crypto",

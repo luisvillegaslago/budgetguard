@@ -425,6 +425,8 @@ interface DisposalRow {
   AcquisitionFeeCents: string;
   GainLossCents: string;
   AcquisitionLotsJson: unknown;
+  IncompleteCoverage: boolean;
+  NeedsReview: boolean;
 }
 
 export interface DisposalDto {
@@ -440,6 +442,10 @@ export interface DisposalDto {
   acquisitionFeeCents: number;
   gainLossCents: number;
   acquisitionLots: unknown[];
+  /** FIFO ran out of lots before covering the disposal. */
+  incompleteCoverage: boolean;
+  /** Unresolved/0-price transmission or lot, or a transfer_in FMV-proxy lot. */
+  needsReview: boolean;
 }
 
 export async function listDisposals(filters: {
@@ -473,7 +479,8 @@ export async function listDisposals(filters: {
               "Contraprestacion", "QuantityNative",
               "TransmissionValueCents", "TransmissionFeeCents",
               "AcquisitionValueCents", "AcquisitionFeeCents",
-              "GainLossCents", "AcquisitionLotsJson"
+              "GainLossCents", "AcquisitionLotsJson",
+              "IncompleteCoverage", "NeedsReview"
        FROM "CryptoDisposals"
        WHERE ${where}
        ORDER BY "OccurredAt" DESC
@@ -497,6 +504,8 @@ export async function listDisposals(filters: {
       acquisitionFeeCents: Number(r.AcquisitionFeeCents),
       gainLossCents: Number(r.GainLossCents),
       acquisitionLots: Array.isArray(r.AcquisitionLotsJson) ? (r.AcquisitionLotsJson as unknown[]) : [],
+      incompleteCoverage: Boolean(r.IncompleteCoverage),
+      needsReview: Boolean(r.NeedsReview),
     })),
     total: countRows[0]?.total ?? 0,
   };

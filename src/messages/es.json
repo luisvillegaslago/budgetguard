@@ -1208,6 +1208,7 @@
         "gain-loss": "Ganancia / pérdida"
       },
       "disposals-title": "Detalle de transmisiones (FIFO)",
+      "row-review-hint": "A revisar: valoración no fiable o cobertura incompleta de lotes",
       "contraprestacion-all": "Todos",
       "contraprestacion-f": "F — fiat",
       "contraprestacion-n": "N — cripto",

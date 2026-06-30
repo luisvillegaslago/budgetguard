@@ -63,6 +63,8 @@ export interface DisposalDto {
     acquisitionValueCents: number;
     acquisitionFeeCents: number;
   }>;
+  incompleteCoverage: boolean;
+  needsReview: boolean;
 }
 
 export interface DisposalsPage {

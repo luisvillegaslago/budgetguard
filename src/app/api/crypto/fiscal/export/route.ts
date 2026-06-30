@@ -33,6 +33,8 @@ const HEADERS = [
   'AcquisitionFeeCents',
   'GainLossCents',
   'LotsConsumed',
+  'IncompleteCoverage',
+  'NeedsReview',
 ] as const;
 
 export const GET = withApiHandler(async (request) => {
@@ -59,6 +61,8 @@ export const GET = withApiHandler(async (request) => {
     String(d.acquisitionFeeCents),
     String(d.gainLossCents),
     String(d.acquisitionLots.length),
+    String(d.incompleteCoverage),
+    String(d.needsReview),
   ]);
 
   const csv = [HEADERS, ...rows].map((row) => row.map(escapeCsvField).join(',')).join('\n');
