@@ -12,11 +12,7 @@
  */
 
 import { getPairTrades } from '@/services/database/CryptoPositionsRepository';
-import {
-  getPriceEurCents,
-  isPriceResolved,
-  resolveGrossEurCentsOrNull,
-} from '@/services/exchanges/binance/PriceService';
+import { getPriceEurCents, resolveGrossEurCentsOrNull } from '@/services/exchanges/binance/PriceService';
 import { type ClosedTrade, type PairTrade, type PositionLot, TRADE_SIDE } from '@/types/cryptoChart';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 import { computePairPosition } from '@/utils/crypto/pairPnl';
@@ -60,10 +56,12 @@ export const GET = withApiHandler(async (_request, { params }) => {
 async function resolveBaseEurCents(base: string, iso: string): Promise<number | null> {
   try {
     const resolved = await getPriceEurCents(base, new Date(iso));
-    // Guard on the precise micro-cent price: a sub-cent base asset is still a
-    // resolved price (just 0 at display resolution), so don't treat it as null.
-    // The returned per-unit figure stays in display cents.
-    return isPriceResolved(resolved) ? resolved.eurPriceCents : null;
+    // This returns a per-unit price in DISPLAY cents (the chart's entry/exit
+    // price). A sub-cent base asset can't be represented at cent resolution
+    // (eurPriceCents is 0), so report null ("unavailable") rather than a
+    // misleading 0 that renders as a confident 0 € entry/PnL. The micro-cent
+    // path only helps the quantity-scaled VALUE math, not a per-unit price.
+    return resolved.eurPriceCents > 0 ? resolved.eurPriceCents : null;
   } catch {
     return null;
   }
