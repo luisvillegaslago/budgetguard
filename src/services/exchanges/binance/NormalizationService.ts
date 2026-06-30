@@ -16,7 +16,7 @@
  * subsequent runs.
  */
 
-import { type CryptoEventType } from '@/constants/finance';
+import { CRYPTO_PRICE_SOURCE, type CryptoEventType } from '@/constants/finance';
 import {
   bulkInsertTaxableEventsForUser,
   listUnnormalisedRawEventsForUser,
@@ -144,7 +144,7 @@ async function enrichLegsWithPrices(
       grossValueEurCents = eurosToCents(eurCounter);
       const qty = Number(leg.quantityNative);
       unitPriceEurCents = qty > 0 ? Math.round(grossValueEurCents / qty) : 0;
-      priceSource = 'fiat_counter';
+      priceSource = CRYPTO_PRICE_SOURCE.FIAT_COUNTER;
     } else {
       const price = await getPriceEurCents(leg.asset, occurredAt);
       // UnitPriceEurCents is display-only (may be 0 for sub-cent assets); gross

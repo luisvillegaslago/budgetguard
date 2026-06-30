@@ -21,7 +21,7 @@
  */
 
 import { MainClient } from 'binance';
-import { API_ERROR, type CryptoPriceSource } from '@/constants/finance';
+import { API_ERROR, CRYPTO_PRICE_SOURCE, type CryptoPriceSource } from '@/constants/finance';
 import { type CachedPrice, getCachedPrice, putCachedPrice } from '@/services/database/CryptoPriceCacheRepository';
 import { BinanceClientError } from './BinanceClient';
 import { syncDebug } from './syncDebug';
@@ -79,7 +79,7 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
       dateUtc,
       eurPriceCents: cached.eurPriceCents,
       eurPriceMicroCents: cached.eurPriceMicroCents,
-      source: 'cache',
+      source: CRYPTO_PRICE_SOURCE.CACHE,
     };
   }
 
@@ -91,7 +91,7 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
   // and rate-limit errors as "no data" — would otherwise freeze a 0 price
   // forever and silently zero out a casilla. Leaving it uncached lets a later
   // run re-resolve the real price.
-  if (resolved.source !== 'unresolved') {
+  if (resolved.source !== CRYPTO_PRICE_SOURCE.UNRESOLVED) {
     // Persist (ON CONFLICT DO NOTHING — first writer wins on race)
     await putCachedPrice({
       asset: resolved.asset,
@@ -109,7 +109,7 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
 async function resolveFromCascade(asset: string, dateUtc: string, at: Date): Promise<ResolvedPrice> {
   // 2a. Asset is itself EUR/EUR-stablecoin → 1 EUR per unit
   if (EUR_STABLECOINS.has(asset)) {
-    return buildResolved(asset, dateUtc, 1, 'eur_self');
+    return buildResolved(asset, dateUtc, 1, CRYPTO_PRICE_SOURCE.EUR_SELF);
   }
 
   // 2b. Asset is USD-pegged stablecoin → 1 USD per unit; convert via EURUSDT
@@ -118,14 +118,14 @@ async function resolveFromCascade(asset: string, dateUtc: string, at: Date): Pro
     if (eurUsdt != null) {
       // Price of 1 USDT in EUR = 1 / eurUsdt (since EURUSDT close is "USDT per EUR")
       const eurPerUsdt = 1 / eurUsdt;
-      return buildResolved(asset, dateUtc, eurPerUsdt, 'stablecoin_usd_cross');
+      return buildResolved(asset, dateUtc, eurPerUsdt, CRYPTO_PRICE_SOURCE.STABLECOIN_USD_CROSS);
     }
   }
 
   // 3. Direct EUR pair on Binance
   const directEur = await fetchKlineEurClose(`${asset}EUR`, at);
   if (directEur != null) {
-    return buildResolved(asset, dateUtc, directEur, 'binance_eur');
+    return buildResolved(asset, dateUtc, directEur, CRYPTO_PRICE_SOURCE.BINANCE_EUR);
   }
 
   // 4. {Asset}USDT × EURUSDT cross-rate
@@ -133,19 +133,19 @@ async function resolveFromCascade(asset: string, dateUtc: string, at: Date): Pro
   const eurUsdt = await fetchKlineEurClose('EURUSDT', at);
   if (usdtPrice != null && eurUsdt != null && eurUsdt > 0) {
     const eurPrice = usdtPrice / eurUsdt;
-    return buildResolved(asset, dateUtc, eurPrice, 'binance_usdt_cross');
+    return buildResolved(asset, dateUtc, eurPrice, CRYPTO_PRICE_SOURCE.BINANCE_USDT_CROSS);
   }
 
   // 5. CoinGecko fallback
   const coingecko = await fetchCoinGeckoEur(asset, dateUtc);
   if (coingecko != null) {
-    return buildResolved(asset, dateUtc, coingecko, 'coingecko');
+    return buildResolved(asset, dateUtc, coingecko, CRYPTO_PRICE_SOURCE.COINGECKO);
   }
 
   // 6. Last resort: persist as unresolved (price=0). The taxable event still
   // gets stored so the user can see it flagged in the events table, instead
   // of the whole raw event being dropped at every normalization pass.
-  return buildResolved(asset, dateUtc, 0, 'unresolved');
+  return buildResolved(asset, dateUtc, 0, CRYPTO_PRICE_SOURCE.UNRESOLVED);
 }
 
 // ============================================================

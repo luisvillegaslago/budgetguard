@@ -449,7 +449,6 @@ export const CRYPTO_PRICE_SOURCE = {
   CACHE: 'cache',
   EUR_SELF: 'eur_self',
   FIAT_COUNTER: 'fiat_counter',
-  STABLECOIN_EUR: 'stablecoin_eur',
   STABLECOIN_USD_CROSS: 'stablecoin_usd_cross',
   BINANCE_EUR: 'binance_eur',
   BINANCE_USDT_CROSS: 'binance_usdt_cross',
