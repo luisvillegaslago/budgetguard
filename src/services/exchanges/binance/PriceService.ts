@@ -334,3 +334,25 @@ export function computeGrossEurCents(quantityNative: string | number, eurPriceMi
   if (!Number.isFinite(qty) || qty < 0) return 0;
   return Math.round((qty * eurPriceMicroCents) / MICRO_CENTS_PER_CENT);
 }
+
+/**
+ * True when a resolved price carries a usable per-unit value. Sub-cent assets
+ * (SHIB/PEPE) have eurPriceCents=0 yet a positive eurPriceMicroCents, so the
+ * guard checks the precise micro-cent field — not the display cents — to avoid
+ * treating a valid sub-cent price as unresolved. Equivalent to
+ * `source !== 'unresolved'` since every real provider yields a positive price.
+ */
+export function isPriceResolved(price: ResolvedPrice): boolean {
+  return price.eurPriceMicroCents > 0;
+}
+
+/**
+ * Gross EUR value (cents) of `quantityNative` at the resolved per-unit price,
+ * or null when the price is unresolved. Multiplies through the micro-cent path
+ * (computeGrossEurCents) so sub-cent assets don't collapse to 0 before being
+ * scaled by quantity.
+ */
+export function resolveGrossEurCentsOrNull(quantityNative: string | number, price: ResolvedPrice): number | null {
+  if (!isPriceResolved(price)) return null;
+  return computeGrossEurCents(quantityNative, price.eurPriceMicroCents);
+}

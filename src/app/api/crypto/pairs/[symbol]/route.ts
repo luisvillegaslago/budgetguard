@@ -12,7 +12,11 @@
  */
 
 import { getPairTrades } from '@/services/database/CryptoPositionsRepository';
-import { getPriceEurCents } from '@/services/exchanges/binance/PriceService';
+import {
+  getPriceEurCents,
+  isPriceResolved,
+  resolveGrossEurCentsOrNull,
+} from '@/services/exchanges/binance/PriceService';
 import { type ClosedTrade, type PairTrade, type PositionLot, TRADE_SIDE } from '@/types/cryptoChart';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 import { computePairPosition } from '@/utils/crypto/pairPnl';
@@ -56,7 +60,10 @@ export const GET = withApiHandler(async (_request, { params }) => {
 async function resolveBaseEurCents(base: string, iso: string): Promise<number | null> {
   try {
     const resolved = await getPriceEurCents(base, new Date(iso));
-    return resolved.eurPriceCents > 0 ? resolved.eurPriceCents : null;
+    // Guard on the precise micro-cent price: a sub-cent base asset is still a
+    // resolved price (just 0 at display resolution), so don't treat it as null.
+    // The returned per-unit figure stays in display cents.
+    return isPriceResolved(resolved) ? resolved.eurPriceCents : null;
   } catch {
     return null;
   }
@@ -113,9 +120,9 @@ async function enrichTradesWithEur(
 async function resolveTradeValueEurCents(quote: string, trade: PairTrade): Promise<number | null> {
   try {
     const resolved = await getPriceEurCents(quote, new Date(trade.occurredAt));
-    if (resolved.eurPriceCents <= 0) return null;
-    const value = Math.round(Number(trade.quoteTotal) * resolved.eurPriceCents);
-    return Number.isFinite(value) ? value : null;
+    // quoteTotal (native units) × per-unit price via the micro-cent path, so a
+    // sub-cent quote asset doesn't zero out the trade value.
+    return resolveGrossEurCentsOrNull(trade.quoteTotal, resolved);
   } catch {
     return null;
   }

@@ -14,7 +14,7 @@
  */
 
 import { getUserIdOrThrow } from '@/libs/auth';
-import { getPriceEurCents } from '@/services/exchanges/binance/PriceService';
+import { computeGrossEurCents, getPriceEurCents } from '@/services/exchanges/binance/PriceService';
 import { type PairSummary, type PairTrade, TRADE_SIDE, type TradeSide } from '@/types/cryptoChart';
 import { canonicalizePair } from '@/utils/cryptoSymbol';
 import { query } from './connection';
@@ -147,19 +147,21 @@ export async function listSpotPairs(): Promise<PairSummary[]> {
 
   // Resolve the current EUR price of each distinct quote asset once, so each
   // pair's native traded volume can be compared/filtered in a single currency.
+  // Keep the precise MICRO-cent price (not the display cents) so a sub-cent
+  // quote asset doesn't collapse its whole pair value to 0.
   const quotes = Array.from(new Set(aggregates.map((agg) => agg.quote)));
   const today = new Date();
   const quotePrices = await Promise.all(
     quotes.map(async (quote): Promise<readonly [string, number]> => {
       try {
-        const { eurPriceCents } = await getPriceEurCents(quote, today);
-        return [quote, eurPriceCents];
+        const { eurPriceMicroCents } = await getPriceEurCents(quote, today);
+        return [quote, eurPriceMicroCents];
       } catch {
         return [quote, 0];
       }
     }),
   );
-  const quoteEurCents = new Map<string, number>(quotePrices);
+  const quoteEurMicroCents = new Map<string, number>(quotePrices);
 
   return aggregates
     .map((agg) => ({
@@ -169,8 +171,10 @@ export async function listSpotPairs(): Promise<PairSummary[]> {
       tradeCount: agg.tradeCount,
       netQtyBase: String(agg.netQtyBaseNum),
       isOpen: Math.abs(agg.netQtyBaseNum) > DUST_THRESHOLD,
-      // quote volume (native units) × EUR price per unit (cents) → EUR cents.
-      valueEurCents: Math.round(agg.quoteVolumeNum * (quoteEurCents.get(agg.quote) ?? 0)),
+      // quote volume (native units) × per-unit EUR price (micro-cents),
+      // rounded once → EUR cents. The micro-cent path keeps sub-cent quote
+      // assets from valuing the whole pair at 0.
+      valueEurCents: computeGrossEurCents(agg.quoteVolumeNum, quoteEurMicroCents.get(agg.quote) ?? 0),
     }))
     .filter((pair) => pair.valueEurCents >= MIN_PAIR_VALUE_EUR_CENTS)
     .sort((a, b) => b.valueEurCents - a.valueEurCents);
