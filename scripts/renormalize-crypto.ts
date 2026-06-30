@@ -27,8 +27,13 @@
  * The script preflight-checks these columns and refuses to run without them.
  *
  * Usage:
- *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts            # dry-run (default)
- *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts --execute  # actually rebuild
+ *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts                    # dry-run, all users
+ *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts --execute          # rebuild all users
+ *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts --execute --user=3 # rebuild one user
+ *
+ * With --user=<id> the price cache is NOT purged globally (only that user's
+ * prices are refetched on demand), so a single-user run is safe to validate
+ * before re-running for everyone.
  */
 
 import { closeConnection, query } from '../src/services/database/connection';
@@ -81,8 +86,21 @@ async function processUser(userId: number): Promise<void> {
   }
 }
 
+function parseUserFilter(): number | null {
+  const arg = process.argv.find((a) => a.startsWith('--user='));
+  if (arg) return Number(arg.slice('--user='.length));
+  const idx = process.argv.indexOf('--user');
+  if (idx >= 0 && process.argv[idx + 1]) return Number(process.argv[idx + 1]);
+  return null;
+}
+
 async function main(): Promise<void> {
   const execute = process.argv.includes('--execute');
+  const userFilter = parseUserFilter();
+  if (userFilter !== null && !Number.isInteger(userFilter)) {
+    errln('--user expects an integer user id, e.g. --user=3');
+    process.exit(1);
+  }
 
   if (!process.env.DATABASE_URL) {
     errln('DATABASE_URL environment variable is required.');
@@ -91,7 +109,7 @@ async function main(): Promise<void> {
 
   if (!(await preflight())) process.exit(1);
 
-  const users = await query<UserCounts>(
+  const allUsers = await query<UserCounts>(
     `SELECT r."UserID",
             COUNT(DISTINCT r."EventID")::text AS "rawCount",
             (SELECT COUNT(*) FROM "TaxableEvents" t WHERE t."UserID" = r."UserID")::text AS "taxableCount",
@@ -101,12 +119,18 @@ async function main(): Promise<void> {
      ORDER BY r."UserID"`,
   );
 
-  if (users.length === 0) {
+  if (allUsers.length === 0) {
     log('No users with crypto raw events. Nothing to do.');
     return;
   }
 
-  log(`Found ${users.length} user(s) with crypto data:`);
+  const users = userFilter !== null ? allUsers.filter((u) => u.UserID === userFilter) : allUsers;
+  if (userFilter !== null && users.length === 0) {
+    errln(`User ${userFilter} has no crypto raw events (or does not exist). Aborting.`);
+    process.exit(1);
+  }
+
+  log(`Found ${users.length} user(s) with crypto data${userFilter !== null ? ` (filtered to user ${userFilter})` : ''}:`);
   users.forEach((u) => {
     log(
       `  user ${String(u.UserID).padEnd(5)} raws=${u.rawCount} taxableEvents=${u.taxableCount} disposals=${u.disposalCount}`,
@@ -119,11 +143,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  log('\nPurging CryptoPriceCache (prices will refetch at micro-cent precision)…');
-  const purged = await query<{ n: string }>(
-    `WITH del AS (DELETE FROM "CryptoPriceCache" RETURNING 1) SELECT COUNT(*)::text AS n FROM del`,
-  );
-  log(`  removed ${purged[0]?.n ?? '0'} cached prices.`);
+  if (userFilter === null) {
+    log('\nPurging CryptoPriceCache (prices will refetch at micro-cent precision)…');
+    const purged = await query<{ n: string }>(
+      `WITH del AS (DELETE FROM "CryptoPriceCache" RETURNING 1) SELECT COUNT(*)::text AS n FROM del`,
+    );
+    log(`  removed ${purged[0]?.n ?? '0'} cached prices.`);
+  } else {
+    log('\nSingle-user run: keeping the global price cache (only this user is rebuilt).');
+  }
 
   log('\nRe-normalizing per user (sequential)…');
   // Sequential reduce-chain (no for...of): keeps price-API pressure low and the
