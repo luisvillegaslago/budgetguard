@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.45.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.45.0...v0.45.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* **sync:** include Vouchers in the backup so Transactions.VoucherID resolves ([5049a12](https://github.com/luisvillegaslago/budgetguard/commit/5049a12f002cbe65525d80405bfb9be2b7966d1c))
+
 ## [0.45.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.44.0...v0.45.0) (2026-06-30)
 
 
