@@ -1106,6 +1106,13 @@ CREATE TABLE "CryptoDisposals" (
     -- lot, or transfer_in FMV-proxy cost basis).
     "PriceSource" VARCHAR(30) NOT NULL DEFAULT 'unresolved',
     "AcquisitionLotsJson" JSONB NOT NULL,
+    -- FIFO-computed review flags, persisted so the Modelo 100 summary reads
+    -- the TS-computed truth instead of re-deriving it in SQL (no float epsilon
+    -- comparison, no double jsonb scan, no TS/SQL drift). Written by the FIFO
+    -- pass on every recompute. IMPORTANT: correct only AFTER a recompute; the
+    -- DEFAULT false means any pre-recompute row under-reports until then.
+    "IncompleteCoverage" BOOLEAN NOT NULL DEFAULT false,
+    "NeedsReview" BOOLEAN NOT NULL DEFAULT false,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     -- Idempotent: one disposal per TaxableEvent per FiscalYear (a disposal

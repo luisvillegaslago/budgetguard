@@ -13,7 +13,6 @@
 
 import {
   CRYPTO_CONTRAPRESTACION,
-  CRYPTO_PRICE_SOURCE,
   CRYPTO_TAXABLE_KIND,
   type CryptoContraprestacion,
   type CryptoTaxableKind,
@@ -191,8 +190,8 @@ export async function recomputeAllYearsForUser(
   };
 }
 
-const COLS_PER_DISPOSAL = 14;
-// Postgres caps a statement at 65535 bound parameters (~5040 rows at 13
+const COLS_PER_DISPOSAL = 16;
+// Postgres caps a statement at 65535 bound parameters (~4095 rows at 16
 // params/row). A multi-year trader (dust, swaps, c2c) can exceed that, so
 // insert in chunks well under the limit. Chunks run sequentially on the same
 // pinned client inside the open transaction.
@@ -234,6 +233,8 @@ async function insertDisposalChunk(client: TxClient, userId: number, drafts: Cry
     d.gainLossCents,
     d.priceSource,
     JSON.stringify(d.acquisitionLots),
+    d.incompleteCoverage,
+    d.needsReview,
   ]);
 
   await client.query(
@@ -242,7 +243,8 @@ async function insertDisposalChunk(client: TxClient, userId: number, drafts: Cry
        "Contraprestacion", "QuantityNative",
        "TransmissionValueCents", "TransmissionFeeCents",
        "AcquisitionValueCents", "AcquisitionFeeCents",
-       "GainLossCents", "PriceSource", "AcquisitionLotsJson"
+       "GainLossCents", "PriceSource", "AcquisitionLotsJson",
+       "IncompleteCoverage", "NeedsReview"
      )
      VALUES ${placeholders}
      ON CONFLICT ("TaxableEventID", "FiscalYear") DO NOTHING`,
@@ -334,27 +336,17 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
          SUM("AcquisitionFeeCents")::text   AS "AcquisitionFeeCents",
          SUM("GainLossCents")::text         AS "GainLossCents",
          COUNT(*)::text                     AS "RowCount",
-         COUNT(*) FILTER (
-           WHERE jsonb_array_length("AcquisitionLotsJson") = 0
-              OR (
-                   SELECT COALESCE(SUM((lot->>'quantityConsumed')::numeric), 0)
-                   FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
-                 ) < "QuantityNative" - GREATEST("QuantityNative" * 1e-9, 1e-9)
-         )::text AS "IncompleteCount",
-         COUNT(*) FILTER (
-           WHERE "PriceSource" = $3
-              OR EXISTS (
-                   SELECT 1
-                   FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
-                   WHERE (lot->>'sourcePriceSource') = $3
-                      OR (lot->>'fmvProxy')::boolean
-                 )
-         )::text AS "NeedsReviewCount"
+         -- Aggregate the FIFO-computed booleans persisted on each disposal.
+         -- The FIFO pass already decided coverage (relative tolerance) and
+         -- review (unresolved/FMV-proxy) in TS, so SQL just trusts those
+         -- columns — no float epsilon comparison, no jsonb re-scan, no drift.
+         COUNT(*) FILTER (WHERE "IncompleteCoverage")::text AS "IncompleteCount",
+         COUNT(*) FILTER (WHERE "NeedsReview")::text        AS "NeedsReviewCount"
        FROM "CryptoDisposals"
        WHERE "UserID" = $1 AND "FiscalYear" = $2
        GROUP BY "Asset", "Contraprestacion"
        ORDER BY "Asset" ASC, "Contraprestacion" ASC`,
-      [userId, fiscalYear, CRYPTO_PRICE_SOURCE.UNRESOLVED],
+      [userId, fiscalYear],
     ),
     query<AirdropStakingRow>(
       `SELECT "Kind", SUM("GrossValueEurCents")::text AS "TotalCents"

@@ -16,7 +16,10 @@ const elementRows = [
     AcquisitionFeeCents: '500',
     GainLossCents: '1998500',
     RowCount: '2',
+    // Aggregate COUNTs the SQL now derives from the persisted
+    // IncompleteCoverage / NeedsReview booleans (FILTER on boolean columns).
     IncompleteCount: '0',
+    NeedsReviewCount: '0',
   },
   {
     Asset: 'ETH',
@@ -28,6 +31,7 @@ const elementRows = [
     GainLossCents: '200000',
     RowCount: '1',
     IncompleteCount: '1',
+    NeedsReviewCount: '1',
   },
 ];
 
@@ -78,6 +82,7 @@ describe('getModelo100Summary — per-element breakdown', () => {
   it('sums incompleteCoverageCount across elements and keeps 0304/0033', async () => {
     const summary = await getModelo100Summary(2025);
     expect(summary.incompleteCoverageCount).toBe(1);
+    expect(summary.needsReviewCount).toBe(1);
     expect(summary.casilla0304Cents).toBe(7500);
     expect(summary.casilla0033Cents).toBe(300);
   });
