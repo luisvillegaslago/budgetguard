@@ -10,8 +10,9 @@
  *   - Europe/Madrid fiscal year                     [M4]
  *
  * What it does (per user, sequentially to avoid hammering the price APIs):
- *   1. DELETE the global CryptoPriceCache once, so prices refetch at micro-cent
- *      precision (cache is immutable, old rows are integer-cents only).
+ *   1. DELETE only the lossy sub-cent rows of CryptoPriceCache (those whose
+ *      EurPriceMicroCents is 0), so sub-cent tokens refetch at micro-cent
+ *      precision. Targeted, so it runs in both full and --user mode.
  *   2. DELETE TaxableEvents for the user (cascades to CryptoDisposals).
  *   3. Reset BinanceRawEvents.NormalizedAt = NULL so the normaliser reprocesses
  *      them. Raw events themselves (incl. any manual baseAsset/quoteAsset
@@ -31,9 +32,8 @@
  *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts --execute          # rebuild all users
  *   DATABASE_URL=xxx npx tsx scripts/renormalize-crypto.ts --execute --user=3 # rebuild one user
  *
- * With --user=<id> the price cache is NOT purged globally (only that user's
- * prices are refetched on demand), so a single-user run is safe to validate
- * before re-running for everyone.
+ * The lossy-sub-cent cache purge runs in both modes, so a --user=<id> run is a
+ * safe, correct way to validate one user before re-running for everyone.
  */
 
 import { closeConnection, query } from '../src/services/database/connection';
@@ -143,15 +143,21 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (userFilter === null) {
-    log('\nPurging CryptoPriceCache (prices will refetch at micro-cent precision)…');
-    const purged = await query<{ n: string }>(
-      `WITH del AS (DELETE FROM "CryptoPriceCache" RETURNING 1) SELECT COUNT(*)::text AS n FROM del`,
-    );
-    log(`  removed ${purged[0]?.n ?? '0'} cached prices.`);
-  } else {
-    log('\nSingle-user run: keeping the global price cache (only this user is rebuilt).');
-  }
+  // Purge ONLY the lossy sub-cent cache rows. A price cached before the
+  // micro-cents migration had EurPriceMicroCents backfilled from integer cents
+  // (cents x 1e6), so a sub-cent token cached at 0 cents stays at 0 micro-cents
+  // and would value to 0 € forever (the cache is immutable, ON CONFLICT DO
+  // NOTHING). Deleting these forces a precise refetch. It is targeted (never
+  // touches correctly-priced rows) and idempotent for genuinely-near-zero
+  // tokens, so it is safe in BOTH the full and --user runs — unlike a full
+  // purge, which --user mode used to skip, leaving sub-cent assets at 0.
+  log('\nPurging lossy sub-cent price-cache rows (forcing a precise refetch)…');
+  const purged = await query<{ n: string }>(
+    `WITH del AS (
+       DELETE FROM "CryptoPriceCache" WHERE "EurPriceMicroCents" = 0 RETURNING 1
+     ) SELECT COUNT(*)::text AS n FROM del`,
+  );
+  log(`  removed ${purged[0]?.n ?? '0'} lossy cached prices.`);
 
   log('\nRe-normalizing per user (sequential)…');
   // Sequential reduce-chain (no for...of): keeps price-API pressure low and the
