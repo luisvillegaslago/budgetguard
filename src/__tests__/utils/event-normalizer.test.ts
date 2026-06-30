@@ -312,6 +312,27 @@ describe('normalizeDividend (classification)', () => {
     });
     expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.AIRDROP);
   });
+
+  it('honors the CSV "Earn rewards:" prefix for a staking label containing the airdrop term "distribution"', () => {
+    // The CSV importer classifies "OnChain Yields Flexible - Distribution" as
+    // staking and prefixes "Earn rewards:". Without trusting the prefix, the
+    // generic 'distribution' airdrop keyword would misroute it to casilla 0304.
+    const legs = normalizeDividend({
+      eventType: CRYPTO_EVENT_TYPE.DIVIDEND,
+      occurredAt: FIXED_DATE,
+      rawPayload: { asset: 'USDT', amount: '0.5', enInfo: 'Earn rewards: OnChain Yields Flexible - Distribution' },
+    });
+    expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.STAKING_REWARD);
+  });
+
+  it('honors the CSV "Airdrop:" prefix even when the label has no airdrop keyword', () => {
+    const legs = normalizeDividend({
+      eventType: CRYPTO_EVENT_TYPE.DIVIDEND,
+      occurredAt: FIXED_DATE,
+      rawPayload: { asset: 'NEW', amount: '10', enInfo: 'Airdrop: Some New Token Event' },
+    });
+    expect(legs[0]?.kind).toBe(CRYPTO_TAXABLE_KIND.AIRDROP);
+  });
 });
 
 describe('normalizeWithdraw', () => {

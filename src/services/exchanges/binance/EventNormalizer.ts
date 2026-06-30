@@ -278,10 +278,17 @@ const AIRDROP_INFO_KEYWORDS = ['airdrop', 'launchpool', 'megadrop', 'distributio
 
 function classifyDividend(enInfo: string): CryptoTaxableKind {
   const lower = enInfo.toLowerCase();
-  // Specific airdrop labels must win over the broad staking 'rewards' keyword:
-  // labels like "Megadrop Rewards" or "HODLer Airdrops" contain both, and the
-  // airdrop (casilla 0304, base general) vs staking (0033, base ahorro) split
-  // changes the tax base and rate.
+  // The CSV importer injects an explicit "Earn rewards:" / "Airdrop:" prefix
+  // reflecting its own classification — trust it over the generic keyword scan.
+  // The keywords can't disambiguate labels that contain both: a staking
+  // "OnChain Yields Flexible - Distribution" matches the airdrop term
+  // 'distribution', while a "Megadrop Rewards" airdrop matches the staking term
+  // 'rewards'. Misrouting flips casilla 0304 (base general) vs 0033 (base
+  // ahorro) and changes the tax owed.
+  if (lower.startsWith('earn rewards:')) return CRYPTO_TAXABLE_KIND.STAKING_REWARD;
+  if (lower.startsWith('airdrop:')) return CRYPTO_TAXABLE_KIND.AIRDROP;
+  // API-sourced dividends carry Binance's raw label (no prefix): specific
+  // airdrop terms beat the broad staking 'rewards' keyword.
   if (AIRDROP_INFO_KEYWORDS.some((kw) => lower.includes(kw))) return CRYPTO_TAXABLE_KIND.AIRDROP;
   if (STAKING_INFO_KEYWORDS.some((kw) => lower.includes(kw))) return CRYPTO_TAXABLE_KIND.STAKING_REWARD;
   return CRYPTO_TAXABLE_KIND.AIRDROP; // conservative fallback
