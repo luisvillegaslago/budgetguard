@@ -1180,6 +1180,7 @@
       "export-csv": "Exportar CSV",
       "export-csv-hint": "Descarga el detalle de transmisiones del año para guardarlo como justificante ante AEAT.",
       "incomplete-warning": "Hay {count} transmisiones donde no se cubrió toda la cantidad con lotes históricos. Revisa la pestaña Movimientos por si te falta algún sync.",
+      "needs-review-warning": "Hay {count} transmisiones con valoraciones a revisar: precio de transmisión sin resolver (0 €), o coste de adquisición tomado de un lote sin precio o de una transferencia recibida valorada a precio de mercado. Verifícalas antes de declarar.",
       "row-count": "{count} operaciones",
       "casilla-1804-f": "Casilla 1804 (F)",
       "casilla-1804-f-subtitle": "Transmisiones contra fiat (EUR)",

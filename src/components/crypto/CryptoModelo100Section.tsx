@@ -126,6 +126,15 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
         </div>
       )}
 
+      {data.needsReviewCount > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-guard-warning/30 bg-guard-warning/10 p-3 text-xs">
+          <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-guard-warning">
+            {t('crypto.fiscal.needs-review-warning', { count: data.needsReviewCount })}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Casilla1804Card
           label={t('crypto.fiscal.casilla-1804-f')}

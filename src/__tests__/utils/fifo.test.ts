@@ -8,7 +8,7 @@
  * is a no-op, gain/loss math, and the Modelo 100 summariser.
  */
 
-import { CRYPTO_CONTRAPRESTACION, CRYPTO_TAXABLE_KIND } from '@/constants/finance';
+import { CRYPTO_CONTRAPRESTACION, CRYPTO_PRICE_SOURCE, CRYPTO_TAXABLE_KIND } from '@/constants/finance';
 import { type FifoTaxableEvent, runFifo, summariseForModelo100 } from '@/utils/crypto/fifo';
 
 let nextId = 1;
@@ -22,6 +22,7 @@ function ev(partial: Partial<FifoTaxableEvent>): FifoTaxableEvent {
     unitPriceEurCents: 0,
     grossValueEurCents: 0,
     feeEurCents: 0,
+    priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
     contraprestacion: null,
     ...partial,
   };
@@ -500,5 +501,131 @@ describe('runFifo — sub-cent assets (gross apportionment)', () => {
     expect(result[0]?.acquisitionValueCents).toBe(34_000);
     expect(result[1]?.acquisitionValueCents).toBe(51_000);
     expect((result[0]?.acquisitionValueCents ?? 0) + (result[1]?.acquisitionValueCents ?? 0)).toBe(85_000);
+  });
+});
+
+describe('needsReview flagging (H3 + M1)', () => {
+  it('clean fiat sale with a market-priced acquisition is not flagged', () => {
+    const [d] = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BTC',
+        quantityNative: '1',
+        unitPriceEurCents: 30_000_00,
+        grossValueEurCents: 30_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
+        occurredAt: '2024-06-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 50_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.FIAT_COUNTER,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+        occurredAt: '2025-03-15T00:00:00Z',
+      }),
+    ]);
+    expect(d?.needsReview).toBe(false);
+    expect(d?.acquisitionLots[0]?.fmvProxy).toBe(false);
+    expect(d?.acquisitionLots[0]?.sourcePriceSource).toBe(CRYPTO_PRICE_SOURCE.BINANCE_EUR);
+  });
+
+  it('flags a disposal that consumes a transfer_in FMV-proxy lot', () => {
+    const [d] = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN,
+        asset: 'ETH',
+        quantityNative: '5',
+        unitPriceEurCents: 2_000_00,
+        grossValueEurCents: 10_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
+        occurredAt: '2024-02-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'ETH',
+        quantityNative: '5',
+        grossValueEurCents: 15_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.FIAT_COUNTER,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+        occurredAt: '2025-05-01T00:00:00Z',
+      }),
+    ]);
+    expect(d?.needsReview).toBe(true);
+    expect(d?.acquisitionLots[0]?.fmvProxy).toBe(true);
+  });
+
+  it('flags a disposal whose cost basis came from an unresolved/0-price acquisition', () => {
+    const [d] = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'XYZ',
+        quantityNative: '100',
+        unitPriceEurCents: 0,
+        grossValueEurCents: 0,
+        priceSource: CRYPTO_PRICE_SOURCE.UNRESOLVED,
+        occurredAt: '2024-09-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'XYZ',
+        quantityNative: '100',
+        grossValueEurCents: 5_00,
+        priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2025-04-01T00:00:00Z',
+      }),
+    ]);
+    expect(d?.needsReview).toBe(true);
+  });
+
+  it('flags a disposal whose own transmission price is unresolved', () => {
+    const [d] = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BTC',
+        quantityNative: '1',
+        unitPriceEurCents: 30_000_00,
+        grossValueEurCents: 30_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
+        occurredAt: '2024-06-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 0,
+        priceSource: CRYPTO_PRICE_SOURCE.UNRESOLVED,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2025-07-01T00:00:00Z',
+      }),
+    ]);
+    expect(d?.needsReview).toBe(true);
+  });
+
+  it('counts needsReview in summariseForModelo100', () => {
+    const disposals = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN,
+        asset: 'ETH',
+        quantityNative: '1',
+        unitPriceEurCents: 2_000_00,
+        grossValueEurCents: 2_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
+        occurredAt: '2024-01-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'ETH',
+        quantityNative: '1',
+        grossValueEurCents: 3_000_00,
+        priceSource: CRYPTO_PRICE_SOURCE.FIAT_COUNTER,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+        occurredAt: '2025-02-01T00:00:00Z',
+      }),
+    ]);
+    const summary = summariseForModelo100(2025, disposals, [], []);
+    expect(summary.needsReviewCount).toBe(1);
   });
 });

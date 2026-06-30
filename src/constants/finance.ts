@@ -442,6 +442,23 @@ export const CRYPTO_CONTRAPRESTACION = {
 
 export type CryptoContraprestacion = (typeof CRYPTO_CONTRAPRESTACION)[keyof typeof CRYPTO_CONTRAPRESTACION];
 
+// Price resolution source for a TaxableEvent leg / acquisition lot. Recorded so
+// AEAT can audit how each EUR value was derived, and so disposals priced from an
+// 'unresolved' (0) lookup can be flagged for manual review in Modelo 100.
+export const CRYPTO_PRICE_SOURCE = {
+  CACHE: 'cache',
+  EUR_SELF: 'eur_self',
+  FIAT_COUNTER: 'fiat_counter',
+  STABLECOIN_EUR: 'stablecoin_eur',
+  STABLECOIN_USD_CROSS: 'stablecoin_usd_cross',
+  BINANCE_EUR: 'binance_eur',
+  BINANCE_USDT_CROSS: 'binance_usdt_cross',
+  COINGECKO: 'coingecko',
+  UNRESOLVED: 'unresolved',
+} as const;
+
+export type CryptoPriceSource = (typeof CRYPTO_PRICE_SOURCE)[keyof typeof CRYPTO_PRICE_SOURCE];
+
 // Sync job status
 export const CRYPTO_SYNC_STATUS = {
   PENDING: 'pending',

@@ -21,7 +21,7 @@
  */
 
 import { MainClient } from 'binance';
-import { API_ERROR } from '@/constants/finance';
+import { API_ERROR, type CryptoPriceSource } from '@/constants/finance';
 import { type CachedPrice, getCachedPrice, putCachedPrice } from '@/services/database/CryptoPriceCacheRepository';
 import { BinanceClientError } from './BinanceClient';
 import { syncDebug } from './syncDebug';
@@ -37,19 +37,10 @@ const EUR_STABLECOINS = new Set(['EUR', 'EURI']);
 
 const KLINE_INTERVAL = '1d';
 
-export type PriceSource =
-  | 'cache'
-  | 'eur_self'
-  | 'fiat_counter' // Value taken from the exact EUR counter amount of the trade (not a market lookup)
-  | 'stablecoin_eur'
-  | 'stablecoin_usd_cross'
-  | 'binance_eur'
-  | 'binance_usdt_cross'
-  | 'coingecko'
-  | 'unresolved'; // Last-resort: no source produced a price. Asset is persisted
-// with eurPriceCents=0 so the user sees it in the taxable
-// events list flagged for manual review, instead of having
-// the whole raw event silently dropped.
+// 'unresolved' is the last-resort source: no provider produced a price, so the
+// asset is persisted with eurPriceCents=0 and flagged for manual review instead
+// of dropping the raw event. The full union lives in @/constants/finance.
+export type PriceSource = CryptoPriceSource;
 
 export interface ResolvedPrice {
   asset: string;

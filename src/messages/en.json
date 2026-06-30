@@ -1180,6 +1180,7 @@
       "export-csv": "Export CSV",
       "export-csv-hint": "Download the disposals detail for the year as an audit trail for AEAT.",
       "incomplete-warning": "{count} disposals couldn't be fully covered by historical lots. Check the Events tab for any missing sync.",
+      "needs-review-warning": "{count} disposals have values to review: an unresolved transmission price (€0), or a cost basis taken from a lot with no price or from a transfer-in valued at market. Verify them before filing.",
       "row-count": "{count} disposals",
       "casilla-1804-f": "Box 1804 (F)",
       "casilla-1804-f-subtitle": "Disposals against fiat (EUR)",

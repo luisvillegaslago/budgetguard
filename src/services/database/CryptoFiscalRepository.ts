@@ -13,6 +13,7 @@
 
 import {
   CRYPTO_CONTRAPRESTACION,
+  CRYPTO_PRICE_SOURCE,
   CRYPTO_TAXABLE_KIND,
   type CryptoContraprestacion,
   type CryptoTaxableKind,
@@ -34,6 +35,7 @@ interface TaxableEventForFifoRow {
   UnitPriceEurCents: string;
   GrossValueEurCents: string;
   FeeEurCents: string;
+  PriceSource: string;
   Contraprestacion: string | null;
 }
 
@@ -58,7 +60,7 @@ export async function recomputeYearForUser(userId: number, fiscalYear: number): 
   const rows = await query<TaxableEventForFifoRow>(
     `SELECT "EventID"::text AS "EventID", "Kind", "OccurredAt", "Asset",
             "QuantityNative", "UnitPriceEurCents", "GrossValueEurCents",
-            "FeeEurCents", "Contraprestacion"
+            "FeeEurCents", "PriceSource", "Contraprestacion"
      FROM "TaxableEvents"
      WHERE "UserID" = $1 AND "OccurredAt" < $2
      ORDER BY "OccurredAt" ASC, "EventID" ASC`,
@@ -74,6 +76,7 @@ export async function recomputeYearForUser(userId: number, fiscalYear: number): 
     unitPriceEurCents: Number(r.UnitPriceEurCents),
     grossValueEurCents: Number(r.GrossValueEurCents),
     feeEurCents: Number(r.FeeEurCents),
+    priceSource: r.PriceSource,
     contraprestacion: r.Contraprestacion as CryptoContraprestacion | null,
   }));
 
@@ -124,7 +127,7 @@ export async function recomputeAllYearsForUser(
   const rows = await query<TaxableEventForFifoRow>(
     `SELECT "EventID"::text AS "EventID", "Kind", "OccurredAt", "Asset",
             "QuantityNative", "UnitPriceEurCents", "GrossValueEurCents",
-            "FeeEurCents", "Contraprestacion"
+            "FeeEurCents", "PriceSource", "Contraprestacion"
      FROM "TaxableEvents"
      WHERE "UserID" = $1
      ORDER BY "OccurredAt" ASC, "EventID" ASC`,
@@ -140,6 +143,7 @@ export async function recomputeAllYearsForUser(
     unitPriceEurCents: Number(r.UnitPriceEurCents),
     grossValueEurCents: Number(r.GrossValueEurCents),
     feeEurCents: Number(r.FeeEurCents),
+    priceSource: r.PriceSource,
     contraprestacion: r.Contraprestacion as CryptoContraprestacion | null,
   }));
 
@@ -187,7 +191,7 @@ export async function recomputeAllYearsForUser(
   };
 }
 
-const COLS_PER_DISPOSAL = 13;
+const COLS_PER_DISPOSAL = 14;
 // Postgres caps a statement at 65535 bound parameters (~5040 rows at 13
 // params/row). A multi-year trader (dust, swaps, c2c) can exceed that, so
 // insert in chunks well under the limit. Chunks run sequentially on the same
@@ -228,6 +232,7 @@ async function insertDisposalChunk(client: TxClient, userId: number, drafts: Cry
     d.acquisitionValueCents,
     d.acquisitionFeeCents,
     d.gainLossCents,
+    d.priceSource,
     JSON.stringify(d.acquisitionLots),
   ]);
 
@@ -237,7 +242,7 @@ async function insertDisposalChunk(client: TxClient, userId: number, drafts: Cry
        "Contraprestacion", "QuantityNative",
        "TransmissionValueCents", "TransmissionFeeCents",
        "AcquisitionValueCents", "AcquisitionFeeCents",
-       "GainLossCents", "AcquisitionLotsJson"
+       "GainLossCents", "PriceSource", "AcquisitionLotsJson"
      )
      VALUES ${placeholders}
      ON CONFLICT ("TaxableEventID", "FiscalYear") DO NOTHING`,
@@ -258,6 +263,7 @@ interface BucketRow {
   GainLossCents: string;
   RowCount: string;
   IncompleteCount: string;
+  NeedsReviewCount: string;
 }
 
 interface AirdropStakingRow {
@@ -272,6 +278,7 @@ export interface Modelo100CryptoSummary {
   casilla0304Cents: number;
   casilla0033Cents: number;
   incompleteCoverageCount: number;
+  needsReviewCount: number;
   computedAt: string;
 }
 
@@ -318,11 +325,22 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
                    SELECT COALESCE(SUM((lot->>'quantityConsumed')::numeric), 0)
                    FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
                  ) < "QuantityNative" - 1e-9
-         )::text AS "IncompleteCount"
+         )::text AS "IncompleteCount",
+         COUNT(*) FILTER (
+           WHERE "PriceSource" = $3
+              OR "TransmissionValueCents" = 0
+              OR EXISTS (
+                   SELECT 1
+                   FROM jsonb_array_elements("AcquisitionLotsJson") AS lot
+                   WHERE (lot->>'sourcePriceSource') = $3
+                      OR (lot->>'acquisitionValueCents')::numeric = 0
+                      OR (lot->>'fmvProxy')::boolean
+                 )
+         )::text AS "NeedsReviewCount"
        FROM "CryptoDisposals"
        WHERE "UserID" = $1 AND "FiscalYear" = $2
        GROUP BY "Contraprestacion"`,
-      [userId, fiscalYear],
+      [userId, fiscalYear, CRYPTO_PRICE_SOURCE.UNRESOLVED],
     ),
     query<AirdropStakingRow>(
       `SELECT "Kind", SUM("GrossValueEurCents")::text AS "TotalCents"
@@ -342,6 +360,7 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
     casilla0304Cents: 0,
     casilla0033Cents: 0,
     incompleteCoverageCount: 0,
+    needsReviewCount: 0,
     computedAt: new Date().toISOString(),
   };
 
@@ -357,6 +376,7 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
     if (row.Contraprestacion === CRYPTO_CONTRAPRESTACION.FIAT) summary.casilla1804F = bucket;
     if (row.Contraprestacion === CRYPTO_CONTRAPRESTACION.NON_FIAT) summary.casilla1804N = bucket;
     summary.incompleteCoverageCount += Number(row.IncompleteCount ?? 0);
+    summary.needsReviewCount += Number(row.NeedsReviewCount ?? 0);
   });
 
   airdropStakingRows.forEach((row) => {

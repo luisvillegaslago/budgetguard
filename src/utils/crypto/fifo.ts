@@ -33,6 +33,7 @@
 
 import {
   CRYPTO_CONTRAPRESTACION,
+  CRYPTO_PRICE_SOURCE,
   CRYPTO_TAXABLE_KIND,
   type CryptoContraprestacion,
   type CryptoTaxableKind,
@@ -52,6 +53,8 @@ export interface FifoTaxableEvent {
   unitPriceEurCents: number;
   grossValueEurCents: number;
   feeEurCents: number;
+  /** Price-resolution source of this leg (from TaxableEvents.PriceSource). */
+  priceSource: string;
   contraprestacion: CryptoContraprestacion | null;
 }
 
@@ -68,6 +71,10 @@ interface Lot {
   grossCentsRemaining: number;
   /** Total fee paid on this lot (EUR cents). Allocated pro-rata when the lot is partially consumed. */
   feeCentsRemaining: number;
+  /** Price-resolution source of the acquisition leg that opened the lot. */
+  sourcePriceSource: string;
+  /** True when the lot opened from a transfer_in (cost basis is an FMV proxy, not the real source-wallet basis). */
+  sourceFmvProxy: boolean;
 }
 
 export interface ConsumedLotRecord {
@@ -77,6 +84,10 @@ export interface ConsumedLotRecord {
   unitCostCents: number;
   acquisitionValueCents: number;
   acquisitionFeeCents: number;
+  /** Price-resolution source of the lot's acquisition leg (e.g. 'binance_eur', 'unresolved'). */
+  sourcePriceSource: string;
+  /** True when this lot's cost basis is a transfer_in FMV proxy (M1). */
+  fmvProxy: boolean;
 }
 
 export interface CryptoDisposalDraft {
@@ -92,8 +103,16 @@ export interface CryptoDisposalDraft {
   acquisitionFeeCents: number;
   gainLossCents: number;
   acquisitionLots: ConsumedLotRecord[];
+  /** Price-resolution source of the disposal (transmission) leg. */
+  priceSource: string;
   /** True when the FIFO queue ran out of lots before covering the disposal. */
   incompleteCoverage: boolean;
+  /**
+   * True when the disposal's transmission price was unresolved/0, OR any
+   * consumed lot's cost was unresolved/0, OR any consumed lot is a transfer_in
+   * FMV-proxy. Distinct from incompleteCoverage (queue exhaustion).
+   */
+  needsReview: boolean;
 }
 
 // ============================================================
@@ -146,6 +165,8 @@ function pushLot(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): void
     unitCostCents: event.unitPriceEurCents,
     grossCentsRemaining: event.grossValueEurCents,
     feeCentsRemaining: event.feeEurCents,
+    sourcePriceSource: event.priceSource,
+    sourceFmvProxy: event.kind === CRYPTO_TAXABLE_KIND.TRANSFER_IN,
   });
   lotsByAsset.set(event.asset, queue);
 }
@@ -193,6 +214,8 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
       unitCostCents: lot.unitCostCents,
       acquisitionValueCents,
       acquisitionFeeCents: feeShare,
+      sourcePriceSource: lot.sourcePriceSource,
+      fmvProxy: lot.sourceFmvProxy,
     });
 
     totalAcquisitionCents += acquisitionValueCents;
@@ -215,6 +238,17 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
   const gainLossCents =
     transmissionValueCents - transmissionFeeCents - totalAcquisitionCents - totalAcquisitionFeeCents;
 
+  // needsReview: the transmission price is unresolved/0, OR any consumed lot's
+  // cost is unresolved/0, OR any consumed lot is a transfer_in FMV proxy (M1).
+  // Lot cost is checked via acquisitionValueCents (the apportioned basis), NOT
+  // unitCostCents — after the sub-cent fix a valid lot can have unitCostCents=0.
+  const transmissionUnreliable = event.priceSource === CRYPTO_PRICE_SOURCE.UNRESOLVED || transmissionValueCents === 0;
+  const lotUnreliable = consumedLots.some(
+    (lot) =>
+      lot.sourcePriceSource === CRYPTO_PRICE_SOURCE.UNRESOLVED || lot.acquisitionValueCents === 0 || lot.fmvProxy,
+  );
+  const needsReview = transmissionUnreliable || lotUnreliable;
+
   return {
     taxableEventId: event.taxableEventId,
     fiscalYear: fiscalYearOf(event.occurredAt),
@@ -228,7 +262,9 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
     acquisitionFeeCents: totalAcquisitionFeeCents,
     gainLossCents,
     acquisitionLots: consumedLots,
+    priceSource: event.priceSource,
     incompleteCoverage,
+    needsReview,
   };
 }
 
@@ -261,6 +297,7 @@ export interface Modelo100CryptoSummary {
   /** 0033: staking / Earn rewards (rendimientos del capital mobiliario) */
   casilla0033Cents: number;
   incompleteCoverageCount: number;
+  needsReviewCount: number;
 }
 
 /**
@@ -284,6 +321,7 @@ export function summariseForModelo100(
     casilla0304Cents: 0,
     casilla0033Cents: 0,
     incompleteCoverageCount: 0,
+    needsReviewCount: 0,
   };
 
   yearDisposals.forEach((d) => {
@@ -295,6 +333,7 @@ export function summariseForModelo100(
     bucket.gainLossCents += d.gainLossCents;
     bucket.rowCount += 1;
     if (d.incompleteCoverage) summary.incompleteCoverageCount += 1;
+    if (d.needsReview) summary.needsReviewCount += 1;
   });
 
   airdropEvents

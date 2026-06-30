@@ -1099,6 +1099,12 @@ CREATE TABLE "CryptoDisposals" (
     "AcquisitionValueCents" BIGINT NOT NULL,
     "AcquisitionFeeCents" BIGINT NOT NULL DEFAULT 0,
     "GainLossCents" BIGINT NOT NULL,
+    -- Price source of the disposal (transmission) leg itself ('unresolved'
+    -- when no EUR price could be resolved). Together with the per-lot
+    -- sourcePriceSource / fmvProxy fields embedded in AcquisitionLotsJson it
+    -- drives the Modelo 100 'needs review' count (unresolved/0 price, 0-cost
+    -- lot, or transfer_in FMV-proxy cost basis).
+    "PriceSource" VARCHAR(30) NOT NULL DEFAULT 'unresolved',
     "AcquisitionLotsJson" JSONB NOT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

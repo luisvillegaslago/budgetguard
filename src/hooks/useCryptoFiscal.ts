@@ -28,6 +28,7 @@ export interface Modelo100CryptoSummary {
   casilla0304Cents: number;
   casilla0033Cents: number;
   incompleteCoverageCount: number;
+  needsReviewCount: number;
   computedAt: string;
 }
 
