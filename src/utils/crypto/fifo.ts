@@ -32,7 +32,6 @@
  */
 
 import {
-  CRYPTO_CONTRAPRESTACION,
   CRYPTO_PRICE_SOURCE,
   CRYPTO_TAXABLE_KIND,
   type CryptoContraprestacion,
@@ -272,100 +271,6 @@ function consumeFifo(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): 
     priceSource: event.priceSource,
     incompleteCoverage,
     needsReview,
-  };
-}
-
-// ============================================================
-// Aggregation helpers (Modelo 100 casillas)
-// ============================================================
-
-export interface Modelo100CryptoSummary {
-  fiscalYear: number;
-  /** 1804-F: disposals against fiat (EUR sells, fiat payments, c2c, etc.) */
-  casilla1804F: {
-    transmissionValueCents: number;
-    transmissionFeeCents: number;
-    acquisitionValueCents: number;
-    acquisitionFeeCents: number;
-    gainLossCents: number;
-    rowCount: number;
-  };
-  /** 1804-N: disposals against another crypto (swaps, dust, convert) */
-  casilla1804N: {
-    transmissionValueCents: number;
-    transmissionFeeCents: number;
-    acquisitionValueCents: number;
-    acquisitionFeeCents: number;
-    gainLossCents: number;
-    rowCount: number;
-  };
-  /** 0304: airdrops and other non-disposal capital gains */
-  casilla0304Cents: number;
-  /** 0033: staking / Earn rewards (rendimientos del capital mobiliario) */
-  casilla0033Cents: number;
-  incompleteCoverageCount: number;
-  needsReviewCount: number;
-}
-
-/**
- * Roll up FIFO disposals + the original taxable events into the four
- * Modelo 100 boxes the user needs to file. The repository computes this
- * with a single SQL aggregation in production — this helper is here for
- * unit tests and for the in-memory recompute path.
- */
-export function summariseForModelo100(
-  fiscalYear: number,
-  disposals: CryptoDisposalDraft[],
-  airdropEvents: FifoTaxableEvent[],
-  stakingRewardEvents: FifoTaxableEvent[],
-): Modelo100CryptoSummary {
-  const yearDisposals = disposals.filter((d) => d.fiscalYear === fiscalYear);
-
-  const summary: Modelo100CryptoSummary = {
-    fiscalYear,
-    casilla1804F: emptyBucket(),
-    casilla1804N: emptyBucket(),
-    casilla0304Cents: 0,
-    casilla0033Cents: 0,
-    incompleteCoverageCount: 0,
-    needsReviewCount: 0,
-  };
-
-  yearDisposals.forEach((d) => {
-    const bucket = d.contraprestacion === CRYPTO_CONTRAPRESTACION.FIAT ? summary.casilla1804F : summary.casilla1804N;
-    bucket.transmissionValueCents += d.transmissionValueCents;
-    bucket.transmissionFeeCents += d.transmissionFeeCents;
-    bucket.acquisitionValueCents += d.acquisitionValueCents;
-    bucket.acquisitionFeeCents += d.acquisitionFeeCents;
-    bucket.gainLossCents += d.gainLossCents;
-    bucket.rowCount += 1;
-    if (d.incompleteCoverage) summary.incompleteCoverageCount += 1;
-    if (d.needsReview) summary.needsReviewCount += 1;
-  });
-
-  airdropEvents
-    .filter((e) => fiscalYearOf(e.occurredAt) === fiscalYear)
-    .forEach((e) => {
-      summary.casilla0304Cents += e.grossValueEurCents;
-    });
-
-  stakingRewardEvents
-    .filter((e) => fiscalYearOf(e.occurredAt) === fiscalYear)
-    .forEach((e) => {
-      summary.casilla0033Cents += e.grossValueEurCents;
-    });
-
-  return summary;
-}
-
-function emptyBucket(): Modelo100CryptoSummary['casilla1804F'] {
-  return {
-    transmissionValueCents: 0,
-    transmissionFeeCents: 0,
-    acquisitionValueCents: 0,
-    acquisitionFeeCents: 0,
-    gainLossCents: 0,
-    rowCount: 0,
   };
 }
 

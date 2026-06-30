@@ -5,11 +5,12 @@
  * fee allocation pro-rata, incomplete coverage, fiat-vs-crypto routing,
  * staking_reward + airdrop also feed the lot queue, transfer_in pushes a
  * lot at FMV (AEAT proxy when source-wallet basis is unknown), transfer_out
- * is a no-op, gain/loss math, and the Modelo 100 summariser.
+ * is a no-op, gain/loss math, sub-cent gross apportionment, needs-review
+ * flagging, and the per-element box derivation.
  */
 
 import { CRYPTO_CONTRAPRESTACION, CRYPTO_PRICE_SOURCE, CRYPTO_TAXABLE_KIND } from '@/constants/finance';
-import { type FifoTaxableEvent, runFifo, summariseForModelo100 } from '@/utils/crypto/fifo';
+import { type FifoTaxableEvent, runFifo } from '@/utils/crypto/fifo';
 
 let nextId = 1;
 function ev(partial: Partial<FifoTaxableEvent>): FifoTaxableEvent {
@@ -362,81 +363,6 @@ describe('runFifo', () => {
   });
 });
 
-describe('summariseForModelo100', () => {
-  it('aggregates disposals by Contraprestacion + sums airdrops + staking for the year', () => {
-    const disposals = runFifo([
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
-        asset: 'BTC',
-        quantityNative: '1',
-        unitPriceEurCents: 30_000_00,
-        grossValueEurCents: 30_000_00,
-      }),
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
-        asset: 'BTC',
-        quantityNative: '0.5',
-        grossValueEurCents: 25_000_00,
-        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
-        occurredAt: '2025-05-01T00:00:00Z',
-      }),
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
-        asset: 'BTC',
-        quantityNative: '0.3',
-        grossValueEurCents: 18_000_00,
-        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
-        occurredAt: '2025-08-01T00:00:00Z',
-      }),
-    ]);
-
-    const airdrops: FifoTaxableEvent[] = [
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.AIRDROP,
-        asset: 'OPN',
-        grossValueEurCents: 50_00,
-        occurredAt: '2025-03-01T00:00:00Z',
-      }),
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.AIRDROP,
-        asset: 'BREV',
-        grossValueEurCents: 25_00,
-        occurredAt: '2025-09-01T00:00:00Z',
-      }),
-      // Should be excluded (different year)
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.AIRDROP,
-        asset: 'XYZ',
-        grossValueEurCents: 10_00,
-        occurredAt: '2024-01-01T00:00:00Z',
-      }),
-    ];
-    const staking: FifoTaxableEvent[] = [
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.STAKING_REWARD,
-        asset: 'BNB',
-        grossValueEurCents: 1_00,
-        occurredAt: '2025-06-15T00:00:00Z',
-      }),
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.STAKING_REWARD,
-        asset: 'BNB',
-        grossValueEurCents: 2_00,
-        occurredAt: '2025-07-15T00:00:00Z',
-      }),
-    ];
-
-    const summary = summariseForModelo100(2025, disposals, airdrops, staking);
-
-    expect(summary.casilla1804F.rowCount).toBe(1);
-    expect(summary.casilla1804F.transmissionValueCents).toBe(25_000_00);
-    expect(summary.casilla1804N.rowCount).toBe(1);
-    expect(summary.casilla1804N.transmissionValueCents).toBe(18_000_00);
-    expect(summary.casilla0304Cents).toBe(75_00); // 50 + 25, excludes 2024
-    expect(summary.casilla0033Cents).toBe(3_00);
-  });
-});
-
 describe('runFifo — sub-cent assets (gross apportionment)', () => {
   it('apportions basis from stored gross when unit price rounds to 0', () => {
     const result = runFifo([
@@ -602,30 +528,5 @@ describe('needsReview flagging (H3 + M1)', () => {
       }),
     ]);
     expect(d?.needsReview).toBe(true);
-  });
-
-  it('counts needsReview in summariseForModelo100', () => {
-    const disposals = runFifo([
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN,
-        asset: 'ETH',
-        quantityNative: '1',
-        unitPriceEurCents: 2_000_00,
-        grossValueEurCents: 2_000_00,
-        priceSource: CRYPTO_PRICE_SOURCE.BINANCE_EUR,
-        occurredAt: '2024-01-01T00:00:00Z',
-      }),
-      ev({
-        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
-        asset: 'ETH',
-        quantityNative: '1',
-        grossValueEurCents: 3_000_00,
-        priceSource: CRYPTO_PRICE_SOURCE.FIAT_COUNTER,
-        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
-        occurredAt: '2025-02-01T00:00:00Z',
-      }),
-    ]);
-    const summary = summariseForModelo100(2025, disposals, [], []);
-    expect(summary.needsReviewCount).toBe(1);
   });
 });
