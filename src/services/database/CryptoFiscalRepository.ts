@@ -20,7 +20,10 @@ import {
 import { getUserIdOrThrow } from '@/libs/auth';
 import { type CryptoDisposalDraft, type FifoTaxableEvent, runFifo } from '@/utils/crypto/fifo';
 import { madridYearStartUtc } from '@/utils/crypto/fiscalYear';
-import { query } from './connection';
+import { getPool, query } from './connection';
+
+/** Minimal structural type for a pinned pool client used inside a transaction. */
+type TxClient = { query: (text: string, params?: unknown[]) => Promise<unknown> };
 
 interface TaxableEventForFifoRow {
   EventID: string;
@@ -78,19 +81,23 @@ export async function recomputeYearForUser(userId: number, fiscalYear: number): 
   const yearDisposals = allDisposals.filter((d) => d.fiscalYear === fiscalYear);
   const incompleteCoverageCount = yearDisposals.filter((d) => d.incompleteCoverage).length;
 
-  // Atomic swap inside a transaction: delete previous + insert new.
-  await query('BEGIN');
+  // Atomic swap on a PINNED client: BEGIN/COMMIT/ROLLBACK must run on the same
+  // connection, otherwise on a serverless pool each statement auto-commits and
+  // a failed insert after the DELETE leaves the table truncated.
+  const pool = getPool();
+  const client = await pool.connect();
   try {
-    await query(`DELETE FROM "CryptoDisposals" WHERE "UserID" = $1 AND "FiscalYear" = $2`, [userId, fiscalYear]);
-
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM "CryptoDisposals" WHERE "UserID" = $1 AND "FiscalYear" = $2`, [userId, fiscalYear]);
     if (yearDisposals.length > 0) {
-      await bulkInsertDisposalsTx(userId, yearDisposals);
+      await bulkInsertDisposalsTx(client, userId, yearDisposals);
     }
-
-    await query('COMMIT');
+    await client.query('COMMIT');
   } catch (error) {
-    await query('ROLLBACK');
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
 
   return {
@@ -146,19 +153,23 @@ export async function recomputeAllYearsForUser(
     byYear.set(d.fiscalYear, list);
   });
 
-  // Atomic swap: wipe ALL existing disposals for the user and insert the
-  // fresh set in one transaction so the UI never sees a half-recomputed
-  // state.
-  await query('BEGIN');
+  // Atomic swap on a PINNED client: wipe ALL existing disposals for the user
+  // and insert the fresh set in one transaction so the UI never sees a
+  // half-recomputed state (and a failed insert rolls back the DELETE).
+  const pool = getPool();
+  const client = await pool.connect();
   try {
-    await query(`DELETE FROM "CryptoDisposals" WHERE "UserID" = $1`, [userId]);
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM "CryptoDisposals" WHERE "UserID" = $1`, [userId]);
     if (allDisposals.length > 0) {
-      await bulkInsertDisposalsTx(userId, allDisposals);
+      await bulkInsertDisposalsTx(client, userId, allDisposals);
     }
-    await query('COMMIT');
+    await client.query('COMMIT');
   } catch (error) {
-    await query('ROLLBACK');
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
 
   const years: RecomputeResult[] = Array.from(byYear.entries())
@@ -176,12 +187,31 @@ export async function recomputeAllYearsForUser(
   };
 }
 
-async function bulkInsertDisposalsTx(userId: number, drafts: CryptoDisposalDraft[]): Promise<void> {
-  const COLS_PER_ROW = 13;
+const COLS_PER_DISPOSAL = 13;
+// Postgres caps a statement at 65535 bound parameters (~5040 rows at 13
+// params/row). A multi-year trader (dust, swaps, c2c) can exceed that, so
+// insert in chunks well under the limit. Chunks run sequentially on the same
+// pinned client inside the open transaction.
+const DISPOSAL_INSERT_CHUNK = 1000;
+
+async function bulkInsertDisposalsTx(client: TxClient, userId: number, drafts: CryptoDisposalDraft[]): Promise<void> {
+  const chunkCount = Math.ceil(drafts.length / DISPOSAL_INSERT_CHUNK);
+  await Array.from({ length: chunkCount }).reduce<Promise<void>>(
+    (prev, _unused, i) =>
+      prev.then(() =>
+        insertDisposalChunk(client, userId, drafts.slice(i * DISPOSAL_INSERT_CHUNK, (i + 1) * DISPOSAL_INSERT_CHUNK)),
+      ),
+    Promise.resolve(),
+  );
+}
+
+async function insertDisposalChunk(client: TxClient, userId: number, drafts: CryptoDisposalDraft[]): Promise<void> {
+  if (drafts.length === 0) return;
+
   const placeholders = drafts
     .map((_, i) => {
-      const base = i * COLS_PER_ROW + 1;
-      return `(${Array.from({ length: COLS_PER_ROW }, (_, j) => `$${base + j}`).join(', ')})`;
+      const base = i * COLS_PER_DISPOSAL + 1;
+      return `(${Array.from({ length: COLS_PER_DISPOSAL }, (_, j) => `$${base + j}`).join(', ')})`;
     })
     .join(', ');
 
@@ -201,7 +231,7 @@ async function bulkInsertDisposalsTx(userId: number, drafts: CryptoDisposalDraft
     JSON.stringify(d.acquisitionLots),
   ]);
 
-  await query(
+  await client.query(
     `INSERT INTO "CryptoDisposals" (
        "UserID", "TaxableEventID", "FiscalYear", "OccurredAt", "Asset",
        "Contraprestacion", "QuantityNative",
