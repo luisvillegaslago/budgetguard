@@ -15,9 +15,10 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
-import { API_ENDPOINT } from '@/constants/finance';
-import { useCryptoModelo100Summary, useRecomputeCryptoFiscal } from '@/hooks/useCryptoFiscal';
+import { API_ENDPOINT, CRYPTO_CONTRAPRESTACION, type CryptoContraprestacion } from '@/constants/finance';
+import { type Modelo100Element, useCryptoModelo100Summary, useRecomputeCryptoFiscal } from '@/hooks/useCryptoFiscal';
 import { useTranslate } from '@/hooks/useTranslations';
+import { modelo100ElementBoxes } from '@/utils/crypto/fifo';
 import { formatCurrency } from '@/utils/money';
 
 interface Props {
@@ -158,6 +159,8 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
         />
       </div>
 
+      <Modelo100ElementsTable elements={data.elements} />
+
       <ConfirmDialog
         open={confirmOpen}
         title={t('crypto.fiscal.recompute-confirm-title')}
@@ -230,6 +233,61 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between">
       <span className="text-guard-muted">{label}</span>
       <span className="font-mono">{value}</span>
+    </div>
+  );
+}
+
+/** Maps the F/N code to its readable i18n label key. */
+const ELEMENT_CONTRAPRESTACION_LABEL_KEY: Record<CryptoContraprestacion, string> = {
+  [CRYPTO_CONTRAPRESTACION.FIAT]: 'crypto.fiscal.contraprestacion-f',
+  [CRYPTO_CONTRAPRESTACION.NON_FIAT]: 'crypto.fiscal.contraprestacion-n',
+};
+
+function Modelo100ElementsTable({ elements }: { elements: Modelo100Element[] }) {
+  const { t } = useTranslate();
+  if (elements.length === 0) return null;
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">{t('crypto.fiscal.elements-title')}</h3>
+        <p className="text-xs text-guard-muted">{t('crypto.fiscal.elements-subtitle')}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b border-border text-left text-xs uppercase text-guard-muted">
+            <tr>
+              <th className="py-2 pr-3">{t('crypto.fiscal.el-col.coin')}</th>
+              <th className="py-2 pr-3">{t('crypto.fiscal.el-col.key')}</th>
+              <th className="py-2 pr-3 text-right">{t('crypto.fiscal.el-col.box-1804')}</th>
+              <th className="py-2 pr-3 text-right">{t('crypto.fiscal.el-col.box-1806')}</th>
+              <th className="py-2 pr-3 text-right">{t('crypto.fiscal.el-col.box-1807')}</th>
+              <th className="py-2 pr-3 text-right">{t('crypto.fiscal.el-col.box-1809')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {elements.map((el) => {
+              const boxes = modelo100ElementBoxes(el);
+              return (
+                <tr key={`${el.asset}-${el.contraprestacion}`} className="hover:bg-muted/30">
+                  <td className="py-2 pr-3">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{el.asset}</span>
+                  </td>
+                  <td className="py-2 pr-3 text-xs">{t(ELEMENT_CONTRAPRESTACION_LABEL_KEY[el.contraprestacion])}</td>
+                  <td className="py-2 pr-3 text-right font-mono">{formatCurrency(boxes.box1804Cents)}</td>
+                  <td className="py-2 pr-3 text-right font-mono">{formatCurrency(boxes.box1806Cents)}</td>
+                  <td className="py-2 pr-3 text-right font-mono text-guard-danger">
+                    {boxes.box1807Cents > 0 ? formatCurrency(boxes.box1807Cents) : '—'}
+                  </td>
+                  <td className="py-2 pr-3 text-right font-mono text-guard-success">
+                    {boxes.box1809Cents > 0 ? formatCurrency(boxes.box1809Cents) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

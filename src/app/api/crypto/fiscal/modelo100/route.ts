@@ -7,6 +7,11 @@
  *   - 0304   (airdrops, sum of GrossValueEurCents)
  *   - 0033   (staking/Earn, sum of GrossValueEurCents)
  *
+ * Plus `summary.elements`: one row per (Asset, Contraprestacion) so the user
+ * can transcribe each "Elemento patrimonial" (1802/1803/1804/1806/1807/1809)
+ * into Renta Web. 1804 is net of transmission fees, 1806 includes the
+ * acquisition fee. The route returns the repository summary verbatim.
+ *
  * Pure aggregation — no FIFO recompute is triggered. Call POST
  * /api/crypto/fiscal/recompute first if disposals are stale.
  */

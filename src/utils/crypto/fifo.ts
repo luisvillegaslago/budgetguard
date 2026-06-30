@@ -361,3 +361,44 @@ function emptyBucket(): Modelo100CryptoSummary['casilla1804F'] {
     rowCount: 0,
   };
 }
+
+// ============================================================
+// Per-element AEAT box derivation (Alta Elemento patrimonial)
+// ============================================================
+
+/** Cent fields needed to derive an element's printed boxes. */
+export interface Modelo100ElementBoxInput {
+  transmissionValueCents: number;
+  transmissionFeeCents: number;
+  acquisitionValueCents: number;
+  acquisitionFeeCents: number;
+}
+
+export interface Modelo100ElementBoxes {
+  /** 1804 — valor de transmisión NETO de gastos de venta. */
+  box1804Cents: number;
+  /** 1806 — valor de adquisición + gastos de compra. */
+  box1806Cents: number;
+  /** 1807 — pérdida (>= 0; 0 cuando hay ganancia o empate). */
+  box1807Cents: number;
+  /** 1809 — ganancia (>= 0; 0 cuando hay pérdida o empate). */
+  box1809Cents: number;
+}
+
+/**
+ * Derive the four printed AEAT boxes for one Elemento patrimonial.
+ * 1804 is the transmission value NET of transmission fees; 1806 is the
+ * acquisition value plus its fee; the signed difference splits into
+ * 1809 (gain) or 1807 (loss). Result equals the stored gainLossCents.
+ */
+export function modelo100ElementBoxes(input: Modelo100ElementBoxInput): Modelo100ElementBoxes {
+  const box1804Cents = input.transmissionValueCents - input.transmissionFeeCents;
+  const box1806Cents = input.acquisitionValueCents + input.acquisitionFeeCents;
+  const net = box1804Cents - box1806Cents;
+  return {
+    box1804Cents,
+    box1806Cents,
+    box1807Cents: net < 0 ? -net : 0,
+    box1809Cents: net > 0 ? net : 0,
+  };
+}

@@ -254,7 +254,8 @@ async function insertDisposalChunk(client: TxClient, userId: number, drafts: Cry
 // Modelo 100 summary
 // ============================================================
 
-interface BucketRow {
+interface ElementRow {
+  Asset: string;
   Contraprestacion: string;
   TransmissionValueCents: string;
   TransmissionFeeCents: string;
@@ -275,6 +276,8 @@ export interface Modelo100CryptoSummary {
   fiscalYear: number;
   casilla1804F: BucketSummary;
   casilla1804N: BucketSummary;
+  /** One row per (Asset, Contraprestacion): a Modelo 100 "Elemento patrimonial". */
+  elements: Modelo100Element[];
   casilla0304Cents: number;
   casilla0033Cents: number;
   incompleteCoverageCount: number;
@@ -289,6 +292,17 @@ export interface BucketSummary {
   acquisitionFeeCents: number;
   gainLossCents: number;
   rowCount: number;
+}
+
+/**
+ * A single AEAT "Elemento patrimonial": the GROSS sums for one coin under one
+ * F/N key. The printed boxes (1804 net of fees, 1806 incl. acq fee, 1807/1809)
+ * are derived from these with modelo100ElementBoxes() so the net-of-fee rule
+ * lives in exactly one place.
+ */
+export interface Modelo100Element extends BucketSummary {
+  asset: string;
+  contraprestacion: CryptoContraprestacion;
 }
 
 const EMPTY_BUCKET: BucketSummary = {
@@ -309,9 +323,10 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
   const yearStart = madridYearStartUtc(fiscalYear).toISOString();
   const yearEnd = madridYearStartUtc(fiscalYear + 1).toISOString();
 
-  const [bucketRows, airdropStakingRows] = await Promise.all([
-    query<BucketRow>(
+  const [elementRows, airdropStakingRows] = await Promise.all([
+    query<ElementRow>(
       `SELECT
+         "Asset",
          "Contraprestacion",
          SUM("TransmissionValueCents")::text AS "TransmissionValueCents",
          SUM("TransmissionFeeCents")::text  AS "TransmissionFeeCents",
@@ -339,7 +354,8 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
          )::text AS "NeedsReviewCount"
        FROM "CryptoDisposals"
        WHERE "UserID" = $1 AND "FiscalYear" = $2
-       GROUP BY "Contraprestacion"`,
+       GROUP BY "Asset", "Contraprestacion"
+       ORDER BY "Asset" ASC, "Contraprestacion" ASC`,
       [userId, fiscalYear, CRYPTO_PRICE_SOURCE.UNRESOLVED],
     ),
     query<AirdropStakingRow>(
@@ -357,6 +373,7 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
     fiscalYear,
     casilla1804F: { ...EMPTY_BUCKET },
     casilla1804N: { ...EMPTY_BUCKET },
+    elements: [],
     casilla0304Cents: 0,
     casilla0033Cents: 0,
     incompleteCoverageCount: 0,
@@ -364,20 +381,33 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
     computedAt: new Date().toISOString(),
   };
 
-  bucketRows.forEach((row) => {
-    const bucket: BucketSummary = {
-      transmissionValueCents: Number(row.TransmissionValueCents ?? 0),
-      transmissionFeeCents: Number(row.TransmissionFeeCents ?? 0),
-      acquisitionValueCents: Number(row.AcquisitionValueCents ?? 0),
-      acquisitionFeeCents: Number(row.AcquisitionFeeCents ?? 0),
-      gainLossCents: Number(row.GainLossCents ?? 0),
-      rowCount: Number(row.RowCount ?? 0),
-    };
-    if (row.Contraprestacion === CRYPTO_CONTRAPRESTACION.FIAT) summary.casilla1804F = bucket;
-    if (row.Contraprestacion === CRYPTO_CONTRAPRESTACION.NON_FIAT) summary.casilla1804N = bucket;
-    summary.incompleteCoverageCount += Number(row.IncompleteCount ?? 0);
-    summary.needsReviewCount += Number(row.NeedsReviewCount ?? 0);
+  const elements: Modelo100Element[] = elementRows.map((row) => ({
+    asset: row.Asset,
+    contraprestacion: row.Contraprestacion as CryptoContraprestacion,
+    transmissionValueCents: Number(row.TransmissionValueCents ?? 0),
+    transmissionFeeCents: Number(row.TransmissionFeeCents ?? 0),
+    acquisitionValueCents: Number(row.AcquisitionValueCents ?? 0),
+    acquisitionFeeCents: Number(row.AcquisitionFeeCents ?? 0),
+    gainLossCents: Number(row.GainLossCents ?? 0),
+    rowCount: Number(row.RowCount ?? 0),
+  }));
+
+  // Fold every element into its F/N bucket so the top-level totals are exactly
+  // the sum of the per-coin breakdown shown to the user.
+  elements.forEach((element, index) => {
+    const bucket =
+      element.contraprestacion === CRYPTO_CONTRAPRESTACION.FIAT ? summary.casilla1804F : summary.casilla1804N;
+    bucket.transmissionValueCents += element.transmissionValueCents;
+    bucket.transmissionFeeCents += element.transmissionFeeCents;
+    bucket.acquisitionValueCents += element.acquisitionValueCents;
+    bucket.acquisitionFeeCents += element.acquisitionFeeCents;
+    bucket.gainLossCents += element.gainLossCents;
+    bucket.rowCount += element.rowCount;
+    summary.incompleteCoverageCount += Number(elementRows[index]?.IncompleteCount ?? 0);
+    summary.needsReviewCount += Number(elementRows[index]?.NeedsReviewCount ?? 0);
   });
+
+  summary.elements = elements;
 
   airdropStakingRows.forEach((row) => {
     const cents = Number(row.TotalCents ?? 0);

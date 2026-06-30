@@ -42,16 +42,17 @@ const CASILLAS: CasillaConfig[] = [
     keyPrefix: 'casilla-1804-f',
     stepCount: 5,
     amountCents: (s) => ({
-      transmission: s.casilla1804F.transmissionValueCents,
-      acquisition: s.casilla1804F.acquisitionValueCents,
+      // 1804 is net of transmission fees; 1806 includes the acquisition fee.
+      transmission: s.casilla1804F.transmissionValueCents - s.casilla1804F.transmissionFeeCents,
+      acquisition: s.casilla1804F.acquisitionValueCents + s.casilla1804F.acquisitionFeeCents,
     }),
   },
   {
     keyPrefix: 'casilla-1804-n',
     stepCount: 4,
     amountCents: (s) => ({
-      transmission: s.casilla1804N.transmissionValueCents,
-      acquisition: s.casilla1804N.acquisitionValueCents,
+      transmission: s.casilla1804N.transmissionValueCents - s.casilla1804N.transmissionFeeCents,
+      acquisition: s.casilla1804N.acquisitionValueCents + s.casilla1804N.acquisitionFeeCents,
     }),
   },
   {
@@ -172,11 +173,11 @@ function CasillaAccordion({ keyPrefix, stepCount, amount, isOpen, onToggle }: Ac
           {amount !== null && typeof amount === 'object' && (
             <div className="rounded-md bg-muted/40 p-3 space-y-1 text-xs font-mono">
               <div className="flex justify-between">
-                <span className="text-guard-muted">{t('crypto.fiscal.fields.transmission-value')}</span>
+                <span className="text-guard-muted">{t('crypto.aeat.fields.box-1804')}</span>
                 <span className="text-foreground">{formatCurrency(amount.transmission)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-guard-muted">{t('crypto.fiscal.fields.acquisition-value')}</span>
+                <span className="text-guard-muted">{t('crypto.aeat.fields.box-1806')}</span>
                 <span className="text-foreground">{formatCurrency(amount.acquisition)}</span>
               </div>
             </div>

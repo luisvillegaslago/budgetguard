@@ -1182,6 +1182,16 @@
       "incomplete-warning": "{count} disposals couldn't be fully covered by historical lots. Check the Events tab for any missing sync.",
       "needs-review-warning": "{count} disposals have values to review: an unresolved transmission price (€0), or a cost basis taken from a lot with no price or from a transfer-in valued at market. Verify them before filing.",
       "row-count": "{count} disposals",
+      "elements-title": "Per-coin breakdown (Elemento patrimonial)",
+      "elements-subtitle": "One \"Elemento patrimonial\" per coin and key. Transcribe each row into Renta Web: box 1804 is already net of selling fees and box 1806 includes the buying fees.",
+      "el-col": {
+        "coin": "Coin (1802)",
+        "key": "Key (1803)",
+        "box-1804": "Transmission (1804)",
+        "box-1806": "Acquisition (1806)",
+        "box-1807": "Loss (1807)",
+        "box-1809": "Gain (1809)"
+      },
       "casilla-1804-f": "Box 1804 (F)",
       "casilla-1804-f-subtitle": "Disposals against fiat (EUR)",
       "casilla-1804-n": "Box 1804 (N)",
@@ -1224,6 +1234,10 @@
       "subtitle": "Follow these steps in the Spanish tax portal with the amounts shown above.",
       "disclaimer": "Informational tool. Calculations follow the current crypto regulation (Modelo 100 IRPF). Review with your tax advisor before filing.",
       "amount-to-enter": "Amount to enter:",
+      "fields": {
+        "box-1804": "1804 — Transmission value (net of fees)",
+        "box-1806": "1806 — Acquisition value"
+      },
       "casilla-help": "Which box do I use?",
       "casilla-popup": {
         "title": "Which box do I use? — Virtual currencies, Page 15 (II)",

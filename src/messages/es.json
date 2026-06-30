@@ -1182,6 +1182,16 @@
       "incomplete-warning": "Hay {count} transmisiones donde no se cubrió toda la cantidad con lotes históricos. Revisa la pestaña Movimientos por si te falta algún sync.",
       "needs-review-warning": "Hay {count} transmisiones con valoraciones a revisar: precio de transmisión sin resolver (0 €), o coste de adquisición tomado de un lote sin precio o de una transferencia recibida valorada a precio de mercado. Verifícalas antes de declarar.",
       "row-count": "{count} operaciones",
+      "elements-title": "Desglose por moneda (Elemento patrimonial)",
+      "elements-subtitle": "Un \"Elemento patrimonial\" por moneda y clave. Transcribe cada fila a Renta Web: la casilla 1804 ya va neta de gastos de venta y la 1806 incluye los gastos de compra.",
+      "el-col": {
+        "coin": "Moneda (1802)",
+        "key": "Clave (1803)",
+        "box-1804": "Transmisión (1804)",
+        "box-1806": "Adquisición (1806)",
+        "box-1807": "Pérdida (1807)",
+        "box-1809": "Ganancia (1809)"
+      },
       "casilla-1804-f": "Casilla 1804 (F)",
       "casilla-1804-f-subtitle": "Transmisiones contra fiat (EUR)",
       "casilla-1804-n": "Casilla 1804 (N)",
@@ -1224,6 +1234,10 @@
       "subtitle": "Sigue estos pasos en la AEAT con los importes calculados arriba.",
       "disclaimer": "Herramienta informativa. Los cálculos se basan en la normativa actual de criptomonedas (Modelo 100 IRPF). Revisa con tu asesor fiscal antes de presentar la declaración.",
       "amount-to-enter": "Importe a introducir:",
+      "fields": {
+        "box-1804": "1804 — Valor de transmisión (neto de gastos)",
+        "box-1806": "1806 — Valor de adquisición"
+      },
       "casilla-help": "¿Qué casilla uso?",
       "casilla-popup": {
         "title": "¿Qué casilla uso? — Monedas virtuales, Página 15 (II)",

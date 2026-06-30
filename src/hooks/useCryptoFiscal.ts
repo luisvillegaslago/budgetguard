@@ -21,10 +21,16 @@ export interface BucketSummary {
   rowCount: number;
 }
 
+export interface Modelo100Element extends BucketSummary {
+  asset: string;
+  contraprestacion: CryptoContraprestacion;
+}
+
 export interface Modelo100CryptoSummary {
   fiscalYear: number;
   casilla1804F: BucketSummary;
   casilla1804N: BucketSummary;
+  elements: Modelo100Element[];
   casilla0304Cents: number;
   casilla0033Cents: number;
   incompleteCoverageCount: number;
