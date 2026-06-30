@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.45.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.44.0...v0.45.0) (2026-06-30)
+
+
+### Features
+
+* **crypto:** break Modelo 100 output into per-element rows ([b884e68](https://github.com/luisvillegaslago/budgetguard/commit/b884e68a2dfac05e82dcf088041d3c0a396cb13f))
+* **crypto:** flag Modelo 100 disposals needing manual price review ([fd1c469](https://github.com/luisvillegaslago/budgetguard/commit/fd1c4696f413207c701a1d81ea0cc432c4e657ac))
+* **crypto:** show 1804/1806 importe+gastos split and clean copy in Modelo 100 table ([1effa16](https://github.com/luisvillegaslago/budgetguard/commit/1effa163e1bba0b4b1de5f09bc52388362714553))
+* **crypto:** surface needs-review/incomplete-coverage per disposal row ([488cd78](https://github.com/luisvillegaslago/budgetguard/commit/488cd78f94887f78922dff18ec91bfbde2076086))
+
+
+### Bug Fixes
+
+* **crypto:** assign fiscal year in Spanish civil time (Europe/Madrid) ([d1bfdba](https://github.com/luisvillegaslago/budgetguard/commit/d1bfdba81305ed98e754accba3d77a67d7961df6))
+* **crypto:** classify stablecoin swaps as key N and prioritize airdrop labels ([8d87c4b](https://github.com/luisvillegaslago/budgetguard/commit/8d87c4b589b3b17770c478b51c643b8582992066))
+* **crypto:** count incomplete FIFO coverage across all lots, not just the last ([1d617d4](https://github.com/luisvillegaslago/budgetguard/commit/1d617d40f1c960ecde1cd09bfa14157acf2cc028))
+* **crypto:** flag needs-review only for unreliable prices, not tiny-but-resolved values ([d922d63](https://github.com/luisvillegaslago/budgetguard/commit/d922d633e66f2ad5e6850f8c5afc3f7e771d9ca7))
+* **crypto:** honor the CSV importer's earn/airdrop prefix in dividend classification ([d4832ee](https://github.com/luisvillegaslago/budgetguard/commit/d4832ee753aa0684fa1f44342db23292f918ffb4))
+* **crypto:** keep null (not 0) for an unrepresentable sub-cent base entry price ([24746b9](https://github.com/luisvillegaslago/budgetguard/commit/24746b995b0cf6e72e8672790e03d165a9dcc5fe))
+* **crypto:** persist FIFO coverage/review flags on disposals instead of re-deriving in SQL ([79a7dd3](https://github.com/luisvillegaslago/budgetguard/commit/79a7dd37b3675693e4058f2c2797f08ddeb15169))
+* **crypto:** preserve base/quote on CSV spot trades so non-standard pairs produce disposals ([47922d9](https://github.com/luisvillegaslago/budgetguard/commit/47922d970c2afd079c10efd15e51f5fd4dbd5451))
+* **crypto:** preserve sub-cent token price precision across cache, gross and FIFO basis ([9fe9703](https://github.com/luisvillegaslago/budgetguard/commit/9fe9703cba75e8223937848189d490785970692a))
+* **crypto:** purge only lossy sub-cent cache rows in the re-normalization script ([03b620d](https://github.com/luisvillegaslago/budgetguard/commit/03b620d7c562f028ce25a5b52222cdbfb1dc9092))
+* **crypto:** run recompute on a pinned client and batch the disposal insert ([920cf4b](https://github.com/luisvillegaslago/budgetguard/commit/920cf4b492868571312bbe917c5e0191eb543800))
+* **crypto:** use a relative tolerance for incomplete-coverage detection ([793af95](https://github.com/luisvillegaslago/budgetguard/commit/793af95aecf25db343085db8212c184b5e398720))
+* **crypto:** use exact EUR consideration and stop caching unresolved prices ([e86caed](https://github.com/luisvillegaslago/budgetguard/commit/e86caedbd2683c54361cae62a84500363bb917e6))
+* **crypto:** value sub-cent assets via micro-cent price in positions and pair detail ([92b9fcf](https://github.com/luisvillegaslago/budgetguard/commit/92b9fcfea5d13058147bd68b87996e65feb83b82))
+
 ## [0.44.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.43.1...v0.44.0) (2026-06-29)
 
 
