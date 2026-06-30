@@ -23,6 +23,7 @@ import {
   markRawEventsNormalized,
   type TaxableEventInput,
 } from '@/services/database/TaxableEventsRepository';
+import { eurosToCents } from '@/utils/money';
 import { BinanceClientError } from './BinanceClient';
 import { type NormalisedLeg, normalizeRawEvent } from './EventNormalizer';
 import { computeGrossEurCents, getPriceEurCents } from './PriceService';
@@ -127,11 +128,34 @@ async function enrichLegsWithPrices(
   const enriched: TaxableEventInput[] = [];
 
   for (const leg of legs) {
-    const price = await getPriceEurCents(leg.asset, occurredAt);
-    const grossValueEurCents = computeGrossEurCents(leg.quantityNative, price.eurPriceCents);
+    // When the consideration is exact euros (a EUR sell or a EUR purchase),
+    // AEAT's value is "lo recibido/pagado" — the real euros exchanged — not a
+    // daily-close estimate of the crypto side. Use the known counter amount
+    // directly, which also avoids zeroing the value if the price lookup fails.
+    const eurCounter =
+      leg.counterAsset === 'EUR' && leg.counterQuantityNative != null && Number(leg.counterQuantityNative) > 0
+        ? Number(leg.counterQuantityNative)
+        : null;
+
+    let unitPriceEurCents: number;
+    let grossValueEurCents: number;
+    let priceSource: string;
+    if (eurCounter !== null) {
+      grossValueEurCents = eurosToCents(eurCounter);
+      const qty = Number(leg.quantityNative);
+      unitPriceEurCents = qty > 0 ? Math.round(grossValueEurCents / qty) : 0;
+      priceSource = 'fiat_counter';
+    } else {
+      const price = await getPriceEurCents(leg.asset, occurredAt);
+      unitPriceEurCents = price.eurPriceCents;
+      grossValueEurCents = computeGrossEurCents(leg.quantityNative, price.eurPriceCents);
+      priceSource = price.source;
+    }
 
     let feeEurCents = 0;
     if (leg.feeAsset && leg.feeQuantityNative && Number(leg.feeQuantityNative) > 0) {
+      // EUR fees resolve to 1 EUR/unit via PriceService (eur_self), so this
+      // already yields the exact euro fee; non-EUR fees are priced to EUR.
       const feePrice = await getPriceEurCents(leg.feeAsset, occurredAt);
       feeEurCents = computeGrossEurCents(leg.feeQuantityNative, feePrice.eurPriceCents);
     }
@@ -146,10 +170,10 @@ async function enrichLegsWithPrices(
       counterQuantityNative: leg.counterQuantityNative,
       feeAsset: leg.feeAsset,
       feeQuantityNative: leg.feeQuantityNative,
-      unitPriceEurCents: price.eurPriceCents,
+      unitPriceEurCents,
       grossValueEurCents,
       feeEurCents,
-      priceSource: price.source,
+      priceSource,
       contraprestacion: leg.contraprestacion,
     });
   }

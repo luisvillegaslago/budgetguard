@@ -40,6 +40,7 @@ const KLINE_INTERVAL = '1d';
 export type PriceSource =
   | 'cache'
   | 'eur_self'
+  | 'fiat_counter' // Value taken from the exact EUR counter amount of the trade (not a market lookup)
   | 'stablecoin_eur'
   | 'stablecoin_usd_cross'
   | 'binance_eur'
@@ -83,13 +84,22 @@ export async function getPriceEurCents(asset: string, at: Date): Promise<Resolve
   }
 
   const resolved = await resolveFromCascade(asset, dateUtc, at);
-  // Persist (ON CONFLICT DO NOTHING — first writer wins on race)
-  await putCachedPrice({
-    asset: resolved.asset,
-    dateUtc: resolved.dateUtc,
-    eurPriceCents: resolved.eurPriceCents,
-    source: resolved.source,
-  } satisfies CachedPrice);
+
+  // Never cache an `unresolved` (0) result. The cache is immutable
+  // (first-writer-wins, ON CONFLICT DO NOTHING) and re-read verbatim by the
+  // recompute, so a transient API outage — `fetchKlineEurClose` swallows 5xx
+  // and rate-limit errors as "no data" — would otherwise freeze a 0 price
+  // forever and silently zero out a casilla. Leaving it uncached lets a later
+  // run re-resolve the real price.
+  if (resolved.source !== 'unresolved') {
+    // Persist (ON CONFLICT DO NOTHING — first writer wins on race)
+    await putCachedPrice({
+      asset: resolved.asset,
+      dateUtc: resolved.dateUtc,
+      eurPriceCents: resolved.eurPriceCents,
+      source: resolved.source,
+    } satisfies CachedPrice);
+  }
 
   syncDebug.fetchHit('price', `${asset}@${dateUtc}`, 1);
   return resolved;
