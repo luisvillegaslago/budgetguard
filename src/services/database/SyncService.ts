@@ -122,6 +122,27 @@ export const SYNCABLE_TABLES: TableConfig[] = [
     ],
   },
   {
+    // Must precede Transactions: Transactions.VoucherID references Vouchers,
+    // and Vouchers.CategoryID references Categories (already earlier).
+    table: 'Vouchers',
+    pk: 'VoucherID',
+    descriptionColumn: 'Description',
+    hasUpdatedAt: true,
+    columns: [
+      'VoucherID',
+      'CategoryID',
+      'Description',
+      'TotalAmountCents',
+      'TotalUnits',
+      'UnitLabel',
+      'PurchaseDate',
+      'ExpiryDate',
+      'UserID',
+      'CreatedAt',
+      'UpdatedAt',
+    ],
+  },
+  {
     table: 'Transactions',
     pk: 'TransactionID',
     descriptionColumn: 'Description',
