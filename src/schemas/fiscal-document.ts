@@ -147,6 +147,35 @@ export const ExtractedInvoiceRawSchema = z
   }));
 
 /**
+ * Schema for raw modelo detection output — validates and converts euros→cents via .transform().
+ * The caller receives DetectedModeloData. Result amount may be negative (refund due).
+ */
+export const DetectedModeloRawSchema = z
+  .object({
+    modeloType: z.enum(['303', '130', '390', '100']).nullable().optional(),
+    fiscalYear: z.number().int().nullable().optional(),
+    fiscalQuarter: z.number().int().min(1).max(4).nullable().optional(),
+    resultAmountEuros: z.preprocess(
+      sanitizeAmount,
+      // Result may be negative (amount to be refunded), so no .nonnegative()
+      z.number().nullable().optional(),
+    ),
+    confidence: z.number().min(0).max(1),
+  })
+  .transform((data) => {
+    const modeloType = data.modeloType ?? null;
+    // 390 and 100 are annual modelos: they never carry a quarter
+    const isAnnual = modeloType === '390' || modeloType === '100';
+    return {
+      modeloType,
+      fiscalYear: data.fiscalYear ?? null,
+      fiscalQuarter: isAnnual ? null : (data.fiscalQuarter ?? null),
+      resultAmountCents: data.resultAmountEuros == null ? null : eurosToCents(data.resultAmountEuros),
+      confidence: data.confidence,
+    };
+  });
+
+/**
  * Schema for link-transaction request (create transaction + link to document)
  */
 export const LinkTransactionSchema = z.object({

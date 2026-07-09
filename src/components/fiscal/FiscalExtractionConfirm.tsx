@@ -8,11 +8,12 @@
 
 import { AlertTriangle, FileText, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ConfidenceBadge } from '@/components/fiscal/ConfidenceBadge';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import type { TransactionType } from '@/constants/finance';
-import { COMPANY_ROLE, TRANSACTION_TYPE } from '@/constants/finance';
+import { COMPANY_ROLE, LOW_CONFIDENCE_THRESHOLD, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCategories } from '@/hooks/useCategories';
 import { useCompanies, useQuickCreateCompany } from '@/hooks/useCompanies';
 import { useLinkTransaction } from '@/hooks/useFiscalDocuments';
@@ -33,8 +34,6 @@ const INPUT_CLASSES = cn(
   'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
   'transition-colors duration-200 ease-out-quart',
 );
-
-const LOW_CONFIDENCE_THRESHOLD = 0.75;
 
 export function FiscalExtractionConfirm({
   documentId,
@@ -174,21 +173,7 @@ export function FiscalExtractionConfirm({
         )}
 
         {/* Confidence badge */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xs text-guard-muted">{t('fiscal.extraction.confidence')}</span>
-          <span
-            className={cn(
-              'text-xs font-medium px-2 py-0.5 rounded-full',
-              extractedData.confidence >= 0.9
-                ? 'bg-guard-success/10 text-guard-success'
-                : extractedData.confidence >= LOW_CONFIDENCE_THRESHOLD
-                  ? 'bg-guard-primary/10 text-guard-primary'
-                  : 'bg-guard-warning/10 text-guard-warning',
-            )}
-          >
-            {Math.round(extractedData.confidence * 100)}%
-          </span>
-        </div>
+        <ConfidenceBadge confidence={extractedData.confidence} className="mb-4" />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Transaction Type */}

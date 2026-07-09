@@ -128,6 +128,28 @@ describe('parseDocumentFilename', () => {
   });
 });
 
+describe('cost cascade premise (filename first, AI only as fallback)', () => {
+  // The upload modal runs parseDocumentFilename() before spending any tokens:
+  // when the filename already identifies the modelo, the AI is NOT called.
+  it('identifies a modelo from "303 1T 2026.pdf" so the AI is skipped', () => {
+    const result = parseDocumentFilename('303 1T 2026.pdf');
+
+    expect(result.modeloType).toBe(MODELO_TYPE.M303);
+    expect(result.fiscalQuarter).toBe(1);
+    expect(result.fiscalYear).toBe(2026);
+    // A resolved modeloType is the signal that no AI detection is needed
+    expect(result.modeloType).not.toBeNull();
+  });
+
+  it('does not identify a modelo from an opaque "descarga.pdf" so the AI is called', () => {
+    const result = parseDocumentFilename('descarga.pdf');
+
+    // No modeloType → the modal falls back to AI detection
+    expect(result.modeloType).toBeNull();
+    expect(result.documentType).toBe(FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA);
+  });
+});
+
 describe('buildModeloFileName', () => {
   it('builds quarterly modelo name with Spanish convention', () => {
     expect(buildModeloFileName(MODELO_TYPE.M130, 1, 2026, 'CotejoDocIdSv.pdf')).toBe('130 1T 2026.pdf');

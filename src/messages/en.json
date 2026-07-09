@@ -901,7 +901,6 @@
     "documents": {
       "title": "Documents",
       "upload-title": "Upload Document",
-      "upload-button": "Upload",
       "upload-submit": "Upload Document",
       "upload-and-analyze": "Upload & Analyze",
       "bulk-title": "Bulk Upload",
@@ -1014,6 +1013,22 @@
         "extraction-failed": "Could not analyze the document. You can enter the data manually.",
         "api-credits": "Analysis service temporarily unavailable. You can enter the data manually.",
         "unrecognizable": "Could not detect a valid amount in the document. It may be in a different currency."
+      }
+    },
+    "modelo-upload": {
+      "cta": "I filed a tax form",
+      "cta-hint": "Upload the receipt here",
+      "title": "Upload filed tax form",
+      "detected": "Detected: Form {modelo} - {period}",
+      "not-detected": "We could not detect the form. Please select it manually.",
+      "detecting": "Detecting tax form...",
+      "already-filed": "A {modelo} {period} form is already filed. Uploading will create a second document.",
+      "upload-anyway": "Upload anyway",
+      "fields": {
+        "modelo": "Tax form",
+        "year": "Fiscal year",
+        "quarter": "Period",
+        "result-amount": "Result (negative if refundable or carried forward)"
       }
     },
     "errors": {

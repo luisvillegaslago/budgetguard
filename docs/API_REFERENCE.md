@@ -2362,6 +2362,7 @@ Fiscal documents store uploaded tax filings, received invoices, and issued invoi
 | POST | `/api/fiscal/documents/[id]/extract` | Run OCR extraction via Claude Vision |
 | POST | `/api/fiscal/documents/[id]/link-transaction` | Create transaction and link to document (atomic) |
 | POST | `/api/fiscal/documents/bulk` | Bulk upload multiple documents (multipart/form-data) |
+| POST | `/api/fiscal/documents/detect-modelo` | Identify which modelo a file is, before uploading it (multipart/form-data) |
 
 #### `GET /api/fiscal/documents`
 
@@ -2524,6 +2525,42 @@ If a match is found, the document is automatically linked and its status set to 
 | `extraction_failed` | Generic OCR error (blurry, unreadable) |
 | `api_credits_exhausted` | Anthropic API quota exceeded |
 | `unrecognizable_amount` | OCR could not detect a valid `totalAmountEuros` |
+
+---
+
+#### `POST /api/fiscal/documents/detect-modelo`
+
+Identify which AEAT modelo a file corresponds to, using Claude Vision. **Reads only** — it uploads nothing to Vercel Blob and writes nothing to the database.
+
+Unlike the invoice flow (`upload → extract`), modelos are detected **before** uploading. `FiscalDocumentUploadSchema` requires `modeloType` (and `fiscalQuarter` for 303/130) up front, and `POST /api/fiscal/documents` seals the blob filename via `buildModeloFileName()` at upload time. Detecting first means a single write with correct metadata, instead of a speculative upload that has to be patched or deleted.
+
+The client calls this endpoint only when `parseDocumentFilename()` (`src/utils/fiscalFileParser.ts`) fails to identify the modelo from the filename — a file named `303 1T 2026.pdf` costs zero tokens.
+
+**Request:** `multipart/form-data` with a single `file` field.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "modeloType": "303",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 1,
+    "resultAmountCents": 41928,
+    "confidence": 0.95
+  }
+}
+```
+
+`resultAmountCents` is the final settlement box: **positive when payable** (`a ingresar`), **negative when refundable** (`a devolver`). `fiscalQuarter` is always `null` for the annual modelos (390, 100), even if the model returns a quarter. When the document is not a recognisable modelo, `modeloType` is `null` with a low `confidence` — the UI then falls back to manual selection rather than blocking the upload.
+
+**Error Codes:**
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `api-error.fiscal.file-required` | No `file` field in the form data |
+| 502 | `api-error.fiscal.detection-failed` | Generic detection error |
+| 502 | `api_credits_exhausted` | Anthropic API quota exceeded |
 
 ---
 
@@ -2879,6 +2916,7 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 | `FiscalDeadlineSettingsSchema` | Deadline reminder preferences (reminderDaysBefore, postponementReminder, isActive) |
 | `FiscalDocumentsFiltersSchema` | Document list filters (year, quarter, documentType) |
 | `ExtractedInvoiceRawSchema` | OCR output validation with euro→cents conversion via `.transform()` |
+| `DetectedModeloRawSchema` | Modelo detection output (modeloType, fiscalYear, fiscalQuarter, result amount euro→cents); forces `fiscalQuarter: null` for 390/100 and allows negative amounts (refunds) |
 | `LinkTransactionSchema` | Transaction creation + document linking request (categoryId, amountCents, transactionDate, type, fiscal fields) |
 
 #### Sync Schemas (`src/schemas/sync.ts`)

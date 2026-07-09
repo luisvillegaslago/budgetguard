@@ -1,27 +1,40 @@
 'use client';
 
 /**
- * Upload modal for modelo documents (303, 130, 390, 100).
- * Used from the fiscal page with pre-filled modelo type.
+ * Unified upload modal for modelo documents (303, 130, 390, 100).
+ * Detects the modelo type/year/quarter/result from the file (filename first, AI as
+ * fallback) and pre-fills the form, while keeping every field manually editable.
  */
 
-import { ExternalLink, Upload, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { AlertTriangle, ExternalLink, Loader2, Upload, X, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ConfidenceBadge } from '@/components/fiscal/ConfidenceBadge';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import type { ModeloType } from '@/constants/finance';
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
-import { useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
+import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, LOW_CONFIDENCE_THRESHOLD, MODELO_TYPE } from '@/constants/finance';
+import { useDetectModelo, useFiscalDocuments, useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
+import { parseDocumentFilename } from '@/utils/fiscalFileParser';
 import { cn } from '@/utils/helpers';
-import { eurosToCents } from '@/utils/money';
+import { centsToEuros, eurosToCents } from '@/utils/money';
 
 interface ModeloDocumentUploadProps {
-  year: number;
-  quarter?: number;
-  modeloType: ModeloType;
+  defaultYear: number;
+  defaultQuarter?: number;
   onClose: () => void;
+}
+
+const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = 2019;
+const MAX_YEAR = CURRENT_YEAR + 1;
+// Year options from current year + 1 down to 2019 (descending).
+const YEAR_OPTIONS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MAX_YEAR - i);
+const QUARTER_OPTIONS = [1, 2, 3, 4];
+
+function isSelectableYear(year: number | null): year is number {
+  return year != null && year >= MIN_YEAR && year <= MAX_YEAR;
 }
 
 const INPUT_CLASSES = cn(
@@ -30,50 +43,166 @@ const INPUT_CLASSES = cn(
   'transition-colors duration-200 ease-out-quart',
 );
 
-export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: ModeloDocumentUploadProps) {
+function isAnnualModelo(type: ModeloType | ''): boolean {
+  return type === MODELO_TYPE.M390 || type === MODELO_TYPE.M100;
+}
+
+function getCurrentQuarter(): number {
+  return Math.ceil((new Date().getMonth() + 1) / 3);
+}
+
+export function ModeloDocumentUpload({ defaultYear, defaultQuarter, onClose }: ModeloDocumentUploadProps) {
   const { t } = useTranslate();
   const toast = useToast();
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  // Default to PENDING: uploading/archiving a modelo does not imply it was filed.
-  const [status, setStatus] = useState<string>(FISCAL_STATUS.PENDING);
+  const [modeloType, setModeloType] = useState<ModeloType | ''>('');
+  const [fiscalYear, setFiscalYear] = useState(defaultYear);
+  const [fiscalQuarter, setFiscalQuarter] = useState<number | null>(defaultQuarter ?? null);
+  // Default to FILED: the entry point is the "I filed a tax form" button.
+  const [status, setStatus] = useState<string>(FISCAL_STATUS.FILED);
   const [taxAmount, setTaxAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [detectedConfidence, setDetectedConfidence] = useState<number | null>(null);
+  const [showManualHint, setShowManualHint] = useState(false);
   const [showDeferralReminder, setShowDeferralReminder] = useState(false);
-  const uploadMutation = useUploadFiscalDocument(year);
+  // True only while the form still reflects what the filename/AI recognised, so the
+  // "detected" summary never mislabels a value the user picked by hand.
+  const [isAutoDetected, setIsAutoDetected] = useState(false);
 
-  const isAnnual = modeloType === MODELO_TYPE.M390 || modeloType === MODELO_TYPE.M100;
+  const detectMutation = useDetectModelo();
+  const uploadMutation = useUploadFiscalDocument(fiscalYear);
+  // Every modelo already archived for the selected year, to warn about duplicates.
+  const { data: yearModelos } = useFiscalDocuments(fiscalYear, undefined, FISCAL_DOCUMENT_TYPE.MODELO);
 
-  // Tax amount is optional; when present it must be a non-negative number.
+  const isAnnual = isAnnualModelo(modeloType);
+
+  /**
+   * Nothing in the database prevents filing the same modelo twice, and the fiscal
+   * page would hide the duplicate (it renders the first match only). Warn instead of
+   * blocking: a complementaria or a rectificación is a legitimate second document.
+   */
+  const alreadyFiled = useMemo(() => {
+    if (!modeloType) return null;
+    const targetQuarter = isAnnual ? null : fiscalQuarter;
+    return (
+      (yearModelos ?? []).find(
+        (doc) =>
+          doc.modeloType === modeloType && doc.fiscalQuarter === targetQuarter && doc.status === FISCAL_STATUS.FILED,
+      ) ?? null
+    );
+  }, [yearModelos, modeloType, fiscalQuarter, isAnnual]);
+
+  // Result may be negative (refund due), so only NaN is invalid.
   const trimmedTaxAmount = taxAmount.trim();
   const parsedTaxAmount = trimmedTaxAmount === '' ? null : Number(trimmedTaxAmount);
-  const isTaxAmountInvalid = parsedTaxAmount !== null && (Number.isNaN(parsedTaxAmount) || parsedTaxAmount < 0);
+  const isTaxAmountInvalid = parsedTaxAmount !== null && Number.isNaN(parsedTaxAmount);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const detectedPeriod = isAnnual || fiscalQuarter == null ? String(fiscalYear) : `${fiscalQuarter}T ${fiscalYear}`;
+
+  /** Drop every value derived from the previous file, so nothing leaks across selections. */
+  const resetDetectedFields = () => {
+    setModeloType('');
+    setFiscalYear(defaultYear);
+    setFiscalQuarter(defaultQuarter ?? null);
+    setTaxAmount('');
+    setDescription('');
+    setDetectedConfidence(null);
+    setShowManualHint(false);
+    setIsAutoDetected(false);
+    detectMutation.reset();
+  };
+
+  const handleClearFile = () => {
+    setSelectedFile(null);
+    resetDetectedFields();
+  };
+
+  const handleFileSelected = async (file: File) => {
+    resetDetectedFields();
+    setSelectedFile(file);
+
+    // Cost-saving cascade: the filename alone may already identify the modelo.
+    const parsed = parseDocumentFilename(file.name);
+    if (parsed.documentType === FISCAL_DOCUMENT_TYPE.MODELO && parsed.modeloType) {
+      const annual = isAnnualModelo(parsed.modeloType);
+      setModeloType(parsed.modeloType);
+      // A filename may carry a year outside the selectable range; fall back rather
+      // than leaving the year Select showing no matching option.
+      setFiscalYear(isSelectableYear(parsed.fiscalYear) ? parsed.fiscalYear : defaultYear);
+      setFiscalQuarter(annual ? null : (parsed.fiscalQuarter ?? defaultQuarter ?? getCurrentQuarter()));
+      setIsAutoDetected(true);
+      return;
+    }
+
+    // Fall back to AI detection.
+    try {
+      const detected = await detectMutation.mutateAsync({ file });
+      const annual = detected.modeloType === MODELO_TYPE.M390 || detected.modeloType === MODELO_TYPE.M100;
+      if (detected.modeloType) {
+        setModeloType(detected.modeloType);
+        setIsAutoDetected(true);
+      }
+      if (isSelectableYear(detected.fiscalYear)) setFiscalYear(detected.fiscalYear);
+      setFiscalQuarter(annual ? null : detected.fiscalQuarter);
+      if (detected.resultAmountCents != null) setTaxAmount(String(centsToEuros(detected.resultAmountCents)));
+      setDetectedConfidence(detected.confidence);
+      // Flag for manual review when nothing was recognized or confidence is low.
+      if (!detected.modeloType || detected.confidence < LOW_CONFIDENCE_THRESHOLD) setShowManualHint(true);
+    } catch {
+      // AI detection failed — never block manual entry.
+      setShowManualHint(true);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) setSelectedFile(file);
-  }, []);
+    if (file) void handleFileSelected(file);
+  };
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
-  }, []);
+  };
 
-  const handleDragLeave = useCallback(() => {
+  const handleDragLeave = () => {
     setIsDragOver(false);
-  }, []);
+  };
+
+  const handleModeloChange = (value: string) => {
+    const next = value as ModeloType;
+    setModeloType(next);
+    // The user has taken over: stop presenting the value as auto-detected and
+    // retire the manual-review hint, which has already served its purpose.
+    setIsAutoDetected(false);
+    setShowManualHint(false);
+    if (next === MODELO_TYPE.M390 || next === MODELO_TYPE.M100) {
+      setFiscalQuarter(null);
+    } else if (fiscalQuarter == null) {
+      setFiscalQuarter(defaultQuarter ?? getCurrentQuarter());
+    }
+  };
+
+  const isSubmitDisabled =
+    !selectedFile ||
+    !modeloType ||
+    (!isAnnual && fiscalQuarter == null) ||
+    isTaxAmountInvalid ||
+    detectMutation.isPending ||
+    uploadMutation.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile || isTaxAmountInvalid) return;
+    if (isSubmitDisabled || !selectedFile || !modeloType) return;
 
     const metadata: Record<string, unknown> = {
       documentType: FISCAL_DOCUMENT_TYPE.MODELO,
       modeloType,
-      fiscalYear: year,
-      fiscalQuarter: isAnnual ? null : (quarter ?? null),
+      fiscalYear,
+      fiscalQuarter: isAnnual ? null : fiscalQuarter,
       status,
       taxAmountCents: parsedTaxAmount !== null ? eurosToCents(parsedTaxAmount) : null,
       description: description || null,
@@ -127,13 +256,31 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
     );
   }
 
+  // Progress screen while the AI detects the modelo.
+  if (detectMutation.isPending) {
+    return (
+      <ModalBackdrop onClose={onClose} labelledBy="modelo-upload-title" escapeClose={false}>
+        <div className="card w-full max-w-md animate-modal-in p-8">
+          <div className="flex flex-col items-center gap-6">
+            <Loader2 className="h-8 w-8 text-guard-primary animate-spin" aria-hidden="true" />
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-4 w-4 text-guard-primary animate-spin shrink-0" aria-hidden="true" />
+              <span className="text-sm text-foreground font-medium">{t('fiscal.modelo-upload.detecting')}</span>
+            </div>
+            <p className="text-xs text-guard-muted">{t('fiscal.extraction.analyzing-hint')}</p>
+          </div>
+        </div>
+      </ModalBackdrop>
+    );
+  }
+
   return (
     <ModalBackdrop onClose={onClose} labelledBy="modelo-upload-title">
       <div className="card w-full max-w-md animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="modelo-upload-title" className="text-xl font-bold text-foreground">
-            {t('fiscal.documents.upload-title')}
+            {t('fiscal.modelo-upload.title')}
           </h2>
           <button
             type="button"
@@ -142,11 +289,6 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
-        </div>
-
-        {/* Prefilled info */}
-        <div className="px-3 py-2 rounded-lg bg-guard-primary/5 border border-guard-primary/20 text-sm text-foreground mb-4">
-          Modelo {modeloType} {!isAnnual && quarter ? `Q${quarter}` : ''} {year}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -167,7 +309,7 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
                 <span className="text-sm font-medium text-foreground">{selectedFile.name}</span>
                 <button
                   type="button"
-                  onClick={() => setSelectedFile(null)}
+                  onClick={handleClearFile}
                   className="p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
@@ -185,12 +327,105 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
                     accept=".pdf,.png,.jpg,.jpeg"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) setSelectedFile(file);
+                      if (file) void handleFileSelected(file);
                     }}
                   />
                 </label>
               </>
             )}
+          </div>
+
+          {/* OCR hint — shown before a file is selected */}
+          {!selectedFile && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-guard-primary/5 border border-guard-primary/20">
+              <Zap className="h-4 w-4 text-guard-primary mt-0.5 shrink-0" aria-hidden="true" />
+              <p className="text-xs text-guard-muted">{t('fiscal.extraction.ocr-hint')}</p>
+            </div>
+          )}
+
+          {/* Detected summary — only for values the filename or the AI recognised */}
+          {isAutoDetected && modeloType && (
+            <div className="px-3 py-2 rounded-lg bg-guard-primary/5 border border-guard-primary/20 text-sm text-foreground">
+              {t('fiscal.modelo-upload.detected', { modelo: modeloType, period: detectedPeriod })}
+            </div>
+          )}
+
+          {/* Confidence badge — tied to the detection, so it hides once the user overrides it */}
+          {isAutoDetected && detectedConfidence != null && <ConfidenceBadge confidence={detectedConfidence} />}
+
+          {/* Duplicate warning — this modelo/period is already filed */}
+          {alreadyFiled && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-guard-warning/10 border border-guard-warning/20"
+            >
+              <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+              <p className="text-sm text-guard-warning">
+                {t('fiscal.modelo-upload.already-filed', { modelo: modeloType, period: detectedPeriod })}
+              </p>
+            </div>
+          )}
+
+          {/* Manual-review hint (low confidence, not recognized, or detection failed) */}
+          {showManualHint && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-guard-warning/10 border border-guard-warning/20">
+              <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+              <p className="text-sm text-guard-warning">{t('fiscal.modelo-upload.not-detected')}</p>
+            </div>
+          )}
+
+          {/* Modelo / Year / Quarter */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label htmlFor="modeloType" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('fiscal.modelo-upload.fields.modelo')}
+              </label>
+              <Select id="modeloType" value={modeloType} onChange={(e) => handleModeloChange(e.target.value)}>
+                <option value="" disabled hidden>
+                  —
+                </option>
+                <option value={MODELO_TYPE.M303}>303</option>
+                <option value={MODELO_TYPE.M130}>130</option>
+                <option value={MODELO_TYPE.M390}>390</option>
+                <option value={MODELO_TYPE.M100}>100</option>
+              </Select>
+            </div>
+            <div>
+              <label htmlFor="fiscalYear" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('fiscal.modelo-upload.fields.year')}
+              </label>
+              <Select
+                id="fiscalYear"
+                value={String(fiscalYear)}
+                onChange={(e) => setFiscalYear(Number(e.target.value))}
+              >
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label htmlFor="fiscalQuarter" className="block text-sm font-medium text-foreground mb-1.5">
+                {t('fiscal.modelo-upload.fields.quarter')}
+              </label>
+              <Select
+                id="fiscalQuarter"
+                value={fiscalQuarter != null ? String(fiscalQuarter) : ''}
+                disabled={isAnnual}
+                onChange={(e) => setFiscalQuarter(e.target.value === '' ? null : Number(e.target.value))}
+              >
+                <option value="" disabled hidden>
+                  —
+                </option>
+                {QUARTER_OPTIONS.map((q) => (
+                  <option key={q} value={q}>
+                    {q}T
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
 
           {/* Status */}
@@ -204,10 +439,10 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
             </Select>
           </div>
 
-          {/* Tax Amount */}
+          {/* Result amount */}
           <div>
             <label htmlFor="modeloTaxAmount" className="block text-sm font-medium text-foreground mb-1.5">
-              {t('fiscal.documents.fields.tax-amount')}
+              {t('fiscal.modelo-upload.fields.result-amount')}
               <span className="text-guard-muted text-xs ml-1 font-normal">({t('common.labels.optional')})</span>
             </label>
             <input
@@ -255,14 +490,18 @@ export function ModeloDocumentUpload({ year, quarter, modeloType, onClose }: Mod
           {/* Submit */}
           <button
             type="submit"
-            disabled={!selectedFile || isTaxAmountInvalid || uploadMutation.isPending}
+            disabled={isSubmitDisabled}
             className={cn(
               'w-full py-3 rounded-lg font-semibold text-white transition-all duration-200 ease-out-quart',
               'bg-guard-primary hover:bg-guard-primary/90',
               'disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
             )}
           >
-            {uploadMutation.isPending ? t('common.loading') : t('fiscal.documents.upload-submit')}
+            {uploadMutation.isPending
+              ? t('common.loading')
+              : alreadyFiled
+                ? t('fiscal.modelo-upload.upload-anyway')
+                : t('fiscal.documents.upload-submit')}
           </button>
         </form>
       </div>

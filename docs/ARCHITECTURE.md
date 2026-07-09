@@ -876,13 +876,16 @@ Document management for tax filings and invoices stored in Vercel Blob with priv
 ```
 
 **Key files:**
-- `src/services/ocr/DocumentExtractor.ts`: Claude Vision OCR extraction service
+- `src/services/ocr/anthropicVision.ts`: Shared Claude Vision bridge (base64 PDF/image → parsed JSON), used by both OCR services
+- `src/services/ocr/DocumentExtractor.ts`: Invoice OCR extraction service
+- `src/services/ocr/ModeloDetector.ts`: Detects which AEAT modelo a file is, before it is uploaded
 - `src/services/database/FiscalDocumentRepository.ts`: CRUD + auto-matching + linking
-- `src/schemas/fiscal-document.ts`: Zod validation schemas (upload, link, extraction)
-- `src/utils/fiscalFileParser.ts`: Filename-based metadata auto-detection
+- `src/schemas/fiscal-document.ts`: Zod validation schemas (upload, link, extraction, modelo detection)
+- `src/utils/fiscalFileParser.ts`: Filename-based metadata auto-detection (first step of the modelo detection cascade, before falling back to the AI)
 - `src/utils/fiscalDisplayName.ts`: (legacy) Display name helper — DisplayName is now computed via the centralized `DISPLAY_NAME_SQL` constant in `FiscalDocumentRepository.ts` using SQL `COALESCE(Company.Name, VendorName, FileName)`
 - `src/utils/blobFetch.ts`: Vercel Blob download utility
 - `src/app/api/fiscal/documents/`: API routes for CRUD, bulk upload, download proxy
+- `src/app/api/fiscal/documents/detect-modelo/`: Modelo detection endpoint (read-only, runs before upload)
 - `src/app/api/fiscal/documents/[id]/extract/`: OCR extraction endpoint
 - `src/app/api/fiscal/documents/[id]/link-transaction/`: Atomic transaction creation + linking
 - `src/components/fiscal/FiscalDocumentUpload.tsx`: Upload with auto-OCR flow

@@ -7,7 +7,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type { LinkTransactionInput } from '@/schemas/fiscal-document';
-import type { ApiResponse, ExtractedInvoiceData, FiscalDocument, Transaction } from '@/types/finance';
+import type {
+  ApiResponse,
+  DetectedModeloData,
+  ExtractedInvoiceData,
+  FiscalDocument,
+  Transaction,
+} from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
@@ -80,7 +86,9 @@ export function useTransactionGroup(transactionGroupId: number) {
 // Mutations
 // ============================================================
 
-export function useUploadFiscalDocument(year: number) {
+// The `_year` parameter is kept for call-site compatibility but no longer scopes
+// the invalidation: we invalidate the root prefixes instead (see onSuccess).
+export function useUploadFiscalDocument(_year: number) {
   const queryClient = useQueryClient();
 
   return useApiMutation({
@@ -104,8 +112,11 @@ export function useUploadFiscalDocument(year: number) {
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS, year] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES, year] });
+      // Invalidate the root prefixes, not [key, year]: the banner consumes
+      // [FISCAL_DEADLINES, 'active'] (not a descendant of [FISCAL_DEADLINES, year]),
+      // and the detected year may differ from the year selected on the page.
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
     },
   });
 }
@@ -155,7 +166,8 @@ export function useBulkUploadDocuments() {
   });
 }
 
-export function useUpdateDocumentStatus(year: number) {
+// `_year` kept for call-site compatibility; invalidation uses root prefixes (see onSuccess).
+export function useUpdateDocumentStatus(_year: number) {
   const queryClient = useQueryClient();
 
   return useApiMutation({
@@ -176,13 +188,15 @@ export function useUpdateDocumentStatus(year: number) {
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS, year] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES, year] });
+      // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
     },
   });
 }
 
-export function useDeleteFiscalDocument(year: number) {
+// `_year` kept for call-site compatibility; invalidation uses root prefixes (see onSuccess).
+export function useDeleteFiscalDocument(_year: number) {
   const queryClient = useQueryClient();
 
   return useApiMutation({
@@ -198,8 +212,9 @@ export function useDeleteFiscalDocument(year: number) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS, year] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES, year] });
+      // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
     },
@@ -240,6 +255,33 @@ export function useExtractDocument() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
+    },
+  });
+}
+
+/**
+ * Detect the modelo type/year/quarter/result from a file before uploading it.
+ * Read-only: does not write to Blob or DB and does not touch the cache.
+ */
+export function useDetectModelo() {
+  return useApiMutation({
+    mutationFn: async ({ file }: { file: File }): Promise<DetectedModeloData> => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetchApi(`${API_ENDPOINT.FISCAL_DOCUMENTS}/detect-modelo`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.FISCAL.DETECTION_FAILED));
+      }
+
+      const data: ApiResponse<DetectedModeloData> = await response.json();
+      if (!data.success || !data.data) throw new Error(data.error ?? 'detection_failed');
+      return data.data;
     },
   });
 }

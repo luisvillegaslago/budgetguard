@@ -1,14 +1,13 @@
 /**
  * OCR Document Extraction Service
  * Uses Anthropic API to extract structured invoice data from PDF/image documents.
- * Falls back to Claude CLI if no API key is configured.
  * All monetary amounts are converted from euros to cents via Zod .transform().
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import type { Locale } from '@/libs/i18n';
 import { DEFAULT_LOCALE } from '@/libs/i18n';
 import { ExtractedInvoiceRawSchema } from '@/schemas/fiscal-document';
+import { callVisionJson } from '@/services/ocr/anthropicVision';
 import type { ExtractedInvoiceData } from '@/types/finance';
 
 const LOCALE_TO_LANGUAGE: Record<Locale, string> = {
@@ -39,19 +38,6 @@ Rules:
 - Return ONLY valid JSON, no markdown formatting or explanation`;
 }
 
-type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-
-function getImageMediaType(contentType: string): ImageMediaType {
-  const typeMap: Record<string, ImageMediaType> = {
-    'image/jpeg': 'image/jpeg',
-    'image/jpg': 'image/jpeg',
-    'image/png': 'image/png',
-    'image/gif': 'image/gif',
-    'image/webp': 'image/webp',
-  };
-  return typeMap[contentType] ?? 'image/jpeg';
-}
-
 /**
  * Extract structured invoice data from a document using Anthropic API (vision).
  * Returns ExtractedInvoiceData with all amounts in cents (converted via Zod schema).
@@ -62,54 +48,12 @@ export async function extractFromDocument(
   fileName: string,
   locale: Locale = DEFAULT_LOCALE,
 ): Promise<ExtractedInvoiceData> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is not set');
-  }
-
   // biome-ignore lint/suspicious/noConsole: OCR extraction logging
   console.log(`[OCR] Starting extraction: ${fileName} (${(fileBuffer.length / 1024).toFixed(1)} KB)`);
   const startTime = Date.now();
 
-  const client = new Anthropic({ apiKey });
-  const base64Data = fileBuffer.toString('base64');
-  const isPdf = contentType === 'application/pdf';
   const prompt = getExtractionPrompt(locale);
-
-  const content: Anthropic.ContentBlockParam[] = isPdf
-    ? [
-        {
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: base64Data },
-        },
-        { type: 'text', text: prompt },
-      ]
-    : [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: getImageMediaType(contentType), data: base64Data },
-        },
-        { type: 'text', text: prompt },
-      ];
-
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content }],
-  });
-
-  const textBlock = response.content.find((block) => block.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error('No text response from Claude');
-  }
-
-  // Parse JSON from response (handle potential markdown code blocks)
-  let jsonText = textBlock.text.trim();
-  if (jsonText.startsWith('```')) {
-    jsonText = jsonText.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-  }
-
-  const rawData = JSON.parse(jsonText);
+  const rawData = await callVisionJson(fileBuffer, contentType, prompt);
 
   const validated = ExtractedInvoiceRawSchema.safeParse(rawData);
   if (!validated.success) {

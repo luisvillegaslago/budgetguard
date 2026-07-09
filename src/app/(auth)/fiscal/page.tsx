@@ -8,7 +8,7 @@
  * Filing status badges with contextual upload (pre-filled modelo metadata).
  */
 
-import { Calculator } from 'lucide-react';
+import { Calculator, CheckCircle2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDeadlinePanel } from '@/components/fiscal/FiscalDeadlinePanel';
@@ -22,7 +22,7 @@ import { Modelo303Card } from '@/components/fiscal/Modelo303Card';
 import { Modelo390Card } from '@/components/fiscal/Modelo390Card';
 import { ModeloDocumentUpload } from '@/components/fiscal/ModeloDocumentUpload';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import type { FiscalStatus, ModeloType } from '@/constants/finance';
+import type { FiscalStatus } from '@/constants/finance';
 import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
 import { useFiscalDocuments } from '@/hooks/useFiscalDocuments';
 import { useAnnualFiscalReport, useFiscalReport } from '@/hooks/useFiscalReport';
@@ -48,40 +48,10 @@ function getFilingInfo(
   return match ? { status: FISCAL_STATUS.FILED, document: match } : { status: FISCAL_STATUS.PENDING, document: null };
 }
 
-interface ModeloStatusRowProps {
-  filing: { status: string; document: FiscalDocument | null };
-  modeloType: ModeloType;
-  onUpload: (modelo: ModeloType) => void;
-}
-
-/**
- * Status badge + single download/upload affordance for a modelo card.
- * Download is delegated to the FiscalFilingStatus badge (single visual pattern, DRY);
- * upload is offered only when no filed document exists yet.
- */
-function ModeloStatusRow({ filing, modeloType, onUpload }: ModeloStatusRowProps) {
-  const { t } = useTranslate();
-
-  return (
-    <div className="flex items-center justify-between">
-      <FiscalFilingStatus status={filing.status as FiscalStatus} document={filing.document} />
-      {!filing.document && (
-        <button
-          type="button"
-          onClick={() => onUpload(modeloType)}
-          className="text-xs text-guard-primary hover:underline"
-        >
-          {t('fiscal.documents.upload-button')}
-        </button>
-      )}
-    </div>
-  );
-}
-
 export default function FiscalPage() {
   const { t } = useTranslate();
   const { searchParams, updateParams } = useUrlParams('/fiscal');
-  const [uploadModelo, setUploadModelo] = useState<ModeloType | null>(null);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   // Read filters from URL (defaults: current year, current quarter, quarterly view)
   const year = Number(searchParams.get('year')) || new Date().getFullYear();
@@ -112,8 +82,6 @@ export default function FiscalPage() {
   const m390 = getFilingInfo(modeloDocs, MODELO_TYPE.M390, null);
   const m100 = getFilingInfo(modeloDocs, MODELO_TYPE.M100, null);
 
-  const isAnnualModelo = uploadModelo === MODELO_TYPE.M390 || uploadModelo === MODELO_TYPE.M100;
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Deadline Banner */}
@@ -121,9 +89,24 @@ export default function FiscalPage() {
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-2">
-          <Calculator className="h-5 w-5 text-guard-primary" aria-hidden="true" />
-          <h1 className="text-2xl font-bold text-foreground">{t('fiscal.title')}</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-guard-primary" aria-hidden="true" />
+            <h1 className="text-2xl font-bold text-foreground">{t('fiscal.title')}</h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsUploadOpen(true)}
+            title={t('fiscal.modelo-upload.cta-hint')}
+            className={cn(
+              'inline-flex items-center gap-2 px-5 py-2.5',
+              'bg-guard-primary hover:bg-guard-primary/90 text-white font-semibold rounded-lg',
+              'transition-all duration-200 ease-out-quart active:scale-[0.98]',
+            )}
+          >
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            {t('fiscal.modelo-upload.cta')}
+          </button>
         </div>
 
         <div className="flex items-center gap-4">
@@ -179,11 +162,11 @@ export default function FiscalPage() {
         <div className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <div className="space-y-3">
-              <ModeloStatusRow filing={m303} modeloType={MODELO_TYPE.M303} onUpload={setUploadModelo} />
+              <FiscalFilingStatus status={m303.status as FiscalStatus} document={m303.document} />
               <Modelo303Card data={report.modelo303} />
             </div>
             <div className="space-y-3">
-              <ModeloStatusRow filing={m130} modeloType={MODELO_TYPE.M130} onUpload={setUploadModelo} />
+              <FiscalFilingStatus status={m130.status as FiscalStatus} document={m130.document} />
               <Modelo130Card data={report.modelo130} />
             </div>
           </div>
@@ -199,11 +182,11 @@ export default function FiscalPage() {
         <div className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <div className="space-y-3">
-              <ModeloStatusRow filing={m390} modeloType={MODELO_TYPE.M390} onUpload={setUploadModelo} />
+              <FiscalFilingStatus status={m390.status as FiscalStatus} document={m390.document} />
               <Modelo390Card data={annualReport.modelo390} />
             </div>
             <div className="space-y-3">
-              <ModeloStatusRow filing={m100} modeloType={MODELO_TYPE.M100} onUpload={setUploadModelo} />
+              <FiscalFilingStatus status={m100.status as FiscalStatus} document={m100.document} />
               <Modelo100Card data={annualReport.modelo100} />
             </div>
           </div>
@@ -212,13 +195,12 @@ export default function FiscalPage() {
         </div>
       )}
 
-      {/* Upload Modal — pre-filled with selected modelo */}
-      {uploadModelo && (
+      {/* Upload Modal — detects the modelo type from the uploaded file */}
+      {isUploadOpen && (
         <ModeloDocumentUpload
-          year={year}
-          quarter={isAnnualModelo ? undefined : quarter}
-          modeloType={uploadModelo}
-          onClose={() => setUploadModelo(null)}
+          defaultYear={year}
+          defaultQuarter={view === 'quarterly' ? quarter : undefined}
+          onClose={() => setIsUploadOpen(false)}
         />
       )}
     </div>

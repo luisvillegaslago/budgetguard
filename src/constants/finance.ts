@@ -396,6 +396,12 @@ export const EXTRACTION_STATUS = {
 
 export type ExtractionStatus = (typeof EXTRACTION_STATUS)[keyof typeof EXTRACTION_STATUS];
 
+// Minimum OCR confidence below which extracted data is flagged for manual review
+export const LOW_CONFIDENCE_THRESHOLD = 0.75;
+
+// OCR confidence at or above which the extraction is considered reliable
+export const HIGH_CONFIDENCE_THRESHOLD = 0.9;
+
 // ============================================================
 // CRYPTO MODULE
 // ============================================================
@@ -582,6 +588,7 @@ export const API_ERROR = {
     FILE_REQUIRED: 'api-error.fiscal.file-required',
     METADATA_REQUIRED: 'api-error.fiscal.metadata-required',
     EXTRACTION_FAILED: 'api-error.fiscal.extraction-failed',
+    DETECTION_FAILED: 'api-error.fiscal.detection-failed',
     DOWNLOAD_FAILED: 'api-error.fiscal.download-failed',
   },
   CRYPTO: {

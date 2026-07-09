@@ -901,7 +901,6 @@
     "documents": {
       "title": "Documentos",
       "upload-title": "Subir Documento",
-      "upload-button": "Subir",
       "upload-submit": "Subir Documento",
       "upload-and-analyze": "Subir y Analizar",
       "bulk-title": "Subida Masiva",
@@ -1014,6 +1013,22 @@
         "extraction-failed": "No se pudo analizar el documento. Puedes introducir los datos manualmente.",
         "api-credits": "Servicio de análisis no disponible temporalmente. Puedes introducir los datos manualmente.",
         "unrecognizable": "No se detectó un importe válido en el documento. Puede estar en otra divisa."
+      }
+    },
+    "modelo-upload": {
+      "cta": "He presentado un modelo",
+      "cta-hint": "Sube aquí el justificante",
+      "title": "Subir modelo presentado",
+      "detected": "Detectado: Modelo {modelo} - {period}",
+      "not-detected": "No hemos podido detectar el modelo. Selecciónalo manualmente.",
+      "detecting": "Detectando modelo...",
+      "already-filed": "Ya existe un modelo {modelo} {period} presentado. Subir creará un segundo documento.",
+      "upload-anyway": "Subir de todas formas",
+      "fields": {
+        "modelo": "Modelo",
+        "year": "Ejercicio",
+        "quarter": "Periodo",
+        "result-amount": "Resultado (negativo si es a devolver o compensar)"
       }
     },
     "errors": {

@@ -747,6 +747,17 @@ export interface ExtractedInvoiceData {
 }
 
 /**
+ * Data detected from an AEAT modelo PDF via OCR (result amount in cents)
+ */
+export interface DetectedModeloData {
+  modeloType: ModeloType | null;
+  fiscalYear: number | null;
+  fiscalQuarter: number | null;
+  resultAmountCents: number | null;
+  confidence: number;
+}
+
+/**
  * Uploaded fiscal document (modelo or received invoice)
  */
 export interface FiscalDocument {
