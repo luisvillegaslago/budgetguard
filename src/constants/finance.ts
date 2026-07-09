@@ -318,6 +318,11 @@ export const INVOICE_STATUS = {
 
 export type InvoiceStatus = (typeof INVOICE_STATUS)[keyof typeof INVOICE_STATUS];
 
+// An invoice counts as fiscal income once it is issued, collected or not.
+// These statuses are duplicated as SQL literals inside "vw_FiscalAccrual"
+// (database/schema.sql); fiscal-accrual-view-contract.test.ts fails if they drift apart.
+export const ISSUED_INVOICE_STATUSES = [INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID] as const;
+
 // Payment Methods
 export const PAYMENT_METHOD = {
   BANK_TRANSFER: 'bank_transfer',

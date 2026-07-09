@@ -183,7 +183,9 @@ src/
 │   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats, tx linking
 │   │   └── SyncService.ts            # Bidirectional database sync
 │   ├── ocr/
-│   │   └── DocumentExtractor.ts       # Claude Vision OCR extraction
+│   │   ├── anthropicVision.ts         # Shared Claude Vision bridge (PDF/image → JSON)
+│   │   ├── DocumentExtractor.ts       # Invoice OCR extraction
+│   │   └── ModeloDetector.ts          # AEAT modelo type/period/result detection
 │   └── InvoiceFinalizeService.ts      # Invoice finalize orchestration
 │
 ├── schemas/
@@ -317,7 +319,8 @@ database/
 │  - vw_MonthlySummary (aggregates under parent category)      │
 │  - vw_MonthlyBalance (income/expense/balance totals)         │
 │  - vw_SubcategorySummary (drill-down within parent)          │
-│  - vw_FiscalQuarterly (quarterly VAT/deduction aggregates)   │
+│  - vw_FiscalQuarterly (fiscal transactions, cash basis)      │
+│  - vw_FiscalAccrual (fiscal rows on the invoice date)        │
 │  - vw_SkydivingStats, vw_JumpsByType, vw_JumpsByYear         │
 │                                                              │
 │  Triggers:                                                   │
@@ -671,13 +674,13 @@ Quarterly fiscal reporting for Spanish tax obligations (Modelo 303 for VAT and M
 │  └── netAmountCents                                           │
 │                                                               │
 │  FiscalRepository.getQuarterlyReport(year, quarter)           │
-│  └── Uses vw_FiscalQuarterly + transaction-level queries      │
+│  └── Uses vw_FiscalAccrual + the Invoices table               │
 │      → FiscalReport (Modelo303, Modelo130, expenses, invoices)│
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Key files:**
-- `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalQuarterly` and individual transactions with fiscal fields
+- `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalAccrual` through `loadFiscalRows()`. Never reads `vw_FiscalQuarterly` directly — that view books invoice income on the collection date
 - `src/utils/fiscal.ts`: Pure `computeFiscalFields()` function for deriving VAT/deduction amounts from a transaction
 - `src/hooks/useFiscalReport.ts`: TanStack Query hook for fetching fiscal data
 - `src/components/fiscal/`: UI components (FiscalReport, Modelo303Card, Modelo130Card)
@@ -1040,12 +1043,17 @@ TunnelSessions
 
 ### Pre-calculated Views
 
-SQL Views handle aggregation -- calculations happen in database, not JavaScript:
+SQL Views handle aggregation -- calculations happen in database, not JavaScript.
+The fiscal views are the exception: they shape and filter rows, but the sums and
+rounding run in TypeScript so backend and frontend never disagree by a cent.
 
 ```sql
--- vw_FiscalQuarterly: Quarterly VAT/deduction aggregates for fiscal reports
--- Groups by year, quarter, and type. Only includes transactions with fiscal fields
-SELECT EXTRACT(YEAR FROM "TransactionDate"), EXTRACT(QUARTER FROM ...), SUM(...)
+-- vw_FiscalQuarterly: fiscal transactions tagged by year and quarter (cash basis)
+-- One row per transaction with a fiscal field; sums happen in TypeScript
+
+-- vw_FiscalAccrual: what the fiscal models read. Same rows, minus the payment
+-- transactions of issued invoices, plus those invoices on their own InvoiceDate
+SELECT EXTRACT(YEAR FROM "TransactionDate"), EXTRACT(QUARTER FROM ...), ...
 
 -- vw_MonthlySummary: Totals by PARENT category per month
 -- Subcategory transactions aggregate under their parent via COALESCE

@@ -11,8 +11,8 @@
  */
 
 import {
-  INVOICE_STATUS,
   IRPF_RATE,
+  ISSUED_INVOICE_STATUSES,
   MODELO_100_DEFAULT_CASILLA,
   PROFESSIONAL_INCOME_CATEGORY,
   TRANSACTION_TYPE,
@@ -103,12 +103,6 @@ export async function getFiscalExpenses(year: number, quarter: number): Promise<
 
   return rows.map(rowToFiscalTransaction);
 }
-
-/**
- * An invoice counts as fiscal income once it is issued, whether or not it has been
- * collected. Mirrors the status set hardcoded in "vw_FiscalAccrual" (database/schema.sql).
- */
-const ISSUED_INVOICE_STATUSES = [INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID] as const;
 
 /** Inlined rather than bound: these are internal constants, never user input. */
 const ISSUED_INVOICE_STATUS_LIST = ISSUED_INVOICE_STATUSES.map((status) => `'${status}'`).join(', ');

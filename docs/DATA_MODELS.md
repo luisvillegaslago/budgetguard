@@ -807,43 +807,66 @@ GROUP BY
 
 #### vw_FiscalQuarterly
 
-Quarterly fiscal aggregation for Spanish tax models (Modelo 303 and Modelo 130). Groups transactions by year and quarter, calculating VAT collected, VAT deductible, gross income, and deductible expenses.
+One row per fiscally relevant transaction, tagged with its year and quarter. It does **not** aggregate: amounts are summed in TypeScript so the backend and the frontend round identically (see `computeFiscalFields()` in `src/utils/fiscal.ts`).
+
+Only paid transactions that carry a fiscal field (`VatPercent`, `DeductionPercent`, or an `InvoiceNumber`) are exposed.
 
 ```sql
-CREATE VIEW vw_FiscalQuarterly AS
+CREATE VIEW "vw_FiscalQuarterly" AS
 SELECT
-    YEAR(t.TransactionDate) AS FiscalYear,
-    DATEPART(QUARTER, t.TransactionDate) AS FiscalQuarter,
-    t.Type,
-    SUM(t.AmountCents) AS TotalCents,
-    SUM(CASE
-        WHEN t.VatPercent IS NOT NULL
-        THEN CAST(t.AmountCents * t.VatPercent / 100.0 AS INT)
-        ELSE 0
-    END) AS VatCents,
-    SUM(CASE
-        WHEN t.DeductionPercent IS NOT NULL AND t.Type = 'expense'
-        THEN CAST(t.AmountCents * t.DeductionPercent / 100.0 AS INT)
-        ELSE 0
-    END) AS DeductibleCents,
-    COUNT(*) AS TransactionCount
-FROM Transactions t
-WHERE t.VatPercent IS NOT NULL OR t.DeductionPercent IS NOT NULL
-GROUP BY
-    YEAR(t.TransactionDate),
-    DATEPART(QUARTER, t.TransactionDate),
-    t.Type;
+    t."UserID",
+    EXTRACT(YEAR FROM t."TransactionDate")::INT AS "FiscalYear",
+    EXTRACT(QUARTER FROM t."TransactionDate")::INT AS "FiscalQuarter",
+    t."Type",
+    t."TransactionID",
+    t."CategoryID",
+    c."Name" AS "CategoryName",
+    COALESCE(parent."Name", c."Name") AS "ParentCategoryName",
+    -- ...VendorName, InvoiceNumber, Description...
+    COALESCE(t."OriginalAmountCents", t."AmountCents") AS "FullAmountCents",
+    COALESCE(t."VatPercent", 0) AS "VatPercent",
+    COALESCE(t."DeductionPercent", 0) AS "DeductionPercent"
+FROM "Transactions" t
+INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+WHERE t."Status" = 'paid'
+    AND (t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
+    OR t."InvoiceNumber" IS NOT NULL);
 ```
 
-| Column | Description |
-|--------|-------------|
-| `FiscalYear` | Year (e.g., `2025`) |
-| `FiscalQuarter` | Quarter (1-4) |
-| `Type` | `'income'` or `'expense'` |
-| `TotalCents` | Sum of all transaction amounts for this type and quarter |
-| `VatCents` | Computed VAT amount based on each transaction's `VatPercent` |
-| `DeductibleCents` | Computed deductible amount for expenses based on `DeductionPercent` |
-| `TransactionCount` | Number of transactions with fiscal fields |
+This view books each transaction on its `TransactionDate`, i.e. on a **cash basis**. The fiscal models must not read it directly — see below.
+
+---
+
+#### vw_FiscalAccrual
+
+The source of truth for every fiscal model (303, 130, 390, 100).
+
+Spanish IRPF and IVA are settled on the *fecha de devengo*: an invoice belongs to the quarter it was **issued** in, not the one it was collected in. Marking an invoice paid creates an income transaction dated on the collection day, so this view drops those transactions and re-adds each issued invoice under its own `InvoiceDate`.
+
+```sql
+CREATE VIEW "vw_FiscalAccrual" AS
+-- Transactions, minus the income transactions of issued invoices.
+-- Standalone professional income has no "Invoices" row and survives.
+SELECT v.* FROM "vw_FiscalQuarterly" v
+WHERE NOT EXISTS (
+    SELECT 1 FROM "Invoices" inv
+    WHERE inv."TransactionID" = v."TransactionID"
+        AND inv."Status" IN ('finalized', 'paid')
+)
+UNION ALL
+-- Issued invoices, booked on their invoice date. TransactionID/CategoryID are 0.
+SELECT i."UserID", EXTRACT(YEAR FROM i."InvoiceDate")::INT, ...
+FROM "Invoices" i
+WHERE i."Status" IN ('finalized', 'paid');
+```
+
+Same columns as `vw_FiscalQuarterly`. Two invariants hold by construction:
+
+- **No double counting.** A payment transaction is dropped only when the invoice holding it is one the second branch adds back. An invoice that kept a `TransactionID` after leaving the issued states cannot erase its own income.
+- **Invoice rows carry no category** (`CategoryID` = 0). Join `Categories` with a `LEFT JOIN` or they disappear — this is why `getModelo100Summary()` does so.
+
+The status set is duplicated as SQL literals here and as `ISSUED_INVOICE_STATUSES` in `src/constants/finance.ts`. `fiscal-accrual-view-contract.test.ts` reads this file and fails if the two drift apart.
 
 ---
 
@@ -1361,6 +1384,22 @@ export interface ExtractedInvoiceData {
   confidence: number;                  // OCR confidence 0.0 to 1.0
 }
 ```
+
+### DetectedModeloData
+
+Which AEAT modelo a file corresponds to, detected via Claude Vision before the file is uploaded. Like `ExtractedInvoiceData`, it is **transient** — it only pre-fills the upload form and is never persisted as such.
+
+```typescript
+export interface DetectedModeloData {
+  modeloType: ModeloType | null;       // '303' | '130' | '390' | '100'; null when unrecognised
+  fiscalYear: number | null;           // "Ejercicio" printed on the form
+  fiscalQuarter: number | null;        // 1-4 from "1T".."4T"; always null for 390/100
+  resultAmountCents: number | null;    // Settlement result: negative when refundable
+  confidence: number;                  // Detection confidence 0.0 to 1.0
+}
+```
+
+Produced by `detectModelo()` (`src/services/ocr/ModeloDetector.ts`) and validated by `DetectedModeloRawSchema`. Below `LOW_CONFIDENCE_THRESHOLD` (0.75), or when `modeloType` is `null`, the UI prompts for manual selection instead of trusting the detection.
 
 ### FiscalDocument
 
