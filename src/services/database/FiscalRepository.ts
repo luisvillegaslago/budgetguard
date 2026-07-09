@@ -105,17 +105,55 @@ export async function getFiscalExpenses(year: number, quarter: number): Promise<
 }
 
 /**
- * Fetch finalized (not yet paid) invoices as synthetic FiscalViewRows.
- * Paid invoices are already in vw_FiscalQuarterly via their transactions,
- * so we only add finalized ones to avoid double-counting.
+ * An invoice counts as fiscal income once it is issued, whether or not it has been
+ * collected. Single source of truth for every "issued invoice" predicate below.
  */
-async function getUnpaidInvoiceRows(userId: number, year: number, quarter?: number): Promise<FiscalViewRow[]> {
-  const conditions = ['i."UserID" = $1', 'i."Status" = $2', 'EXTRACT(YEAR FROM i."InvoiceDate") = $3'];
-  const params: unknown[] = [userId, INVOICE_STATUS.FINALIZED, year];
+const ISSUED_INVOICE_STATUSES = [INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID] as const;
+
+/** Inlined rather than bound: these are internal constants, never user input. */
+const ISSUED_INVOICE_STATUS_LIST = ISSUED_INVOICE_STATUSES.map((status) => `'${status}'`).join(', ');
+
+const issuedInvoiceStatusFilter = (alias: string): string => `${alias}."Status" IN (${ISSUED_INVOICE_STATUS_LIST})`;
+
+/** Mirrors the view's EXTRACT(QUARTER FROM "TransactionDate"), applied to the invoice date. */
+const invoiceQuarter = (alias: string): string => `CEIL(EXTRACT(MONTH FROM ${alias}."InvoiceDate") / 3.0)`;
+
+/**
+ * Excludes the income transactions created when an invoice is marked as paid.
+ *
+ * Those transactions carry the payment date, but IRPF/IVA are settled on an accrual
+ * basis (fecha de devengo = invoice date). getIssuedInvoiceRows() re-adds every issued
+ * invoice under its own date, so counting the payment transaction too would both
+ * duplicate the income and book it in the wrong quarter.
+ *
+ * Only invoice-linked transactions are dropped: standalone income in the same category
+ * (imported historical summaries, recurring payments) has no Invoices row and survives.
+ *
+ * The status filter keeps exclusion and re-addition balanced by construction: a payment
+ * transaction is dropped only when the invoice holding it is one that getIssuedInvoiceRows()
+ * puts back. Without it, an invoice retaining a TransactionID after leaving the issued
+ * states would erase its own income from every model.
+ */
+function excludeInvoicePaymentTransactions(alias: string): string {
+  return `NOT EXISTS (
+      SELECT 1 FROM "Invoices" inv
+      WHERE inv."TransactionID" = ${alias}."TransactionID"
+        AND ${issuedInvoiceStatusFilter('inv')}
+    )`;
+}
+
+/**
+ * Fetch issued invoices (finalized or paid) as synthetic FiscalViewRows, imputed to the
+ * quarter of their InvoiceDate. Their payment transactions are filtered out of the view
+ * by excludeInvoicePaymentTransactions(), so nothing is counted twice.
+ */
+async function getIssuedInvoiceRows(userId: number, year: number, quarter?: number): Promise<FiscalViewRow[]> {
+  const conditions = ['i."UserID" = $1', issuedInvoiceStatusFilter('i'), 'EXTRACT(YEAR FROM i."InvoiceDate") = $2'];
+  const params: unknown[] = [userId, year];
 
   if (quarter != null) {
     params.push(quarter);
-    conditions.push(`CEIL(EXTRACT(MONTH FROM i."InvoiceDate") / 3.0) = $${params.length}`);
+    conditions.push(`${invoiceQuarter('i')} = $${params.length}`);
   }
 
   const rows = await query<{
@@ -124,7 +162,7 @@ async function getUnpaidInvoiceRows(userId: number, year: number, quarter?: numb
     FiscalQuarter: number;
   }>(
     `SELECT i."InvoiceDate", i."TotalCents",
-            CEIL(EXTRACT(MONTH FROM i."InvoiceDate") / 3.0)::int AS "FiscalQuarter"
+            ${invoiceQuarter('i')}::int AS "FiscalQuarter"
      FROM "Invoices" i
      WHERE ${conditions.join(' AND ')}`,
     params,
@@ -196,13 +234,13 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
      FROM "Invoices" i
      LEFT JOIN "InvoiceLineItems" li ON li."InvoiceID" = i."InvoiceID"
      WHERE i."UserID" = $1
-       AND i."Status" IN ($2, $3)
-       AND EXTRACT(YEAR FROM i."InvoiceDate") = $4
-       AND CEIL(EXTRACT(MONTH FROM i."InvoiceDate") / 3.0) = $5
+       AND ${issuedInvoiceStatusFilter('i')}
+       AND EXTRACT(YEAR FROM i."InvoiceDate") = $2
+       AND ${invoiceQuarter('i')} = $3
      GROUP BY i."InvoiceID", i."InvoiceNumber", i."InvoiceDate", i."TotalCents",
               i."ClientName", i."ClientTaxId"
      ORDER BY i."InvoiceDate" ASC`,
-    [userId, INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID, year, quarter],
+    [userId, year, quarter],
   );
 
   return rows.map(issuedInvoiceToFiscalTransaction);
@@ -217,11 +255,12 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
   const [viewRows, invoiceRows] = await Promise.all([
     query<FiscalViewRow>(
       `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-      FROM "vw_FiscalQuarterly"
-      WHERE "FiscalYear" = $1 AND "FiscalQuarter" = $2 AND "UserID" = $3`,
+      FROM "vw_FiscalQuarterly" v
+      WHERE v."FiscalYear" = $1 AND v."FiscalQuarter" = $2 AND v."UserID" = $3
+        AND ${excludeInvoicePaymentTransactions('v')}`,
       [year, quarter, userId],
     ),
-    getUnpaidInvoiceRows(userId, year, quarter),
+    getIssuedInvoiceRows(userId, year, quarter),
   ]);
 
   const rows = [...viewRows, ...invoiceRows];
@@ -280,11 +319,12 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
   const [viewRows, invoiceRows] = await Promise.all([
     query<FiscalViewRow>(
       `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-      FROM "vw_FiscalQuarterly"
-      WHERE "FiscalYear" = $1 AND "FiscalQuarter" <= $2 AND "UserID" = $3`,
+      FROM "vw_FiscalQuarterly" v
+      WHERE v."FiscalYear" = $1 AND v."FiscalQuarter" <= $2 AND v."UserID" = $3
+        AND ${excludeInvoicePaymentTransactions('v')}`,
       [year, quarter, userId],
     ),
-    getUnpaidInvoiceRows(userId, year),
+    getIssuedInvoiceRows(userId, year),
   ]);
 
   // Filter invoice rows to quarters <= current (matching view query)
@@ -351,11 +391,12 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   const [viewRows, invoiceRows] = await Promise.all([
     query<FiscalViewRow>(
       `SELECT ${FISCAL_VIEW_COLUMNS_SIMPLE}, NULL AS "CompanyTaxId"
-      FROM "vw_FiscalQuarterly"
-      WHERE "FiscalYear" = $1 AND "UserID" = $2`,
+      FROM "vw_FiscalQuarterly" v
+      WHERE v."FiscalYear" = $1 AND v."UserID" = $2
+        AND ${excludeInvoicePaymentTransactions('v')}`,
       [year, userId],
     ),
-    getUnpaidInvoiceRows(userId, year),
+    getIssuedInvoiceRows(userId, year),
   ]);
 
   const rows = [...viewRows, ...invoiceRows];
@@ -427,10 +468,11 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
               NULL AS "CompanyTaxId", cat."Modelo100CasillaCode"
       FROM "vw_FiscalQuarterly" v
       INNER JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID"
-      WHERE v."FiscalYear" = $1 AND v."UserID" = $2`,
+      WHERE v."FiscalYear" = $1 AND v."UserID" = $2
+        AND ${excludeInvoicePaymentTransactions('v')}`,
       [year, userId],
     ),
-    getUnpaidInvoiceRows(userId, year),
+    getIssuedInvoiceRows(userId, year),
   ]);
 
   const rows: Modelo100Row[] = [...viewRows, ...invoiceRows.map((r) => ({ ...r, Modelo100CasillaCode: null }))];
