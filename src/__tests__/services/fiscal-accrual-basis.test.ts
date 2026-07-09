@@ -1,173 +1,103 @@
 /**
- * Integration Tests: Fiscal models are computed on an accrual basis
+ * Integration Tests: Fiscal models over the accrual view
  *
- * An invoice must be imputed to the quarter of its InvoiceDate, never to the quarter
- * in which it was collected. Reproduces the real T1-2026 case: invoice CREST-01 issued
- * on 15-mar (Q1) but marked paid on 26-apr (Q2), which used to drop 600,00 € from the
- * Modelo 130 of Q1 and add them to Q2.
+ * Spanish IRPF/IVA are settled on the fecha de devengo, so an invoice belongs to the
+ * quarter it was issued in, not the one it was collected in. That rule now lives in
+ * "vw_FiscalAccrual" (database/schema.sql), which drops the payment transactions and
+ * books each issued invoice under its own date.
  *
- * The `query` fake below mirrors just enough Postgres semantics to make the two rules
- * observable: (1) the view drops invoice-linked payment transactions, (2) issued
- * invoices are re-added under their invoice date.
+ * These tests cover what remains in TypeScript: the cumulative Modelo 130 loop, the 5%
+ * "gastos de difícil justificación" and its annual cap, the 303/100 classification, and
+ * the guarantee that no model reads the cash-basis view. The fixtures are the rows the
+ * accrual view returns; the view's own SQL is verified against the database.
  */
 
-import { INVOICE_STATUS, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import { MODELO_100_DEFAULT_CASILLA, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
 
-// ── Fixtures: the real T1/T2 2026 data, trimmed ──
+// ── Fixtures: what "vw_FiscalAccrual" returns for 2026 ──
 
-interface TxRow {
-  TransactionID: number;
+interface AccrualRow {
+  FiscalYear: number;
   FiscalQuarter: number;
   Type: string;
-  FullAmountCents: number;
+  TransactionID: number;
+  CategoryID: number;
+  CategoryName: string;
   ParentCategoryName: string;
+  FullAmountCents: number;
   VatPercent: number;
   DeductionPercent: number;
+  Modelo100CasillaCode?: string | null;
 }
 
-interface InvoiceRow {
-  InvoiceID: number;
-  FiscalQuarter: number;
-  TotalCents: number;
-  Status: string;
-  TransactionID: number | null;
-}
-
-// Income transactions created when each invoice was collected (payment date).
-const PAYMENT_TX: TxRow[] = [
-  // DW-06: issued 25-jan, collected 25-jan -> same quarter
-  txIncome(3453, 1, 832800),
-  // DW-07: issued 15-mar, collected 20-mar -> same quarter
-  txIncome(3713, 1, 276000),
-  // CREST-01: issued 15-mar (Q1) but collected 26-apr (Q2) -> the bug
-  txIncome(3815, 2, 60000),
-];
-
-// Standalone professional income with no invoice behind it (imported history).
-const STANDALONE_TX: TxRow = txIncome(4017, 1, 100000);
-
-// Deductible expenses: 1.389,54 € documented, matching the filed Modelo 130.
-const EXPENSE_TX: TxRow = {
-  TransactionID: 900,
-  FiscalQuarter: 1,
-  Type: TRANSACTION_TYPE.EXPENSE,
-  FullAmountCents: 138954,
-  ParentCategoryName: 'Gastos deducibles',
-  VatPercent: 0,
-  DeductionPercent: 100,
-};
-
-// An issued-but-uncollected invoice: it must be declared even though no money arrived.
-const FINALIZED_INVOICE: InvoiceRow = {
-  InvoiceID: 11,
-  FiscalQuarter: 1,
-  TotalCents: 20000,
-  Status: INVOICE_STATUS.FINALIZED,
-  TransactionID: null,
-};
-
-const INVOICES: InvoiceRow[] = [
-  { InvoiceID: 6, FiscalQuarter: 1, TotalCents: 832800, Status: INVOICE_STATUS.PAID, TransactionID: 3453 },
-  { InvoiceID: 7, FiscalQuarter: 1, TotalCents: 276000, Status: INVOICE_STATUS.PAID, TransactionID: 3713 },
-  { InvoiceID: 9, FiscalQuarter: 1, TotalCents: 60000, Status: INVOICE_STATUS.PAID, TransactionID: 3815 },
-  { InvoiceID: 10, FiscalQuarter: 1, TotalCents: 84000, Status: INVOICE_STATUS.DRAFT, TransactionID: null },
-];
-
-function txIncome(transactionId: number, fiscalQuarter: number, fullAmountCents: number): TxRow {
+function income(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0): AccrualRow {
   return {
-    TransactionID: transactionId,
+    FiscalYear: 2026,
     FiscalQuarter: fiscalQuarter,
     Type: TRANSACTION_TYPE.INCOME,
-    FullAmountCents: fullAmountCents,
+    TransactionID: 0,
+    CategoryID: 0,
+    CategoryName: PROFESSIONAL_INCOME_CATEGORY,
     ParentCategoryName: PROFESSIONAL_INCOME_CATEGORY,
-    VatPercent: 0,
+    FullAmountCents: fullAmountCents,
+    VatPercent: vatPercent,
     DeductionPercent: 0,
   };
 }
 
-// A cancelled invoice that still points at a live income transaction. Unreachable through
-// the status machine (paid -> cancelled deletes the transaction), but a bulk import or a
-// manual DB edit can produce it, and the money is really in Transactions.
-const CANCELLED_INVOICE: InvoiceRow = {
-  InvoiceID: 12,
-  FiscalQuarter: 1,
-  TotalCents: 50000,
-  Status: INVOICE_STATUS.CANCELLED,
-  TransactionID: 3900,
-};
-const CANCELLED_INVOICE_TX = txIncome(3900, 1, 50000);
-
-// Toggled by the test that reproduces the exact figures filed with the AEAT.
-let includeStandaloneIncome = true;
-// Toggled by the test covering an issued-but-uncollected invoice.
-let includeFinalizedInvoice = false;
-// Toggled by the test covering a non-issued invoice that kept its transaction.
-let includeCancelledInvoice = false;
-
-function transactionRows(): TxRow[] {
-  return [
-    ...PAYMENT_TX,
-    ...(includeStandaloneIncome ? [STANDALONE_TX] : []),
-    ...(includeCancelledInvoice ? [CANCELLED_INVOICE_TX] : []),
-    EXPENSE_TX,
-  ];
+function expense(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0): AccrualRow {
+  return {
+    FiscalYear: 2026,
+    FiscalQuarter: fiscalQuarter,
+    Type: TRANSACTION_TYPE.EXPENSE,
+    TransactionID: 500 + fiscalQuarter,
+    CategoryID: 30,
+    CategoryName: 'Software',
+    ParentCategoryName: 'Gastos deducibles',
+    FullAmountCents: fullAmountCents,
+    VatPercent: vatPercent,
+    DeductionPercent: 100,
+    Modelo100CasillaCode: null,
+  };
 }
 
-function invoiceRows(): InvoiceRow[] {
-  return [
-    ...INVOICES,
-    ...(includeFinalizedInvoice ? [FINALIZED_INVOICE] : []),
-    ...(includeCancelledInvoice ? [CANCELLED_INVOICE] : []),
-  ];
+// The real T1/T2 2026 figures. CREST-01 (600,00 €) was issued 15-mar and collected
+// 26-apr: the view already books it in Q1, so it appears here as a Q1 row.
+const ISSUED_INVOICES: AccrualRow[] = [
+  income(1, 832800), // DW-06
+  income(1, 276000), // DW-07
+  income(1, 60000), // CREST-01
+  income(2, 2587500), // Q2 invoices
+];
+
+const EXPENSES: AccrualRow[] = [expense(1, 138954), expense(2, 179082)];
+
+// Professional income with no invoice behind it (an imported historical summary).
+const STANDALONE_INCOME = income(1, 100000);
+
+let includeStandaloneIncome = false;
+let extraRows: AccrualRow[] = [];
+
+function accrualRows(): AccrualRow[] {
+  return [...ISSUED_INVOICES, ...EXPENSES, ...(includeStandaloneIncome ? [STANDALONE_INCOME] : []), ...extraRows];
 }
 
 // ── Fake Postgres ──
 
-/**
- * Transaction ids the anti-join drops. With no status filter in the subquery it matches any
- * invoice; with one, only invoices whose status the SQL lists — the same rows Postgres sees.
- */
-function linkedTransactionIds(sql: string): Set<number> {
-  const filtersByStatus = sql.includes('inv."Status" IN');
-
-  return new Set(
-    invoiceRows()
-      .filter((inv) => !filtersByStatus || sql.includes(`'${inv.Status}'`))
-      .map((inv) => inv.TransactionID)
-      .filter((id): id is number => id !== null),
-  );
-}
+const executedSql: string[] = [];
 
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
-  // Checked first: the view query embeds a `FROM "Invoices" inv` subquery of its own.
-  if (sql.includes('vw_FiscalQuarterly')) {
-    const quarter = params[1] as number;
-    const cumulative = sql.includes('"FiscalQuarter" <= ');
-    // The NOT EXISTS anti-join drops payment transactions, but only those held by an
-    // invoice whose status the subquery accepts — mirrored here by reading the SQL.
-    const excluded = sql.includes('NOT EXISTS') ? linkedTransactionIds(sql) : new Set<number>();
+  executedSql.push(sql);
+  if (!sql.includes('vw_FiscalAccrual')) return [];
 
-    return transactionRows()
-      .filter((tx) => (cumulative ? tx.FiscalQuarter <= quarter : tx.FiscalQuarter === quarter))
-      .filter((tx) => !excluded.has(tx.TransactionID));
-  }
+  // Every fiscal query binds [year, userId, quarter?] in that order.
+  const [year, , quarter] = params as [number, number, number | undefined];
+  const cumulative = sql.includes('"FiscalQuarter" <=');
 
-  if (sql.includes('FROM "Invoices" i')) {
-    const [, year, quarter] = params as [number, number, number | undefined];
-
-    // Statuses are inlined as literals in the query, so read them back from the SQL:
-    // dropping one from ISSUED_INVOICE_STATUSES makes those invoices disappear here too.
-    return invoiceRows()
-      .filter((inv) => sql.includes(`'${inv.Status}'`))
-      .filter((inv) => quarter == null || inv.FiscalQuarter === quarter)
-      .map((inv) => ({
-        InvoiceDate: new Date(Date.UTC(year, (inv.FiscalQuarter - 1) * 3, 15)),
-        TotalCents: inv.TotalCents,
-        FiscalQuarter: inv.FiscalQuarter,
-      }));
-  }
-
-  return [];
+  return accrualRows()
+    .filter((row) => row.FiscalYear === year)
+    .filter((row) => quarter == null || (cumulative ? row.FiscalQuarter <= quarter : row.FiscalQuarter === quarter))
+    .map((row) => ({ ...row, Modelo100CasillaCode: row.Modelo100CasillaCode ?? null }));
 });
 
 jest.mock('@/services/database/connection', () => ({
@@ -178,92 +108,142 @@ jest.mock('@/libs/auth', () => ({
   getUserIdOrThrow: jest.fn(async () => 2),
 }));
 
-import { getModelo130Summary, getModelo303Summary } from '@/services/database/FiscalRepository';
+import {
+  getModelo100Summary,
+  getModelo130Summary,
+  getModelo303Summary,
+  getModelo390Summary,
+} from '@/services/database/FiscalRepository';
 
 // ── Tests ──
 
-describe('Fiscal models use the invoice date, not the collection date', () => {
+describe('Fiscal models read the accrual view', () => {
   beforeEach(() => {
     mockQuery.mockClear();
-    includeStandaloneIncome = true;
-    includeFinalizedInvoice = false;
-    includeCancelledInvoice = false;
+    executedSql.length = 0;
+    includeStandaloneIncome = false;
+    extraRows = [];
   });
 
-  it('books an invoice collected in Q2 into the Q1 Modelo 130 that issued it', async () => {
-    const summary = await getModelo130Summary(2026, 1);
+  it.each([
+    ['Modelo 303', () => getModelo303Summary(2026, 1)],
+    ['Modelo 130', () => getModelo130Summary(2026, 1)],
+    ['Modelo 390', () => getModelo390Summary(2026)],
+    ['Modelo 100', () => getModelo100Summary(2026)],
+  ])('%s reads vw_FiscalAccrual and never the cash-basis view', async (_name, run) => {
+    await run();
 
-    // 8.328 + 2.760 + 600 (CREST-01, collected in Q2) + 1.000 standalone = 12.688,00 €
-    expect(summary.casilla1Cents).toBe(1268800);
+    expect(executedSql).not.toHaveLength(0);
+    executedSql.forEach((sql) => {
+      expect(sql).toContain('vw_FiscalAccrual');
+      expect(sql).not.toContain('vw_FiscalQuarterly');
+    });
+  });
+
+  it('joins categories with a LEFT JOIN so invoice rows survive in Modelo 100', async () => {
+    await getModelo100Summary(2026);
+
+    // Invoice rows carry CategoryID 0 and match no category: an INNER JOIN would drop them.
+    expect(executedSql[0]).toContain('LEFT JOIN "Categories"');
+    expect(executedSql[0]).not.toContain('INNER JOIN "Categories"');
+  });
+});
+
+describe('Modelo 130', () => {
+  beforeEach(() => {
+    mockQuery.mockClear();
+    executedSql.length = 0;
+    includeStandaloneIncome = false;
+    extraRows = [];
   });
 
   it('matches the Modelo 130 filed with the AEAT for T1 2026', async () => {
-    // Same fixtures minus the standalone income, so the figures equal the real filing:
-    // ingresos 11.688,00 / gastos 1.904,46 / beneficio 9.783,54 / cuota 1.956,71
-    includeStandaloneIncome = false;
-
     const summary = await getModelo130Summary(2026, 1);
 
+    // 11.688,00 income − 1.389,54 documented − 514,92 (5%) = 9.783,54 → 1.956,71 at 20%
     expect(summary.casilla1Cents).toBe(1168800);
     expect(summary.gastosDocumentadosCents).toBe(138954);
     expect(summary.gastosDificilCents).toBe(51492);
     expect(summary.casilla2Cents).toBe(190446);
     expect(summary.casilla3Cents).toBe(978354);
     expect(summary.casilla4Cents).toBe(195671);
+    expect(summary.casilla5Cents).toBe(0);
     expect(summary.casilla7Cents).toBe(195671);
   });
 
-  it('does not count an invoice twice when its payment transaction is in the same quarter', async () => {
-    const summary = await getModelo130Summary(2026, 1);
+  it('accumulates T2 and deducts the T1 payment in casilla 05', async () => {
+    const summary = await getModelo130Summary(2026, 2);
 
-    // DW-06 (8.328) is both an invoice and a Q1 payment transaction. If the view kept
-    // the linked transaction, casilla1 would carry it twice.
-    expect(summary.casilla1Cents).toBe(1268800);
+    expect(summary.casilla1Cents).toBe(3756300);
+    expect(summary.gastosDocumentadosCents).toBe(318036);
+    expect(summary.casilla4Cents).toBe(653270);
+    // The quarter already settled in T1, not a recomputed guess.
+    expect(summary.casilla5Cents).toBe(195671);
+    expect(summary.casilla7Cents).toBe(457599);
   });
 
-  it('declares a finalized invoice that has not been collected yet', async () => {
-    includeFinalizedInvoice = true;
-
-    const summary = await getModelo130Summary(2026, 1);
-
-    // No payment transaction exists for it, so it can only reach casilla1 as an issued invoice.
-    expect(summary.casilla1Cents).toBe(1268800 + FINALIZED_INVOICE.TotalCents);
-  });
-
-  it('keeps the income of a non-issued invoice that still points at a live transaction', async () => {
-    includeCancelledInvoice = true;
+  it('counts standalone professional income that has no invoice behind it', async () => {
+    includeStandaloneIncome = true;
 
     const summary = await getModelo130Summary(2026, 1);
 
-    // The anti-join must not drop a transaction that no issued invoice will re-add,
-    // or the money would vanish from every model.
-    expect(summary.casilla1Cents).toBe(1268800 + CANCELLED_INVOICE.TotalCents);
+    expect(summary.casilla1Cents).toBe(1168800 + STANDALONE_INCOME.FullAmountCents);
   });
 
-  it('keeps professional income that has no invoice behind it', async () => {
+  it('caps the 5% gastos de difícil justificación at 2.000 € a year', async () => {
+    extraRows = [income(1, 5000000)]; // +50.000 €, so 5% would be far above the cap
+
     const summary = await getModelo130Summary(2026, 1);
-    const withoutStandalone = 1168800;
 
-    expect(summary.casilla1Cents - withoutStandalone).toBe(STANDALONE_TX.FullAmountCents);
+    expect(summary.gastosDificilCents).toBe(200000);
   });
 
-  it('excludes the Q1 invoice from the Q2 Modelo 130 income of that quarter', async () => {
-    const q1 = await getModelo130Summary(2026, 1);
-    const q2 = await getModelo130Summary(2026, 2);
+  it('never returns a negative amount to pay', async () => {
+    extraRows = [expense(1, 9000000)];
 
-    // Modelo 130 is cumulative and no invoice was issued in Q2, so Q2 adds nothing.
-    expect(q2.casilla1Cents).toBe(q1.casilla1Cents);
+    const summary = await getModelo130Summary(2026, 1);
+
+    expect(summary.casilla3Cents).toBeLessThan(0);
+    expect(summary.casilla4Cents).toBe(0);
+    expect(summary.casilla7Cents).toBe(0);
+  });
+});
+
+describe('Modelo 303 and 100', () => {
+  beforeEach(() => {
+    mockQuery.mockClear();
+    executedSql.length = 0;
+    includeStandaloneIncome = false;
+    extraRows = [];
   });
 
-  it('reports the issued invoices as non-subject operations in the Q1 Modelo 303', async () => {
+  it('reports VAT-free invoice income as non-subject operations in casilla 120', async () => {
     const summary = await getModelo303Summary(2026, 1);
 
-    expect(summary.casilla120Cents).toBe(1268800);
+    expect(summary.casilla120Cents).toBe(1168800);
+    expect(summary.casilla09Cents).toBe(0);
   });
 
-  it('ignores draft invoices', async () => {
-    const summary = await getModelo130Summary(2026, 1);
+  it('splits out output VAT when an invoice carries it', async () => {
+    extraRows = [income(1, 121000, 21)]; // 1.000,00 € base + 210,00 € IVA
 
-    expect(summary.casilla1Cents).not.toBe(1268800 + 84000);
+    const summary = await getModelo303Summary(2026, 1);
+
+    expect(summary.casilla07Cents).toBe(100000);
+    expect(summary.casilla09Cents).toBe(21000);
+    expect(summary.casilla120Cents).toBe(1168800);
+  });
+
+  it('books deductible expenses with no casilla code under the default one', async () => {
+    const summary = await getModelo100Summary(2026);
+
+    expect(summary.casilla0171Cents).toBe(3756300);
+    expect(summary.gastosPorCasilla).toEqual([{ casilla: MODELO_100_DEFAULT_CASILLA, cents: 318036 }]);
+  });
+
+  it('carries the whole year of invoice income into Modelo 390', async () => {
+    const summary = await getModelo390Summary(2026);
+
+    expect(summary.casilla110Cents).toBe(3756300);
   });
 });

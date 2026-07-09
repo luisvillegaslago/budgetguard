@@ -40,6 +40,8 @@ DROP FUNCTION IF EXISTS propagate_company_name_change();
 DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- Drop views
+-- Dropped before "vw_FiscalQuarterly" and "Invoices": it depends on both.
+DROP VIEW IF EXISTS "vw_FiscalAccrual";
 DROP VIEW IF EXISTS "vw_VoucherBalance";
 DROP VIEW IF EXISTS "vw_JumpsByYear";
 DROP VIEW IF EXISTS "vw_JumpsByType";
@@ -813,6 +815,70 @@ CREATE INDEX "IX_Invoices_UserID" ON "Invoices"("UserID");
 CREATE INDEX "IX_Invoices_CompanyID" ON "Invoices"("CompanyID");
 CREATE INDEX "IX_Invoices_Status" ON "Invoices"("Status");
 CREATE INDEX "IX_Invoices_InvoiceDate" ON "Invoices"("InvoiceDate");
+-- Supports the anti-join in "vw_FiscalAccrual"
+CREATE INDEX "IX_Invoices_TransactionID" ON "Invoices"("TransactionID")
+    WHERE "TransactionID" IS NOT NULL;
+
+-- View: Fiscal data on an accrual basis (user-scoped)
+--
+-- Spanish IRPF and IVA are settled on the fecha de devengo: an invoice belongs to the
+-- quarter it was ISSUED in, not the one it was collected in. Marking an invoice paid
+-- creates an income transaction dated on the collection day, so this view drops those
+-- transactions and books each issued invoice under its own date instead.
+--
+-- The two halves stay balanced: a payment transaction is only removed when the invoice
+-- holding it is one the second branch adds back. An invoice that kept a TransactionID
+-- after leaving the issued states therefore cannot erase its own income.
+--
+-- Every fiscal model must read from HERE, not from "vw_FiscalQuarterly", or invoice
+-- income lands in the quarter it was cashed.
+CREATE VIEW "vw_FiscalAccrual" AS
+-- Transactions, minus the income transactions created when an invoice was marked as paid.
+-- Standalone professional income has no "Invoices" row and survives.
+SELECT
+    v."UserID",
+    v."FiscalYear",
+    v."FiscalQuarter",
+    v."Type",
+    v."TransactionID",
+    v."CategoryID",
+    v."CategoryName",
+    v."ParentCategoryName",
+    v."TransactionDate",
+    v."VendorName",
+    v."InvoiceNumber",
+    v."Description",
+    v."FullAmountCents",
+    v."VatPercent",
+    v."DeductionPercent"
+FROM "vw_FiscalQuarterly" v
+WHERE NOT EXISTS (
+    SELECT 1 FROM "Invoices" inv
+    WHERE inv."TransactionID" = v."TransactionID"
+        AND inv."Status" IN ('finalized', 'paid')
+)
+UNION ALL
+-- Issued invoices (finalized or paid), booked on their invoice date.
+-- TransactionID/CategoryID are 0: these rows have no transaction and no category behind
+-- them. 'Facturas' mirrors PROFESSIONAL_INCOME_CATEGORY in src/constants/finance.ts.
+SELECT
+    i."UserID",
+    EXTRACT(YEAR FROM i."InvoiceDate")::INT,
+    EXTRACT(QUARTER FROM i."InvoiceDate")::INT,
+    'income',
+    0,
+    0,
+    'Facturas',
+    'Facturas',
+    i."InvoiceDate",
+    i."ClientName",
+    i."InvoiceNumber",
+    NULL,
+    i."TotalCents",
+    0,
+    0
+FROM "Invoices" i
+WHERE i."Status" IN ('finalized', 'paid');
 
 -- Invoice line items (individual concepts)
 -- Title:       main concept, rendered bold/large in PDF (optional for legacy rows)
