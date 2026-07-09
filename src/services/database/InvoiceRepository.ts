@@ -331,16 +331,22 @@ export async function createInvoicePrefix(data: {
 }): Promise<InvoicePrefix> {
   const userId = await getUserIdOrThrow();
 
-  const result = await query<InvoicePrefixRow>(
-    `INSERT INTO "InvoicePrefixes" ("Prefix", "NextNumber", "Description", "CompanyID", "UserID")
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING "PrefixID", "Prefix", "NextNumber", "Description", "CompanyID", "IsActive", "CreatedAt"`,
-    [data.prefix, data.nextNumber ?? 1, data.description ?? null, data.companyId ?? null, userId],
-  );
+  try {
+    const result = await query<InvoicePrefixRow>(
+      `INSERT INTO "InvoicePrefixes" ("Prefix", "NextNumber", "Description", "CompanyID", "UserID")
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING "PrefixID", "Prefix", "NextNumber", "Description", "CompanyID", "IsActive", "CreatedAt"`,
+      [data.prefix, data.nextNumber ?? 1, data.description ?? null, data.companyId ?? null, userId],
+    );
 
-  const row = result[0];
-  if (!row) throw new Error('Failed to create invoice prefix');
-  return rowToPrefix(row);
+    const row = result[0];
+    if (!row) throw new Error('Failed to create invoice prefix');
+    return rowToPrefix(row);
+  } catch (error) {
+    // UQ_InvoicePrefix_User: the user already owns a prefix with this code
+    if (isUniqueViolation(error)) throw new ConflictError(`Prefix "${data.prefix}" already exists`);
+    throw error;
+  }
 }
 
 export async function updateInvoicePrefix(
@@ -408,6 +414,13 @@ export class ConflictError extends Error {
     super(message);
     this.name = 'ConflictError';
   }
+}
+
+const PG_UNIQUE_VIOLATION = '23505';
+
+/** PostgreSQL surfaces constraint breaches as errors carrying a SQLSTATE `code`. */
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === PG_UNIQUE_VIOLATION;
 }
 
 // ============================================================

@@ -216,7 +216,12 @@ export function useCreateInvoicePrefix() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: createInvoicePrefixRequest,
-    onSuccess: () => {
+    onSuccess: (created) => {
+      // Seed the cache before the refetch lands, so a caller that selects the new prefix
+      // right after mutateAsync() resolves finds it already in the list.
+      queryClient.setQueryData([QUERY_KEY.INVOICE_PREFIXES], (prefixes: InvoicePrefix[] | undefined) =>
+        prefixes ? [...prefixes, created] : [created],
+      );
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
     },
   });

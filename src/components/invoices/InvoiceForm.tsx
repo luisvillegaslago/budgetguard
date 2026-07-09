@@ -10,12 +10,19 @@ import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { type Control, type UseFormRegister, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { InlinePrefixForm } from '@/components/invoices/InlinePrefixForm';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import { INVOICE_BILLING_MODE, type InvoiceBillingMode, VALIDATION_KEY } from '@/constants/finance';
-import { useBillingProfile, useCreateInvoice, useInvoicePrefixes, useUpdateInvoice } from '@/hooks/useInvoices';
+import {
+  useBillingProfile,
+  useCreateInvoice,
+  useCreateInvoicePrefix,
+  useInvoicePrefixes,
+  useUpdateInvoice,
+} from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
@@ -153,6 +160,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   const { data: billingProfile } = useBillingProfile();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
+  const createPrefix = useCreateInvoicePrefix();
 
   const isEditing = !!invoice;
   const mutation = isEditing ? updateInvoice : createInvoice;
@@ -172,6 +180,8 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
 
   const [billingMode, setBillingMode] = useState<InvoiceBillingMode>(detectBillingMode(invoice));
   const isFlat = billingMode === INVOICE_BILLING_MODE.FLAT;
+
+  const [showPrefixForm, setShowPrefixForm] = useState(false);
 
   const watchedPrefixId = useWatch({ control, name: 'prefixId' });
   const watchedCompanyId = useWatch({ control, name: 'companyId' });
@@ -196,6 +206,23 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   // If the selected company has an associated prefix, show it as read-only text
   const companyPrefix =
     !isEditing && watchedCompanyId > 0 ? (prefixes?.find((p) => p.companyId === watchedCompanyId) ?? null) : null;
+
+  // Create a series on the fly when none of the existing ones fits. It is linked to the
+  // selected client only if that client has no series yet, preserving the 1:1 relationship.
+  const handleCreatePrefix = async (prefix: string) => {
+    try {
+      const created = await createPrefix.mutateAsync({
+        prefix,
+        description: null,
+        nextNumber: 1,
+        companyId: watchedCompanyId > 0 ? watchedCompanyId : null,
+      });
+      setValue('prefixId', created.prefixId, { shouldValidate: true });
+      setShowPrefixForm(false);
+    } catch {
+      // Error handled by mutation state
+    }
+  };
 
   // Calculate total (guard against NaN from empty valueAsNumber inputs)
   const toNum = (v: unknown): number | null => {
@@ -350,26 +377,60 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           {/* Prefix + Date row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="prefixId" className="block text-sm font-medium text-foreground mb-1">
-                {t('invoices.form.fields.prefix')}
-              </label>
-              {companyPrefix || isEditing ? (
-                <div className="w-full px-3 py-2 rounded-lg border border-input bg-muted/30 text-foreground text-sm">
-                  {selectedPrefix?.prefix ?? '—'}
-                </div>
+              {showPrefixForm ? (
+                <InlinePrefixForm
+                  inputId="newPrefixCode"
+                  isPending={createPrefix.isPending}
+                  onSubmit={handleCreatePrefix}
+                  onCancel={() => setShowPrefixForm(false)}
+                />
               ) : (
-                <Select id="prefixId" {...register('prefixId', { valueAsNumber: true })}>
-                  <option value={0}>{t('invoices.form.fields.select-prefix')}</option>
-                  {prefixes?.map((p) => (
-                    <option key={p.prefixId} value={p.prefixId}>
-                      {p.prefix} ({t('invoices.form.fields.next')}: {p.nextNumber})
-                    </option>
-                  ))}
-                </Select>
+                <>
+                  <label htmlFor="prefixId" className="block text-sm font-medium text-foreground mb-1">
+                    {t('invoices.form.fields.prefix')}
+                  </label>
+                  {companyPrefix || isEditing ? (
+                    <div className="w-full px-3 py-2 rounded-lg border border-input bg-muted/30 text-foreground text-sm">
+                      {selectedPrefix?.prefix ?? '—'}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        {/* Controlled so a series created inline shows up as the selected one */}
+                        <Select
+                          id="prefixId"
+                          {...register('prefixId', { valueAsNumber: true })}
+                          value={watchedPrefixId || 0}
+                        >
+                          <option value={0}>{t('invoices.form.fields.select-prefix')}</option>
+                          {prefixes?.map((p) => (
+                            <option key={p.prefixId} value={p.prefixId}>
+                              {p.prefix} ({t('invoices.form.fields.next')}: {p.nextNumber})
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPrefixForm(true)}
+                        className="p-2.5 text-guard-muted hover:text-guard-primary rounded-lg border border-input transition-colors shrink-0"
+                        aria-label={t('invoices.form.new-prefix')}
+                        title={t('invoices.form.new-prefix')}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
-              {errors.prefixId && (
+              {errors.prefixId && !showPrefixForm && (
                 <p role="alert" className="text-xs text-guard-danger mt-1">
                   {t(errors.prefixId.message ?? '')}
+                </p>
+              )}
+              {createPrefix.errorMessage && (
+                <p role="alert" className="text-xs text-guard-danger mt-1">
+                  {createPrefix.errorMessage}
                 </p>
               )}
             </div>

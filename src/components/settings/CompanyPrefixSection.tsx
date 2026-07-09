@@ -5,8 +5,9 @@
  * 1:1 prefix assignment for clients — select an existing unassigned prefix or create a new one
  */
 
-import { AlertTriangle, Loader2, Plus, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { InlinePrefixForm } from '@/components/invoices/InlinePrefixForm';
 import { Select } from '@/components/ui/Select';
 import { useCreateInvoicePrefix, useInvoicePrefixes, useUpdateInvoicePrefix } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -24,7 +25,6 @@ export function CompanyPrefixSection({ companyId }: CompanyPrefixSectionProps) {
   const updatePrefix = useUpdateInvoicePrefix();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newPrefixCode, setNewPrefixCode] = useState('');
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   // Current prefix assigned to this company
@@ -98,9 +98,7 @@ export function CompanyPrefixSection({ companyId }: CompanyPrefixSectionProps) {
     setPendingAction(null);
   };
 
-  const handleCreatePrefix = async () => {
-    if (!newPrefixCode.trim()) return;
-
+  const handleCreatePrefix = async (prefix: string) => {
     try {
       // Unassign current prefix first (maintain 1:1 relationship)
       if (currentPrefix) {
@@ -111,12 +109,11 @@ export function CompanyPrefixSection({ companyId }: CompanyPrefixSectionProps) {
       }
 
       await createPrefix.mutateAsync({
-        prefix: newPrefixCode.trim(),
+        prefix,
         description: null,
         nextNumber: 1,
         companyId,
       });
-      setNewPrefixCode('');
       setShowCreateForm(false);
     } catch {
       // Error handled by mutation state
@@ -162,47 +159,12 @@ export function CompanyPrefixSection({ companyId }: CompanyPrefixSectionProps) {
           </div>
         </div>
       ) : showCreateForm ? (
-        /* Inline create form */
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label htmlFor="newPrefixCode" className="block text-xs font-medium text-guard-muted mb-1">
-              {t('settings.billing.fields.prefix')}
-            </label>
-            <input
-              id="newPrefixCode"
-              type="text"
-              value={newPrefixCode}
-              onChange={(e) => setNewPrefixCode(e.target.value.toUpperCase())}
-              placeholder="CREST"
-              maxLength={10}
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary font-mono"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleCreatePrefix}
-            disabled={createPrefix.isPending || !newPrefixCode.trim()}
-            className="btn-primary flex items-center gap-1 shrink-0"
-          >
-            {createPrefix.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            )}
-            {t('common.buttons.create')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setShowCreateForm(false);
-              setNewPrefixCode('');
-            }}
-            className="p-2 text-guard-muted hover:text-guard-danger rounded-lg transition-colors"
-            aria-label={t('common.buttons.cancel')}
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+        <InlinePrefixForm
+          inputId="newPrefixCode"
+          isPending={createPrefix.isPending}
+          onSubmit={handleCreatePrefix}
+          onCancel={() => setShowCreateForm(false)}
+        />
       ) : (
         /* Select existing or create new */
         <div className="flex items-end gap-2">
@@ -232,8 +194,10 @@ export function CompanyPrefixSection({ companyId }: CompanyPrefixSectionProps) {
         </div>
       )}
 
-      {(updatePrefix.isError || createPrefix.isError) && (
-        <p className="text-sm text-guard-danger mt-2">{updatePrefix.error?.message ?? createPrefix.error?.message}</p>
+      {(updatePrefix.errorMessage || createPrefix.errorMessage) && (
+        <p role="alert" className="text-sm text-guard-danger mt-2">
+          {updatePrefix.errorMessage ?? createPrefix.errorMessage}
+        </p>
       )}
     </div>
   );

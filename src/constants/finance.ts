@@ -574,6 +574,7 @@ export const API_ERROR = {
     HAS_TRANSACTIONS: 'api-error.conflict.has-transactions',
     HAS_SUBCATEGORIES: 'api-error.conflict.has-subcategories',
     PREFIX_IN_USE: 'api-error.conflict.prefix-in-use',
+    PREFIX_EXISTS: 'api-error.conflict.prefix-exists',
     FUTURE_OCCURRENCE: 'api-error.conflict.future-occurrence',
   },
   INVOICE: {

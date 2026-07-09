@@ -4,10 +4,11 @@
  * POST /api/invoices/prefixes - Create a new prefix
  */
 
+import { API_ERROR } from '@/constants/finance';
 import { CreateInvoicePrefixSchema } from '@/schemas/invoice';
 import { validateRequest } from '@/schemas/transaction';
-import { createInvoicePrefix, getInvoicePrefixes } from '@/services/database/InvoiceRepository';
-import { validationError, withApiHandler } from '@/utils/apiHandler';
+import { ConflictError, createInvoicePrefix, getInvoicePrefixes } from '@/services/database/InvoiceRepository';
+import { conflict, validationError, withApiHandler } from '@/utils/apiHandler';
 
 export const GET = withApiHandler(async () => {
   const prefixes = await getInvoicePrefixes();
@@ -19,6 +20,11 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(CreateInvoicePrefixSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const prefix = await createInvoicePrefix(validation.data);
-  return { data: prefix, status: 201 };
+  try {
+    const prefix = await createInvoicePrefix(validation.data);
+    return { data: prefix, status: 201 };
+  } catch (error) {
+    if (error instanceof ConflictError) return conflict(API_ERROR.CONFLICT.PREFIX_EXISTS);
+    throw error;
+  }
 }, 'POST /api/invoices/prefixes');

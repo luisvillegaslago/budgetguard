@@ -1123,6 +1123,7 @@
         "bank-address": "Bank Address",
         "default-hourly-rate": "Default Hourly Rate (€)",
         "prefix": "Prefix",
+        "prefix-placeholder": "e.g. ABC",
         "description": "Description",
         "start-number": "Start #",
         "no-company": "No company"
@@ -1495,6 +1496,7 @@
       "edit-title": "Edit Invoice",
       "total": "Total",
       "add-line": "Add line",
+      "new-prefix": "Create new series",
       "billing-mode": {
         "label": "Billing mode",
         "hourly": "By hours",
@@ -1919,6 +1921,7 @@
       "has-transactions": "This category has linked transactions",
       "has-subcategories": "This category has subcategories",
       "prefix-in-use": "This prefix has invoices and cannot be deleted",
+      "prefix-exists": "A series with this prefix already exists",
       "future-occurrence": "Cannot process a future occurrence"
     },
     "invoice": {
