@@ -114,6 +114,12 @@ export function RouteProgressBar() {
       clearTimeout(watchdogTimerRef.current);
       watchdogTimerRef.current = null;
     }
+    // Clearing the in-flight marker makes `finalize` idempotent per navigation:
+    // the completion effect skips while it is null, so a bar closed by the
+    // watchdog cannot be closed a second time by a route that commits late.
+    // Without this, the late commit schedules a second fade timer and orphans
+    // the first, which then hides a bar the user has since restarted.
+    startedAtPathRef.current = null;
     setProgress(100);
     fadeTimerRef.current = setTimeout(() => {
       setActive(false);
@@ -176,10 +182,13 @@ export function RouteProgressBar() {
   // navigation — e.g. `/movements` -> `/movements?category=N` — complete;
   // `usePathname()` alone never changes there, so the bar would stick at 90%.
   // The startedAt guard ignores the initial mount tick (where the location is
-  // the current page and no navigation is in flight).
+  // the current page and no navigation is in flight) and the window between
+  // `finalize` and the fade-out.
   useEffect(() => {
     if (!active) return;
-    if (startedAtPathRef.current === locationKey(pathname, searchParams.toString())) return;
+    const startedAt = startedAtPathRef.current;
+    if (startedAt === null) return;
+    if (startedAt === locationKey(pathname, searchParams.toString())) return;
     complete();
   }, [pathname, searchParams, active, complete]);
 
