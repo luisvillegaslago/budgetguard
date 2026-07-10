@@ -950,6 +950,44 @@ export const GET = withApiHandler(async (request, { params }) => {
 
 ---
 
+### 13. Route Progress Bar
+
+`RouteProgressBar` (`src/components/ui/RouteProgressBar.tsx`) is mounted once in the
+authenticated layout. Clicking a sidebar item swaps its icon for a spinner (via Next's
+`useLinkStatus()`), and a slim bar sweeps the top of the viewport until the route commits.
+
+**The bar latches on a captured link click and releases on a location change.** Those two
+signals come from different browser APIs, and every bug this component has had came from
+that asymmetry. Three guards keep it honest:
+
+- Completion compares the full `path?query`, not just `usePathname()`. A click that only
+  changes the query string is a real navigation the pathname never observes — for example
+  `CategoryBreakdown` renders `/movements?category=N` links inside `/movements` itself.
+- Both sides build their comparison key through `URLSearchParams` (`locationKey()`), because
+  `window.location.search` encodes a space as `%20` while `toString()` emits `+`.
+- A watchdog force-completes after 8s. The start signal is finer than the stop signal, so the
+  set of clicks that start the bar without committing a route is open-ended; a bar frozen near
+  90% reads as "the app hung", which is worse than showing no bar.
+
+`isInternalLinkClick()` and `locationKey()` are exported solely so
+`src/__tests__/components/route-progress-bar.test.ts` can pin these rules.
+
+**Programmatic navigations get no bar and no spinner, by choice.** Both mechanisms are
+click-driven, so `router.push()` is invisible to them. Every push in this codebase is a
+post-mutation redirect — invoice created, trip created, invoice deleted — whose action already
+gave feedback through a submit button or a toast, and whose Neon-backed destination is fast.
+Nobody is left staring at a dead click.
+
+Wiring an imperative `startRouteProgress()` would buy nothing here and install an unenforced
+invariant ("remember to call it before every push") that nothing can hold you to. It would also
+be an attractive nuisance: the obvious next call site is `useUrlParams`, where the bar would
+flash on every filter keystroke. Revisit only if a push ever lands on a slow page, or on a
+navigation the user initiates directly. Our sibling project practice-hub made the opposite call
+for a concrete reason — its notification dropdown pushes to slow, externally-backed pages from a
+click that gives no other feedback.
+
+---
+
 ## CI/CD Pipeline
 
 GitHub Actions workflow (`.github/workflows/ci.yml`) runs on PRs and pushes to `main`:
