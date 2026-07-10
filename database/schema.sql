@@ -55,6 +55,8 @@ DROP VIEW IF EXISTS "vw_MonthlySummary";
 DROP TABLE IF EXISTS "CryptoDisposals";
 DROP TABLE IF EXISTS "TaxableEvents";
 DROP TABLE IF EXISTS "CryptoPriceCache";
+DROP TABLE IF EXISTS "CryptoRawEvents";
+-- Legacy name (pre multi-exchange rename); kept so a re-applied schema drops it too.
 DROP TABLE IF EXISTS "BinanceRawEvents";
 DROP TABLE IF EXISTS "CryptoSyncJobs";
 DROP TABLE IF EXISTS "ExchangeApiCallLog";
@@ -1087,13 +1089,16 @@ CREATE TRIGGER "TR_CryptoSyncJobs_UpdatedAt"
     BEFORE UPDATE ON "CryptoSyncJobs"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Raw events ingested from Binance, one row per upstream event. Idempotent
--- by (UserID, EventType, ExternalID) — re-running a sync window inserts
--- 0 duplicates. RawPayload is the verbatim JSON from the API for AEAT
--- reproducibility and to allow re-normalisation when Phase 3+ logic changes.
-CREATE TABLE "BinanceRawEvents" (
+-- Raw events ingested from any supported exchange (Binance, Kraken, Coinbase),
+-- one row per upstream event. The "Source" column records which exchange the
+-- row came from. Idempotent by (UserID, EventType, ExternalID) — re-running a
+-- sync window inserts 0 duplicates. RawPayload is the verbatim JSON from the
+-- API (or a synthetic CSV-derived payload) for AEAT reproducibility and to
+-- allow re-normalisation when later logic changes.
+CREATE TABLE "CryptoRawEvents" (
     "EventID" BIGSERIAL PRIMARY KEY,
     "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "Source" VARCHAR(20) NOT NULL CHECK ("Source" IN ('binance', 'kraken', 'coinbase')),
     "EventType" VARCHAR(30) NOT NULL,
     "ExternalID" VARCHAR(120) NOT NULL,
     "OccurredAt" TIMESTAMPTZ NOT NULL,
@@ -1101,12 +1106,13 @@ CREATE TABLE "BinanceRawEvents" (
     "IngestedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "NormalizedAt" TIMESTAMPTZ NULL,
     "JobID" INT REFERENCES "CryptoSyncJobs"("JobID") ON DELETE SET NULL,
-    CONSTRAINT "UQ_BinanceRawEvents_UserTypeExternal" UNIQUE ("UserID", "EventType", "ExternalID")
+    CONSTRAINT "UQ_CryptoRawEvents_UserTypeExternal" UNIQUE ("UserID", "EventType", "ExternalID")
 );
 
-CREATE INDEX "IX_BinanceRawEvents_UserOccurred" ON "BinanceRawEvents"("UserID", "OccurredAt" DESC);
-CREATE INDEX "IX_BinanceRawEvents_TypeOccurred" ON "BinanceRawEvents"("EventType", "OccurredAt" DESC);
-CREATE INDEX "IX_BinanceRawEvents_UnnormalizedFast" ON "BinanceRawEvents"("UserID") WHERE "NormalizedAt" IS NULL;
+CREATE INDEX "IX_CryptoRawEvents_UserOccurred" ON "CryptoRawEvents"("UserID", "OccurredAt" DESC);
+CREATE INDEX "IX_CryptoRawEvents_TypeOccurred" ON "CryptoRawEvents"("EventType", "OccurredAt" DESC);
+CREATE INDEX "IX_CryptoRawEvents_UnnormalizedFast" ON "CryptoRawEvents"("UserID") WHERE "NormalizedAt" IS NULL;
+CREATE INDEX "IX_CryptoRawEvents_UserSource" ON "CryptoRawEvents"("UserID", "Source");
 
 -- Historical EUR price cache. Inmutable once written: every (Asset, DateUtc)
 -- pair is resolved exactly once, then re-used for any normaliser pass that
@@ -1126,7 +1132,7 @@ CREATE TABLE "CryptoPriceCache" (
     PRIMARY KEY ("Asset", "DateUtc")
 );
 
--- Normalised, fiscally-relevant events derived from BinanceRawEvents.
+-- Normalised, fiscally-relevant events derived from CryptoRawEvents.
 -- One raw event may produce 0, 1, or N taxable events (e.g. a spot trade
 -- BTC→USDT yields a `disposal` of BTC + an `acquisition` of USDT).
 -- RawEventID + Kind are unique together so re-running the normaliser is
@@ -1134,7 +1140,7 @@ CREATE TABLE "CryptoPriceCache" (
 CREATE TABLE "TaxableEvents" (
     "EventID" BIGSERIAL PRIMARY KEY,
     "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
-    "RawEventID" BIGINT NOT NULL REFERENCES "BinanceRawEvents"("EventID") ON DELETE CASCADE,
+    "RawEventID" BIGINT NOT NULL REFERENCES "CryptoRawEvents"("EventID") ON DELETE CASCADE,
     "Kind" VARCHAR(20) NOT NULL CHECK (
         "Kind" IN ('disposal', 'acquisition', 'airdrop', 'staking_reward', 'transfer_in', 'transfer_out')
     ),

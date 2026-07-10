@@ -1,7 +1,7 @@
 /**
  * Full re-normalization of the crypto fiscal pipeline for ALL users.
  *
- * Rebuilds TaxableEvents and CryptoDisposals from the stored BinanceRawEvents so
+ * Rebuilds TaxableEvents and CryptoDisposals from the stored CryptoRawEvents so
  * that every recent calculation fix lands on existing data:
  *   - sub-cent price precision (micro-cents)        [H1]
  *   - price-source / needs-review flags             [H3 + M1]
@@ -14,7 +14,7 @@
  *      EurPriceMicroCents is 0), so sub-cent tokens refetch at micro-cent
  *      precision. Targeted, so it runs in both full and --user mode.
  *   2. DELETE TaxableEvents for the user (cascades to CryptoDisposals).
- *   3. Reset BinanceRawEvents.NormalizedAt = NULL so the normaliser reprocesses
+ *   3. Reset CryptoRawEvents.NormalizedAt = NULL so the normaliser reprocesses
  *      them. Raw events themselves (incl. any manual baseAsset/quoteAsset
  *      patches) are preserved.
  *   4. normalizeForUser  → rewrites TaxableEvents (precise gross + PriceSource).
@@ -71,7 +71,7 @@ async function preflight(): Promise<boolean> {
 
 async function processUser(userId: number): Promise<void> {
   await query(`DELETE FROM "TaxableEvents" WHERE "UserID" = $1`, [userId]);
-  await query(`UPDATE "BinanceRawEvents" SET "NormalizedAt" = NULL WHERE "UserID" = $1`, [userId]);
+  await query(`UPDATE "CryptoRawEvents" SET "NormalizedAt" = NULL WHERE "UserID" = $1`, [userId]);
 
   const norm = await normalizeForUser(userId);
   const recompute = await recomputeAllYearsForUser(userId);
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
             COUNT(DISTINCT r."EventID")::text AS "rawCount",
             (SELECT COUNT(*) FROM "TaxableEvents" t WHERE t."UserID" = r."UserID")::text AS "taxableCount",
             (SELECT COUNT(*) FROM "CryptoDisposals" d WHERE d."UserID" = r."UserID")::text AS "disposalCount"
-     FROM "BinanceRawEvents" r
+     FROM "CryptoRawEvents" r
      GROUP BY r."UserID"
      ORDER BY r."UserID"`,
   );

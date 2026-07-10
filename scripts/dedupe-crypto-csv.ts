@@ -8,7 +8,7 @@
  * CSV copy — the API copy is authoritative (orderId, millisecond precision,
  * exact fills).
  *
- * Deleting a BinanceRawEvents row cascades to its TaxableEvents and
+ * Deleting a CryptoRawEvents row cascades to its TaxableEvents and
  * CryptoDisposals (ON DELETE CASCADE). After running with --execute you MUST
  * press "Recalcular FIFO" in the app (Crypto → Fiscal) to rebuild the disposals
  * from the remaining taxable events.
@@ -41,7 +41,7 @@ const DETECT_SQL = `
       COALESCE(("RawPayload"->>'transactionFee')::numeric, 0) AS k_fee,
       "RawPayload"->>'isBuyer' AS k_side,
       "OccurredAt" AS ts
-    FROM "BinanceRawEvents"
+    FROM "CryptoRawEvents"
   )
   SELECT DISTINCT csv."EventID"::text AS "EventID", csv."UserID", csv."EventType"
   FROM ev csv
@@ -75,7 +75,7 @@ const SPOT_CROSS_SQL = `
       date_trunc('second', "OccurredAt") AS sec,
       ("RawPayload"->>'qty')::numeric AS qty,
       ("RawPayload"->>'quoteQty')::numeric AS quote
-    FROM "BinanceRawEvents"
+    FROM "CryptoRawEvents"
     WHERE "EventType" = 'spot_trade'
   )
   SELECT DISTINCT csv."EventID", csv."UserID", 'spot_trade'::text AS "EventType"
@@ -141,7 +141,7 @@ async function main(): Promise<void> {
     }
 
     const ids = rows.map((r) => r.EventID);
-    const result = await pool.query('DELETE FROM "BinanceRawEvents" WHERE "EventID" = ANY($1::bigint[])', [ids]);
+    const result = await pool.query('DELETE FROM "CryptoRawEvents" WHERE "EventID" = ANY($1::bigint[])', [ids]);
     // biome-ignore lint/suspicious/noConsole: CLI script
     console.log(`\nDeleted ${result.rowCount} CSV events (their TaxableEvents and CryptoDisposals cascaded).`);
     // biome-ignore lint/suspicious/noConsole: CLI script

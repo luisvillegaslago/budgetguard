@@ -5,7 +5,7 @@
  * populate the asset filter on the /crypto movements table. Sorted alphabetically.
  */
 
-import { listUserAssets } from '@/services/database/BinanceRawEventsRepository';
+import { listUserAssets } from '@/services/database/CryptoRawEventsRepository';
 import { withApiHandler } from '@/utils/apiHandler';
 
 export const GET = withApiHandler(async () => {

@@ -25,7 +25,7 @@ import {
   bulkInsertRawEventsForUser,
   listInteractedAssetsForUser,
   type RawEventInput,
-} from '@/services/database/BinanceRawEventsRepository';
+} from '@/services/database/CryptoRawEventsRepository';
 import {
   type EndpointProgress,
   isJobCancelled,

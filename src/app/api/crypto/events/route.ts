@@ -9,7 +9,7 @@
 
 import { ListEventsQuerySchema } from '@/schemas/crypto';
 import { validateRequest } from '@/schemas/transaction';
-import { listRawEvents } from '@/services/database/BinanceRawEventsRepository';
+import { listRawEvents } from '@/services/database/CryptoRawEventsRepository';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 
 const PAGE_SIZE = 20;

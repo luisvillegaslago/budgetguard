@@ -423,6 +423,8 @@ export const HIGH_CONFIDENCE_THRESHOLD = 0.9;
 // Supported exchanges
 export const CRYPTO_EXCHANGE = {
   BINANCE: 'binance',
+  KRAKEN: 'kraken',
+  COINBASE: 'coinbase',
 } as const;
 
 export type CryptoExchange = (typeof CRYPTO_EXCHANGE)[keyof typeof CRYPTO_EXCHANGE];
@@ -620,6 +622,8 @@ export const API_ERROR = {
     CSV_FILE_REQUIRED: 'api-error.crypto.csv-file-required',
     CSV_INVALID_FORMAT: 'api-error.crypto.csv-invalid-format',
     CSV_TOO_LARGE: 'api-error.crypto.csv-too-large',
+    CSV_UNSUPPORTED_EXCHANGE: 'api-error.crypto.csv-unsupported-exchange',
+    CSV_UNRECOGNIZED: 'api-error.crypto.csv-unrecognized',
   },
   VALIDATION: {
     INVALID_MONTH: 'api-error.validation.invalid-month',

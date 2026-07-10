@@ -95,6 +95,15 @@ export const ListKlinesQuerySchema = z.object({
 
 export type ListKlinesQuery = z.infer<typeof ListKlinesQuerySchema>;
 
+const EXCHANGE_VALUES = Object.values(CRYPTO_EXCHANGE) as [
+  (typeof CRYPTO_EXCHANGE)[keyof typeof CRYPTO_EXCHANGE],
+  ...(typeof CRYPTO_EXCHANGE)[keyof typeof CRYPTO_EXCHANGE][],
+];
+
+// Optional exchange hint for the CSV upload. When omitted the route falls back
+// to auto-detecting the originating exchange from the file header.
+export const CsvImportExchangeSchema = z.enum(EXCHANGE_VALUES);
+
 // 10 MB cap on CSV uploads — Binance exports ~1KB per row, so 10MB
 // covers ~10k rows which is well above any realistic single-export size.
 export const CSV_MAX_BYTES = 10 * 1024 * 1024;

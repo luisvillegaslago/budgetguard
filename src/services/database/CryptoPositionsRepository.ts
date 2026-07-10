@@ -59,7 +59,7 @@ const SPOT_ORDERS_SQL = `
     MAX("OccurredAt") AS "occurredAt",
     SUM(("RawPayload"->>'qty')::numeric)::text AS "qtyBaseRaw",
     SUM(("RawPayload"->>'quoteQty')::numeric)::text AS "quoteRaw"
-  FROM "BinanceRawEvents"
+  FROM "CryptoRawEvents"
   WHERE "UserID" = $1 AND "EventType" = 'spot_trade'
   GROUP BY
     "RawPayload"->>'symbol',

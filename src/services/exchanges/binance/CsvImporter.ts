@@ -20,63 +20,19 @@
  * idempotent thanks to UNIQUE(UserID, EventType, ExternalID).
  */
 
-import { createHash } from 'node:crypto';
-import { CRYPTO_EVENT_TYPE } from '@/constants/finance';
-import { type RawEventInput } from '@/services/database/BinanceRawEventsRepository';
+import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE } from '@/constants/finance';
+import { parseCsv } from '@/services/exchanges/shared/csvParser';
+import { hashRow as sharedHashRow } from '@/services/exchanges/shared/externalId';
+import type {
+  CsvImportResult,
+  CsvImportSummary,
+  ExchangeCsvImporter,
+  RawEventInput,
+} from '@/services/exchanges/shared/types';
 
-// ============================================================
-// CSV parser (no deps, handles quoted fields with commas inside)
-// ============================================================
-
-export function parseCsv(content: string): string[][] {
-  // Strip the UTF-8 BOM that Binance prepends to its CSV exports.
-  const sanitized = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let insideQuotes = false;
-
-  for (let i = 0; i < sanitized.length; i++) {
-    const ch = sanitized[i];
-    if (insideQuotes) {
-      if (ch === '"') {
-        // Escaped quote inside a quoted field
-        if (sanitized[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          insideQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      insideQuotes = true;
-      continue;
-    }
-    if (ch === ',') {
-      row.push(field);
-      field = '';
-      continue;
-    }
-    if (ch === '\r') continue;
-    if (ch === '\n') {
-      row.push(field);
-      field = '';
-      if (row.length > 1 || row[0] !== '') rows.push(row);
-      row = [];
-      continue;
-    }
-    field += ch;
-  }
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    if (row.length > 1 || row[0] !== '') rows.push(row);
-  }
-  return rows;
-}
+// Re-exported so existing callers/tests can keep importing the generic parser
+// from this module; the implementation now lives in shared/csvParser.
+export { parseCsv };
 
 // ============================================================
 // Row schema
@@ -224,17 +180,9 @@ export function detectOffsetFromFilename(filename: string): number {
 // Row → raw event mapping
 // ============================================================
 
-export interface CsvImportSummary {
-  rowsRead: number;
-  rowsMapped: number;
-  rowsSkipped: number;
-  skippedOperations: Record<string, number>;
-}
-
-interface MapResult {
-  events: RawEventInput[];
-  summary: CsvImportSummary;
-}
+// CsvImportSummary now lives in shared/types and is re-exported for callers
+// that still import it from this module.
+export type { CsvImportSummary };
 
 /**
  * Whitelisted operation labels (case-insensitive substring match). Each
@@ -305,7 +253,7 @@ const GROUP_SYNTHESIZERS: Record<GroupKey, (group: BinanceCsvRow[]) => RawEventI
   convert: synthesizeConvert,
 };
 
-export function mapRowsToRawEvents(rows: BinanceCsvRow[]): MapResult {
+export function mapRowsToRawEvents(rows: BinanceCsvRow[]): CsvImportResult {
   const events: RawEventInput[] = [];
   const skippedOperations: Record<string, number> = {};
   let mapped = 0;
@@ -565,9 +513,51 @@ function mapSingleRow(r: BinanceCsvRow): RawEventInput | null {
 }
 
 function hashRow(prefix: string, ...rows: (BinanceCsvRow | null)[]): string {
-  const payload = rows
+  // Canonicalise each non-null row to a stable string, then delegate to the
+  // shared hasher. Passing the `csv-${prefix}` namespace keeps the produced
+  // ExternalID byte-identical to the historical `csv-${prefix}-${hash}` format.
+  const parts = rows
     .filter((r): r is BinanceCsvRow => r !== null)
-    .map((r) => `${r.utcTime.toISOString()}|${r.account}|${r.operation}|${r.coin}|${r.change}|${r.remark}`)
-    .join('||');
-  return `csv-${prefix}-${createHash('sha256').update(payload).digest('hex').slice(0, 16)}`;
+    .map((r) => `${r.utcTime.toISOString()}|${r.account}|${r.operation}|${r.coin}|${r.change}|${r.remark}`);
+  return sharedHashRow(`csv-${prefix}`, ...parts);
 }
+
+// ============================================================
+// ExchangeCsvImporter implementation
+// ============================================================
+
+// Header columns that unambiguously identify a Binance "Export Transaction
+// History" CSV across both header conventions (legacy `UTC_Time`/`User_ID`
+// and newer `Time`/`User ID`).
+const BINANCE_HEADER_SIGNATURE = ['Operation', 'Coin', 'Change'] as const;
+
+function detectBinanceHeader(headerLine: string): boolean {
+  const columns = headerLine.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+  const hasTime = columns.includes('UTC_Time') || columns.includes('Time');
+  return hasTime && BINANCE_HEADER_SIGNATURE.every((col) => columns.includes(col));
+}
+
+/**
+ * Binance CSV importer. Wraps the existing parse → group → map pipeline and
+ * stamps `source: 'binance'` on every produced raw event so the downstream
+ * insert persists the originating exchange.
+ */
+export const binanceCsvImporter: ExchangeCsvImporter = {
+  exchange: CRYPTO_EXCHANGE.BINANCE,
+
+  detect(headerLine: string): boolean {
+    return detectBinanceHeader(headerLine);
+  },
+
+  import(text: string, filename: string): CsvImportResult {
+    // Binance bakes the user's TZ into the export filename — sniff the offset
+    // so timestamps are shifted back to UTC before storing.
+    const tzOffsetMinutes = detectOffsetFromFilename(filename);
+    const csvRows = rowsToBinanceCsvRows(parseCsv(text), tzOffsetMinutes);
+    const { events, summary } = mapRowsToRawEvents(csvRows);
+    return {
+      events: events.map((event) => ({ ...event, source: CRYPTO_EXCHANGE.BINANCE })),
+      summary,
+    };
+  },
+};

@@ -1,5 +1,5 @@
 /**
- * Repository for normalised TaxableEvents derived from BinanceRawEvents.
+ * Repository for normalised TaxableEvents derived from CryptoRawEvents.
  *
  * Insert is idempotent by (RawEventID, Kind, Asset) — the same raw event can
  * be re-normalised any number of times without producing duplicates. This is
@@ -159,7 +159,7 @@ export async function listUnnormalisedRawEventsForUser(
     RawPayload: Record<string, unknown>;
   }>(
     `SELECT "EventID"::text AS "EventID", "EventType", "OccurredAt", "RawPayload"
-     FROM "BinanceRawEvents"
+     FROM "CryptoRawEvents"
      WHERE "UserID" = $1 AND "NormalizedAt" IS NULL
      ORDER BY "OccurredAt" ASC
      LIMIT $2`,
@@ -182,7 +182,7 @@ export async function listUnnormalisedRawEventsForUser(
 export async function markRawEventsNormalized(rawEventIds: string[]): Promise<void> {
   if (rawEventIds.length === 0) return;
   await query(
-    `UPDATE "BinanceRawEvents"
+    `UPDATE "CryptoRawEvents"
      SET "NormalizedAt" = CURRENT_TIMESTAMP
      WHERE "EventID" = ANY($1::bigint[])`,
     [rawEventIds],
@@ -252,7 +252,7 @@ export async function countTaxableEventsForUser(): Promise<number> {
 export async function countUnnormalisedRawEventsForUser(userId: number): Promise<number> {
   const rows = await query<{ total: number }>(
     `SELECT COUNT(*)::int AS total
-     FROM "BinanceRawEvents"
+     FROM "CryptoRawEvents"
      WHERE "UserID" = $1 AND "NormalizedAt" IS NULL`,
     [userId],
   );

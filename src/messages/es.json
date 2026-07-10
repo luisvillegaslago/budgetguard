@@ -1448,14 +1448,38 @@
       }
     },
     "csv": {
-      "title": "Importar CSV de Binance",
-      "subtitle": "Útil para rescatar operaciones C2C antiguas (la API solo devuelve los últimos 6 meses) y para reconciliar datos.",
+      "title": "Importar CSV de exchange",
+      "exchange-label": "Exchange",
       "instructions-title": "Cómo obtener el CSV:",
-      "step-1": "Inicia sesión en Binance.com y ve a Orders → Asset History, luego pulsa el icono de exportar (arriba a la derecha) → Export Transaction Records, o ve directamente {link}.",
-      "step-1-link": "aquí",
-      "step-2": "En Time Range, pulsa Customize y selecciona el periodo completo desde que empezaste a usar Binance hasta hoy.",
-      "step-3": "Selecciona CSV y pulsa Generate. Espera a que el archivo esté listo y descárgalo.",
-      "step-4": "Descomprime el archivo .zip y sube el CSV aquí abajo.",
+      "exchanges": {
+        "binance": {
+          "name": "Binance",
+          "subtitle": "Útil para rescatar operaciones C2C antiguas (la API solo devuelve los últimos 6 meses) y para reconciliar datos.",
+          "step-1": "Inicia sesión en Binance.com y ve a Orders → Asset History, luego pulsa el icono de exportar (arriba a la derecha) → Export Transaction Records, o ve directamente {link}.",
+          "step-1-link": "aquí",
+          "step-2": "En Time Range, pulsa Customize y selecciona el periodo completo desde que empezaste a usar Binance hasta hoy.",
+          "step-3": "Selecciona CSV y pulsa Generate. Espera a que el archivo esté listo y descárgalo.",
+          "step-4": "Descomprime el archivo .zip y sube el CSV aquí abajo."
+        },
+        "kraken": {
+          "name": "Kraken",
+          "subtitle": "Exporta el histórico completo de Ledgers para reconciliar depósitos, retiradas, trades y recompensas de staking.",
+          "step-1": "Inicia sesión en Kraken.com y abre History → Export, o ve directamente {link}.",
+          "step-1-link": "aquí",
+          "step-2": "Elige el informe \"Ledgers\" y selecciona el rango de fechas completo desde tu primera actividad hasta hoy.",
+          "step-3": "Pulsa Submit, espera a que termine la exportación y descárgala.",
+          "step-4": "Descomprime el archivo si hace falta y sube el CSV de ledgers aquí abajo."
+        },
+        "coinbase": {
+          "name": "Coinbase",
+          "subtitle": "Exporta el informe de transacciones de Coinbase para importar compras, ventas, conversiones, envíos y recompensas.",
+          "step-1": "Inicia sesión en Coinbase.com y abre Reports → Generate report, o ve directamente {link}.",
+          "step-1-link": "aquí",
+          "step-2": "Elige el informe de histórico de transacciones para todos los activos y el rango de fechas completo.",
+          "step-3": "Genera el CSV y descárgalo cuando esté listo.",
+          "step-4": "Sube el CSV de transacciones aquí abajo (las líneas de cabecera previas se gestionan automáticamente)."
+        }
+      },
       "drop-here": "Arrastra el CSV aquí o haz clic para seleccionar",
       "selected": "Archivo seleccionado: {name}",
       "uploading": "Procesando…",
@@ -1949,6 +1973,7 @@
       "file-required": "Se requiere un archivo",
       "metadata-required": "Se requieren los metadatos del documento",
       "extraction-failed": "No se pudo analizar el documento",
+      "detection-failed": "No se ha podido analizar el documento",
       "download-failed": "No se pudo descargar el documento"
     },
     "crypto": {
@@ -1963,8 +1988,10 @@
       "sync-failed": "La sincronización ha fallado. Revisa el detalle del job.",
       "unauthorised-cron": "El cron no está configurado correctamente en el servidor.",
       "csv-file-required": "Selecciona un archivo CSV.",
-      "csv-invalid-format": "El CSV no tiene el formato esperado de Binance (columnas: UTC_Time, Account, Operation, Coin, Change).",
-      "csv-too-large": "El archivo es demasiado grande. Máximo 10 MB."
+      "csv-invalid-format": "El CSV está mal formado y no se ha podido analizar. Asegúrate de subir el export sin modificar del exchange.",
+      "csv-too-large": "El archivo es demasiado grande. Máximo 10 MB.",
+      "csv-unsupported-exchange": "Exchange no soportado. Elige Binance, Kraken o Coinbase.",
+      "csv-unrecognized": "No se ha reconocido este CSV. Selecciona arriba el exchange correspondiente y sube el export correcto."
     },
     "validation": {
       "invalid-month": "Formato de mes inválido. Usa YYYY-MM",
@@ -2022,7 +2049,7 @@
       "import": {
         "jumps": "Error al importar saltos",
         "tunnel-sessions": "Error al importar sesiones de túnel",
-        "crypto-csv": "Error al importar el CSV de Binance"
+        "crypto-csv": "Error al importar el CSV del exchange"
       },
       "upload": {
         "fiscal-document": "Error al subir el documento",

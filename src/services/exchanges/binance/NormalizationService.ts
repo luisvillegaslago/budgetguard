@@ -1,7 +1,7 @@
 /**
  * NormalizationService — Phase 3 orchestrator.
  *
- * For each unprocessed BinanceRawEvent:
+ * For each unprocessed CryptoRawEvent:
  *   1. Run EventNormalizer to get one or more `NormalisedLeg`s.
  *   2. For each leg, resolve the EUR price (asset, occurredAt) via
  *      PriceService. Same for the fee asset if any.

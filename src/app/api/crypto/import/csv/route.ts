@@ -1,9 +1,11 @@
 /**
  * POST /api/crypto/import/csv
  *
- * Multipart upload of a Binance "Export Transaction History" CSV. The file
- * is parsed in-memory (no Vercel Blob storage — raw rows are persisted into
- * BinanceRawEvents instead, which is the source of truth).
+ * Multipart upload of an exchange transaction-history CSV (Binance, Kraken and
+ * Coinbase via the shared importer registry). The originating exchange comes
+ * from an optional `exchange` form field; when omitted it is auto-detected from
+ * the file header. The file is parsed in-memory (no Vercel Blob storage — raw
+ * rows are persisted into CryptoRawEvents instead, which is the source of truth).
  *
  * Idempotent: re-uploading the same file inserts 0 duplicates thanks to the
  * UNIQUE(UserID, EventType, ExternalID) constraint and the per-row hash.
@@ -17,12 +19,8 @@
 import { after, NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import { CSV_MAX_BYTES } from '@/schemas/crypto';
-import {
-  bulkInsertRawEventsForUser,
-  filterCrossSourceDuplicates,
-  type RawEventInput,
-} from '@/services/database/BinanceRawEventsRepository';
+import { CSV_MAX_BYTES, CsvImportExchangeSchema } from '@/schemas/crypto';
+import { bulkInsertRawEventsForUser, filterCrossSourceDuplicates } from '@/services/database/CryptoRawEventsRepository';
 import {
   createSyncJob,
   markJobCompleted,
@@ -30,16 +28,10 @@ import {
   markJobRunning,
   updateJobProgress,
 } from '@/services/database/CryptoSyncJobsRepository';
-import {
-  type BinanceCsvRow,
-  type CsvImportSummary,
-  CsvParseError,
-  detectOffsetFromFilename,
-  mapRowsToRawEvents,
-  parseCsv,
-  rowsToBinanceCsvRows,
-} from '@/services/exchanges/binance/CsvImporter';
+import { CsvParseError } from '@/services/exchanges/binance/CsvImporter';
 import { normalizeForUser } from '@/services/exchanges/binance/NormalizationService';
+import { detectImporter, getImporterFor } from '@/services/exchanges/shared';
+import type { CsvImportResult, ExchangeCsvImporter } from '@/services/exchanges/shared/types';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 
 export const POST = withApiHandler(async (request) => {
@@ -52,16 +44,26 @@ export const POST = withApiHandler(async (request) => {
 
   const text = await file.text();
 
-  // Binance bakes the user's TZ into the export filename — sniff the
-  // offset so we can shift the timestamps back to UTC before storing.
-  const tzOffsetMinutes = detectOffsetFromFilename(file.name);
+  // Resolve the importer either from an explicit `exchange` form field (the UI
+  // sends the user's selection) or, when absent, by auto-detecting from the file
+  // header. Each importer handles its own timezone/format quirks (e.g. Binance
+  // bakes the user's TZ into the filename) inside import().
+  const exchangeField = formData.get('exchange');
+  let importer: ExchangeCsvImporter | null;
+  if (typeof exchangeField === 'string' && exchangeField.length > 0) {
+    const parsedExchange = CsvImportExchangeSchema.safeParse(exchangeField);
+    if (!parsedExchange.success) {
+      return validationError({ exchange: [API_ERROR.CRYPTO.CSV_UNSUPPORTED_EXCHANGE] });
+    }
+    importer = getImporterFor(parsedExchange.data);
+  } else {
+    importer = detectImporter(text, file.name);
+  }
+  if (!importer) return validationError({ file: [API_ERROR.CRYPTO.CSV_UNRECOGNIZED] });
 
-  let csvRows: BinanceCsvRow[];
-  let mapResult: { events: RawEventInput[]; summary: CsvImportSummary };
+  let mapResult: CsvImportResult;
   try {
-    const rawRows = parseCsv(text);
-    csvRows = rowsToBinanceCsvRows(rawRows, tzOffsetMinutes);
-    mapResult = mapRowsToRawEvents(csvRows);
+    mapResult = importer.import(text, file.name);
   } catch (error) {
     if (error instanceof CsvParseError) {
       return validationError({ file: [API_ERROR.CRYPTO.CSV_INVALID_FORMAT] });
@@ -69,13 +71,19 @@ export const POST = withApiHandler(async (request) => {
     throw error;
   }
 
+  // Scope window from the imported events (raw payloads are unsorted, so take
+  // the min/max OccurredAt). Falls back to "now" for an empty import.
+  const occurredTimes = mapResult.events.map((event) => event.occurredAt.getTime());
+  const scopeFrom = occurredTimes.length > 0 ? new Date(Math.min(...occurredTimes)) : new Date();
+  const scopeTo = occurredTimes.length > 0 ? new Date(Math.max(...occurredTimes)) : new Date();
+
   // Wrap the import in a synthetic sync job so the user sees it in the
   // history alongside API-driven syncs.
   const job = await createSyncJob({
-    exchange: 'binance',
+    exchange: importer.exchange,
     mode: 'full',
-    scopeFrom: csvRows[0]?.utcTime ?? new Date(),
-    scopeTo: csvRows[csvRows.length - 1]?.utcTime ?? new Date(),
+    scopeFrom,
+    scopeTo,
   });
   await markJobRunning(job.jobId);
 

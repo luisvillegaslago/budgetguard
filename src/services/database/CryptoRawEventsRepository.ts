@@ -1,12 +1,14 @@
 /**
- * Repository for raw Binance events ingested by the sync worker.
+ * Repository for raw crypto events ingested by the sync workers and CSV
+ * importers, across every supported exchange (Binance, Kraken, Coinbase).
  *
- * Idempotent inserts via UNIQUE(UserID, EventType, ExternalID): re-running a
- * sync window inserts 0 duplicates. Bulk insert uses multi-row VALUES with
- * .flatMap() for params (project convention, see TransactionRepository).
+ * Each row records its originating exchange in the "Source" column. Idempotent
+ * inserts via UNIQUE(UserID, EventType, ExternalID): re-running a sync window
+ * inserts 0 duplicates. Bulk insert uses multi-row VALUES with .flatMap() for
+ * params (project convention, see TransactionRepository).
  */
 
-import { CRYPTO_EVENT_TYPE, type CryptoEventType } from '@/constants/finance';
+import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, type CryptoEventType, type CryptoExchange } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { splitSymbol } from '@/utils/cryptoSymbol';
 import { query } from './connection';
@@ -14,6 +16,7 @@ import { query } from './connection';
 interface RawEventRow {
   EventID: string;
   UserID: number;
+  Source: string;
   EventType: string;
   ExternalID: string;
   OccurredAt: string;
@@ -22,8 +25,9 @@ interface RawEventRow {
   JobID: number | null;
 }
 
-export interface BinanceRawEvent {
+export interface CryptoRawEvent {
   eventId: string;
+  source: CryptoExchange;
   eventType: CryptoEventType;
   externalId: string;
   occurredAt: string;
@@ -37,11 +41,15 @@ export interface RawEventInput {
   externalId: string;
   occurredAt: Date;
   rawPayload: Record<string, unknown>;
+  // Originating exchange. CSV importers set this explicitly; the Binance API
+  // sync path omits it and the insert defaults to 'binance' (see below).
+  source?: CryptoExchange;
 }
 
-function rowToEvent(row: RawEventRow): BinanceRawEvent {
+function rowToEvent(row: RawEventRow): CryptoRawEvent {
   return {
     eventId: row.EventID,
+    source: row.Source as CryptoExchange,
     eventType: row.EventType as CryptoEventType,
     externalId: row.ExternalID,
     occurredAt: row.OccurredAt,
@@ -57,7 +65,7 @@ function rowToEvent(row: RawEventRow): BinanceRawEvent {
  *
  * Uses a single multi-row INSERT — the largest payload of the sync worker.
  * Caller must batch upstream when input.length > 500 to keep parameter count
- * under PostgreSQL's 65k limit (5 cols/row × 500 = 2500 params).
+ * under PostgreSQL's 65k limit (6 cols/row × 500 = 3000 params).
  */
 export async function bulkInsertRawEvents(inputs: RawEventInput[], jobId: number): Promise<number> {
   const userId = await getUserIdOrThrow();
@@ -71,16 +79,17 @@ export async function bulkInsertRawEventsForUser(
 ): Promise<number> {
   if (inputs.length === 0) return 0;
 
-  const COLS_PER_ROW = 6;
+  const COLS_PER_ROW = 7;
   const placeholders = inputs
     .map((_, i) => {
       const base = i * COLS_PER_ROW + 1;
-      return `($${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
+      return `($${base}, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
     })
     .join(', ');
 
   const params = inputs.flatMap((event) => [
     userId,
+    event.source ?? CRYPTO_EXCHANGE.BINANCE,
     event.eventType,
     event.externalId,
     event.occurredAt.toISOString(),
@@ -90,8 +99,8 @@ export async function bulkInsertRawEventsForUser(
 
   const rows = await query<{ inserted: number }>(
     `WITH ins AS (
-       INSERT INTO "BinanceRawEvents"
-         ("UserID", "EventType", "ExternalID", "OccurredAt", "RawPayload", "JobID")
+       INSERT INTO "CryptoRawEvents"
+         ("UserID", "Source", "EventType", "ExternalID", "OccurredAt", "RawPayload", "JobID")
        VALUES ${placeholders}
        ON CONFLICT ("UserID", "EventType", "ExternalID") DO NOTHING
        RETURNING 1 AS inserted
@@ -187,6 +196,8 @@ function closeAmount(a: number, b: number): boolean {
  *
  * Used by the CSV import path so re-importing a period already covered by the
  * API sync no longer double-counts trades, dividends, dust, deposits, etc.
+ * Dedup is intentionally source-agnostic: a Kraken/Coinbase CSV that overlaps
+ * a Binance API window is matched on the operation identity, not the exchange.
  */
 export async function filterCrossSourceDuplicates(
   userId: number,
@@ -204,7 +215,7 @@ export async function filterCrossSourceDuplicates(
        COALESCE(("RawPayload"->>'transactionFee')::numeric, 0)::float8 AS fee,
        "RawPayload"->>'isBuyer' AS side,
        (EXTRACT(EPOCH FROM "OccurredAt") * 1000)::bigint::text AS ms
-     FROM "BinanceRawEvents"
+     FROM "CryptoRawEvents"
      WHERE "UserID" = $1`,
     [userId],
   );
@@ -291,7 +302,7 @@ export async function listRawEvents(filters: {
   asset?: string;
   limit: number;
   offset: number;
-}): Promise<{ events: BinanceRawEvent[]; total: number }> {
+}): Promise<{ events: CryptoRawEvent[]; total: number }> {
   const userId = await getUserIdOrThrow();
   const conditions = ['"UserID" = $1'];
   const params: unknown[] = [userId];
@@ -334,14 +345,15 @@ export async function listRawEvents(filters: {
   // every other event passed through unchanged, then merged into one stream.
   const cte = `
     WITH base AS (
-      SELECT "EventID", "UserID", "EventType", "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
-      FROM "BinanceRawEvents"
+      SELECT "EventID", "UserID", "Source", "EventType", "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
+      FROM "CryptoRawEvents"
       WHERE ${where}
     ),
     spot_grouped AS (
       SELECT
         MIN("EventID"::bigint)::text AS "EventID",
         MIN("UserID") AS "UserID",
+        MAX("Source") AS "Source",
         'spot_trade'::text AS "EventType",
         (MAX("RawPayload"->>'symbol') || '-' || COALESCE(MAX("RawPayload"->>'orderId'), '')) AS "ExternalID",
         MAX("OccurredAt") AS "OccurredAt",
@@ -363,7 +375,7 @@ export async function listRawEvents(filters: {
         ("RawPayload"->>'isBuyer')::boolean
     ),
     others AS (
-      SELECT "EventID"::text AS "EventID", "UserID", "EventType"::text AS "EventType",
+      SELECT "EventID"::text AS "EventID", "UserID", "Source", "EventType"::text AS "EventType",
              "ExternalID"::text AS "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
       FROM base
       WHERE "EventType" <> 'spot_trade'
@@ -377,7 +389,7 @@ export async function listRawEvents(filters: {
   const [eventRows, countRows] = await Promise.all([
     query<RawEventRow>(
       `${cte}
-       SELECT "EventID", "UserID", "EventType", "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
+       SELECT "EventID", "UserID", "Source", "EventType", "ExternalID", "OccurredAt", "RawPayload", "IngestedAt", "JobID"
        FROM unioned
        ORDER BY "OccurredAt" DESC
        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
@@ -402,24 +414,24 @@ export async function listUserAssets(): Promise<string[]> {
   const userId = await getUserIdOrThrow();
   const rows = await query<{ kind: 'asset' | 'symbol'; value: string | null }>(
     `SELECT DISTINCT 'asset' AS kind, val AS value FROM (
-       SELECT "RawPayload"->>'asset' AS val FROM "BinanceRawEvents"
+       SELECT "RawPayload"->>'asset' AS val FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" IN ('dividend','earn_flex','earn_locked','staking_interest','eth_staking')
-       UNION ALL SELECT "RawPayload"->>'coin' FROM "BinanceRawEvents"
+       UNION ALL SELECT "RawPayload"->>'coin' FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" IN ('deposit','withdraw')
-       UNION ALL SELECT "RawPayload"->'detail'->>'fromAsset' FROM "BinanceRawEvents"
+       UNION ALL SELECT "RawPayload"->'detail'->>'fromAsset' FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'dust'
-       UNION ALL SELECT "RawPayload"->'detail'->>'targetAsset' FROM "BinanceRawEvents"
+       UNION ALL SELECT "RawPayload"->'detail'->>'targetAsset' FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'dust'
-       UNION ALL SELECT "RawPayload"->>'fromAsset' FROM "BinanceRawEvents"
+       UNION ALL SELECT "RawPayload"->>'fromAsset' FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'convert'
-       UNION ALL SELECT "RawPayload"->>'toAsset' FROM "BinanceRawEvents"
+       UNION ALL SELECT "RawPayload"->>'toAsset' FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'convert'
-       UNION ALL SELECT "RawPayload"->>'cryptoCurrency' FROM "BinanceRawEvents"
+       UNION ALL SELECT "RawPayload"->>'cryptoCurrency' FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'fiat_payment'
      ) direct
      UNION
      SELECT DISTINCT 'symbol' AS kind, "RawPayload"->>'symbol' AS value
-       FROM "BinanceRawEvents" WHERE "UserID" = $1 AND "EventType" = 'spot_trade'`,
+       FROM "CryptoRawEvents" WHERE "UserID" = $1 AND "EventType" = 'spot_trade'`,
     [userId],
   );
 
@@ -457,7 +469,7 @@ export async function getLastIngestedAt(eventType?: CryptoEventType): Promise<Da
   }
 
   const rows = await query<{ MaxOccurredAt: string | null }>(
-    `SELECT MAX("OccurredAt") AS "MaxOccurredAt" FROM "BinanceRawEvents" WHERE ${where}`,
+    `SELECT MAX("OccurredAt") AS "MaxOccurredAt" FROM "CryptoRawEvents" WHERE ${where}`,
     params,
   );
   const max = rows[0]?.MaxOccurredAt;
@@ -467,7 +479,7 @@ export async function getLastIngestedAt(eventType?: CryptoEventType): Promise<Da
 export async function countRawEventsForUser(): Promise<number> {
   const userId = await getUserIdOrThrow();
   const rows = await query<{ total: number }>(
-    `SELECT COUNT(*)::int AS total FROM "BinanceRawEvents" WHERE "UserID" = $1`,
+    `SELECT COUNT(*)::int AS total FROM "CryptoRawEvents" WHERE "UserID" = $1`,
     [userId],
   );
   return rows[0]?.total ?? 0;
@@ -486,28 +498,28 @@ export async function listInteractedAssetsForUser(userId: number): Promise<strin
     `SELECT DISTINCT asset FROM (
        -- dividend / earn_* / staking_interest store the asset under .asset
        SELECT "RawPayload"->>'asset' AS asset
-         FROM "BinanceRawEvents"
+         FROM "CryptoRawEvents"
          WHERE "UserID" = $1
            AND "EventType" IN ('dividend', 'earn_flex', 'earn_locked', 'staking_interest', 'eth_staking')
        UNION
        -- deposit / withdraw use .coin
        SELECT "RawPayload"->>'coin' AS asset
-         FROM "BinanceRawEvents"
+         FROM "CryptoRawEvents"
          WHERE "UserID" = $1
            AND "EventType" IN ('deposit', 'withdraw')
        UNION
        -- dust nests fromAsset inside .detail
        SELECT "RawPayload"->'detail'->>'fromAsset' AS asset
-         FROM "BinanceRawEvents"
+         FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'dust'
        UNION
        -- convert tradeFlow uses fromAsset/toAsset at the top level
        SELECT "RawPayload"->>'fromAsset' AS asset
-         FROM "BinanceRawEvents"
+         FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'convert'
        UNION
        SELECT "RawPayload"->>'toAsset' AS asset
-         FROM "BinanceRawEvents"
+         FROM "CryptoRawEvents"
          WHERE "UserID" = $1 AND "EventType" = 'convert'
      ) t
      WHERE asset IS NOT NULL AND asset != ''`,

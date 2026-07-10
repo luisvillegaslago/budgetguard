@@ -1448,14 +1448,38 @@
       }
     },
     "csv": {
-      "title": "Import Binance CSV",
-      "subtitle": "Useful to recover older C2C trades (the API only returns the last 6 months) and for reconciliation.",
+      "title": "Import exchange CSV",
+      "exchange-label": "Exchange",
       "instructions-title": "How to get the CSV:",
-      "step-1": "Sign in to Binance.com and go to Orders → Asset History, then click the export icon (top right) → Export Transaction Records, or go directly {link}.",
-      "step-1-link": "here",
-      "step-2": "Under Time Range, click Customize and select the full period from when you first started using Binance until today.",
-      "step-3": "Select CSV and click Generate. Wait for the file to be ready, then download it.",
-      "step-4": "Unzip the archive and upload the CSV here.",
+      "exchanges": {
+        "binance": {
+          "name": "Binance",
+          "subtitle": "Useful to recover older C2C trades (the API only returns the last 6 months) and for reconciliation.",
+          "step-1": "Sign in to Binance.com and go to Orders → Asset History, then click the export icon (top right) → Export Transaction Records, or go directly {link}.",
+          "step-1-link": "here",
+          "step-2": "Under Time Range, click Customize and select the full period from when you first started using Binance until today.",
+          "step-3": "Select CSV and click Generate. Wait for the file to be ready, then download it.",
+          "step-4": "Unzip the archive and upload the CSV here."
+        },
+        "kraken": {
+          "name": "Kraken",
+          "subtitle": "Export your full Ledgers history so deposits, withdrawals, trades and staking rewards are reconciled.",
+          "step-1": "Sign in to Kraken.com and open History → Export, or go directly {link}.",
+          "step-1-link": "here",
+          "step-2": "Choose the \"Ledgers\" report and select the full date range from your first activity until today.",
+          "step-3": "Click Submit, wait for the export to finish, then download it.",
+          "step-4": "Unzip the archive if needed and upload the ledgers CSV here."
+        },
+        "coinbase": {
+          "name": "Coinbase",
+          "subtitle": "Export the Coinbase transaction report to import buys, sells, conversions, sends and rewards.",
+          "step-1": "Sign in to Coinbase.com and open Reports → Generate report, or go directly {link}.",
+          "step-1-link": "here",
+          "step-2": "Choose the transaction history report for all assets and the full date range.",
+          "step-3": "Generate the CSV and download it once it is ready.",
+          "step-4": "Upload the transaction CSV here (the preamble lines are handled automatically)."
+        }
+      },
       "drop-here": "Drag the CSV here or click to select",
       "selected": "Selected file: {name}",
       "uploading": "Processing…",
@@ -1949,6 +1973,7 @@
       "file-required": "A file is required",
       "metadata-required": "Document metadata is required",
       "extraction-failed": "Could not analyze the document",
+      "detection-failed": "Could not analyse the document",
       "download-failed": "Could not download the document"
     },
     "crypto": {
@@ -1963,8 +1988,10 @@
       "sync-failed": "The sync failed. Check the job details.",
       "unauthorised-cron": "Cron is not configured correctly on the server.",
       "csv-file-required": "Select a CSV file.",
-      "csv-invalid-format": "The CSV doesn't match the expected Binance format (columns: UTC_Time, Account, Operation, Coin, Change).",
-      "csv-too-large": "File is too large. Max 10 MB."
+      "csv-invalid-format": "The CSV is malformed and could not be parsed. Make sure you uploaded the unmodified export from the exchange.",
+      "csv-too-large": "File is too large. Max 10 MB.",
+      "csv-unsupported-exchange": "Unsupported exchange. Choose Binance, Kraken or Coinbase.",
+      "csv-unrecognized": "Couldn't recognize this CSV. Pick the matching exchange above and upload the correct export."
     },
     "validation": {
       "invalid-month": "Invalid month format. Use YYYY-MM",
@@ -2022,7 +2049,7 @@
       "import": {
         "jumps": "Error importing jumps",
         "tunnel-sessions": "Error importing tunnel sessions",
-        "crypto-csv": "Error importing Binance CSV"
+        "crypto-csv": "Error importing the exchange CSV"
       },
       "upload": {
         "fiscal-document": "Error uploading document",

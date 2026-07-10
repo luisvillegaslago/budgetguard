@@ -60,7 +60,7 @@ jest.mock('@/services/database/CryptoSyncJobsRepository', () => ({
   }),
 }));
 
-jest.mock('@/services/database/BinanceRawEventsRepository', () => ({
+jest.mock('@/services/database/CryptoRawEventsRepository', () => ({
   bulkInsertRawEventsForUser: jest.fn(async (_userId: number, events: unknown[]) => {
     bulkInsertCalls += 1;
     lastBulkInsertCount = events.length;

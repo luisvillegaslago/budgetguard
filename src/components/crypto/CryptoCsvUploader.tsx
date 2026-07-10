@@ -11,31 +11,39 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, FileUp, Loader2, Upload } from 'lucide-react';
 import { type ChangeEvent, type DragEvent, useId, useRef, useState } from 'react';
-import { API_ENDPOINT, API_ERROR, QUERY_KEY } from '@/constants/finance';
+import { API_ENDPOINT, API_ERROR, CRYPTO_EXCHANGE, type CryptoExchange, QUERY_KEY } from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { ApiResponse } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
-const BINANCE_EXPORT_URL = 'https://www.binance.com/en/my/download-center?type=asset-transaction-history';
+// Direct export links per exchange, used to render the step-1 anchor. Keeping
+// them in code (not i18n) avoids translators having to maintain URLs.
+const EXCHANGE_EXPORT_URL: Record<CryptoExchange, string> = {
+  [CRYPTO_EXCHANGE.BINANCE]: 'https://www.binance.com/en/my/download-center?type=asset-transaction-history',
+  [CRYPTO_EXCHANGE.KRAKEN]: 'https://www.kraken.com/u/history/export',
+  [CRYPTO_EXCHANGE.COINBASE]: 'https://accounts.coinbase.com/statements',
+};
+
+// Detection order = registry order; Binance first preserves the default UX.
+const EXCHANGE_OPTIONS: readonly CryptoExchange[] = [
+  CRYPTO_EXCHANGE.BINANCE,
+  CRYPTO_EXCHANGE.KRAKEN,
+  CRYPTO_EXCHANGE.COINBASE,
+];
 
 /**
  * Splits the localized step-1 around the `{link}` placeholder so we can
  * inject a real anchor in place of the link text — keeps i18n flexible
  * (translators control word order around the link).
  */
-function renderStep1WithLink(template: string, linkText: string) {
+function renderStep1WithLink(template: string, linkText: string, href: string) {
   const parts = template.split('{link}');
   return (
     <>
       {parts[0]}
-      <a
-        href={BINANCE_EXPORT_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-guard-primary hover:underline"
-      >
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-guard-primary hover:underline">
         {linkText}
       </a>
       {parts[1] ?? ''}
@@ -58,9 +66,15 @@ interface ImportResult {
   normalizing: boolean;
 }
 
-async function uploadCsv(file: File): Promise<ImportResult> {
+interface UploadArgs {
+  file: File;
+  exchange: CryptoExchange;
+}
+
+async function uploadCsv({ file, exchange }: UploadArgs): Promise<ImportResult> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('exchange', exchange);
   const response = await fetchApi(API_ENDPOINT.CRYPTO_IMPORT_CSV, {
     method: 'POST',
     body: formData,
@@ -78,8 +92,10 @@ export function CryptoCsvUploader() {
   const { t } = useTranslate();
   const queryClient = useQueryClient();
   const inputId = useId();
+  const exchangeId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [exchange, setExchange] = useState<CryptoExchange>(CRYPTO_EXCHANGE.BINANCE);
   const [isDragging, setIsDragging] = useState(false);
 
   const upload = useApiMutation({
@@ -115,8 +131,13 @@ export function CryptoCsvUploader() {
 
   const handleDragLeave = () => setIsDragging(false);
 
+  const handleExchangeChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setExchange(e.target.value as CryptoExchange);
+    upload.reset();
+  };
+
   const handleUpload = () => {
-    if (file) upload.mutate(file);
+    if (file) upload.mutate({ file, exchange });
   };
 
   const result = upload.data;
@@ -126,14 +147,38 @@ export function CryptoCsvUploader() {
     <div className="bg-card rounded-xl border border-border p-6 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-foreground">{t('crypto.csv.title')}</h2>
-        <p className="text-sm text-guard-muted mt-1">{t('crypto.csv.subtitle')}</p>
+        <p className="text-sm text-guard-muted mt-1">{t(`crypto.csv.exchanges.${exchange}.subtitle`)}</p>
+
+        <div className="mt-3">
+          <label htmlFor={exchangeId} className="text-xs font-semibold text-foreground">
+            {t('crypto.csv.exchange-label')}
+          </label>
+          <select
+            id={exchangeId}
+            value={exchange}
+            onChange={handleExchangeChange}
+            className="mt-1 block w-full max-w-xs rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-guard-primary focus:outline-none"
+          >
+            {EXCHANGE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {t(`crypto.csv.exchanges.${option}.name`)}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <p className="text-xs font-semibold text-foreground mt-3">{t('crypto.csv.instructions-title')}</p>
         <ol className="list-decimal pl-5 mt-1 space-y-1 text-xs text-guard-muted">
-          <li>{renderStep1WithLink(t('crypto.csv.step-1'), t('crypto.csv.step-1-link'))}</li>
-          <li>{t('crypto.csv.step-2')}</li>
-          <li>{t('crypto.csv.step-3')}</li>
-          <li>{t('crypto.csv.step-4')}</li>
+          <li>
+            {renderStep1WithLink(
+              t(`crypto.csv.exchanges.${exchange}.step-1`),
+              t(`crypto.csv.exchanges.${exchange}.step-1-link`),
+              EXCHANGE_EXPORT_URL[exchange],
+            )}
+          </li>
+          <li>{t(`crypto.csv.exchanges.${exchange}.step-2`)}</li>
+          <li>{t(`crypto.csv.exchanges.${exchange}.step-3`)}</li>
+          <li>{t(`crypto.csv.exchanges.${exchange}.step-4`)}</li>
         </ol>
       </div>
 

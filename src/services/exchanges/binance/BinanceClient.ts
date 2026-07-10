@@ -34,7 +34,7 @@ import {
   CRYPTO_EVENT_TYPE,
   type CryptoEventType,
 } from '@/constants/finance';
-import type { RawEventInput } from '@/services/database/BinanceRawEventsRepository';
+import type { RawEventInput } from '@/services/database/CryptoRawEventsRepository';
 
 export interface BinanceCredentials {
   apiKey: string;
