@@ -14,6 +14,7 @@ import { BinanceCredentialsForm } from '@/components/settings/BinanceCredentials
 import { CompanyManagementPanel } from '@/components/settings/CompanyManagementPanel';
 import { DbSyncPanel } from '@/components/settings/DbSyncPanel';
 import { FiscalReminderSettings } from '@/components/settings/FiscalReminderSettings';
+import { InvoicePrefixPanel } from '@/components/settings/InvoicePrefixPanel';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -117,8 +118,9 @@ export default function SettingsPage() {
       {activeSection === 'companies' && <CompanyManagementPanel />}
 
       {activeSection === 'billing' && (
-        <div>
+        <div className="space-y-6">
           <BillingProfileForm />
+          <InvoicePrefixPanel />
         </div>
       )}
 

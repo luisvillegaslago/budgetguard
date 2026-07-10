@@ -400,12 +400,14 @@ export async function deleteInvoicePrefix(prefixId: number): Promise<boolean> {
     throw new ConflictError('Cannot delete prefix with existing invoices');
   }
 
-  const result = await query(`DELETE FROM "InvoicePrefixes" WHERE "PrefixID" = $1 AND "UserID" = $2`, [
-    prefixId,
-    userId,
-  ]);
+  // RETURNING makes the DELETE report what it removed: query() hands back rows, not a
+  // rowCount, so without it an unknown id (or another user's prefix) looked like a success.
+  const deleted = await query<{ PrefixID: number }>(
+    `DELETE FROM "InvoicePrefixes" WHERE "PrefixID" = $1 AND "UserID" = $2 RETURNING "PrefixID"`,
+    [prefixId, userId],
+  );
 
-  return result.length >= 0; // DELETE doesn't return rows; check via rowCount approach
+  return deleted.length > 0;
 }
 
 // Custom error for conflict scenarios

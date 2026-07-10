@@ -1112,6 +1112,13 @@
       "profile-title": "Billing Profile",
       "prefixes-title": "Invoice Prefixes",
       "no-prefixes": "No prefixes configured yet",
+      "prefixes-subtitle": "Numbering series. Each series can be linked to a client.",
+      "create-prefix": "Create series",
+      "create-prefix-hint": "The code cannot be changed later. Link the client when editing it.",
+      "description-placeholder": "e.g. International clients",
+      "delete-prefix-confirm": "Delete the series \"{prefix}\"? This cannot be undone.",
+      "prefix-created": "Series created",
+      "prefix-deleted": "Series deleted",
       "next-number": "Next",
       "saved": "Billing profile saved",
       "fields": {

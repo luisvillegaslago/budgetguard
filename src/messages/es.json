@@ -1112,6 +1112,13 @@
       "profile-title": "Perfil de Facturación",
       "prefixes-title": "Prefijos de Factura",
       "no-prefixes": "No hay prefijos configurados",
+      "prefixes-subtitle": "Series de numeración. Cada serie puede vincularse a un cliente.",
+      "create-prefix": "Crear serie",
+      "create-prefix-hint": "El código no se puede cambiar después. Vincula el cliente al editarla.",
+      "description-placeholder": "Ej. Clientes internacionales",
+      "delete-prefix-confirm": "¿Eliminar la serie \"{prefix}\"? Esta acción no se puede deshacer.",
+      "prefix-created": "Serie creada",
+      "prefix-deleted": "Serie eliminada",
       "next-number": "Siguiente",
       "saved": "Perfil de facturación guardado",
       "fields": {
