@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { AppTopBar } from '@/components/navigation/AppTopBar';
+import { RouteProgressBar } from '@/components/ui/RouteProgressBar';
 import { useThemeSync } from '@/stores/themeStore';
 import { useSidebarExpanded } from '@/stores/useFinanceStore';
 import { cn } from '@/utils/helpers';
@@ -18,6 +19,7 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
 
   return (
     <div className="min-h-screen bg-guard-light dark:bg-guard-dark overflow-x-hidden" suppressHydrationWarning>
+      <RouteProgressBar />
       <AppSidebar />
 
       {/* Main content area - shifts right for sidebar */}

@@ -7,15 +7,28 @@
  * Mobile: hidden by default, slides in as overlay when open.
  */
 
-import { X } from 'lucide-react';
-import Link from 'next/link';
+import { Loader2, X } from 'lucide-react';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useUpcomingDeadlines } from '@/hooks/useFiscalDeadlines';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useSidebarExpanded, useSidebarOpen, useToggleSidebar } from '@/stores/useFinanceStore';
 import { cn } from '@/utils/helpers';
 import { NAV_GROUPS, type NavGroup, type NavItem, SETTINGS_NAV } from './navConfig';
+
+/**
+ * Render-prop wrapper exposing the enclosing Link's pending state.
+ * `useLinkStatus()` only reads a valid value inside a `<Link>` subtree, so
+ * this must be rendered as a child of the nav `<Link>`. `pending` is true
+ * from click until the navigation's RSC payload resolves and the route
+ * commits — the earliest per-link "click landed" signal available.
+ */
+function NavLinkPending({ children }: { children: (pending: boolean) => ReactNode }) {
+  const { pending } = useLinkStatus();
+  return <>{children(pending)}</>;
+}
 
 function SidebarBadge({ count }: { count: number }) {
   if (count === 0) return null;
@@ -56,14 +69,38 @@ function SidebarNavItem({ item }: { item: NavItem }) {
         !isExpanded && 'lg:justify-center lg:w-10 lg:h-10 lg:p-0 lg:mx-auto',
       )}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-      <span className={cn('truncate', !isExpanded && 'lg:hidden')}>{label}</span>
-      {isExpanded && <SidebarBadge count={badgeCount} />}
-      {!isExpanded && badgeCount > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 hidden lg:flex bg-guard-danger text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] items-center justify-center px-0.5">
-          {badgeCount}
-        </span>
-      )}
+      <NavLinkPending>
+        {(pending) => (
+          <>
+            {/* Swap the icon for a fast (0.5s) spinner while the click's navigation is in flight */}
+            {pending ? (
+              <Loader2
+                className="h-5 w-5 flex-shrink-0 animate-spin"
+                style={{ animationDuration: '0.5s' }}
+                aria-hidden="true"
+              />
+            ) : (
+              <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+            )}
+            <span
+              className={cn(
+                'truncate transition-opacity duration-200',
+                !isExpanded && 'lg:hidden',
+                pending && 'opacity-70',
+              )}
+            >
+              {label}
+            </span>
+            {isExpanded && <SidebarBadge count={badgeCount} />}
+            {/* Collapsed-rail corner badge: suppressed while pending so the spinner owns the icon */}
+            {!isExpanded && badgeCount > 0 && !pending && (
+              <span className="absolute -top-0.5 -right-0.5 hidden lg:flex bg-guard-danger text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] items-center justify-center px-0.5">
+                {badgeCount}
+              </span>
+            )}
+          </>
+        )}
+      </NavLinkPending>
     </Link>
   );
 
