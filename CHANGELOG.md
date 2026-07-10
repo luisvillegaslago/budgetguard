@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.46.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.45.1...v0.46.0) (2026-07-10)
+
+
+### Features
+
+* **crypto:** import CSV from Kraken and Coinbase alongside Binance ([029e16a](https://github.com/luisvillegaslago/budgetguard/commit/029e16aec7c7081cd4bc3fe937fafbb4088e4689))
+* **fiscal:** detect the modelo from the uploaded file with Claude Vision ([34a5ca6](https://github.com/luisvillegaslago/budgetguard/commit/34a5ca66356cd59a59bab9c517d465fbd6950c4d))
+* **invoices:** charge VAT and withhold IRPF on issued invoices ([c1aaa4a](https://github.com/luisvillegaslago/budgetguard/commit/c1aaa4ad432b5d62ff1902c3635b1e2fd39a08af))
+* **invoices:** create an invoice series inline when none fits ([01854ac](https://github.com/luisvillegaslago/budgetguard/commit/01854ac79db98645cd62c6562cfc0d4c3a05b95e))
+* **navigation:** show a spinner and a top progress bar on menu navigation ([147f1ae](https://github.com/luisvillegaslago/budgetguard/commit/147f1aee9a8d2e5c7209a7d50606cd31926d92db))
+* **settings:** manage invoice series from the billing tab ([542a72c](https://github.com/luisvillegaslago/budgetguard/commit/542a72cedeb53d611f2e66cffd780935d22117dc))
+
+
+### Bug Fixes
+
+* **fiscal:** impute invoice income on the invoice date, not the payment date ([eb249ff](https://github.com/luisvillegaslago/budgetguard/commit/eb249ff27080aa78b4a4ca348d14934c167a53f1))
+* **navigation:** make the progress bar finalize idempotent per navigation ([8416c4b](https://github.com/luisvillegaslago/budgetguard/commit/8416c4b67b2c38f33a3bc625b015e4c6192e1743))
+
 ## [0.45.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.45.0...v0.45.1) (2026-06-30)
 
 
