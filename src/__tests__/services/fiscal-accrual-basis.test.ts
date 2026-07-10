@@ -27,10 +27,11 @@ interface AccrualRow {
   FullAmountCents: number;
   VatPercent: number;
   DeductionPercent: number;
+  RetentionCents: number;
   Modelo100CasillaCode?: string | null;
 }
 
-function income(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0): AccrualRow {
+function income(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0, retentionCents = 0): AccrualRow {
   return {
     FiscalYear: 2026,
     FiscalQuarter: fiscalQuarter,
@@ -42,6 +43,7 @@ function income(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0):
     FullAmountCents: fullAmountCents,
     VatPercent: vatPercent,
     DeductionPercent: 0,
+    RetentionCents: retentionCents,
   };
 }
 
@@ -57,6 +59,7 @@ function expense(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0)
     FullAmountCents: fullAmountCents,
     VatPercent: vatPercent,
     DeductionPercent: 100,
+    RetentionCents: 0,
     Modelo100CasillaCode: null,
   };
 }
@@ -188,6 +191,29 @@ describe('Modelo 130', () => {
     const summary = await getModelo130Summary(2026, 1);
 
     expect(summary.casilla1Cents).toBe(1168800 + STANDALONE_INCOME.FullAmountCents);
+  });
+
+  it('deducts the IRPF clients already withheld (casilla 06)', async () => {
+    // A Spanish client invoiced 10.000,00 € base withholds 1.500,00 € and pays it to the AEAT.
+    extraRows = [income(1, 1000000, 0, 150000)];
+
+    const summary = await getModelo130Summary(2026, 1);
+
+    // Income 21.688,00 − documented 1.389,54 − 5% (1.014,92) = 19.283,54 → 20% = 3.856,71
+    expect(summary.casilla4Cents).toBe(385671);
+    expect(summary.casilla5Cents).toBe(0);
+    expect(summary.casilla6Cents).toBe(150000);
+    // 3.856,71 − 1.500,00 already in the Treasury = 2.356,71 left to pay
+    expect(summary.casilla7Cents).toBe(235671);
+  });
+
+  it('never asks for a negative payment when the withholdings exceed the quota', async () => {
+    extraRows = [income(1, 100000, 0, 500000)];
+
+    const summary = await getModelo130Summary(2026, 1);
+
+    expect(summary.casilla4Cents).toBeGreaterThan(0);
+    expect(summary.casilla7Cents).toBe(0);
   });
 
   it('caps the 5% gastos de difícil justificación at 2.000 € a year', async () => {

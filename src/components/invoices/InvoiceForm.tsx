@@ -15,7 +15,13 @@ import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
-import { INVOICE_BILLING_MODE, type InvoiceBillingMode, VALIDATION_KEY } from '@/constants/finance';
+import {
+  INVOICE_BILLING_MODE,
+  type InvoiceBillingMode,
+  IRPF_RETENTION_RATE,
+  VALIDATION_KEY,
+  VAT_RATE,
+} from '@/constants/finance';
 import {
   useBillingProfile,
   useCreateInvoice,
@@ -25,6 +31,7 @@ import {
 } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
+import { computeInvoiceAmounts, getTaxBreakdownRows } from '@/utils/invoiceAmounts';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 // Form schema (user enters euros, we convert to cents on submit)
@@ -46,11 +53,27 @@ const LineItemFormSchema = z
     path: ['amount'],
   });
 
+const VAT_RATE_OPTIONS = Object.values(VAT_RATE);
+const RETENTION_RATE_OPTIONS = Object.values(IRPF_RETENTION_RATE);
+
+/**
+ * An empty numeric input means "not provided", never NaN.
+ *
+ * react-hook-form's valueAsNumber maps '' to NaN, which every branch of the line-item
+ * schema rejects. hours and hourlyRate render no error message, so the submit failed in
+ * silence. The form opens in hourly mode, so those two inputs mount and keep their empty
+ * value after switching to a flat amount — which made it impossible to create an invoice
+ * billed by concept.
+ */
+const numberOrNull = (value: string): number | null => (value === '' ? null : Number(value));
+
 const InvoiceFormSchema = z.object({
   prefixId: z.number().int().positive(VALIDATION_KEY.SELECT_PREFIX),
   invoiceDate: z.string().min(1, VALIDATION_KEY.DATE_REQUIRED),
   companyId: z.number().int().positive(VALIDATION_KEY.SELECT_CLIENT),
   notes: z.string().optional(),
+  vatPercent: z.number(),
+  retentionPercent: z.number(),
   lineItems: z.array(LineItemFormSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED),
 });
 
@@ -78,6 +101,8 @@ function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number |
       invoiceDate: today,
       companyId: 0,
       notes: '',
+      vatPercent: VAT_RATE.EXEMPT,
+      retentionPercent: IRPF_RETENTION_RATE.NONE,
       lineItems: [{ title: '', subItems: [], description: '', hours: '', hourlyRate: defaultRate, amount: '' }],
     };
   }
@@ -87,6 +112,8 @@ function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number |
     invoiceDate: invoice.invoiceDate,
     companyId: invoice.companyId ?? 0,
     notes: invoice.notes ?? '',
+    vatPercent: invoice.vatPercent,
+    retentionPercent: invoice.retentionPercent,
     lineItems: invoice.lineItems.map((item) => ({
       title: item.title ?? '',
       subItems: item.subItems.map((text) => ({ text })),
@@ -185,6 +212,8 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
 
   const watchedPrefixId = useWatch({ control, name: 'prefixId' });
   const watchedCompanyId = useWatch({ control, name: 'companyId' });
+  const watchedVatPercent = useWatch({ control, name: 'vatPercent' });
+  const watchedRetentionPercent = useWatch({ control, name: 'retentionPercent' });
   const watchedLineItems = useWatch({ control, name: 'lineItems' });
 
   const selectedPrefix = prefixes?.find((p) => p.prefixId === Number(watchedPrefixId));
@@ -230,15 +259,28 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
     return null;
   };
 
-  const totalEuros = (watchedLineItems ?? []).reduce((sum, item) => {
+  // Round each line to cents exactly as buildLineItems() does before sending it to the
+  // server. Summing euros first and converting once would drift by a cent on fractional
+  // line amounts (e.g. two lines of 1,5 h × 33,33 €/h), so the preview would promise a
+  // total the database never stores.
+  const previewLineItems = (watchedLineItems ?? []).map((item) => {
     const hours = toNum(item.hours);
     const rate = toNum(item.hourlyRate);
     const amount = toNum(item.amount);
 
-    if (!isFlat && hours != null && rate != null) return sum + hours * rate;
-    if (amount != null) return sum + amount;
-    return sum;
-  }, 0);
+    if (!isFlat && hours != null && rate != null) return { amountCents: eurosToCents(hours * rate) };
+    if (amount != null) return { amountCents: eurosToCents(amount) };
+    return { amountCents: 0 };
+  });
+
+  // Same function the repository uses to persist the invoice, so the preview cannot drift
+  const amounts = computeInvoiceAmounts(previewLineItems, watchedVatPercent, watchedRetentionPercent);
+
+  const breakdownLabels = {
+    taxableBase: t('invoices.base'),
+    vat: t('invoices.vat'),
+    retention: t('invoices.retention'),
+  };
 
   const buildLineItems = (values: InvoiceFormValues) =>
     values.lineItems.map((item) => {
@@ -285,6 +327,8 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
             invoiceDate: new Date(values.invoiceDate),
             lineItems,
             notes: values.notes || null,
+            vatPercent: values.vatPercent,
+            retentionPercent: values.retentionPercent,
           },
         });
         toast.success(t('invoices.toast.updated'));
@@ -295,6 +339,8 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           companyId: Number(values.companyId),
           lineItems,
           notes: values.notes || null,
+          vatPercent: values.vatPercent,
+          retentionPercent: values.retentionPercent,
         });
         toast.success(t('invoices.toast.created'));
         onCreated?.(created.invoiceId);
@@ -555,7 +601,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                             step="0.5"
                             min="0"
                             placeholder="-"
-                            {...register(`lineItems.${index}.hours`, { valueAsNumber: true })}
+                            {...register(`lineItems.${index}.hours`, { setValueAs: numberOrNull })}
                             onChange={(e) => handleLineItemChange(index, 'hours', e.target.value)}
                             className="w-full input-sm"
                           />
@@ -569,7 +615,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                             step="0.01"
                             min="0"
                             placeholder="-"
-                            {...register(`lineItems.${index}.hourlyRate`, { valueAsNumber: true })}
+                            {...register(`lineItems.${index}.hourlyRate`, { setValueAs: numberOrNull })}
                             onChange={(e) => handleLineItemChange(index, 'hourlyRate', e.target.value)}
                             className="w-full input-sm"
                           />
@@ -583,7 +629,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                         step="0.01"
                         min="0"
                         placeholder="0.00"
-                        {...register(`lineItems.${index}.amount`, { valueAsNumber: true })}
+                        {...register(`lineItems.${index}.amount`, { setValueAs: numberOrNull })}
                         className="w-full input-sm"
                       />
                       {errors.lineItems?.[index]?.amount && (
@@ -598,10 +644,52 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
             </div>
           </div>
 
-          {/* Total */}
-          <div className="flex justify-end items-center gap-3 pt-2 border-t border-border">
-            <span className="text-sm font-medium text-guard-muted">{t('invoices.form.total')}:</span>
-            <span className="text-lg font-bold text-foreground">{formatCurrency(eurosToCents(totalEuros))}</span>
+          {/* Taxes */}
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+            <div>
+              <label htmlFor="vatPercent" className="block text-sm font-medium text-foreground mb-1">
+                {t('invoices.vatRate')}
+              </label>
+              <Select id="vatPercent" {...register('vatPercent', { valueAsNumber: true })}>
+                {VAT_RATE_OPTIONS.map((rate) => (
+                  <option key={rate} value={rate}>
+                    {`${rate}%`}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-guard-muted mt-1">{t('invoices.vatHelp')}</p>
+            </div>
+            <div>
+              <label htmlFor="retentionPercent" className="block text-sm font-medium text-foreground mb-1">
+                {t('invoices.retentionRate')}
+              </label>
+              <Select id="retentionPercent" {...register('retentionPercent', { valueAsNumber: true })}>
+                {RETENTION_RATE_OPTIONS.map((rate) => (
+                  <option key={rate} value={rate}>
+                    {`${rate}%`}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-guard-muted mt-1">{t('invoices.retentionHelp')}</p>
+            </div>
+          </div>
+
+          {/* Breakdown — same rows the PDF will print, from the same helper */}
+          <div className="flex flex-col items-end gap-1 pt-2 border-t border-border">
+            {getTaxBreakdownRows(amounts, breakdownLabels).map((row) => (
+              <div key={row.key} className="flex gap-3 text-sm text-guard-muted">
+                <span>{row.label}</span>
+                <span className="tabular-nums">
+                  {row.negative ? `-${formatCurrency(row.cents)}` : formatCurrency(row.cents)}
+                </span>
+              </div>
+            ))}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-guard-muted">{t('invoices.form.total')}:</span>
+              <span className="text-lg font-bold text-foreground tabular-nums">
+                {formatCurrency(amounts.totalCents)}
+              </span>
+            </div>
           </div>
 
           {/* Notes */}

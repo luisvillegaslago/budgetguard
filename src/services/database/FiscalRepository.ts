@@ -6,7 +6,8 @@
  * - Modelo 390 (IVA anual)
  * - Modelo 100 (IRPF anual — sección actividades económicas)
  *
- * Uses vw_FiscalQuarterly for raw data and computeFiscalFields() for derived calculations.
+ * Reads vw_FiscalAccrual for raw rows (invoice income booked on the invoice date) and
+ * derives every figure with computeFiscalFields().
  * All calculations happen in TypeScript (not SQL) for consistent rounding with the frontend.
  */
 
@@ -44,6 +45,8 @@ interface FiscalViewRow {
   FullAmountCents: number;
   VatPercent: number;
   DeductionPercent: number;
+  /** IRPF withheld by the client. Non-zero only on issued-invoice rows. */
+  RetentionCents: number;
   CompanyTaxId: string | null;
 }
 
@@ -70,7 +73,7 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
 const FISCAL_VIEW_COLUMNS = `v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
            v."CategoryName", v."ParentCategoryName", v."TransactionDate",
            v."VendorName", v."InvoiceNumber", v."Description",
-           v."FullAmountCents", v."VatPercent", v."DeductionPercent",
+           v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."RetentionCents",
            co."TaxId" AS "CompanyTaxId"`;
 
 const FISCAL_FROM = `FROM "vw_FiscalAccrual" v
@@ -80,7 +83,7 @@ const FISCAL_FROM = `FROM "vw_FiscalAccrual" v
 const FISCAL_VIEW_COLUMNS_SIMPLE = `"FiscalYear", "FiscalQuarter", "Type", "TransactionID", "CategoryID",
            "CategoryName", "ParentCategoryName", "TransactionDate",
            "VendorName", "InvoiceNumber", "Description",
-           "FullAmountCents", "VatPercent", "DeductionPercent"`;
+           "FullAmountCents", "VatPercent", "DeductionPercent", "RetentionCents"`;
 
 function isProfessionalIncome(row: FiscalViewRow): boolean {
   return row.Type === TRANSACTION_TYPE.INCOME && row.ParentCategoryName === PROFESSIONAL_INCOME_CATEGORY;
@@ -143,14 +146,18 @@ interface IssuedInvoiceRow {
   InvoiceID: number;
   InvoiceNumber: string;
   InvoiceDate: Date;
-  TotalCents: number;
+  BaseCents: number;
+  VatPercent: number;
+  VatCents: number;
   ClientName: string;
   ClientTaxId: string | null;
   LineItemsDescription: string | null;
 }
 
 function issuedInvoiceToFiscalTransaction(row: IssuedInvoiceRow): FiscalTransaction {
-  const totalCents = Number(row.TotalCents);
+  const baseCents = Number(row.BaseCents);
+  const ivaCents = Number(row.VatCents);
+
   return {
     transactionId: row.InvoiceID,
     transactionDate: toDateString(row.InvoiceDate),
@@ -161,11 +168,12 @@ function issuedInvoiceToFiscalTransaction(row: IssuedInvoiceRow): FiscalTransact
     companyTaxId: row.ClientTaxId,
     description: row.LineItemsDescription,
     type: TRANSACTION_TYPE.INCOME,
-    fullAmountCents: totalCents,
-    vatPercent: 0,
+    // The withholding is not part of the fiscal amount: it is IRPF already paid, not less income.
+    fullAmountCents: baseCents + ivaCents,
+    vatPercent: Number(row.VatPercent),
     deductionPercent: 0,
-    baseCents: totalCents,
-    ivaCents: 0,
+    baseCents,
+    ivaCents,
     baseDeducibleCents: 0,
     ivaDeducibleCents: 0,
   };
@@ -180,7 +188,8 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
   const userId = await getUserIdOrThrow();
 
   const rows = await query<IssuedInvoiceRow>(
-    `SELECT i."InvoiceID", i."InvoiceNumber", i."InvoiceDate", i."TotalCents",
+    `SELECT i."InvoiceID", i."InvoiceNumber", i."InvoiceDate",
+            i."BaseCents", i."VatPercent", i."VatCents",
             i."ClientName", i."ClientTaxId",
             STRING_AGG(li."Description", ', ' ORDER BY li."SortOrder") AS "LineItemsDescription"
      FROM "Invoices" i
@@ -189,7 +198,8 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
        AND ${issuedInvoiceStatusFilter('i')}
        AND EXTRACT(YEAR FROM i."InvoiceDate") = $2
        AND ${invoiceQuarter('i')} = $3
-     GROUP BY i."InvoiceID", i."InvoiceNumber", i."InvoiceDate", i."TotalCents",
+     GROUP BY i."InvoiceID", i."InvoiceNumber", i."InvoiceDate",
+              i."BaseCents", i."VatPercent", i."VatCents",
               i."ClientName", i."ClientTaxId"
      ORDER BY i."InvoiceDate" ASC`,
     [userId, year, quarter],
@@ -261,6 +271,7 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
 
   let ingresosAcum = 0;
   let gastosDocAcum = 0;
+  let retencionesAcum = 0;
   let pagosAnteriores = 0;
   let currentSummary: Modelo130Summary | null = null;
 
@@ -276,6 +287,7 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
 
       if (isProfessionalIncome(row)) {
         ingresosAcum += baseCents;
+        retencionesAcum += row.RetentionCents;
       }
       if (row.Type === TRANSACTION_TYPE.EXPENSE) {
         gastosDocAcum += baseDeducibleCents;
@@ -288,7 +300,8 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
 
     const beneficio = ingresosAcum - gastosTotal;
     const cuota20 = Math.max(0, Math.round((beneficio * IRPF_RATE) / 100));
-    const aIngresar = Math.max(0, cuota20 - pagosAnteriores);
+    // Casilla 07 = 04 - 05 - 06: what clients already withheld is already in the Treasury.
+    const aIngresar = Math.max(0, cuota20 - pagosAnteriores - retencionesAcum);
 
     if (q === quarter) {
       currentSummary = {
@@ -299,6 +312,7 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
         casilla3Cents: beneficio,
         casilla4Cents: cuota20,
         casilla5Cents: pagosAnteriores,
+        casilla6Cents: retencionesAcum,
         casilla7Cents: aIngresar,
         gastosDocumentadosCents: gastosDocAcum,
         gastosDificilCents: gastosDificil,
@@ -382,7 +396,7 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     `SELECT v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
             v."CategoryName", v."ParentCategoryName", v."TransactionDate",
             v."VendorName", v."InvoiceNumber", v."Description",
-            v."FullAmountCents", v."VatPercent", v."DeductionPercent",
+            v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."RetentionCents",
             NULL AS "CompanyTaxId", cat."Modelo100CasillaCode"
      FROM "vw_FiscalAccrual" v
      LEFT JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID"

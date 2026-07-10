@@ -7,6 +7,7 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { PAYMENT_METHOD } from '@/constants/finance';
 import type { Invoice } from '@/types/finance';
+import { getTaxBreakdownRows, isNotSubjectToVat } from '@/utils/invoiceAmounts';
 import { getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
 import { centsToEuros } from '@/utils/money';
 
@@ -181,6 +182,33 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 1.4,
   },
+  // Tax breakdown
+  subtotalRow: {
+    flexDirection: 'row',
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+  },
+  subtotalLabel: {
+    width: '80%',
+    textAlign: 'right',
+    fontSize: 9,
+    color: '#475569',
+    paddingRight: 10,
+  },
+  subtotalValue: {
+    width: '20%',
+    textAlign: 'right',
+    fontSize: 9,
+    color: '#475569',
+  },
+  // Legal notice for operations not subject to Spanish VAT
+  legalNotice: {
+    marginTop: 10,
+    paddingHorizontal: 10,
+    fontSize: 8,
+    color: '#64748b',
+    lineHeight: 1.4,
+  },
   // Total
   totalRow: {
     flexDirection: 'row',
@@ -349,11 +377,28 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
           </View>
         ))}
 
+        {/* Tax breakdown — base, VAT and withholding, as RD 1619/2012 requires */}
+        {getTaxBreakdownRows(invoice, l).map((row) => (
+          <View key={row.key} style={styles.subtotalRow}>
+            <Text style={styles.subtotalLabel}>{row.label}</Text>
+            <Text style={styles.subtotalValue}>
+              {row.negative ? `-${formatPdfCurrency(row.cents)}` : formatPdfCurrency(row.cents)}
+            </Text>
+          </View>
+        ))}
+
         {/* Total */}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>{l.total}</Text>
           <Text style={styles.totalValue}>{formatPdfCurrency(invoice.totalCents)}</Text>
         </View>
+
+        {/* Legally required when the operation carries no Spanish VAT */}
+        {isNotSubjectToVat(invoice.vatPercent) && (
+          <View style={styles.legalNotice}>
+            <Text>{l.notSubjectNotice}</Text>
+          </View>
+        )}
 
         {/* Notes */}
         {invoice.notes && (

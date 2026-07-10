@@ -557,6 +557,7 @@ export interface Modelo130Summary {
   casilla3Cents: number; // Profit (C01 - C02)
   casilla4Cents: number; // 20% of profit
   casilla5Cents: number; // Previous quarter payments
+  casilla6Cents: number; // IRPF withheld by clients this year (reduces the amount to pay)
   casilla7Cents: number; // Amount to pay
   gastosDocumentadosCents: number; // Documented expenses subtotal
   gastosDificilCents: number; // 5% difficult-to-justify expenses (capped at 2000€/year)
@@ -687,6 +688,14 @@ export interface Invoice {
   invoiceDate: string;
   companyId: number | null;
   transactionId: number | null;
+  /** Taxable base: the sum of the line items */
+  baseCents: number;
+  vatPercent: number;
+  vatCents: number;
+  /** IRPF withheld by the client, only for Spanish business clients */
+  retentionPercent: number;
+  retentionCents: number;
+  /** What the client pays: base + VAT - retention */
   totalCents: number;
   currency: string;
   status: InvoiceStatus;

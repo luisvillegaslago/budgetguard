@@ -3,7 +3,7 @@
  * Tests GET/POST /api/invoices, GET/PUT/PATCH/DELETE /api/invoices/[id]
  */
 
-import { API_ERROR, INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
+import { API_ERROR, INVOICE_STATUS, IRPF_RETENTION_RATE, PAYMENT_METHOD, VAT_RATE } from '@/constants/finance';
 import type { Invoice, InvoiceListItem } from '@/types/finance';
 
 const mockLineItems = [
@@ -38,6 +38,11 @@ const mockInvoice: Invoice = {
   invoiceDate: '2026-03-09',
   companyId: 2,
   transactionId: null,
+  baseCents: 100000,
+  vatPercent: 0,
+  vatCents: 0,
+  retentionPercent: 0,
+  retentionCents: 0,
   totalCents: 80000,
   currency: 'EUR',
   status: INVOICE_STATUS.DRAFT,
@@ -251,12 +256,27 @@ describe('PUT /api/invoices/[id]', () => {
       invoiceDate: '2026-03-10',
       lineItems: [{ description: 'Updated', amountCents: 50000 }],
       notes: 'Updated notes',
+      vatPercent: VAT_RATE.EXEMPT,
+      retentionPercent: IRPF_RETENTION_RATE.NONE,
     });
     const response = await PUT(request as never, createMockParams('1'));
     const data = await response.json();
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
+  });
+
+  it('should return 400 when a PUT omits the tax rates', async () => {
+    // PUT replaces the invoice and recomputes every money column: an omitted rate would
+    // silently wipe the VAT of an invoice that had one.
+    const request = createMockRequest('http://localhost:3000/api/invoices/1', {
+      invoiceDate: '2026-03-10',
+      lineItems: [{ description: 'Updated', amountCents: 50000 }],
+      notes: 'Updated notes',
+    });
+    const response = await PUT(request as never, createMockParams('1'));
+
+    expect(response.status).toBe(400);
   });
 
   it('should return 400 for empty line items', async () => {

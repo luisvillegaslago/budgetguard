@@ -78,7 +78,9 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
         fileName,
         pdfBuffer.byteLength,
         'application/pdf',
-        current.totalCents,
+        // The taxable base, not what the client pays: TotalCents is net of the IRPF
+        // withheld and gross of the VAT charged, neither of which belongs in this column.
+        current.baseCents,
         null,
         null,
         current.companyId,

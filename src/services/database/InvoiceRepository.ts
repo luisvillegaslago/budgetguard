@@ -23,6 +23,7 @@ import type {
   InvoiceStatus,
   PaymentMethod,
 } from '@/types/finance';
+import { computeInvoiceAmounts } from '@/utils/invoiceAmounts';
 import { getPool, query } from './connection';
 
 function toISOString(val: Date | string): string {
@@ -75,6 +76,11 @@ interface InvoiceRow {
   InvoiceDate: Date;
   CompanyID: number | null;
   TransactionID: number | null;
+  BaseCents: number;
+  VatPercent: number;
+  VatCents: number;
+  RetentionPercent: number;
+  RetentionCents: number;
   TotalCents: number;
   Currency: string;
   Status: string;
@@ -166,6 +172,11 @@ function rowToInvoice(row: InvoiceRow, lineItems: InvoiceLineItem[]): Invoice {
     invoiceDate: toDateString(row.InvoiceDate),
     companyId: row.CompanyID,
     transactionId: row.TransactionID,
+    baseCents: Number(row.BaseCents),
+    vatPercent: row.VatPercent,
+    vatCents: Number(row.VatCents),
+    retentionPercent: row.RetentionPercent,
+    retentionCents: Number(row.RetentionCents),
     totalCents: Number(row.TotalCents),
     currency: row.Currency,
     status: row.Status as InvoiceStatus,
@@ -524,8 +535,8 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
     const company = companyResult.rows[0];
     if (!company) throw new Error('Company not found');
 
-    // 4. Calculate total
-    const totalCents = data.lineItems.reduce((sum, item) => sum + item.amountCents, 0);
+    // 4. Calculate the money breakdown (base, VAT charged, IRPF withheld, amount to collect)
+    const amounts = computeInvoiceAmounts(data.lineItems, data.vatPercent, data.retentionPercent);
 
     // 5. Insert invoice
     const invoiceDate =
@@ -535,25 +546,34 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
 
     const invoiceResult = await client.query<InvoiceRow>(
       `INSERT INTO "Invoices" (
-        "PrefixID", "InvoiceDate", "CompanyID", "TotalCents", "Status",
+        "PrefixID", "InvoiceDate", "CompanyID",
+        "BaseCents", "VatPercent", "VatCents", "RetentionPercent", "RetentionCents",
+        "TotalCents", "Status",
         "BillerName", "BillerNif", "BillerAddress", "BillerPhone", "BillerPaymentMethod",
         "BillerBankName", "BillerIban", "BillerSwift", "BillerBankAddress",
         "ClientName", "ClientTradingName", "ClientTaxId", "ClientAddress",
         "ClientCity", "ClientPostalCode", "ClientCountry",
         "Notes", "UserID"
       ) VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13, $14,
-        $15, $16, $17, $18,
-        $19, $20, $21,
-        $22, $23
+        $1, $2, $3,
+        $4, $5, $6, $7, $8,
+        $9, $10,
+        $11, $12, $13, $14, $15,
+        $16, $17, $18, $19,
+        $20, $21, $22, $23,
+        $24, $25, $26,
+        $27, $28
       ) RETURNING *`,
       [
         data.prefixId,
         invoiceDate,
         data.companyId,
-        totalCents,
+        amounts.baseCents,
+        amounts.vatPercent,
+        amounts.vatCents,
+        amounts.retentionPercent,
+        amounts.retentionCents,
+        amounts.totalCents,
         INVOICE_STATUS.DRAFT,
         profile.FullName,
         profile.Nif,
@@ -728,22 +748,46 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
       lineItemParams,
     );
 
-    // 4. Recalculate total
-    const totalCents = data.lineItems.reduce((sum, item) => sum + item.amountCents, 0);
+    // 4. Recalculate the money breakdown
+    const amounts = computeInvoiceAmounts(data.lineItems, data.vatPercent, data.retentionPercent);
 
     // 5. Update invoice
     const invoiceDate = toDateString(data.invoiceDate);
 
     await client.query(
-      `UPDATE "Invoices" SET "InvoiceDate" = $1, "TotalCents" = $2, "Notes" = $3 WHERE "InvoiceID" = $4`,
-      [invoiceDate, totalCents, data.notes ?? null, invoiceId],
+      `UPDATE "Invoices"
+       SET "InvoiceDate" = $1, "Notes" = $2,
+           "BaseCents" = $3, "VatPercent" = $4, "VatCents" = $5,
+           "RetentionPercent" = $6, "RetentionCents" = $7, "TotalCents" = $8
+       WHERE "InvoiceID" = $9`,
+      [
+        invoiceDate,
+        data.notes ?? null,
+        amounts.baseCents,
+        amounts.vatPercent,
+        amounts.vatCents,
+        amounts.retentionPercent,
+        amounts.retentionCents,
+        amounts.totalCents,
+        invoiceId,
+      ],
     );
 
     await client.query('COMMIT');
 
     const lineItems = lineItemResult.rows.map(rowToLineItem);
     return rowToInvoice(
-      { ...invoiceRow, InvoiceDate: new Date(invoiceDate), TotalCents: totalCents, Notes: data.notes ?? null },
+      {
+        ...invoiceRow,
+        InvoiceDate: new Date(invoiceDate),
+        BaseCents: amounts.baseCents,
+        VatPercent: amounts.vatPercent,
+        VatCents: amounts.vatCents,
+        RetentionPercent: amounts.retentionPercent,
+        RetentionCents: amounts.retentionCents,
+        TotalCents: amounts.totalCents,
+        Notes: data.notes ?? null,
+      },
       lineItems,
     );
   } catch (error) {
@@ -805,12 +849,20 @@ export async function updateInvoiceStatus(
 
     const currentStatus = invoiceRow.Status as InvoiceStatus;
 
-    // Validate state transition
+    // Validate state transition.
+    //
+    // Issuing an invoice is irreversible: it consumes a number from its series, and that
+    // numbering must stay correlative without gaps (RD 1619/2012). Reverting to draft and
+    // then deleting the invoice would erase the number for good. A mistake is corrected by
+    // cancelling — which keeps the number on record — or with a rectificativa.
+    //
+    // Verifactu will require the same from July 2027: an issued invoice is never modified,
+    // only annulled through its own record.
     const validTransitions: Record<string, InvoiceStatus[]> = {
       [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.FINALIZED],
-      [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.DRAFT],
+      [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED],
       [INVOICE_STATUS.PAID]: [INVOICE_STATUS.CANCELLED],
-      [INVOICE_STATUS.CANCELLED]: [INVOICE_STATUS.DRAFT],
+      [INVOICE_STATUS.CANCELLED]: [],
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
@@ -829,6 +881,10 @@ export async function updateInvoiceStatus(
       if (!categoryId) throw new Error(API_ERROR.INVOICE.CATEGORY_REQUIRED_FOR_PAID);
 
       const paymentDate = toDateString(new Date());
+      // AmountCents is TotalCents on purpose: this transaction is the money that lands in
+      // the bank account (base + VAT - withholding), not the professional income earned.
+      // The fiscal models never read it — vw_FiscalAccrual drops it and reads the invoice's
+      // own BaseCents/VatCents — so the VAT collected here never inflates a tax return.
       const txResult = await client.query<{ TransactionID: number }>(
         `INSERT INTO "Transactions"
          ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
@@ -879,10 +935,11 @@ export async function updateInvoiceStatus(
       }
     }
 
-    // Handle cancellation or revert to draft → clean up FiscalDocument + blob
-    if (newStatus === INVOICE_STATUS.CANCELLED || newStatus === INVOICE_STATUS.DRAFT) {
+    // Cancellation is the only way out of an issued invoice → clean up FiscalDocument + blob.
+    // The invoice itself, and its number, stay on record.
+    if (newStatus === INVOICE_STATUS.CANCELLED) {
       // Delete associated income transaction (if cancelling a paid invoice)
-      if (newStatus === INVOICE_STATUS.CANCELLED && currentStatus === INVOICE_STATUS.PAID && invoiceRow.TransactionID) {
+      if (currentStatus === INVOICE_STATUS.PAID && invoiceRow.TransactionID) {
         await client.query(`DELETE FROM "Transactions" WHERE "TransactionID" = $1 AND "UserID" = $2`, [
           invoiceRow.TransactionID,
           userId,

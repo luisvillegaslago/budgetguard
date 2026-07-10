@@ -111,6 +111,7 @@ export function Modelo130Card({ data }: Modelo130CardProps) {
         <CasillaRow number="03" label={t('fiscal.modelo130.casilla3')} cents={data.casilla3Cents} />
         <CasillaRow number="04" label={t('fiscal.modelo130.casilla4')} cents={data.casilla4Cents} />
         <CasillaRow number="05" label={t('fiscal.modelo130.casilla5')} cents={data.casilla5Cents} />
+        <CasillaRow number="06" label={t('fiscal.modelo130.casilla6')} cents={data.casilla6Cents} />
 
         <div className="border-t border-border my-2" />
 

@@ -30,6 +30,7 @@ const mockModelo130: Modelo130Summary = {
   casilla3Cents: 1667761,
   casilla4Cents: 333552,
   casilla5Cents: 0,
+  casilla6Cents: 0,
   casilla7Cents: 333552,
   gastosDocumentadosCents: 191973,
   gastosDificilCents: 97881,

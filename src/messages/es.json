@@ -811,6 +811,7 @@
       "casilla3": "Beneficio",
       "casilla4": "20% del beneficio",
       "casilla5": "Pagos trimestres anteriores",
+      "casilla6": "Retenciones soportadas",
       "casilla7": "A ingresar",
       "cumulative-note": "Acumulado desde enero",
       "gastos-documentados": "Gastos documentados",
@@ -1540,7 +1541,6 @@
     "actions": {
       "edit": "Editar",
       "finalize": "Emitir",
-      "revert-to-draft": "Volver a Borrador",
       "mark-paid": "Marcar como Pagada",
       "cancel": "Cancelar Factura",
       "select-category": "Selecciona categoría de ingreso",
@@ -1553,8 +1553,6 @@
       "confirm-finalize-message": "Se emitirá la factura y se guardará el PDF en Documentos Fiscales.",
       "confirm-finalize-submit": "Emitir",
       "finalizing": "Emitiendo...",
-      "confirm-revert-title": "¿Volver a borrador?",
-      "confirm-revert-message": "Se eliminará el PDF de Documentos Fiscales y la factura dejará de aparecer en los informes fiscales.",
       "confirm-delete-title": "¿Eliminar factura?",
       "confirm-delete-message": "Esta factura borrador se eliminará permanentemente.",
       "create-income-category": "Crear categoría de ingreso",
@@ -1572,9 +1570,15 @@
       "deleted": "Factura eliminada",
       "finalized": "Factura emitida",
       "marked-paid": "Factura marcada como cobrada",
-      "reverted": "Factura revertida a borrador",
       "updated": "Factura actualizada"
-    }
+    },
+    "vatRate": "Tipo de IVA",
+    "retentionRate": "Retención IRPF",
+    "base": "Base imponible",
+    "vat": "IVA",
+    "retention": "Retención IRPF",
+    "vatHelp": "0% para clientes fuera de España (no sujeto por reglas de localización).",
+    "retentionHelp": "Solo si el cliente es una empresa o autónomo español. 7% durante los tres primeros años."
   },
   "companies": {
     "title": "Empresas",
@@ -1873,6 +1877,8 @@
     "sub-item-too-long": "El subconcepto es muy largo",
     "too-many-sub-items": "Demasiados subconceptos (máximo 20)",
     "invalid-date": "Fecha inválida",
+    "invalid-vat-rate": "Tipo de IVA no válido",
+    "invalid-retention-rate": "Tipo de retención de IRPF no válido",
     "name-required": "El nombre es requerido",
     "name-too-long": "El nombre es muy largo",
     "full-name-required": "El nombre completo es requerido",

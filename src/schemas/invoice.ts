@@ -4,8 +4,40 @@
  */
 
 import { z } from 'zod';
-import { INVOICE_STATUS, PAYMENT_METHOD, VALIDATION_KEY } from '@/constants/finance';
+import { INVOICE_STATUS, IRPF_RETENTION_RATE, PAYMENT_METHOD, VALIDATION_KEY, VAT_RATE } from '@/constants/finance';
 import { requiredPositiveInt } from '@/schemas/shared';
+
+/**
+ * Tax rates an invoice may carry.
+ *
+ * Optional on create, where an absent rate means zero: a service to a client established
+ * outside Spain carries no VAT (art. 69.Uno.1º Ley 37/1992) and foreign clients never
+ * withhold IRPF. computeInvoiceAmounts() owns that default.
+ *
+ * REQUIRED on update, because PUT replaces the invoice: an omitted rate there would
+ * silently wipe the VAT of an invoice that had one, since the amounts are recomputed and
+ * every money column overwritten.
+ *
+ * (Zod's .default() is unusable here: validateRequest() infers one type for input and
+ * output, so the default would leak `| undefined` into the parsed result.)
+ */
+const vatPercentField = z
+  .number()
+  .refine((rate) => Object.values(VAT_RATE).includes(rate as never), VALIDATION_KEY.INVALID_VAT_RATE);
+
+const retentionPercentField = z
+  .number()
+  .refine((rate) => Object.values(IRPF_RETENTION_RATE).includes(rate as never), VALIDATION_KEY.INVALID_RETENTION_RATE);
+
+const OptionalTaxRateFields = {
+  vatPercent: vatPercentField.optional(),
+  retentionPercent: retentionPercentField.optional(),
+};
+
+const RequiredTaxRateFields = {
+  vatPercent: vatPercentField,
+  retentionPercent: retentionPercentField,
+};
 
 /**
  * Schema for creating/updating a billing profile
@@ -98,6 +130,7 @@ export const CreateInvoiceSchema = z.object({
   companyId: z.number().int().positive(),
   lineItems: z.array(InvoiceLineItemSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED).max(50),
   notes: z.string().max(2000).optional().nullable(),
+  ...OptionalTaxRateFields,
 });
 
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>;
@@ -121,6 +154,7 @@ export const UpdateInvoiceSchema = z.object({
   invoiceDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   lineItems: z.array(InvoiceLineItemSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED).max(50),
   notes: z.string().max(2000).optional().nullable(),
+  ...RequiredTaxRateFields,
 });
 
 export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>;

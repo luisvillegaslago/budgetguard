@@ -12,6 +12,11 @@ export interface InvoiceLabels {
   hours: string;
   hourlyRate: string;
   balance: string;
+  taxableBase: string;
+  vat: string;
+  retention: string;
+  /** Required on invoices with no Spanish VAT: says why, and cites the article */
+  notSubjectNotice: string;
   total: string;
   paymentMethod: string;
   bankTransfer: string;
@@ -33,6 +38,11 @@ const labels: Record<string, InvoiceLabels> = {
     hours: 'Hours',
     hourlyRate: 'Hourly Rate',
     balance: 'Balance',
+    taxableBase: 'Taxable base',
+    vat: 'VAT',
+    retention: 'IRPF withholding',
+    notSubjectNotice:
+      'Operation not subject to Spanish VAT under the place-of-supply rules (art. 69.Uno.1º, Ley 37/1992).',
     total: 'Total',
     paymentMethod: 'Payment Method',
     bankTransfer: 'Bank Transfer',
@@ -52,6 +62,10 @@ const labels: Record<string, InvoiceLabels> = {
     hours: 'Horas',
     hourlyRate: 'Tarifa (€)',
     balance: 'Importe',
+    taxableBase: 'Base imponible',
+    vat: 'IVA',
+    retention: 'Retención IRPF',
+    notSubjectNotice: 'Operación no sujeta a IVA por reglas de localización (art. 69.Uno.1º, Ley 37/1992).',
     total: 'Total',
     paymentMethod: 'Método de Pago',
     bankTransfer: 'Transferencia Bancaria',

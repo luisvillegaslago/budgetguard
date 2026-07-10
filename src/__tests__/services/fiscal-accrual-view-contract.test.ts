@@ -12,7 +12,13 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ISSUED_INVOICE_STATUSES, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  IRPF_RETENTION_RATE,
+  ISSUED_INVOICE_STATUSES,
+  PROFESSIONAL_INCOME_CATEGORY,
+  TRANSACTION_TYPE,
+  VAT_RATE,
+} from '@/constants/finance';
 
 const SCHEMA = readFileSync(join(process.cwd(), 'database', 'schema.sql'), 'utf8');
 
@@ -71,6 +77,23 @@ describe('vw_FiscalAccrual contract', () => {
     expect(view).toContain(`'${TRANSACTION_TYPE.INCOME}'`);
   });
 
+  it('feeds the invoice VAT rate through instead of hardcoding zero', () => {
+    // A hardcoded 0 would declare a VAT-inclusive total as the IRPF taxable base and
+    // never declare output VAT. computeFiscalFields() needs the real rate to split them.
+    expect(view).toContain('i."VatPercent"');
+  });
+
+  it('books invoice income as base + VAT, never the amount the client pays', () => {
+    // TotalCents is net of the IRPF withheld, which is tax already in the Treasury,
+    // not less income. Using it would understate the taxable base.
+    expect(view).toContain('i."BaseCents" + i."VatCents"');
+    expect(view).not.toContain('i."TotalCents"');
+  });
+
+  it('carries the withholding so Modelo 130 can fill casilla 06', () => {
+    expect(view).toContain('i."RetentionCents"');
+  });
+
   it('is dropped before the objects it depends on', () => {
     const dropAccrual = SCHEMA.indexOf('DROP VIEW IF EXISTS "vw_FiscalAccrual"');
     const dropQuarterly = SCHEMA.indexOf('DROP VIEW IF EXISTS "vw_FiscalQuarterly"');
@@ -79,6 +102,25 @@ describe('vw_FiscalAccrual contract', () => {
     expect(dropAccrual).toBeGreaterThan(-1);
     expect(dropAccrual).toBeLessThan(dropQuarterly);
     expect(dropAccrual).toBeLessThan(dropInvoices);
+  });
+
+  it('constrains the invoice tax rates to the ones the code knows about', () => {
+    // The CHECKs spell the rates out as SQL literals; these assertions keep them honest.
+    const vatCheck = SCHEMA.match(/CHECK \("VatPercent" IN \(([^)]*)\)\)/);
+    const retentionCheck = SCHEMA.match(/CHECK \("RetentionPercent" IN \(([^)]*)\)\)/);
+
+    const parse = (match: RegExpMatchArray | null) => (match?.[1] ?? '').split(',').map((rate) => Number(rate.trim()));
+
+    expect(parse(vatCheck).sort((a, b) => a - b)).toEqual([...Object.values(VAT_RATE)].sort((a, b) => a - b));
+    expect(parse(retentionCheck).sort((a, b) => a - b)).toEqual(
+      [...Object.values(IRPF_RETENTION_RATE)].sort((a, b) => a - b),
+    );
+  });
+
+  it('enforces that the invoice breakdown adds up', () => {
+    // computeInvoiceAmounts owns the arithmetic; the constraint stops any other write path
+    // from persisting a row where the total disagrees with base + VAT - retention.
+    expect(SCHEMA).toContain('CHECK ("TotalCents" = "BaseCents" + "VatCents" - "RetentionCents")');
   });
 
   it('is created after the objects it depends on', () => {

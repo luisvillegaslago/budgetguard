@@ -21,6 +21,7 @@ import { useDeleteInvoice, useFinalizeInvoice, useInvoice, useUpdateInvoiceStatu
 import { useTranslate } from '@/hooks/useTranslations';
 import type { InvoiceStatus } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
+import { getTaxBreakdownRows, isNotSubjectToVat } from '@/utils/invoiceAmounts';
 import { formatInvoiceLabel, getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
@@ -49,7 +50,6 @@ export default function InvoiceDetailPage() {
   const [bankFeeEuros, setBankFeeEuros] = useState<string>('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
-  const [confirmRevert, setConfirmRevert] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<number | null>(null);
@@ -118,16 +118,6 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const handleRevertToDraft = async () => {
-    try {
-      await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } });
-      setConfirmRevert(false);
-      toast.success(t('invoices.toast.reverted'));
-    } catch {
-      // Error surfaced via updateStatus.errorMessage in the confirm dialog.
-    }
-  };
-
   const handleDelete = async () => {
     try {
       await deleteInvoice.mutateAsync(invoiceId);
@@ -188,6 +178,8 @@ export default function InvoiceDetailPage() {
   const invoiceLocale = getInvoiceLocale(invoice.invoiceLanguage);
   const showHourlyColumns = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
   const tableGridClass = showHourlyColumns ? 'grid-cols-[2fr_1fr_1fr_1fr]' : 'grid-cols-[3fr_1fr]';
+  // Totals span the description columns so their amounts line up with the line items
+  const totalLabelClass = `${showHourlyColumns ? 'col-span-3' : 'col-span-1'} text-right`;
 
   // Reuse the central money formatter (DRY) and append the per-hour unit suffix.
   const formatRate = (cents: number) => `${formatCurrency(cents)}${t('invoices.per-hour-suffix')}`;
@@ -258,15 +250,6 @@ export default function InvoiceDetailPage() {
             <>
               <button
                 type="button"
-                onClick={() => setConfirmRevert(true)}
-                disabled={updateStatus.isPending}
-                className="btn-secondary flex items-center gap-2"
-              >
-                {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('invoices.actions.revert-to-draft')}
-              </button>
-              <button
-                type="button"
                 onClick={handleOpenCategoryPicker}
                 disabled={updateStatus.isPending}
                 className="btn-primary flex items-center gap-2"
@@ -285,17 +268,7 @@ export default function InvoiceDetailPage() {
             </button>
           )}
 
-          {invoice.status === INVOICE_STATUS.CANCELLED && (
-            <button
-              type="button"
-              onClick={() => setConfirmRevert(true)}
-              disabled={updateStatus.isPending}
-              className="btn-secondary flex items-center gap-2"
-            >
-              {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('invoices.actions.revert-to-draft')}
-            </button>
-          )}
+          {/* A cancelled invoice is final: its number stays on record, so there is no way back. */}
         </div>
       </div>
 
@@ -407,13 +380,24 @@ export default function InvoiceDetailPage() {
             </div>
           ))}
 
+          {/* Tax breakdown — same rows as the PDF, from the same helper */}
+          {getTaxBreakdownRows(invoice, l).map((row) => (
+            <div key={row.key} className={`grid ${tableGridClass} gap-4 px-3`}>
+              <span className={`${totalLabelClass} text-sm text-guard-muted`}>{row.label}</span>
+              <span className="text-right text-sm text-guard-muted">
+                {row.negative ? `-${formatCurrency(row.cents)}` : formatCurrency(row.cents)}
+              </span>
+            </div>
+          ))}
+
           <div className={`grid ${tableGridClass} gap-4 px-3 py-3 border-t-2 border-guard-dark`}>
-            <span className={`${showHourlyColumns ? 'col-span-3' : 'col-span-1'} text-right font-bold text-foreground`}>
-              {l.total}
-            </span>
+            <span className={`${totalLabelClass} font-bold text-foreground`}>{l.total}</span>
             <span className="text-right font-bold text-foreground">{formatCurrency(invoice.totalCents)}</span>
           </div>
         </div>
+
+        {/* Legally required when the operation carries no Spanish VAT */}
+        {isNotSubjectToVat(invoice.vatPercent) && <p className="text-xs text-guard-muted mb-6">{l.notSubjectNotice}</p>}
 
         {/* Notes */}
         {invoice.notes && (
@@ -622,35 +606,6 @@ export default function InvoiceDetailPage() {
               >
                 {deleteInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t('common.buttons.delete')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Revert to Draft Confirmation Modal */}
-      {confirmRevert && (
-        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-foreground mb-2">{t('invoices.actions.confirm-revert-title')}</h3>
-            <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-revert-message')}</p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmRevert(false)}
-                disabled={updateStatus.isPending}
-                className="flex-1 btn-secondary"
-              >
-                {t('common.buttons.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleRevertToDraft}
-                disabled={updateStatus.isPending}
-                className="flex-1 btn-primary flex items-center justify-center gap-2"
-              >
-                {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('invoices.actions.revert-to-draft')}
               </button>
             </div>
           </div>

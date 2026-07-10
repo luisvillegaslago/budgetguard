@@ -265,7 +265,10 @@ export const DATE_RANGE_PRESET = {
 
 export type DateRangePreset = (typeof DATE_RANGE_PRESET)[keyof typeof DATE_RANGE_PRESET];
 
-// Spanish VAT rates
+// Spanish VAT rates.
+// EXEMPT (0) is used for anything that carries no VAT. On issued invoices that means
+// services located outside Spain (art. 69.Uno.1º Ley 37/1992), which are strictly
+// "no sujetas" rather than exempt, and land in box [120] of Modelo 303.
 export const VAT_RATE = {
   EXEMPT: 0,
   SUPER_REDUCED: 4,
@@ -322,6 +325,17 @@ export type InvoiceStatus = (typeof INVOICE_STATUS)[keyof typeof INVOICE_STATUS]
 // These statuses are duplicated as SQL literals inside "vw_FiscalAccrual"
 // (database/schema.sql); fiscal-accrual-view-contract.test.ts fails if they drift apart.
 export const ISSUED_INVOICE_STATUSES = [INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID] as const;
+
+// IRPF withholding a Spanish business client must retain from a professional's invoice.
+// REDUCED applies during the year of registration and the two following ones.
+// Never applies to private individuals or to foreign clients.
+export const IRPF_RETENTION_RATE = {
+  NONE: 0,
+  REDUCED: 7,
+  GENERAL: 15,
+} as const;
+
+export type IrpfRetentionRate = (typeof IRPF_RETENTION_RATE)[keyof typeof IRPF_RETENTION_RATE];
 
 // Payment Methods
 export const PAYMENT_METHOD = {
@@ -695,6 +709,8 @@ export const VALIDATION_KEY = {
   SUB_ITEM_TOO_LONG: 'validation.sub-item-too-long',
   TOO_MANY_SUB_ITEMS: 'validation.too-many-sub-items',
   INVALID_DATE: 'validation.invalid-date',
+  INVALID_VAT_RATE: 'validation.invalid-vat-rate',
+  INVALID_RETENTION_RATE: 'validation.invalid-retention-rate',
   NAME_REQUIRED: 'validation.name-required',
   NAME_TOO_LONG: 'validation.name-too-long',
   FULL_NAME_REQUIRED: 'validation.full-name-required',

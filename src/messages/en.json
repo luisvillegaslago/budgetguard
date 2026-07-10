@@ -811,6 +811,7 @@
       "casilla3": "Profit",
       "casilla4": "20% of profit",
       "casilla5": "Previous quarter payments",
+      "casilla6": "IRPF withheld by clients",
       "casilla7": "To pay",
       "cumulative-note": "Cumulative from January",
       "gastos-documentados": "Documented expenses",
@@ -1540,7 +1541,6 @@
     "actions": {
       "edit": "Edit",
       "finalize": "Issue",
-      "revert-to-draft": "Revert to Draft",
       "mark-paid": "Mark as Paid",
       "cancel": "Cancel Invoice",
       "select-category": "Select income category",
@@ -1553,8 +1553,6 @@
       "confirm-finalize-message": "The invoice will be issued and the PDF will be saved to Fiscal Documents.",
       "confirm-finalize-submit": "Issue",
       "finalizing": "Issuing...",
-      "confirm-revert-title": "Revert to draft?",
-      "confirm-revert-message": "The issued PDF will be deleted from Fiscal Documents and the invoice will no longer appear in fiscal reports.",
       "confirm-delete-title": "Delete invoice?",
       "confirm-delete-message": "This draft invoice will be permanently deleted.",
       "create-income-category": "Create income category",
@@ -1572,9 +1570,15 @@
       "deleted": "Invoice deleted",
       "finalized": "Invoice finalized",
       "marked-paid": "Invoice marked as paid",
-      "reverted": "Invoice reverted to draft",
       "updated": "Invoice updated"
-    }
+    },
+    "vatRate": "VAT rate",
+    "retentionRate": "IRPF withholding",
+    "base": "Taxable base",
+    "vat": "VAT",
+    "retention": "IRPF withholding",
+    "vatHelp": "0% for clients outside Spain (not subject under place-of-supply rules).",
+    "retentionHelp": "Only when the client is a Spanish business. 7% during the first three years."
   },
   "companies": {
     "title": "Companies",
@@ -1873,6 +1877,8 @@
     "sub-item-too-long": "Sub-item is too long",
     "too-many-sub-items": "Too many sub-items (max 20)",
     "invalid-date": "Invalid date",
+    "invalid-vat-rate": "Invalid VAT rate",
+    "invalid-retention-rate": "Invalid IRPF withholding rate",
     "name-required": "Name is required",
     "name-too-long": "Name is too long",
     "full-name-required": "Full name is required",

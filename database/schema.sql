@@ -771,6 +771,18 @@ CREATE TABLE "Invoices" (
     "InvoiceDate" DATE NOT NULL,
     "CompanyID" INT NULL,
     "TransactionID" INT NULL,
+    -- Money breakdown (RD 1619/2012). TotalCents is what the client pays:
+    -- BaseCents + VatCents - RetentionCents.
+    -- Rates are INT: every Spanish rate is a whole number, and NUMERIC would arrive
+    -- from node-postgres as a string.
+    "BaseCents" INT NOT NULL DEFAULT 0,
+    "VatPercent" INT NOT NULL DEFAULT 0
+        CHECK ("VatPercent" IN (0, 4, 10, 21)),
+    "VatCents" INT NOT NULL DEFAULT 0,
+    -- IRPF withheld by Spanish business clients; zero for foreign clients and individuals
+    "RetentionPercent" INT NOT NULL DEFAULT 0
+        CHECK ("RetentionPercent" IN (0, 7, 15)),
+    "RetentionCents" INT NOT NULL DEFAULT 0,
     "TotalCents" INT NOT NULL DEFAULT 0,
     "Currency" VARCHAR(3) NOT NULL DEFAULT 'EUR',
     "Status" VARCHAR(15) NOT NULL DEFAULT 'draft'
@@ -798,6 +810,9 @@ CREATE TABLE "Invoices" (
     "UserID" INT NOT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- The breakdown must always add up, whichever write path produced the row
+    CONSTRAINT "CK_Invoices_TotalIsBreakdown"
+        CHECK ("TotalCents" = "BaseCents" + "VatCents" - "RetentionCents"),
     CONSTRAINT "FK_Invoices_Prefix"
         FOREIGN KEY ("PrefixID") REFERENCES "InvoicePrefixes"("PrefixID"),
     CONSTRAINT "FK_Invoices_Company"
@@ -850,7 +865,9 @@ SELECT
     v."Description",
     v."FullAmountCents",
     v."VatPercent",
-    v."DeductionPercent"
+    v."DeductionPercent",
+    -- Only issued invoices can carry an IRPF withholding (see the UNION branch below)
+    0 AS "RetentionCents"
 FROM "vw_FiscalQuarterly" v
 WHERE NOT EXISTS (
     SELECT 1 FROM "Invoices" inv
@@ -861,6 +878,10 @@ UNION ALL
 -- Issued invoices (finalized or paid), booked on their invoice date.
 -- TransactionID/CategoryID are 0: these rows have no transaction and no category behind
 -- them. 'Facturas' mirrors PROFESSIONAL_INCOME_CATEGORY in src/constants/finance.ts.
+--
+-- FullAmountCents is base + VAT, never TotalCents: the IRPF withheld is not income the
+-- client kept, and computeFiscalFields() divides this figure by (1 + VatPercent/100) to
+-- recover the taxable base. The withholding travels in its own column.
 SELECT
     i."UserID",
     EXTRACT(YEAR FROM i."InvoiceDate")::INT,
@@ -874,9 +895,10 @@ SELECT
     i."ClientName",
     i."InvoiceNumber",
     NULL,
-    i."TotalCents",
+    i."BaseCents" + i."VatCents",
+    i."VatPercent",
     0,
-    0
+    i."RetentionCents"
 FROM "Invoices" i
 WHERE i."Status" IN ('finalized', 'paid');
 
