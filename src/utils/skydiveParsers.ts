@@ -4,6 +4,33 @@
  */
 
 /**
+ * Parse a D/M/YY or DD/MM/YYYY slash-separated date into ISO YYYY-MM-DD.
+ * Two-digit years > 50 are treated as 19xx, otherwise 20xx.
+ * Returns null if the string is not a valid 3-part slash date.
+ */
+function parseSlashDate(dateStr: string): string | null {
+  const dateParts = dateStr.split('/');
+  if (dateParts.length !== 3) return null;
+
+  const day = (dateParts[0] ?? '').padStart(2, '0');
+  const month = (dateParts[1] ?? '').padStart(2, '0');
+  let year = dateParts[2] ?? '';
+  if (year.length === 2) {
+    year = Number(year) > 50 ? `19${year}` : `20${year}`;
+  }
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Parse a jump date, accepting ISO YYYY-MM-DD (Cloudbase) or slash formats.
+ */
+function parseJumpDate(dateStr: string): string | null {
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return dateStr;
+  return parseSlashDate(dateStr);
+}
+
+/**
  * Parse a raw CSV row into a skydive jump record.
  * Returns null if the row is invalid (missing jump number or date).
  */
@@ -14,33 +41,25 @@ export function parseJumpRow(raw: Record<string, string>): Record<string, unknow
     normalized[key.toLowerCase()] = value;
   });
 
-  const jumpNumber = Number(normalized['jump number'] ?? normalized.jumpnumber ?? normalized['#'] ?? '');
+  const jumpNumber = Number(
+    normalized['jump number'] ?? normalized.jumpnumber ?? normalized['jump #'] ?? normalized['#'] ?? '',
+  );
   if (!jumpNumber || Number.isNaN(jumpNumber)) return null;
 
-  // Parse date: D/M/YY or DD/MM/YYYY
+  // Parse date: ISO YYYY-MM-DD (Cloudbase) or D/M/YY / DD/MM/YYYY (slash formats)
   const dateStr = normalized.date ?? normalized.jumpdate ?? '';
-  const dateParts = dateStr.split('/');
-  let jumpDate: string | null = null;
-  if (dateParts.length === 3) {
-    const day = (dateParts[0] ?? '').padStart(2, '0');
-    const month = (dateParts[1] ?? '').padStart(2, '0');
-    let year = dateParts[2] ?? '';
-    if (year.length === 2) {
-      year = Number(year) > 50 ? `19${year}` : `20${year}`;
-    }
-    jumpDate = `${year}-${month}-${day}`;
-  }
+  const jumpDate = parseJumpDate(dateStr);
   if (!jumpDate) return null;
 
   // Parse freefall time in seconds
-  const ffRaw = normalized['freefall time'] ?? normalized.freefalltime ?? '';
+  const ffRaw = normalized['freefall time'] ?? normalized.freefalltime ?? normalized['freefall (s)'] ?? '';
   let freefallTimeSec: number | null = null;
   if (ffRaw) {
     const ffNum = Number(ffRaw);
     freefallTimeSec = Number.isNaN(ffNum) ? null : ffNum;
   }
 
-  const altRaw = normalized['exit altitude'] ?? normalized.exitaltitude ?? '';
+  const altRaw = normalized['exit altitude'] ?? normalized.exitaltitude ?? normalized['exit alt (ft)'] ?? '';
   let exitAltitudeFt: number | null = null;
   if (altRaw) {
     const altClean = altRaw.replace(/[^\d]/g, '');
@@ -59,15 +78,15 @@ export function parseJumpRow(raw: Record<string, string>): Record<string, unknow
     jumpNumber,
     title: normalized.title || null,
     jumpDate,
-    dropzone: normalized.dropzone ?? normalized.dz ?? null,
+    dropzone: normalized.dropzone || normalized.dz || normalized['drop zone'] || null,
     canopy: normalized.canopy || null,
     wingsuit: normalized.wingsuit || null,
     freefallTimeSec,
-    jumpType: normalized['jump type'] ?? normalized.type ?? normalized.jumptype ?? null,
-    aircraft: normalized.aircraft ?? normalized.plane ?? null,
+    jumpType: normalized['jump type'] || normalized.type || normalized.jumptype || normalized.discipline || null,
+    aircraft: normalized.aircraft || normalized.plane || null,
     exitAltitudeFt,
     landingDistanceM,
-    comment: normalized.comment ?? normalized.notes ?? null,
+    comment: normalized.comment || normalized.notes || null,
   };
 }
 
@@ -84,17 +103,7 @@ export function parseTunnelRow(raw: Record<string, string>): Record<string, unkn
 
   // Parse date: DD/MM/YYYY
   const dateStr = n.fecha ?? n.date ?? n.sessiondate ?? '';
-  const dateParts = dateStr.split('/');
-  let sessionDate: string | null = null;
-  if (dateParts.length === 3) {
-    const day = (dateParts[0] ?? '').padStart(2, '0');
-    const month = (dateParts[1] ?? '').padStart(2, '0');
-    let year = dateParts[2] ?? '';
-    if (year.length === 2) {
-      year = Number(year) > 50 ? `19${year}` : `20${year}`;
-    }
-    sessionDate = `${year}-${month}-${day}`;
-  }
+  const sessionDate = parseSlashDate(dateStr);
   if (!sessionDate) return null;
 
   // Parse duration: "H:MM" → hours:minutes to seconds, or plain number → minutes

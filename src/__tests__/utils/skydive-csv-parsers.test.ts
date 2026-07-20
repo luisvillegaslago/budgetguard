@@ -282,6 +282,87 @@ describe('parseJumpRow', () => {
     });
   });
 
+  describe('Cloudbase logbook format', () => {
+    it('should parse a full Cloudbase row (ISO date, "Jump #", "Discipline", etc.)', () => {
+      const raw: Record<string, string> = {
+        'Jump #': '1146',
+        Date: '2026-07-18',
+        Time: '16:15',
+        'Drop Zone': 'Beach SkyTime Castellón',
+        Discipline: 'freefly',
+        Role: 'sport',
+        'Exit Alt (ft)': '14251',
+        'Open Alt (ft)': '14251',
+        'Freefall (s)': '58',
+        Aircraft: 'ZEUS-208',
+        Canopy: '',
+        Notes: '',
+        Source: 'burble_sync, phone_full, garmin_full',
+      };
+
+      const result = parseJumpRow(raw);
+
+      expect(result).toEqual({
+        jumpNumber: 1146,
+        title: null,
+        jumpDate: '2026-07-18',
+        dropzone: 'Beach SkyTime Castellón',
+        canopy: null,
+        wingsuit: null,
+        freefallTimeSec: 58,
+        jumpType: 'freefly',
+        aircraft: 'ZEUS-208',
+        exitAltitudeFt: 14251,
+        landingDistanceM: null,
+        comment: null,
+      });
+    });
+
+    it('should accept "Jump #" as the jump number column', () => {
+      const raw: Record<string, string> = {
+        'Jump #': '1145',
+        Date: '2026-07-13',
+      };
+
+      expect(parseJumpRow(raw)?.jumpNumber).toBe(1145);
+    });
+
+    it('should parse an ISO YYYY-MM-DD date', () => {
+      const raw: Record<string, string> = {
+        'Jump #': '1145',
+        Date: '2026-07-13',
+      };
+
+      expect(parseJumpRow(raw)?.jumpDate).toBe('2026-07-13');
+    });
+
+    it('should map "Discipline" to jumpType', () => {
+      const raw: Record<string, string> = {
+        'Jump #': '1145',
+        Date: '2026-07-13',
+        Discipline: 'tracking',
+      };
+
+      expect(parseJumpRow(raw)?.jumpType).toBe('tracking');
+    });
+
+    it('should accept "Drop Zone", "Freefall (s)" and "Exit Alt (ft)"', () => {
+      const raw: Record<string, string> = {
+        'Jump #': '1145',
+        Date: '2026-07-13',
+        'Drop Zone': 'Skydive Lillo',
+        'Freefall (s)': '65',
+        'Exit Alt (ft)': '13149',
+      };
+
+      const result = parseJumpRow(raw);
+
+      expect(result?.dropzone).toBe('Skydive Lillo');
+      expect(result?.freefallTimeSec).toBe(65);
+      expect(result?.exitAltitudeFt).toBe(13149);
+    });
+  });
+
   describe('invalid rows — returns null', () => {
     it('should return null when jump number is missing', () => {
       const raw: Record<string, string> = {
@@ -317,10 +398,10 @@ describe('parseJumpRow', () => {
       expect(parseJumpRow(raw)).toBeNull();
     });
 
-    it('should return null when date has wrong format (not D/M/Y)', () => {
+    it('should return null when date has wrong format (neither slash nor ISO)', () => {
       const raw: Record<string, string> = {
         'Jump Number': '10',
-        Date: '2024-01-01',
+        Date: 'Jan 1 2024',
       };
 
       expect(parseJumpRow(raw)).toBeNull();
