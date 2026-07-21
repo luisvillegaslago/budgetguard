@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.47.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.47.0...v0.47.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* **invoices:** keep the draft date when finalizing an invoice ([112189a](https://github.com/luisvillegaslago/budgetguard/commit/112189abd4e05cc7f966d8617584d6cc5bd3c7da))
+
 ## [0.47.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.46.0...v0.47.0) (2026-07-21)
 
 
