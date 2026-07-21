@@ -200,6 +200,13 @@
     "expires-in-days": "expires in {days}d",
     "consumptions": "Consumptions",
     "no-consumptions": "No consumptions for this voucher yet",
+    "reconcile": {
+      "unlinked-badge": "No linked session",
+      "create-button": "Create / link",
+      "banner": "{count} consumption(s) with no skydiving activity",
+      "success": "Session reconciled",
+      "error": "Could not reconcile the consumption"
+    },
     "errors": {
       "load": "Error loading vouchers"
     },
@@ -2000,6 +2007,7 @@
       "not-available-in-prod": "This feature is not available in production"
     },
     "mutation": {
+      "reconcile-voucher": "Error reconciling the voucher consumption",
       "create": {
         "transaction": "Error creating transaction",
         "category": "Error creating category",

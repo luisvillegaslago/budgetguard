@@ -3,11 +3,27 @@
  * Database operations for skydive jumps, tunnel sessions, and stats (user-scoped)
  */
 
-import { SHARED_EXPENSE, SKYDIVE_CATEGORY, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  RECONCILE_ACTION,
+  SHARED_EXPENSE,
+  SKYDIVE_ACTIVITY_TYPE,
+  SKYDIVE_CATEGORY,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { ImportJumpRow, ImportTunnelRow } from '@/schemas/skydive';
 import type { Category } from '@/types/finance';
-import type { ImportResult, JumpsByType, JumpsByYear, SkydiveJump, SkydiveStats, TunnelSession } from '@/types/skydive';
+import type {
+  ImportResult,
+  JumpsByType,
+  JumpsByYear,
+  ReconcileConsumptionResult,
+  SkydiveActivityType,
+  SkydiveJump,
+  SkydiveStats,
+  TunnelSession,
+} from '@/types/skydive';
 import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
 import { getVoucherById } from './VoucherRepository';
@@ -1213,4 +1229,229 @@ export async function getSkydiveCategories(): Promise<Category[]> {
       defaultDeductionPercent: null,
     }),
   );
+}
+
+// ============================================================
+// Voucher Consumption Reconciliation (user-scoped)
+// ============================================================
+
+// Transaction Description prefixes written by createJump/createTunnelSession.
+// Used to recover the Dropzone/Location when reconciling a consumption.
+const JUMP_DESCRIPTION_PREFIX = 'Salto – ';
+const TUNNEL_DESCRIPTION_PREFIX = 'Túnel – ';
+
+interface ConsumptionTxRow {
+  TransactionID: number;
+  VoucherID: number | null;
+  VoucherUnits: number | string | null;
+  AmountCents: number;
+  Description: string | null;
+  TransactionDate: Date | string;
+  CategoryName: string;
+  ParentCategoryName: string | null;
+}
+
+/**
+ * Recover the free-text label (Dropzone/Location) embedded in a consumption's
+ * Description, e.g. "Salto – Empuriabrava" -> "Empuriabrava". Returns null when
+ * the description does not match the expected prefix.
+ */
+function parseActivityLabel(description: string | null, prefix: string): string | null {
+  if (!description || !description.startsWith(prefix)) return null;
+  const label = description.slice(prefix.length).trim();
+  return label.length > 0 ? label : null;
+}
+
+/**
+ * Given a voucher, return the consumption transactions that have NO linked
+ * skydiving activity of the matching type. Returns null when the voucher is not
+ * a skydive voucher (its category's parent is not "Paracaidismo"), so callers
+ * can skip the reconcile affordance entirely.
+ */
+export async function getUnlinkedSkydiveConsumptions(
+  voucherId: number,
+): Promise<{ transactionIds: number[]; activityType: SkydiveActivityType } | null> {
+  const userId = await getUserIdOrThrow();
+
+  const categoryRows = await query<{ CategoryName: string; ParentCategoryName: string | null }>(
+    `SELECT c."Name" AS "CategoryName", parent."Name" AS "ParentCategoryName"
+     FROM "Vouchers" v
+     INNER JOIN "Categories" c ON v."CategoryID" = c."CategoryID"
+     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+     WHERE v."VoucherID" = $1 AND v."UserID" = $2`,
+    [voucherId, userId],
+  );
+
+  const categoryRow = categoryRows[0];
+  if (!categoryRow || categoryRow.ParentCategoryName !== SKYDIVE_CATEGORY.NAME) return null;
+
+  const activityType =
+    categoryRow.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL
+      ? SKYDIVE_ACTIVITY_TYPE.TUNNEL
+      : SKYDIVE_ACTIVITY_TYPE.JUMP;
+
+  // Activity table is a controlled constant (never user input), safe to interpolate.
+  const activityTable = activityType === SKYDIVE_ACTIVITY_TYPE.TUNNEL ? '"TunnelSessions"' : '"SkydiveJumps"';
+
+  const rows = await query<{ TransactionID: number }>(
+    `SELECT t."TransactionID"
+     FROM "Transactions" t
+     WHERE t."VoucherID" = $1 AND t."UserID" = $2
+       AND NOT EXISTS (
+         SELECT 1 FROM ${activityTable} a
+         WHERE a."TransactionID" = t."TransactionID" AND a."UserID" = t."UserID"
+       )
+     ORDER BY t."TransactionID"`,
+    [voucherId, userId],
+  );
+
+  return { transactionIds: rows.map((r) => r.TransactionID), activityType };
+}
+
+/**
+ * Reconcile a voucher consumption transaction to a skydiving activity (Option A,
+ * link-or-create). Idempotent: if the transaction is already linked to an
+ * activity of its type, no change is made. Otherwise an existing unlinked
+ * activity on the same date is linked, or a new activity is created against the
+ * SAME transaction (never re-consuming the voucher). All steps run in one
+ * BEGIN/COMMIT. Throws when the transaction is missing or is not a skydive
+ * voucher consumption (the route maps that to 400/500).
+ */
+export async function reconcileConsumptionToActivity(transactionId: number): Promise<ReconcileConsumptionResult> {
+  const userId = await getUserIdOrThrow();
+
+  // 1. Load + validate the consumption transaction (with category + parent).
+  const txRows = await query<ConsumptionTxRow>(
+    `SELECT t."TransactionID", t."VoucherID", t."VoucherUnits", t."AmountCents",
+            t."Description", t."TransactionDate",
+            c."Name" AS "CategoryName", parent."Name" AS "ParentCategoryName"
+     FROM "Transactions" t
+     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+     WHERE t."TransactionID" = $1 AND t."UserID" = $2`,
+    [transactionId, userId],
+  );
+
+  const tx = txRows[0];
+  if (!tx) throw new Error(`Transaction ${transactionId} not found`);
+  if (tx.VoucherID == null) throw new Error(`Transaction ${transactionId} is not a voucher consumption`);
+  if (tx.ParentCategoryName !== SKYDIVE_CATEGORY.NAME) {
+    throw new Error(`Transaction ${transactionId} is not a skydiving consumption`);
+  }
+
+  const isTunnel = tx.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL;
+  const isJump = tx.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS;
+  if (!isTunnel && !isJump) {
+    throw new Error(`Transaction ${transactionId} category "${tx.CategoryName}" is not reconcilable`);
+  }
+
+  // 2. Resolve the activity type and shared derived values.
+  const activityType = isTunnel ? SKYDIVE_ACTIVITY_TYPE.TUNNEL : SKYDIVE_ACTIVITY_TYPE.JUMP;
+  const transactionDate = toDateString(tx.TransactionDate);
+  const amountCents = tx.AmountCents;
+  const voucherUnits = tx.VoucherUnits != null ? Number(tx.VoucherUnits) : 0;
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let result: ReconcileConsumptionResult;
+
+    if (isTunnel) {
+      // 3. Already linked to a tunnel session? Idempotent no-op.
+      const linked = await client.query<{ SessionID: number }>(
+        'SELECT "SessionID" FROM "TunnelSessions" WHERE "TransactionID" = $1 AND "UserID" = $2 LIMIT 1',
+        [transactionId, userId],
+      );
+      const linkedId = linked.rows[0]?.SessionID;
+      if (linkedId != null) {
+        result = { activityType, action: RECONCILE_ACTION.ALREADY_LINKED, id: linkedId };
+      } else {
+        // 4. Link an existing unlinked session on the same date, if any.
+        const existing = await client.query<{ SessionID: number }>(
+          `SELECT "SessionID" FROM "TunnelSessions"
+           WHERE "UserID" = $1 AND "SessionDate" = $2::date AND "TransactionID" IS NULL
+           ORDER BY "SessionID" LIMIT 1`,
+          [userId, transactionDate],
+        );
+        const existingId = existing.rows[0]?.SessionID;
+        if (existingId != null) {
+          await client.query(
+            `UPDATE "TunnelSessions"
+             SET "TransactionID" = $1, "PriceCents" = COALESCE("PriceCents", $2), "UpdatedAt" = NOW()
+             WHERE "SessionID" = $3 AND "UserID" = $4`,
+            [transactionId, amountCents, existingId, userId],
+          );
+          result = { activityType, action: RECONCILE_ACTION.LINKED, id: existingId };
+        } else {
+          // 5. Create a new session linked to the existing transaction.
+          const location = parseActivityLabel(tx.Description, TUNNEL_DESCRIPTION_PREFIX);
+          const durationSec = voucherUnits > 0 ? Math.round(voucherUnits * 60) : 0;
+          const created = await client.query<{ SessionID: number }>(
+            `INSERT INTO "TunnelSessions" ("SessionDate", "Location", "DurationSec", "PriceCents", "TransactionID", "UserID")
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING "SessionID"`,
+            [transactionDate, location, durationSec, amountCents, transactionId, userId],
+          );
+          const createdId = created.rows[0]?.SessionID;
+          if (createdId == null) throw new Error('Failed to create tunnel session');
+          result = { activityType, action: RECONCILE_ACTION.CREATED, id: createdId };
+        }
+      }
+    } else {
+      // 3. Already linked to a jump? Idempotent no-op.
+      const linked = await client.query<{ JumpID: number }>(
+        'SELECT "JumpID" FROM "SkydiveJumps" WHERE "TransactionID" = $1 AND "UserID" = $2 LIMIT 1',
+        [transactionId, userId],
+      );
+      const linkedId = linked.rows[0]?.JumpID;
+      if (linkedId != null) {
+        result = { activityType, action: RECONCILE_ACTION.ALREADY_LINKED, id: linkedId };
+      } else {
+        // 4. Link an existing unlinked jump on the same date, if any.
+        const existing = await client.query<{ JumpID: number }>(
+          `SELECT "JumpID" FROM "SkydiveJumps"
+           WHERE "UserID" = $1 AND "JumpDate" = $2::date AND "TransactionID" IS NULL
+           ORDER BY "JumpID" LIMIT 1`,
+          [userId, transactionDate],
+        );
+        const existingId = existing.rows[0]?.JumpID;
+        if (existingId != null) {
+          await client.query(
+            `UPDATE "SkydiveJumps"
+             SET "TransactionID" = $1, "PriceCents" = COALESCE("PriceCents", $2), "UpdatedAt" = NOW()
+             WHERE "JumpID" = $3 AND "UserID" = $4`,
+            [transactionId, amountCents, existingId, userId],
+          );
+          result = { activityType, action: RECONCILE_ACTION.LINKED, id: existingId };
+        } else {
+          // 5. Create a new jump linked to the existing transaction.
+          const dropzone = parseActivityLabel(tx.Description, JUMP_DESCRIPTION_PREFIX);
+          const nextNumber = await client.query<{ NextNumber: number }>(
+            'SELECT COALESCE(MAX("JumpNumber"), 0) + 1 AS "NextNumber" FROM "SkydiveJumps" WHERE "UserID" = $1',
+            [userId],
+          );
+          const jumpNumber = Number(nextNumber.rows[0]?.NextNumber ?? 1);
+          const created = await client.query<{ JumpID: number }>(
+            `INSERT INTO "SkydiveJumps" ("JumpNumber", "JumpDate", "Dropzone", "PriceCents", "TransactionID", "UserID")
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING "JumpID"`,
+            [jumpNumber, transactionDate, dropzone, amountCents, transactionId, userId],
+          );
+          const createdId = created.rows[0]?.JumpID;
+          if (createdId == null) throw new Error('Failed to create jump');
+          result = { activityType, action: RECONCILE_ACTION.CREATED, id: createdId };
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }

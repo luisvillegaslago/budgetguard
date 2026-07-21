@@ -3,6 +3,29 @@
  * Types for skydive jumps, tunnel sessions, and aggregated statistics
  */
 
+import type { RECONCILE_ACTION, SKYDIVE_ACTIVITY_TYPE } from '@/constants/finance';
+
+/**
+ * Kind of skydiving activity a voucher consumption maps to.
+ * Derived from constants to stay DRY: 'jump' | 'tunnel'.
+ */
+export type SkydiveActivityType = (typeof SKYDIVE_ACTIVITY_TYPE)[keyof typeof SKYDIVE_ACTIVITY_TYPE];
+
+/**
+ * Outcome of reconciling a voucher consumption: 'linked' | 'created' | 'already_linked'.
+ */
+export type ReconcileAction = (typeof RECONCILE_ACTION)[keyof typeof RECONCILE_ACTION];
+
+/**
+ * Result of reconciling a voucher consumption transaction to a skydiving activity.
+ * `id` is the JumpID or SessionID of the linked/created activity.
+ */
+export interface ReconcileConsumptionResult {
+  activityType: SkydiveActivityType;
+  action: ReconcileAction;
+  id: number;
+}
+
 /**
  * Skydive jump record
  */

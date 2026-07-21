@@ -8,12 +8,17 @@ import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/fina
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateVoucherInput, UpdateVoucherInput } from '@/schemas/voucher';
 import type { ApiResponse, Transaction, Voucher } from '@/types/finance';
+import type { ReconcileConsumptionResult, SkydiveActivityType } from '@/types/skydive';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 
 export interface VoucherDetail {
   voucher: Voucher;
   consumptions: Transaction[];
+  // Tx IDs of consumptions with no linked skydiving activity (empty for non-skydive vouchers)
+  unlinkedConsumptions: number[];
+  // Activity type to reconcile unlinked consumptions to, or null when not a skydive voucher
+  reconcileActivityType: SkydiveActivityType | null;
 }
 
 async function fetchVouchers(): Promise<Voucher[]> {
@@ -85,6 +90,27 @@ async function updateVoucherRequest(id: number, input: UpdateVoucherInput): Prom
 
   if (!data.success || !data.data) {
     throw new Error(data.error ?? API_ERROR.MUTATION.UPDATE.VOUCHER);
+  }
+
+  return data.data;
+}
+
+async function reconcileVoucherConsumptionRequest(transactionId: number): Promise<ReconcileConsumptionResult> {
+  const response = await fetchApi(API_ENDPOINT.SKYDIVE_RECONCILE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transactionId }),
+  });
+
+  if (!response.ok) {
+    const errorData: ApiResponse<never> = await response.json();
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.RECONCILE.VOUCHER));
+  }
+
+  const data: ApiResponse<ReconcileConsumptionResult> = await response.json();
+
+  if (!data.success || !data.data) {
+    throw new Error(data.error ?? API_ERROR.MUTATION.RECONCILE.VOUCHER);
   }
 
   return data.data;
@@ -162,6 +188,28 @@ export function useDeleteVoucher() {
     mutationFn: deleteVoucherRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
+    },
+  });
+}
+
+/**
+ * Hook to reconcile a voucher consumption to a skydiving activity (link-or-create).
+ * Invalidates voucher detail, skydiving jumps/sessions/stats and transactions so
+ * the newly linked/created activity shows up everywhere.
+ */
+export function useReconcileVoucherConsumption() {
+  const queryClient = useQueryClient();
+
+  return useApiMutation({
+    mutationFn: ({ transactionId }: { transactionId: number }) => reconcileVoucherConsumptionRequest(transactionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
     },
   });

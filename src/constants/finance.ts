@@ -179,6 +179,7 @@ export const API_ENDPOINT = {
   TUNNEL_LOCATIONS: '/api/skydiving/tunnel/locations',
   SKYDIVE_STATS: '/api/skydiving/stats',
   SKYDIVE_CATEGORIES: '/api/skydiving/categories',
+  SKYDIVE_RECONCILE: '/api/skydiving/reconcile-voucher',
   VOUCHERS: '/api/vouchers',
   COMPANIES: '/api/companies',
   INVOICES: '/api/invoices',
@@ -225,6 +226,19 @@ export const SKYDIVE_CATEGORY = {
     TUNNEL: 'Túnel de viento',
     JUMPS: 'Saltos',
   },
+} as const;
+
+// Skydiving activity kinds — a jump (SkydiveJumps) or a tunnel session (TunnelSessions)
+export const SKYDIVE_ACTIVITY_TYPE = {
+  JUMP: 'jump',
+  TUNNEL: 'tunnel',
+} as const;
+
+// Outcome of reconciling a voucher consumption transaction to a skydiving activity
+export const RECONCILE_ACTION = {
+  LINKED: 'linked',
+  CREATED: 'created',
+  ALREADY_LINKED: 'already_linked',
 } as const;
 
 // Well-known Bank Fee Subcategory (under "Trabajo")
@@ -695,6 +709,9 @@ export const API_ERROR = {
     },
     SYNC: {
       CRYPTO: 'api-error.mutation.sync.crypto',
+    },
+    RECONCILE: {
+      VOUCHER: 'api-error.mutation.reconcile-voucher',
     },
   },
 } as const;

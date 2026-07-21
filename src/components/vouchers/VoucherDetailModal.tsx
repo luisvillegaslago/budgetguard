@@ -6,7 +6,7 @@
  * consumptions. Allows editing or deleting the voucher.
  */
 
-import { AlertTriangle, ArrowUpRight, Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Link2, Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,7 +19,7 @@ import { SORT_DIRECTION, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constant
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useCreateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useDeleteVoucher, useVoucher } from '@/hooks/useVouchers';
+import { useDeleteVoucher, useReconcileVoucherConsumption, useVoucher } from '@/hooks/useVouchers';
 import type { Transaction, Voucher } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
@@ -185,8 +185,27 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
   const toast = useToast();
   const { data, isLoading, isError, refetch } = useVoucher(voucherId);
   const deleteVoucher = useDeleteVoucher();
+  const reconcileConsumption = useReconcileVoucherConsumption();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [consumeOpen, setConsumeOpen] = useState(false);
+  // Tx being reconciled right now, to scope the pending state to its own row.
+  const [reconcilingId, setReconcilingId] = useState<number | null>(null);
+
+  // Consumptions with no linked skydiving activity, for quick lookup per row.
+  const unlinkedSet = useMemo(() => new Set(data?.unlinkedConsumptions ?? []), [data?.unlinkedConsumptions]);
+
+  const handleReconcile = async (transactionId: number) => {
+    setReconcilingId(transactionId);
+    try {
+      await reconcileConsumption.mutateAsync({ transactionId });
+      toast.success(t('vouchers.reconcile.success'));
+    } catch (_error) {
+      // Error surfaced via toast + reconcileConsumption.errorMessage
+      toast.error(reconcileConsumption.errorMessage ?? t('vouchers.reconcile.error'));
+    } finally {
+      setReconcilingId(null);
+    }
+  };
 
   const handleConfirmDelete = async () => {
     try {
@@ -342,6 +361,12 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 {t('vouchers.consumptions')} ({voucher.consumptionCount})
               </h3>
+              {unlinkedSet.size > 0 && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-guard-warning/40 bg-guard-warning/10 px-3 py-2 text-xs text-guard-warning">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                  <span>{t('vouchers.reconcile.banner', { count: unlinkedSet.size })}</span>
+                </div>
+              )}
               {consumptions.length > 1 && (
                 <div className="mb-2">
                   <SortControl options={sortOptions} sort={sort} onToggle={toggleSort} />
@@ -351,24 +376,51 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                 <EmptyState icon={Receipt} title={t('vouchers.no-consumptions')} />
               ) : (
                 <ul className="divide-y divide-border rounded-lg border border-border">
-                  {sortedConsumptions.map((tx) => (
-                    <li key={tx.transactionId} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-foreground">
-                          {tx.description || tx.category?.name || t('transactions.no-category')}
-                        </p>
-                        <p className="text-xs text-guard-muted tabular-nums">
-                          {formatDate(tx.transactionDate, 'short')}
-                          {tx.voucherUnits != null && voucher.unitLabel
-                            ? ` · ${formatUnits(tx.voucherUnits)} ${voucher.unitLabel}`
-                            : ''}
-                        </p>
-                      </div>
-                      <span className="flex flex-shrink-0 items-center gap-1 text-sm font-semibold text-guard-danger tabular-nums">
-                        <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tx.amountCents)}
-                      </span>
-                    </li>
-                  ))}
+                  {sortedConsumptions.map((tx) => {
+                    const isUnlinked = unlinkedSet.has(tx.transactionId);
+                    const isReconciling = reconcilingId === tx.transactionId && reconcileConsumption.isPending;
+                    return (
+                      <li key={tx.transactionId} className="px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-foreground">
+                              {tx.description || tx.category?.name || t('transactions.no-category')}
+                            </p>
+                            <p className="text-xs text-guard-muted tabular-nums">
+                              {formatDate(tx.transactionDate, 'short')}
+                              {tx.voucherUnits != null && voucher.unitLabel
+                                ? ` · ${formatUnits(tx.voucherUnits)} ${voucher.unitLabel}`
+                                : ''}
+                            </p>
+                          </div>
+                          <span className="flex flex-shrink-0 items-center gap-1 text-sm font-semibold text-guard-danger tabular-nums">
+                            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tx.amountCents)}
+                          </span>
+                        </div>
+                        {isUnlinked && (
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-guard-warning/10 px-2 py-0.5 text-xs font-medium text-guard-warning">
+                              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                              {t('vouchers.reconcile.unlinked-badge')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleReconcile(tx.transactionId)}
+                              disabled={isReconciling}
+                              className={cn(
+                                'inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                                'bg-guard-primary/10 text-guard-primary hover:bg-guard-primary/20',
+                                'disabled:opacity-50 disabled:cursor-not-allowed',
+                              )}
+                            >
+                              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                              {t('vouchers.reconcile.create-button')}
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

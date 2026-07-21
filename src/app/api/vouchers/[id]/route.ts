@@ -8,6 +8,7 @@
 import { API_ERROR } from '@/constants/finance';
 import { validateRequest } from '@/schemas/transaction';
 import { UpdateVoucherSchema } from '@/schemas/voucher';
+import { getUnlinkedSkydiveConsumptions } from '@/services/database/SkydiveRepository';
 import { getTransactionsByVoucherId } from '@/services/database/TransactionRepository';
 import { deleteVoucher, getVoucherById, updateVoucher } from '@/services/database/VoucherRepository';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
@@ -22,8 +23,16 @@ export const GET = withApiHandler(async (_request, { params }) => {
   if (!voucher) return notFound(API_ERROR.NOT_FOUND.VOUCHER);
 
   const consumptions = await getTransactionsByVoucherId(voucherId);
+  const unlinked = await getUnlinkedSkydiveConsumptions(voucherId);
 
-  return { data: { voucher, consumptions } };
+  return {
+    data: {
+      voucher,
+      consumptions,
+      unlinkedConsumptions: unlinked?.transactionIds ?? [],
+      reconcileActivityType: unlinked?.activityType ?? null,
+    },
+  };
 }, 'GET /api/vouchers/[id]');
 
 export const PUT = withApiHandler(async (request, { params }) => {

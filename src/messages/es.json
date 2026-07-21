@@ -200,6 +200,13 @@
     "expires-in-days": "caduca en {days} d",
     "consumptions": "Consumos",
     "no-consumptions": "Todavía no hay consumos de este bono",
+    "reconcile": {
+      "unlinked-badge": "Sin sesión asociada",
+      "create-button": "Crear / vincular",
+      "banner": "{count} consumo(s) sin actividad en paracaidismo",
+      "success": "Consumo reconciliado",
+      "error": "No se pudo reconciliar el consumo"
+    },
     "errors": {
       "load": "Error al cargar los bonos"
     },
@@ -2000,6 +2007,7 @@
       "not-available-in-prod": "Esta función no está disponible en producción"
     },
     "mutation": {
+      "reconcile-voucher": "Error al reconciliar el consumo del bono",
       "create": {
         "transaction": "Error al crear la transacción",
         "category": "Error al crear la categoría",
