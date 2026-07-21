@@ -75,6 +75,7 @@ const mockPdfBuffer = Buffer.from('mock-pdf-bytes');
 let capturedBlobPath: string | null = null;
 let capturedBlobBuffer: Buffer | null = null;
 let capturedTransactionQueries: { text: string; params: unknown[] }[] = [];
+let capturedPoolQueries: { text: string; params: unknown[] }[] = [];
 let transactionShouldFail = false;
 
 // ============================================================
@@ -106,7 +107,10 @@ jest.mock('@/services/database/InvoiceRepository', () => ({
 
 jest.mock('@/services/database/connection', () => ({
   getPool: jest.fn(() => ({
-    query: jest.fn(async () => ({ rows: [] })),
+    query: jest.fn(async (text: string, params?: unknown[]) => {
+      capturedPoolQueries.push({ text, params: params ?? [] });
+      return { rows: [] };
+    }),
     connect: jest.fn(async () => ({
       query: mockClientQuery,
       release: mockClientRelease,
@@ -153,6 +157,7 @@ describe('InvoiceFinalizeService', () => {
     capturedBlobPath = null;
     capturedBlobBuffer = null;
     capturedTransactionQueries = [];
+    capturedPoolQueries = [];
     transactionShouldFail = false;
     jest.clearAllMocks();
   });
@@ -184,11 +189,11 @@ describe('InvoiceFinalizeService', () => {
   });
 
   describe('blob upload', () => {
-    it('should upload PDF to correct path', async () => {
+    it('should upload PDF under the invoice date year, not the current one', async () => {
       await finalizeInvoice(1);
 
-      const expectedYear = new Date().getUTCFullYear();
-      expect(capturedBlobPath).toBe(`fiscal/user-123/${expectedYear}/invoice_INV-01.pdf`);
+      // mockDraftInvoice is dated 2025-07-15 — finalizing must not re-file it under today
+      expect(capturedBlobPath).toBe('fiscal/user-123/2025/invoice_INV-01.pdf');
     });
 
     it('should upload the generated PDF buffer', async () => {
@@ -217,15 +222,20 @@ describe('InvoiceFinalizeService', () => {
       expect(insertQuery.params).toContain(FISCAL_STATUS.FILED);
     });
 
-    it('should derive fiscal quarter from today date', async () => {
+    it('should derive fiscal period from the invoice date', async () => {
       await finalizeInvoice(1);
 
+      // 2025-07-15 → Q3 2025, matching where vw_FiscalAccrual books the income
       const insertQuery = capturedTransactionQueries[1]!;
-      const now = new Date();
-      const expectedYear = now.getUTCFullYear();
-      const expectedQuarter = Math.ceil((now.getUTCMonth() + 1) / 3);
-      expect(insertQuery.params).toContain(expectedYear);
-      expect(insertQuery.params).toContain(expectedQuarter);
+      expect(insertQuery.params).toContain(2025);
+      expect(insertQuery.params).toContain(3);
+    });
+
+    it('should not overwrite the invoice date on finalize', async () => {
+      await finalizeInvoice(1);
+
+      const allQueries = [...capturedPoolQueries, ...capturedTransactionQueries];
+      expect(allQueries.filter((q) => q.text.includes('"InvoiceDate"'))).toHaveLength(0);
     });
 
     it('should include company ID in fiscal document', async () => {

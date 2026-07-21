@@ -27,23 +27,19 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
     throw new Error(API_ERROR.INVOICE.CANNOT_FINALIZE);
   }
 
-  // 2. Set invoice date to today before generating PDF
-  const today = new Date().toISOString().split('T')[0]!;
-  const pool = getPool();
-  await pool.query(`UPDATE "Invoices" SET "InvoiceDate" = $1 WHERE "InvoiceID" = $2 AND "UserID" = $3`, [
-    today,
-    invoiceId,
-    userId,
-  ]);
-
-  // 3. Assign invoice number atomically (idempotent — skips if already assigned)
+  // 2. Assign invoice number atomically (idempotent — skips if already assigned)
   await assignInvoiceNumber(invoiceId);
 
-  // 4. Generate PDF (handles snapshot refresh internally)
+  // 3. Generate PDF (handles snapshot refresh internally)
   const { invoice: current, pdfBuffer, fileName } = await prepareInvoicePdf(invoiceId);
 
   // 4. Upload to Vercel Blob (outside transaction — if this fails, invoice stays draft)
-  const invoiceDate = new Date(today);
+  //
+  // The fiscal period comes from the invoice's own date, never from today: "vw_FiscalAccrual"
+  // books the income on "InvoiceDate", so archiving the PDF under the current quarter would
+  // file the document apart from the income it backs. The date is whatever the draft carried
+  // — finalizing does not move it, so a draft can be issued with a past date.
+  const invoiceDate = new Date(current.invoiceDate);
   const fiscalYear = invoiceDate.getUTCFullYear();
   const fiscalQuarter = Math.ceil((invoiceDate.getUTCMonth() + 1) / 3);
 
@@ -53,6 +49,7 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
   });
 
   // 5. Transaction: FiscalDocument INSERT + Invoice status UPDATE (atomic)
+  const pool = getPool();
   const client = await pool.connect();
 
   try {
