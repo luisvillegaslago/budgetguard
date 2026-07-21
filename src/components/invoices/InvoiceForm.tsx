@@ -208,6 +208,20 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   const [billingMode, setBillingMode] = useState<InvoiceBillingMode>(detectBillingMode(invoice));
   const isFlat = billingMode === INVOICE_BILLING_MODE.FLAT;
 
+  // Shared by the "add line" buttons above and below the list, so both stay in sync
+  const appendLineItem = () =>
+    append({
+      title: '',
+      subItems: [],
+      description: '',
+      hours: '',
+      hourlyRate:
+        !isFlat && billingProfile?.defaultHourlyRateCents != null
+          ? centsToEuros(billingProfile.defaultHourlyRateCents)
+          : '',
+      amount: '',
+    });
+
   const [showPrefixForm, setShowPrefixForm] = useState(false);
 
   const watchedPrefixId = useWatch({ control, name: 'prefixId' });
@@ -527,19 +541,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
               <span className="block text-sm font-medium text-foreground">{t('invoices.form.fields.line-items')}</span>
               <button
                 type="button"
-                onClick={() =>
-                  append({
-                    title: '',
-                    subItems: [],
-                    description: '',
-                    hours: '',
-                    hourlyRate:
-                      !isFlat && billingProfile?.defaultHourlyRateCents != null
-                        ? centsToEuros(billingProfile.defaultHourlyRateCents)
-                        : '',
-                    amount: '',
-                  })
-                }
+                onClick={appendLineItem}
                 className="text-xs text-guard-primary hover:text-guard-primary/80 flex items-center gap-1"
               >
                 <Plus className="h-3 w-3" aria-hidden="true" />
@@ -642,6 +644,16 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                 </div>
               ))}
             </div>
+
+            {/* Add line button below the list, mirroring the one above */}
+            <button
+              type="button"
+              onClick={appendLineItem}
+              className="mt-3 w-full flex items-center justify-center gap-1 rounded-lg border border-dashed border-border py-2 text-xs text-guard-primary hover:text-guard-primary/80 hover:border-guard-primary/40 transition-colors"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              {t('invoices.form.add-line')}
+            </button>
           </div>
 
           {/* Taxes */}
