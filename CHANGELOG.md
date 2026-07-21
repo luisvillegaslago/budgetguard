@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.47.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.46.0...v0.47.0) (2026-07-21)
+
+
+### Features
+
+* **invoices:** add second "add line" button below the line items list ([51fa8db](https://github.com/luisvillegaslago/budgetguard/commit/51fa8dbbec81ff02d6ab2aa65bff38b34600df0e))
+* **skydiving:** support Cloudbase logbook CSV format for jump imports ([97a25ba](https://github.com/luisvillegaslago/budgetguard/commit/97a25ba8399eade07bdaebb50864d159a30858bc))
+* **vouchers:** reconcile skydive voucher consumptions without a linked session ([abd8e85](https://github.com/luisvillegaslago/budgetguard/commit/abd8e8541bb643b3e49078c2e92127a66408b2c4))
+
+
+### Bug Fixes
+
+* **invoices:** narrow hours and rate columns in the invoice PDF ([e4fe0e3](https://github.com/luisvillegaslago/budgetguard/commit/e4fe0e3f4977acb97163620e1e1d6c1e9175c61b))
+
 ## [0.46.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.45.1...v0.46.0) (2026-07-10)
 
 
