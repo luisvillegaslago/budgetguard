@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.48.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.47.1...v0.48.0) (2026-07-31)
+
+
+### Features
+
+* **dashboard:** show alert banners on the dashboard with a dismiss button ([00afcc9](https://github.com/luisvillegaslago/budgetguard/commit/00afcc9adc06689644180b1f11298c6e3c846071))
+
+
+### Bug Fixes
+
+* **transactions:** allow creating income transactions again ([0b50a96](https://github.com/luisvillegaslago/budgetguard/commit/0b50a96e2b4cfd58bfe28f08c9f49dde4b85b42a))
+
 ## [0.47.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.47.0...v0.47.1) (2026-07-21)
 
 
