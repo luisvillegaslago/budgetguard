@@ -10,13 +10,11 @@ import { ArrowLeft, List } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertsSection } from '@/components/alerts/AlertsSection';
 import { CategoryBreakdown } from '@/components/dashboard/CategoryBreakdown';
-import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { CategoryBrowser } from '@/components/movements/CategoryBrowser';
 import { CompanyMovementDetail } from '@/components/movements/CompanyMovementDetail';
 import { MovementDetail } from '@/components/movements/MovementDetail';
-import { RecurringPendingPanel } from '@/components/recurring/RecurringPendingPanel';
-import { PendingTransactionsBanner } from '@/components/transactions/PendingTransactionsBanner';
 import { QuickExpenseActions } from '@/components/transactions/QuickExpenseActions';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
@@ -134,11 +132,7 @@ export default function MovementsPage() {
             <QuickExpenseActions className="w-full sm:w-auto justify-end" />
           </div>
 
-          <div className="space-y-3">
-            <PendingTransactionsBanner />
-            <FiscalDeadlineBanner />
-            <RecurringPendingPanel />
-          </div>
+          <AlertsSection />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
             <section className="order-2 md:order-1">

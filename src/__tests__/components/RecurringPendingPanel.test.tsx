@@ -5,7 +5,7 @@
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { OCCURRENCE_STATUS, RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
+import { ALERT_PANEL, OCCURRENCE_STATUS, RECURRING_FREQUENCY, TRANSACTION_TYPE } from '@/constants/finance';
 import type { PendingOccurrencesSummary, RecurringOccurrence } from '@/types/finance';
 
 const mockOccurrence: RecurringOccurrence = {
@@ -114,6 +114,8 @@ const mockConfirmAllMutate = jest.fn();
 let currentMockData: PendingOccurrencesSummary | undefined = mockSummary;
 let mockIsCollapsed = false;
 const mockTogglePanel = jest.fn();
+let mockIsDismissed = false;
+const mockDismissAlert = jest.fn();
 
 jest.mock('@/hooks/usePendingOccurrences', () => ({
   usePendingOccurrences: () => ({
@@ -163,6 +165,8 @@ jest.mock('@/hooks/useTranslations', () => ({
 jest.mock('@/stores/useFinanceStore', () => ({
   useIsRecurringPanelCollapsed: () => mockIsCollapsed,
   useToggleRecurringPanel: () => mockTogglePanel,
+  useIsAlertDismissed: () => mockIsDismissed,
+  useDismissAlert: () => mockDismissAlert,
 }));
 
 jest.mock('@/utils/helpers', () => ({
@@ -212,8 +216,10 @@ describe('RecurringPendingPanel', () => {
     mockSkipMutate.mockClear();
     mockConfirmAllMutate.mockClear();
     mockTogglePanel.mockClear();
+    mockDismissAlert.mockClear();
     currentMockData = mockSummary;
     mockIsCollapsed = false;
+    mockIsDismissed = false;
   });
 
   it('should render panel with pending count', () => {
@@ -297,8 +303,10 @@ describe('RecurringPendingPanel', () => {
     // Header should still be visible
     expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument();
     // Content is hidden via CSS (gridTemplateRows: 0fr), not removed from DOM
-    // Verify the panel is visually collapsed via grid style
-    const contentGrid = screen.getByRole('button', { expanded: false }).nextElementSibling as HTMLElement;
+    // Verify the panel is visually collapsed via grid style. The toggle button lives
+    // in the header row (next to the dismiss button), so the grid is the row's sibling.
+    const header = screen.getByRole('button', { expanded: false }).parentElement as HTMLElement;
+    const contentGrid = header.nextElementSibling as HTMLElement;
     expect(contentGrid.style.gridTemplateRows).toBe('0fr');
   });
 
@@ -341,5 +349,27 @@ describe('RecurringPendingPanel', () => {
     // Both desktop and mobile inputs render (hidden via CSS), so use getAllByLabelText
     const inputs = screen.getAllByLabelText('Monto modificado');
     expect(inputs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should slide the panel up and dismiss it once the animation ends', () => {
+    const { container } = render(<RecurringPendingPanel />);
+
+    fireEvent.click(screen.getByLabelText('common.buttons.dismiss'));
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain('animate-alert-dismiss');
+    // The alert is kept until the slide-up finishes
+    expect(mockDismissAlert).not.toHaveBeenCalled();
+
+    fireEvent.animationEnd(wrapper);
+
+    expect(mockDismissAlert).toHaveBeenCalledWith(ALERT_PANEL.RECURRING_PENDING);
+  });
+
+  it('should render nothing when the alert is dismissed', () => {
+    mockIsDismissed = true;
+    const { container } = render(<RecurringPendingPanel />);
+
+    expect(container.firstChild).toBeNull();
   });
 });

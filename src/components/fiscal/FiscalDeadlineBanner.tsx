@@ -6,8 +6,9 @@
  * Displayed on dashboard. Collapsed by default, toggleable via Zustand.
  */
 
-import { AlertTriangle, Bell, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
-import { FILING_STATUS } from '@/constants/finance';
+import { AlertTriangle, Bell, Calendar } from 'lucide-react';
+import { AlertPanel } from '@/components/ui/AlertPanel';
+import { ALERT_PANEL, ALERT_TONE, FILING_STATUS } from '@/constants/finance';
 import { useUpcomingDeadlines } from '@/hooks/useFiscalDeadlines';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useIsFiscalPanelCollapsed, useToggleFiscalPanel } from '@/stores/useFinanceStore';
@@ -85,52 +86,23 @@ export function FiscalDeadlineBanner({ className }: { className?: string }) {
   const hasOverdue = deadlines.some((d) => d.status === FILING_STATUS.OVERDUE);
 
   return (
-    <div
-      className={cn(
-        'rounded-[var(--radius)] border transition-colors duration-200',
-        hasOverdue ? 'bg-guard-danger/5 border-guard-danger/20' : 'bg-guard-warning/5 border-guard-warning/20',
-        className,
-      )}
+    <AlertPanel
+      id={ALERT_PANEL.FISCAL_DEADLINES}
+      icon={Bell}
+      title={`${t('fiscal.deadlines.banner-title')} (${deadlines.length})`}
+      tone={hasOverdue ? ALERT_TONE.DANGER : ALERT_TONE.WARNING}
+      isCollapsed={isCollapsed}
+      onToggle={togglePanel}
+      className={className}
     >
-      {/* Header (always visible, clickable) */}
-      <button
-        type="button"
-        onClick={togglePanel}
-        className="w-full flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 text-left"
-        aria-expanded={!isCollapsed}
-      >
-        <div className="flex items-center gap-3">
-          <Bell
-            className={cn('h-5 w-5 shrink-0', hasOverdue ? 'text-guard-danger' : 'text-guard-warning')}
-            aria-hidden="true"
+      <div className="space-y-2">
+        {deadlines.map((deadline) => (
+          <DeadlineItem
+            key={`${deadline.modeloType}-${deadline.fiscalYear}-${deadline.fiscalQuarter}`}
+            deadline={deadline}
           />
-          <h3 className="text-sm font-semibold text-foreground">
-            {t('fiscal.deadlines.banner-title')} ({deadlines.length})
-          </h3>
-        </div>
-        {isCollapsed ? (
-          <ChevronDown className="h-4 w-4 text-guard-muted" />
-        ) : (
-          <ChevronUp className="h-4 w-4 text-guard-muted" />
-        )}
-      </button>
-
-      {/* Collapsible content */}
-      <div
-        className={cn('grid', isCollapsed ? 'animate-collapse-close' : 'animate-collapse-open')}
-        style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
-      >
-        <div className="overflow-hidden">
-          <div className="px-4 pb-3 sm:px-5 sm:pb-4 pl-12 sm:pl-14 space-y-2">
-            {deadlines.map((deadline) => (
-              <DeadlineItem
-                key={`${deadline.modeloType}-${deadline.fiscalYear}-${deadline.fiscalQuarter}`}
-                deadline={deadline}
-              />
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
+    </AlertPanel>
   );
 }

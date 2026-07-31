@@ -46,7 +46,11 @@
       "add-first-transaction": "Add first transaction",
       "clear": "Clear",
       "edit": "Edit",
-      "clear-filter": "Clear filter"
+      "clear-filter": "Clear filter",
+      "dismiss": "Dismiss alert"
+    },
+    "alerts": {
+      "dismiss-hint": "Hide until the page is reloaded"
     },
     "labels": {
       "optional": "optional"

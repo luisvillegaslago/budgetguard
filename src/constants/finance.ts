@@ -269,6 +269,24 @@ export const TREND_ALL_SENTINEL = 'all';
 // Default trailing range (months) when no fromMonth is given.
 export const TREND_DEFAULT_RANGE_MONTHS = 11;
 
+// Alert panels shown at the top of the dashboard and the movements page.
+// The id identifies the panel in the per-session dismiss state (see useFinanceStore).
+export const ALERT_PANEL = {
+  PENDING_TRANSACTIONS: 'pending-transactions',
+  FISCAL_DEADLINES: 'fiscal-deadlines',
+  RECURRING_PENDING: 'recurring-pending',
+} as const;
+
+export type AlertPanelId = (typeof ALERT_PANEL)[keyof typeof ALERT_PANEL];
+
+// Visual severity of an alert panel
+export const ALERT_TONE = {
+  WARNING: 'warning',
+  DANGER: 'danger',
+} as const;
+
+export type AlertTone = (typeof ALERT_TONE)[keyof typeof ALERT_TONE];
+
 // Date Range Presets (for category history)
 export const DATE_RANGE_PRESET = {
   THREE_MONTHS: '3m',

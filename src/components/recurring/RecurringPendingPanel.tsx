@@ -6,12 +6,14 @@
  * Appears in the dashboard between BalanceCards and the grid
  */
 
-import { ArrowUpRight, Check, ChevronDown, ChevronUp, Pencil, Repeat, X } from 'lucide-react';
+import { ArrowUpRight, Check, Pencil, Repeat, X } from 'lucide-react';
 import { useState } from 'react';
+import { AlertPanel } from '@/components/ui/AlertPanel';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { ALERT_PANEL } from '@/constants/finance';
 import {
   type ConfirmAllResult,
   useConfirmAllOccurrences,
@@ -364,67 +366,39 @@ export function RecurringPendingPanel() {
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-[var(--radius)] border transition-colors duration-200',
-        'bg-guard-warning/5',
-        'border-guard-warning/20',
-      )}
+    <AlertPanel
+      id={ALERT_PANEL.RECURRING_PENDING}
+      icon={Repeat}
+      title={t('recurring.pending.title-count', { count: data.totalCount })}
+      isCollapsed={isCollapsed}
+      onToggle={togglePanel}
     >
-      {/* Header */}
-      <button
-        type="button"
-        onClick={togglePanel}
-        className="w-full flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 text-left"
-        aria-expanded={!isCollapsed}
-      >
-        <div className="flex items-center gap-3">
-          <Repeat className="h-5 w-5 shrink-0 text-guard-warning" aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-foreground">
-            {t('recurring.pending.title-count', { count: data.totalCount })}
-          </h3>
-        </div>
-        {isCollapsed ? (
-          <ChevronDown className="h-4 w-4 text-guard-muted" />
-        ) : (
-          <ChevronUp className="h-4 w-4 text-guard-muted" />
-        )}
-      </button>
+      <div className="space-y-3">
+        {data.months.map((monthData) => (
+          <MonthSection key={monthData.month} monthData={monthData} />
+        ))}
 
-      {/* Content */}
-      <div
-        className={cn('grid', isCollapsed ? 'animate-collapse-close' : 'animate-collapse-open')}
-        style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
-      >
-        <div className="overflow-hidden">
-          <div className="px-4 pb-3 sm:px-5 sm:pb-4 pl-12 sm:pl-14 space-y-3">
-            {data.months.map((monthData) => (
-              <MonthSection key={monthData.month} monthData={monthData} />
-            ))}
-
-            {/* Global confirm all */}
-            {data.months.length > 1 && (
-              <div className="pt-2 border-t border-guard-warning/20">
-                <button
-                  type="button"
-                  onClick={handleConfirmAll}
-                  disabled={confirmAllMutation.isPending}
-                  aria-busy={confirmAllMutation.isPending}
-                  className={cn(
-                    'w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200',
-                    'bg-guard-success/10 text-guard-success hover:bg-guard-success/20',
-                    'disabled:opacity-50 disabled:cursor-not-allowed',
-                  )}
-                >
-                  {confirmAllMutation.isPending
-                    ? t('recurring.pending.processing')
-                    : t('recurring.pending.confirm-all', { count: data.totalCount })}
-                </button>
-              </div>
-            )}
+        {/* Global confirm all */}
+        {data.months.length > 1 && (
+          <div className="pt-2 border-t border-guard-warning/20">
+            <button
+              type="button"
+              onClick={handleConfirmAll}
+              disabled={confirmAllMutation.isPending}
+              aria-busy={confirmAllMutation.isPending}
+              className={cn(
+                'w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200',
+                'bg-guard-success/10 text-guard-success hover:bg-guard-success/20',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+              )}
+            >
+              {confirmAllMutation.isPending
+                ? t('recurring.pending.processing')
+                : t('recurring.pending.confirm-all', { count: data.totalCount })}
+            </button>
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </AlertPanel>
   );
 }

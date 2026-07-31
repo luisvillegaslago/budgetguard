@@ -108,6 +108,12 @@ module.exports = {
           from: { 'grid-template-rows': '1fr', opacity: '1' },
           to: { 'grid-template-rows': '0fr', opacity: '0' },
         },
+        // Dismissing an alert: slides up while collapsing its row, so the panels
+        // below move into place instead of jumping.
+        'alert-dismiss': {
+          from: { 'grid-template-rows': '1fr', opacity: '1', transform: 'translateY(0)' },
+          to: { 'grid-template-rows': '0fr', opacity: '0', transform: 'translateY(-8px)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -118,6 +124,7 @@ module.exports = {
         'modal-in': 'modal-in 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
         'collapse-open': 'collapse-open 0.25s cubic-bezier(0.25, 1, 0.5, 1) forwards',
         'collapse-close': 'collapse-close 0.2s cubic-bezier(0.25, 1, 0.5, 1) forwards',
+        'alert-dismiss': 'alert-dismiss 0.25s cubic-bezier(0.25, 1, 0.5, 1) forwards',
       },
       transitionTimingFunction: {
         'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',

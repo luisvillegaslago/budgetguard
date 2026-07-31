@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import {
+  type AlertPanelId,
   FILTER_TYPE,
   type FilterType,
   STATUS_FILTER,
@@ -37,6 +38,10 @@ interface FinanceUIState {
   isRecurringPanelCollapsed: boolean;
   isFiscalPanelCollapsed: boolean;
 
+  // Alert panels hidden by the user. Deliberately NOT persisted: dismissing only
+  // hides the alert for the current session, so it comes back on a page reload.
+  dismissedAlerts: AlertPanelId[];
+
   // Sidebar state
   isSidebarOpen: boolean;
 
@@ -57,6 +62,7 @@ interface FinanceUIState {
   togglePendingPanel: () => void;
   toggleRecurringPanel: () => void;
   toggleFiscalPanel: () => void;
+  dismissAlert: (id: AlertPanelId) => void;
   toggleSidebar: () => void;
   toggleGroupByMonth: () => void;
 }
@@ -79,6 +85,7 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   isPendingPanelCollapsed: true,
   isRecurringPanelCollapsed: true,
   isFiscalPanelCollapsed: true,
+  dismissedAlerts: [],
   isSidebarOpen: false,
   groupByMonth: getStoredBoolean('bg-group-by-month', true),
   trendPeriod: TREND_PERIOD.ONE_YEAR,
@@ -122,6 +129,10 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
     set((state) => ({ isFiscalPanelCollapsed: !state.isFiscalPanelCollapsed }));
   },
 
+  dismissAlert: (id) => {
+    set((state) => (state.dismissedAlerts.includes(id) ? state : { dismissedAlerts: [...state.dismissedAlerts, id] }));
+  },
+
   toggleSidebar: () => {
     set((state) => ({ isSidebarOpen: !state.isSidebarOpen }));
   },
@@ -161,6 +172,9 @@ export const useToggleRecurringPanel = () => useFinanceStore((s) => s.toggleRecu
 
 export const useIsFiscalPanelCollapsed = () => useFinanceStore((s) => s.isFiscalPanelCollapsed);
 export const useToggleFiscalPanel = () => useFinanceStore((s) => s.toggleFiscalPanel);
+
+export const useIsAlertDismissed = (id: AlertPanelId) => useFinanceStore((s) => s.dismissedAlerts.includes(id));
+export const useDismissAlert = () => useFinanceStore((s) => s.dismissAlert);
 
 export const useSidebarOpen = () => useFinanceStore((s) => s.isSidebarOpen);
 export const useToggleSidebar = () => useFinanceStore((s) => s.toggleSidebar);

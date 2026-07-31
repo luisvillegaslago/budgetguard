@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react';
+import { AlertsSection } from '@/components/alerts/AlertsSection';
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
 import { CashFlowTrendChart } from '@/components/dashboard/charts/CashFlowTrendChart';
 import { CategoryDistributionCard } from '@/components/dashboard/charts/CategoryDistributionCard';
@@ -68,6 +69,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="space-y-8">
+        {/* Alerts first: pending transactions, fiscal deadlines, recurring expenses */}
+        <AlertsSection />
+
         {/* Active trip banner */}
         <ActiveTripBanner onAddExpense={setTripExpenseTarget} />
 
