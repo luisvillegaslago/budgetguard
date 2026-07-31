@@ -280,9 +280,12 @@ export function TransactionForm({
         </fieldset>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Hidden categoryId + voucherId fields for form validation */}
-          <input type="hidden" {...register('categoryId', { valueAsNumber: true })} />
-          <input type="hidden" {...register('voucherId', { valueAsNumber: true })} />
+          {/* Hidden categoryId + voucherId fields for form validation.
+              These inputs never hold text — their value is driven by setValue — so they stay
+              empty. valueAsNumber would turn that '' into NaN, which the schema rejects while
+              neither field renders an error: the submit would fail in complete silence. */}
+          <input type="hidden" {...register('categoryId', { setValueAs: toNullableNumber })} />
+          <input type="hidden" {...register('voucherId', { setValueAs: toNullableNumber })} />
 
           {/* Amount + Date (side by side on desktop) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -599,7 +602,7 @@ export function TransactionForm({
                     onChange={(companyId) => setValue('companyId', companyId, { shouldValidate: true })}
                     disabled={isSubmitting}
                   />
-                  <input type="hidden" {...register('companyId', { valueAsNumber: true })} />
+                  <input type="hidden" {...register('companyId', { setValueAs: toNullableNumber })} />
                 </div>
 
                 <div>
