@@ -1983,11 +1983,17 @@
       "bank-fee-category-not-found": "No existe la subcategoría 'Comisiones bancarias'. Créala bajo 'Trabajo' antes de registrar comisiones bancarias."
     },
     "fiscal": {
+      "unsupported-file-type": "Formato de archivo no soportado. Sube un PDF o una imagen (JPG, PNG, GIF o WEBP).",
       "file-required": "Se requiere un archivo",
       "metadata-required": "Se requieren los metadatos del documento",
       "extraction-failed": "No se pudo analizar el documento",
       "detection-failed": "No se ha podido analizar el documento",
       "download-failed": "No se pudo descargar el documento"
+    },
+    "skydive": {
+      "not-voucher-consumption": "Esta transacción no es un consumo de bono",
+      "not-skydive-consumption": "Esta transacción no es un consumo de paracaidismo",
+      "category-not-reconcilable": "La categoría de esta transacción no se puede reconciliar con una actividad"
     },
     "crypto": {
       "unsafe-permissions": "La API key tiene permisos peligrosos. Crea una nueva key con SOLO \"Enable Reading\".",

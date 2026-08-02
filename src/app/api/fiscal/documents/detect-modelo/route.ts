@@ -5,11 +5,12 @@
  * upload form before the real upload happens.
  */
 
-import { NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
+import { VisionApiError } from '@/services/ocr/anthropicVision';
 import { detectModelo } from '@/services/ocr/ModeloDetector';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
+import { visionFailureResponse } from '@/utils/visionErrorResponse';
 
 export const POST = withApiHandler(async (request) => {
   // Scope the route to an authenticated user even though nothing is persisted
@@ -22,19 +23,20 @@ export const POST = withApiHandler(async (request) => {
     return validationError({ file: [API_ERROR.FISCAL.FILE_REQUIRED] });
   }
 
+  const buffer = Buffer.from(await file.arrayBuffer());
+
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const detected = await detectModelo(buffer, file.type || 'application/octet-stream', file.name);
+    // The vision bridge resolves the media type from the file's own bytes and
+    // rejects unsupported formats with a ValidationError (400)
+    const detected = await detectModelo(buffer, file.type, file.name);
 
     return { data: detected };
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    // biome-ignore lint/suspicious/noConsole: OCR error logging
-    console.error('[OCR] Modelo detection failed:', message);
+    if (!(error instanceof VisionApiError)) throw error;
 
-    let errorCode: string = API_ERROR.FISCAL.DETECTION_FAILED;
-    if (message.includes('credit balance')) errorCode = 'api_credits_exhausted';
-
-    return NextResponse.json({ success: false, error: errorCode }, { status: 502 });
+    return visionFailureResponse(error, {
+      fallbackCode: API_ERROR.FISCAL.DETECTION_FAILED,
+      logLabel: '[OCR] Modelo detection failed',
+    });
   }
 }, 'POST /api/fiscal/documents/detect-modelo');

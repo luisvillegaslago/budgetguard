@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { API_ERROR } from '@/constants/finance';
+import { API_ERROR, OCR_ERROR_CODE } from '@/constants/finance';
 import type { Locale } from '@/libs/i18n';
 import { DEFAULT_LOCALE, isValidLocale } from '@/libs/i18n';
 import {
@@ -19,9 +19,11 @@ import {
   updateDocumentAfterLink,
   updateDocumentOcrFields,
 } from '@/services/database/FiscalDocumentRepository';
+import { VisionApiError } from '@/services/ocr/anthropicVision';
 import { extractFromDocument } from '@/services/ocr/DocumentExtractor';
 import { notFound, parseIdParam, withApiHandler } from '@/utils/apiHandler';
 import { fetchBlob } from '@/utils/blobFetch';
+import { visionFailureResponse } from '@/utils/visionErrorResponse';
 
 export const POST = withApiHandler(async (request, { params }) => {
   const { id } = await params;
@@ -88,15 +90,12 @@ export const POST = withApiHandler(async (request, { params }) => {
       },
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    // biome-ignore lint/suspicious/noConsole: OCR error logging
-    console.error(`[OCR] Extraction failed for document ${documentId}:`, message);
+    if (!(error instanceof VisionApiError)) throw error;
 
-    let errorCode: string = API_ERROR.FISCAL.EXTRACTION_FAILED;
-    if (message.includes('credit balance')) errorCode = 'api_credits_exhausted';
-    else if (message.includes('validation failed') || message.includes('totalAmountEuros'))
-      errorCode = 'unrecognizable_amount';
-
-    return NextResponse.json({ success: false, error: errorCode }, { status: 502 });
+    return visionFailureResponse(error, {
+      fallbackCode: API_ERROR.FISCAL.EXTRACTION_FAILED,
+      invalidResponseCode: OCR_ERROR_CODE.UNRECOGNIZABLE_AMOUNT,
+      logLabel: `[OCR] Extraction failed for document ${documentId}`,
+    });
   }
 }, 'POST /api/fiscal/documents/[id]/extract');

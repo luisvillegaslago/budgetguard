@@ -10,7 +10,7 @@ import { Check, Loader2, Upload, X, Zap } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { FiscalExtractionConfirm } from '@/components/fiscal/FiscalExtractionConfirm';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS } from '@/constants/finance';
+import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, OCR_ERROR_CODE } from '@/constants/finance';
 import { useDeleteFiscalDocument, useExtractDocument, useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { ExtractedInvoiceData } from '@/types/finance';
@@ -88,8 +88,8 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
           const code = ocrErr instanceof Error ? ocrErr.message : '';
           const errorMessages: Record<string, string> = {
             extraction_failed: t('fiscal.extraction.errors.extraction-failed'),
-            api_credits_exhausted: t('fiscal.extraction.errors.api-credits'),
-            unrecognizable_amount: t('fiscal.extraction.errors.unrecognizable'),
+            [OCR_ERROR_CODE.API_CREDITS_EXHAUSTED]: t('fiscal.extraction.errors.api-credits'),
+            [OCR_ERROR_CODE.UNRECOGNIZABLE_AMOUNT]: t('fiscal.extraction.errors.unrecognizable'),
           };
           setError(errorMessages[code] ?? t('fiscal.extraction.errors.extraction-failed'));
           return;

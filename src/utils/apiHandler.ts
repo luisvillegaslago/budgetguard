@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { AuthError } from '@/libs/auth';
+import { NotFoundError, ValidationError } from '@/utils/apiErrors';
 
 type NextRouteParams = { params: Promise<Record<string, string | undefined>> };
 
@@ -25,6 +26,7 @@ const EMPTY_CONTEXT: NextRouteParams = { params: Promise.resolve({}) };
  * - An object `{ data, status?, meta? }` which gets wrapped in `{ success: true, data, meta? }`
  *
  * AuthError is automatically caught and returns 401.
+ * NotFoundError returns 404 and ValidationError returns 400, both with their i18n key.
  * Unhandled errors are logged and return 500.
  *
  * @param handler - The route handler logic
@@ -52,6 +54,13 @@ export function withApiHandler(handler: ApiHandler, routeLabel: string) {
     } catch (error) {
       if (error instanceof AuthError) {
         return NextResponse.json({ error: API_ERROR.UNAUTHORIZED }, { status: 401 });
+      }
+      // Caller faults: expected outcomes, not server errors — no 500, no error log
+      if (error instanceof NotFoundError) {
+        return notFound(error.errorKey);
+      }
+      if (error instanceof ValidationError) {
+        return NextResponse.json({ success: false, error: error.errorKey }, { status: 400 });
       }
       // biome-ignore lint/suspicious/noConsole: Centralized error logging for API routes
       console.error(`${routeLabel} error:`, error);

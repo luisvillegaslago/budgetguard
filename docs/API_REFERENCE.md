@@ -2564,8 +2564,11 @@ The client calls this endpoint only when `parseDocumentFilename()` (`src/utils/f
 | Status | Code | Description |
 |--------|------|-------------|
 | 400 | `api-error.fiscal.file-required` | No `file` field in the form data |
-| 502 | `api-error.fiscal.detection-failed` | Generic detection error |
+| 400 | `api-error.fiscal.unsupported-file-type` | Not a PDF or a supported image (JPEG, PNG, GIF, WEBP) |
+| 502 | `api-error.fiscal.detection-failed` | Provider unavailable, rate-limited, or unusable model response |
 | 502 | `api_credits_exhausted` | Anthropic API quota exceeded |
+
+The media type is resolved from the file's own magic bytes, so an upload whose `Content-Type` is missing or wrong is still analysed correctly — a PDF is never sent to the API as an image. Only provider failures answer 502; any other fault is a server error (500).
 
 ---
 

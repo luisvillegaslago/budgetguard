@@ -4,10 +4,11 @@
  * All monetary amounts are converted from euros to cents via Zod .transform().
  */
 
+import { VISION_FAILURE } from '@/constants/finance';
 import type { Locale } from '@/libs/i18n';
 import { DEFAULT_LOCALE } from '@/libs/i18n';
 import { ExtractedInvoiceRawSchema } from '@/schemas/fiscal-document';
-import { callVisionJson } from '@/services/ocr/anthropicVision';
+import { callVisionJson, VisionApiError } from '@/services/ocr/anthropicVision';
 import type { ExtractedInvoiceData } from '@/types/finance';
 
 const LOCALE_TO_LANGUAGE: Record<Locale, string> = {
@@ -59,7 +60,7 @@ export async function extractFromDocument(
   if (!validated.success) {
     // biome-ignore lint/suspicious/noConsole: OCR extraction logging
     console.error(`[OCR] Validation failed for ${fileName}:`, validated.error.message);
-    throw new Error(`OCR data validation failed: ${validated.error.message}`);
+    throw new VisionApiError(VISION_FAILURE.INVALID_RESPONSE, `OCR data validation failed: ${validated.error.message}`);
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

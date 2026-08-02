@@ -241,6 +241,23 @@ export const RECONCILE_ACTION = {
   ALREADY_LINKED: 'already_linked',
 } as const;
 
+// Why a vision/OCR call failed — the provider's fault, never ours
+export const VISION_FAILURE = {
+  CREDITS_EXHAUSTED: 'credits_exhausted',
+  RATE_LIMITED: 'rate_limited',
+  UNAVAILABLE: 'unavailable',
+  INVALID_RESPONSE: 'invalid_response',
+} as const;
+
+export type VisionFailureReason = (typeof VISION_FAILURE)[keyof typeof VISION_FAILURE];
+
+// Wire codes the OCR endpoints return on a provider failure — the upload UI
+// maps each one to its own message, so they are not plain i18n keys
+export const OCR_ERROR_CODE = {
+  API_CREDITS_EXHAUSTED: 'api_credits_exhausted',
+  UNRECOGNIZABLE_AMOUNT: 'unrecognizable_amount',
+} as const;
+
 // Well-known Bank Fee Subcategory (under "Trabajo")
 // Used when marking an invoice as paid with a bank transfer fee — auto-creates
 // a 100% deductible expense for fiscal reporting (Modelo 130 / Modelo 100).
@@ -634,11 +651,17 @@ export const API_ERROR = {
     BANK_FEE_CATEGORY_NOT_FOUND: 'api-error.invoice.bank-fee-category-not-found',
   },
   FISCAL: {
+    UNSUPPORTED_FILE_TYPE: 'api-error.fiscal.unsupported-file-type',
     FILE_REQUIRED: 'api-error.fiscal.file-required',
     METADATA_REQUIRED: 'api-error.fiscal.metadata-required',
     EXTRACTION_FAILED: 'api-error.fiscal.extraction-failed',
     DETECTION_FAILED: 'api-error.fiscal.detection-failed',
     DOWNLOAD_FAILED: 'api-error.fiscal.download-failed',
+  },
+  SKYDIVE: {
+    NOT_VOUCHER_CONSUMPTION: 'api-error.skydive.not-voucher-consumption',
+    NOT_SKYDIVE_CONSUMPTION: 'api-error.skydive.not-skydive-consumption',
+    CATEGORY_NOT_RECONCILABLE: 'api-error.skydive.category-not-reconcilable',
   },
   CRYPTO: {
     UNSAFE_PERMISSIONS: 'api-error.crypto.unsafe-permissions',

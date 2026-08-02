@@ -4,6 +4,7 @@
  */
 
 import {
+  API_ERROR,
   RECONCILE_ACTION,
   SHARED_EXPENSE,
   SKYDIVE_ACTIVITY_TYPE,
@@ -24,6 +25,7 @@ import type {
   SkydiveStats,
   TunnelSession,
 } from '@/types/skydive';
+import { NotFoundError, ValidationError } from '@/utils/apiErrors';
 import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
 import { getVoucherById } from './VoucherRepository';
@@ -1314,8 +1316,9 @@ export async function getUnlinkedSkydiveConsumptions(
  * activity of its type, no change is made. Otherwise an existing unlinked
  * activity on the same date is linked, or a new activity is created against the
  * SAME transaction (never re-consuming the voucher). All steps run in one
- * BEGIN/COMMIT. Throws when the transaction is missing or is not a skydive
- * voucher consumption (the route maps that to 400/500).
+ * BEGIN/COMMIT. Throws NotFoundError when the transaction is missing and
+ * ValidationError when it is not a skydive voucher consumption; withApiHandler
+ * maps those to 404/400.
  */
 export async function reconcileConsumptionToActivity(transactionId: number): Promise<ReconcileConsumptionResult> {
   const userId = await getUserIdOrThrow();
@@ -1333,16 +1336,29 @@ export async function reconcileConsumptionToActivity(transactionId: number): Pro
   );
 
   const tx = txRows[0];
-  if (!tx) throw new Error(`Transaction ${transactionId} not found`);
-  if (tx.VoucherID == null) throw new Error(`Transaction ${transactionId} is not a voucher consumption`);
+  if (!tx) {
+    throw new NotFoundError(API_ERROR.NOT_FOUND.TRANSACTION, `Transaction ${transactionId} not found`);
+  }
+  if (tx.VoucherID == null) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.NOT_VOUCHER_CONSUMPTION,
+      `Transaction ${transactionId} is not a voucher consumption`,
+    );
+  }
   if (tx.ParentCategoryName !== SKYDIVE_CATEGORY.NAME) {
-    throw new Error(`Transaction ${transactionId} is not a skydiving consumption`);
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.NOT_SKYDIVE_CONSUMPTION,
+      `Transaction ${transactionId} is not a skydiving consumption`,
+    );
   }
 
   const isTunnel = tx.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL;
   const isJump = tx.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS;
   if (!isTunnel && !isJump) {
-    throw new Error(`Transaction ${transactionId} category "${tx.CategoryName}" is not reconcilable`);
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.CATEGORY_NOT_RECONCILABLE,
+      `Transaction ${transactionId} category "${tx.CategoryName}" is not reconcilable`,
+    );
   }
 
   // 2. Resolve the activity type and shared derived values.

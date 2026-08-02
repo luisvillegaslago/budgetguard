@@ -1983,11 +1983,17 @@
       "bank-fee-category-not-found": "Subcategory 'Comisiones bancarias' not found. Create it under 'Trabajo' before recording bank fees."
     },
     "fiscal": {
+      "unsupported-file-type": "Unsupported file type. Upload a PDF or an image (JPG, PNG, GIF or WEBP).",
       "file-required": "A file is required",
       "metadata-required": "Document metadata is required",
       "extraction-failed": "Could not analyze the document",
       "detection-failed": "Could not analyse the document",
       "download-failed": "Could not download the document"
+    },
+    "skydive": {
+      "not-voucher-consumption": "This transaction is not a voucher consumption",
+      "not-skydive-consumption": "This transaction is not a skydiving consumption",
+      "category-not-reconcilable": "This transaction's category cannot be reconciled to an activity"
     },
     "crypto": {
       "unsafe-permissions": "The API key has unsafe permissions. Create a new key with \"Enable Reading\" only.",

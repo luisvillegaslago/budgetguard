@@ -7,7 +7,7 @@
  *  - non-skydive transaction -> throws
  */
 
-import { RECONCILE_ACTION, SKYDIVE_ACTIVITY_TYPE, SKYDIVE_CATEGORY } from '@/constants/finance';
+import { API_ERROR, RECONCILE_ACTION, SKYDIVE_ACTIVITY_TYPE, SKYDIVE_CATEGORY } from '@/constants/finance';
 
 // ---- Shape of the row returned by the initial consumption-transaction load ----
 interface ConsumptionTxRow {
@@ -89,7 +89,18 @@ jest.mock('@/services/database/connection', () => ({
   getPool: jest.fn(() => ({ connect: jest.fn(async () => fakeClient) })),
 }));
 
+jest.mock('next/server', () => ({
+  NextResponse: {
+    json: (data: unknown, options?: { status?: number }) => ({
+      status: options?.status ?? 200,
+      json: async () => data,
+    }),
+  },
+}));
+
+import { POST as RECONCILE_POST } from '@/app/api/skydiving/reconcile-voucher/route';
 import { reconcileConsumptionToActivity } from '@/services/database/SkydiveRepository';
+import { NotFoundError, ValidationError } from '@/utils/apiErrors';
 
 const tunnelTx: ConsumptionTxRow = {
   TransactionID: 99,
@@ -171,6 +182,86 @@ describe('reconcileConsumptionToActivity — validation', () => {
       ParentCategoryName: 'Ocio',
     };
 
-    await expect(reconcileConsumptionToActivity(99)).rejects.toThrow();
+    await expect(reconcileConsumptionToActivity(99)).rejects.toThrow(ValidationError);
+  });
+
+  it('throws NotFoundError when the transaction does not exist', async () => {
+    txRowToReturn = null;
+
+    await expect(reconcileConsumptionToActivity(99)).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws ValidationError when the transaction is not a voucher consumption', async () => {
+    txRowToReturn = { ...tunnelTx, VoucherID: null };
+
+    await expect(reconcileConsumptionToActivity(99)).rejects.toThrow(ValidationError);
+  });
+
+  it('throws ValidationError for a skydiving category that is not reconcilable', async () => {
+    txRowToReturn = { ...tunnelTx, CategoryName: 'Material' };
+
+    await expect(reconcileConsumptionToActivity(99)).rejects.toThrow(ValidationError);
+  });
+});
+
+// The user's fault must never surface as a 500 — see POST /api/skydiving/reconcile-voucher
+describe('POST /api/skydiving/reconcile-voucher — status codes', () => {
+  async function callRoute(body: Record<string, unknown>): Promise<{ status: number; error?: string }> {
+    const request = { json: async () => body };
+    const response = await RECONCILE_POST(request as never);
+    const payload = (await response.json()) as { error?: string };
+    return { status: response.status, error: payload.error };
+  }
+
+  it('returns 404 when the transaction does not exist', async () => {
+    txRowToReturn = null;
+
+    const { status, error } = await callRoute({ transactionId: 99 });
+
+    expect(status).toBe(404);
+    expect(error).toBe(API_ERROR.NOT_FOUND.TRANSACTION);
+  });
+
+  it('returns 400 when the transaction is not a voucher consumption', async () => {
+    txRowToReturn = { ...tunnelTx, VoucherID: null };
+
+    const { status, error } = await callRoute({ transactionId: 99 });
+
+    expect(status).toBe(400);
+    expect(error).toBe(API_ERROR.SKYDIVE.NOT_VOUCHER_CONSUMPTION);
+  });
+
+  it('returns 400 when the transaction is not a skydiving consumption', async () => {
+    txRowToReturn = { ...tunnelTx, CategoryName: 'Restaurantes', ParentCategoryName: 'Ocio' };
+
+    const { status, error } = await callRoute({ transactionId: 99 });
+
+    expect(status).toBe(400);
+    expect(error).toBe(API_ERROR.SKYDIVE.NOT_SKYDIVE_CONSUMPTION);
+  });
+
+  it('returns 400 for a skydiving category that cannot be reconciled', async () => {
+    txRowToReturn = { ...tunnelTx, CategoryName: 'Material' };
+
+    const { status, error } = await callRoute({ transactionId: 99 });
+
+    expect(status).toBe(400);
+    expect(error).toBe(API_ERROR.SKYDIVE.CATEGORY_NOT_RECONCILABLE);
+  });
+
+  it('returns 200 with the reconcile result on success', async () => {
+    txRowToReturn = tunnelTx;
+
+    const request = { json: async () => ({ transactionId: 99 }) };
+    const response = await RECONCILE_POST(request as never);
+    const payload = (await response.json()) as {
+      success: boolean;
+      data: { action: string; id: number };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.success).toBe(true);
+    expect(payload.data.action).toBe(RECONCILE_ACTION.CREATED);
+    expect(payload.data.id).toBe(CREATED_SESSION_ID);
   });
 });

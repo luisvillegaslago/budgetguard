@@ -5,8 +5,9 @@
  * The result amount is converted from euros to cents via Zod .transform().
  */
 
+import { VISION_FAILURE } from '@/constants/finance';
 import { DetectedModeloRawSchema } from '@/schemas/fiscal-document';
-import { callVisionJson } from '@/services/ocr/anthropicVision';
+import { callVisionJson, VisionApiError } from '@/services/ocr/anthropicVision';
 import type { DetectedModeloData } from '@/types/finance';
 
 const DETECTION_PROMPT = `You are a Spanish tax form (AEAT) classification assistant. Analyze this document and detect which modelo it is.
@@ -48,7 +49,7 @@ export async function detectModelo(
   if (!validated.success) {
     // biome-ignore lint/suspicious/noConsole: OCR detection logging
     console.error(`[OCR] Modelo detection validation failed for ${fileName}:`, validated.error.message);
-    throw new Error(`OCR data validation failed: ${validated.error.message}`);
+    throw new VisionApiError(VISION_FAILURE.INVALID_RESPONSE, `OCR data validation failed: ${validated.error.message}`);
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

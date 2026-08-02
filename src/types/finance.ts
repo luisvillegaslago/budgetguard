@@ -35,6 +35,7 @@ export type {
   TransactionType,
   TripStatus,
   VatRate,
+  VisionFailureReason,
   VoucherStatus,
 } from '@/constants/finance';
 
