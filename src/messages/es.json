@@ -713,7 +713,9 @@
         "name": "Nombre del viaje",
         "name-placeholder": "Ej: Sierra Nevada 2026",
         "start-date": "Fecha de inicio",
-        "end-date": "Fecha de fin"
+        "end-date": "Fecha de fin",
+        "shared": "Viaje compartido (÷2)",
+        "shared-hint": "Los gastos nuevos de este viaje se marcarán como compartidos por defecto"
       },
       "submit": "Crear Viaje",
       "saving": "Creando..."

@@ -61,7 +61,7 @@ export const SYNCABLE_TABLES: TableConfig[] = [
     pk: 'TripID',
     descriptionColumn: 'Name',
     hasUpdatedAt: true,
-    columns: ['TripID', 'Name', 'StartDate', 'EndDate', 'UserID', 'CreatedAt', 'UpdatedAt'],
+    columns: ['TripID', 'Name', 'StartDate', 'EndDate', 'IsShared', 'UserID', 'CreatedAt', 'UpdatedAt'],
   },
   {
     table: 'TransactionGroups',

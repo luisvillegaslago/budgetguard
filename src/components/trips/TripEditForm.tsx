@@ -17,6 +17,7 @@ import { useUpdateTrip } from '@/hooks/useTrips';
 import { type UpdateTripInput, UpdateTripSchema } from '@/schemas/trip';
 import type { Trip } from '@/types/finance';
 import { cn } from '@/utils/helpers';
+import { TripSharedToggle } from './TripSharedToggle';
 
 interface TripEditFormProps {
   trip: Trip;
@@ -41,6 +42,7 @@ export function TripEditForm({ trip, onClose }: TripEditFormProps) {
       name: trip.name,
       startDate: trip.startDate ?? '',
       endDate: trip.endDate ?? '',
+      isShared: trip.isShared,
     } as unknown as DefaultValues<UpdateTripInput>,
   });
 
@@ -151,6 +153,9 @@ export function TripEditForm({ trip, onClose }: TripEditFormProps) {
               )}
             </div>
           </div>
+
+          {/* Shared Trip Toggle */}
+          <TripSharedToggle id="trip-edit-is-shared" registration={register('isShared')} />
 
           {/* Error Message — surfaces the specific translated cause (conflict, validation) */}
           {updateTrip.isError && (

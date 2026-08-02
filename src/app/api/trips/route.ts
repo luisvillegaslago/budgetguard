@@ -24,6 +24,7 @@ export const POST = withApiHandler(async (request) => {
     validation.data.name,
     validation.data.startDate.toISOString().split('T')[0] ?? '',
     validation.data.endDate.toISOString().split('T')[0] ?? '',
+    validation.data.isShared,
   );
 
   return { data: trip, status: 201 };

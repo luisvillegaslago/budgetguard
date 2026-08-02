@@ -8,8 +8,8 @@ import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import type { Trip, TripDetail, TripDisplay } from '@/types/finance';
 
 // Captured data for assertions
-let capturedCreateData: { name: string; startDate: string; endDate: string } | null = null;
-let capturedUpdateData: { tripId: number; params: Record<string, string> } | null = null;
+let capturedCreateData: { name: string; startDate: string; endDate: string; isShared: boolean } | null = null;
+let capturedUpdateData: { tripId: number; params: Record<string, string | boolean> } | null = null;
 let capturedDeleteId: number | null = null;
 
 const mockTrip: Trip = {
@@ -17,6 +17,7 @@ const mockTrip: Trip = {
   name: 'Sierra Nevada 2025',
   startDate: '2025-10-15',
   endDate: '2025-10-17',
+  isShared: false,
   createdAt: '2025-10-01T10:00:00.000Z',
   updatedAt: '2025-10-01T10:00:00.000Z',
 };
@@ -132,11 +133,11 @@ jest.mock('@/services/database/TripRepository', () => ({
     if (id === 1) return mockTripDetail;
     return null;
   }),
-  createTrip: jest.fn(async (name: string, startDate: string, endDate: string) => {
-    capturedCreateData = { name, startDate, endDate };
-    return { ...mockTrip, name, startDate, endDate };
+  createTrip: jest.fn(async (name: string, startDate: string, endDate: string, isShared: boolean) => {
+    capturedCreateData = { name, startDate, endDate, isShared };
+    return { ...mockTrip, name, startDate, endDate, isShared };
   }),
-  updateTrip: jest.fn(async (tripId: number, params: Record<string, string>) => {
+  updateTrip: jest.fn(async (tripId: number, params: Record<string, string | boolean>) => {
     capturedUpdateData = { tripId, params };
     if (tripId === 1) return { ...mockTrip, ...params };
     return null;
@@ -219,6 +220,22 @@ describe('POST /api/trips', () => {
     expect(capturedCreateData?.name).toBe('Madrid Weekend');
     expect(capturedCreateData?.startDate).toBe('2025-11-01');
     expect(capturedCreateData?.endDate).toBe('2025-11-03');
+    expect(capturedCreateData?.isShared).toBe(false);
+  });
+
+  it('should create a shared trip when isShared is true', async () => {
+    const request = createMockRequest({
+      name: 'Madrid Weekend',
+      startDate: '2025-11-01',
+      endDate: '2025-11-03',
+      isShared: true,
+    });
+    const response = await POST_TRIP(request as any);
+    const data = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(data.data.isShared).toBe(true);
+    expect(capturedCreateData?.isShared).toBe(true);
   });
 
   it('should reject empty name', async () => {
@@ -327,6 +344,24 @@ describe('PATCH /api/trips/[id]', () => {
     expect(data.success).toBe(true);
     expect(capturedUpdateData?.params.startDate).toBe('2025-12-01');
     expect(capturedUpdateData?.params.endDate).toBe('2025-12-05');
+  });
+
+  it('should update the shared flag', async () => {
+    const request = createMockRequest({ isShared: true });
+    const response = await PATCH_TRIP(request as any, createMockParams('1'));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.data.isShared).toBe(true);
+    expect(capturedUpdateData?.params.isShared).toBe(true);
+  });
+
+  it('should allow disabling the shared flag', async () => {
+    const request = createMockRequest({ isShared: false });
+    const response = await PATCH_TRIP(request as any, createMockParams('1'));
+
+    expect(response.status).toBe(200);
+    expect(capturedUpdateData?.params.isShared).toBe(false);
   });
 
   it('should return 404 for non-existent trip', async () => {

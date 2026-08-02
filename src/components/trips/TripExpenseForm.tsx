@@ -27,9 +27,17 @@ interface TripExpenseFormProps {
   onClose: () => void;
   transaction?: Transaction;
   tripStartDate?: string | null;
+  /** Shared trip: new expenses start with the shared (÷2) option enabled */
+  tripIsShared?: boolean;
 }
 
-export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }: TripExpenseFormProps) {
+export function TripExpenseForm({
+  tripId,
+  onClose,
+  transaction,
+  tripStartDate,
+  tripIsShared = false,
+}: TripExpenseFormProps) {
   const { t } = useTranslate();
   const toast = useToast();
   const isEditing = !!transaction;
@@ -60,7 +68,7 @@ export function TripExpenseForm({ tripId, onClose, transaction, tripStartDate }:
       : {
           transactionDate: defaultDate,
           description: '',
-          isShared: false,
+          isShared: tripIsShared,
         },
   });
 

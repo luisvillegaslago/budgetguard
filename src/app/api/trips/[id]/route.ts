@@ -31,11 +31,12 @@ export const PATCH = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(UpdateTripSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const updateParams: { name?: string; startDate?: string; endDate?: string } = {};
+  const updateParams: { name?: string; startDate?: string; endDate?: string; isShared?: boolean } = {};
 
   if (validation.data.name) updateParams.name = validation.data.name;
   if (validation.data.startDate) updateParams.startDate = validation.data.startDate.toISOString().split('T')[0] ?? '';
   if (validation.data.endDate) updateParams.endDate = validation.data.endDate.toISOString().split('T')[0] ?? '';
+  if (validation.data.isShared !== undefined) updateParams.isShared = validation.data.isShared;
 
   if (Object.keys(updateParams).length === 0) {
     return validationError({ _: [API_ERROR.VALIDATION.NAME_REQUIRED] });

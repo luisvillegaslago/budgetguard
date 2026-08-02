@@ -1297,11 +1297,13 @@ Create a new trip.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Trip name (1-100 chars) |
+| `isShared` | boolean | No | Shared trip — new expenses default to shared (÷2). Defaults to `false` |
 
 **Example Request:**
 ```json
 {
-  "name": "Sierra Nevada 2025"
+  "name": "Sierra Nevada 2025",
+  "isShared": true
 }
 ```
 
@@ -1375,7 +1377,7 @@ Get a single trip with full expense details and category summary.
 
 #### `PATCH /api/trips/:id`
 
-Update a trip's name.
+Update a trip's name, dates or shared flag.
 
 **Path Parameters:**
 
@@ -1383,11 +1385,14 @@ Update a trip's name.
 |-----------|------|-------------|
 | `id` | number | Trip ID |
 
-**Request Body:**
+**Request Body:** (at least one field required)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | New trip name (1-100 chars) |
+| `name` | string | No | New trip name (1-100 chars) |
+| `startDate` | string | No | New start date (ISO date) |
+| `endDate` | string | No | New end date (ISO date, >= `startDate`) |
+| `isShared` | boolean | No | Shared trip — new expenses default to shared (÷2) |
 
 **Example Request:**
 ```json

@@ -14,6 +14,9 @@ function toISOString(val: Date | string): string {
   return val.toISOString();
 }
 
+/** Shared column list for every query that returns a full trip row */
+const TRIP_COLUMNS = '"TripID", "Name", "StartDate", "EndDate", "IsShared", "CreatedAt", "UpdatedAt"';
+
 // ============================================================
 // Row types
 // ============================================================
@@ -23,6 +26,7 @@ interface TripRow {
   Name: string;
   StartDate: Date | null;
   EndDate: Date | null;
+  IsShared: boolean;
   CreatedAt: Date;
   UpdatedAt: Date;
 }
@@ -86,6 +90,7 @@ function rowToTrip(row: TripRow): Trip {
     name: row.Name,
     startDate: row.StartDate ? toDateString(row.StartDate) : null,
     endDate: row.EndDate ? toDateString(row.EndDate) : null,
+    isShared: Boolean(row.IsShared),
     createdAt: toISOString(row.CreatedAt),
     updatedAt: toISOString(row.UpdatedAt),
   };
@@ -158,7 +163,7 @@ export async function getAllTrips(): Promise<TripDisplay[]> {
 
   const tripsResult = await query<TripAggregateRow>(
     `SELECT
-      tr."TripID", tr."Name", tr."StartDate", tr."EndDate",
+      tr."TripID", tr."Name", tr."StartDate", tr."EndDate", tr."IsShared",
       tr."CreatedAt", tr."UpdatedAt",
       COALESCE(agg."ExpenseCount", 0) AS "ExpenseCount",
       COALESCE(agg."TotalCents", 0) AS "TotalCents"
@@ -220,7 +225,7 @@ export async function getTripById(tripId: number): Promise<TripDetail | null> {
   const userId = await getUserIdOrThrow();
 
   const tripResult = await query<TripRow>(
-    `SELECT "TripID", "Name", "StartDate", "EndDate", "CreatedAt", "UpdatedAt"
+    `SELECT ${TRIP_COLUMNS}
     FROM "Trips"
     WHERE "TripID" = $1 AND "UserID" = $2`,
     [tripId, userId],
@@ -281,14 +286,19 @@ export async function getTripById(tripId: number): Promise<TripDetail | null> {
 /**
  * Create a new trip (user-scoped)
  */
-export async function createTrip(name: string, startDate: string, endDate: string): Promise<Trip> {
+export async function createTrip(
+  name: string,
+  startDate: string,
+  endDate: string,
+  isShared: boolean = false,
+): Promise<Trip> {
   const userId = await getUserIdOrThrow();
 
   const result = await query<TripRow>(
-    `INSERT INTO "Trips" ("Name", "StartDate", "EndDate", "UserID")
-    VALUES ($1, $2, $3, $4)
-    RETURNING "TripID", "Name", "StartDate", "EndDate", "CreatedAt", "UpdatedAt"`,
-    [name, startDate, endDate, userId],
+    `INSERT INTO "Trips" ("Name", "StartDate", "EndDate", "IsShared", "UserID")
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING ${TRIP_COLUMNS}`,
+    [name, startDate, endDate, isShared, userId],
   );
 
   const row = result[0];
@@ -301,6 +311,7 @@ interface UpdateTripParams {
   name?: string;
   startDate?: string;
   endDate?: string;
+  isShared?: boolean;
 }
 
 /**
@@ -310,7 +321,7 @@ export async function updateTrip(tripId: number, params: UpdateTripParams): Prom
   const userId = await getUserIdOrThrow();
 
   const setClauses: string[] = [];
-  const values: (string | number)[] = [];
+  const values: (string | number | boolean)[] = [];
   let paramIndex = 1;
 
   if (params.name !== undefined) {
@@ -325,6 +336,10 @@ export async function updateTrip(tripId: number, params: UpdateTripParams): Prom
     setClauses.push(`"EndDate" = $${paramIndex++}`);
     values.push(params.endDate);
   }
+  if (params.isShared !== undefined) {
+    setClauses.push(`"IsShared" = $${paramIndex++}`);
+    values.push(params.isShared);
+  }
 
   if (setClauses.length === 0) return null;
 
@@ -335,7 +350,7 @@ export async function updateTrip(tripId: number, params: UpdateTripParams): Prom
   const result = await query<TripRow>(
     `UPDATE "Trips" SET ${setClauses.join(', ')}
     WHERE "TripID" = $${tripIdParam} AND "UserID" = $${userIdParam}
-    RETURNING "TripID", "Name", "StartDate", "EndDate", "CreatedAt", "UpdatedAt"`,
+    RETURNING ${TRIP_COLUMNS}`,
     values,
   );
 

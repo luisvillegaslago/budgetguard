@@ -68,6 +68,7 @@ interface UpdateTripData {
   name?: string;
   startDate?: Date;
   endDate?: Date;
+  isShared?: boolean;
 }
 
 async function updateTripRequest(params: { tripId: number; data: UpdateTripData }): Promise<Trip> {

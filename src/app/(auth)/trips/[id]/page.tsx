@@ -81,7 +81,12 @@ export default function TripDetailPage() {
         />
       )}
       {showExpenseForm && !editingExpense && (
-        <TripExpenseForm tripId={tripId} onClose={() => setShowExpenseForm(false)} tripStartDate={trip.startDate} />
+        <TripExpenseForm
+          tripId={tripId}
+          onClose={() => setShowExpenseForm(false)}
+          tripStartDate={trip.startDate}
+          tripIsShared={trip.isShared}
+        />
       )}
     </div>
   );

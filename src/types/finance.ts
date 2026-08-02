@@ -432,6 +432,8 @@ export interface Trip {
   name: string;
   startDate: string | null;
   endDate: string | null;
+  /** Shared trip: new expenses default to the shared (÷2) option */
+  isShared: boolean;
   createdAt: string;
   updatedAt: string;
 }

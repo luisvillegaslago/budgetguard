@@ -59,6 +59,27 @@ describe('CreateTripSchema', () => {
     const result = CreateTripSchema.safeParse({ ...validTrip, name: 'X' });
     expect(result.success).toBe(true);
   });
+
+  it('should default isShared to false', () => {
+    const result = CreateTripSchema.safeParse(validTrip);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isShared).toBe(false);
+    }
+  });
+
+  it('should accept isShared true', () => {
+    const result = CreateTripSchema.safeParse({ ...validTrip, isShared: true });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isShared).toBe(true);
+    }
+  });
+
+  it('should reject non-boolean isShared', () => {
+    const result = CreateTripSchema.safeParse({ ...validTrip, isShared: 'yes' });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ============================
@@ -93,6 +114,22 @@ describe('UpdateTripSchema', () => {
   it('should reject endDate before startDate when both provided', () => {
     const result = UpdateTripSchema.safeParse({ startDate: '2025-12-05', endDate: '2025-12-01' });
     expect(result.success).toBe(false);
+  });
+
+  it('should accept an isShared-only update', () => {
+    const result = UpdateTripSchema.safeParse({ isShared: true });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isShared).toBe(true);
+    }
+  });
+
+  it('should leave isShared undefined when not provided', () => {
+    const result = UpdateTripSchema.safeParse({ name: 'Madrid Weekend' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isShared).toBeUndefined();
+    }
   });
 });
 

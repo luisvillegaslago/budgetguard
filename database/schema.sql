@@ -148,6 +148,8 @@ CREATE TABLE "Trips" (
     "Name" VARCHAR(100) NOT NULL,
     "StartDate" DATE,
     "EndDate" DATE,
+    -- Shared trip: new expenses added to it default to the shared (÷2) option
+    "IsShared" BOOLEAN NOT NULL DEFAULT FALSE,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

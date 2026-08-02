@@ -61,6 +61,7 @@ Multi-day travel expense tracking. Trip expenses are regular transactions linked
 CREATE TABLE Trips (
     TripID INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(100) NOT NULL,
+    IsShared BIT NOT NULL DEFAULT 0,
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE()
 );
@@ -70,8 +71,11 @@ CREATE TABLE Trips (
 |--------|------|-------------|
 | `TripID` | INT | Auto-increment primary key |
 | `Name` | NVARCHAR(100) | Trip display name (e.g., "Sierra Nevada 2025") |
+| `IsShared` | BIT | Shared trip: new expenses default to the shared (÷2) option |
 | `CreatedAt` | DATETIME2 | Creation timestamp |
 | `UpdatedAt` | DATETIME2 | Last modification timestamp |
+
+**Design note (`IsShared`):** the flag only seeds the default of the trip expense form — each transaction keeps its own `SharedDivisor`, so an individual expense can always opt out. Changing the flag never rewrites existing expenses.
 
 **Design note:** Trips are intentionally minimal. All expense data (amounts, categories, dates) lives on the linked `Transactions` rows. Aggregated data (expense count, total, date range, category summary) is calculated at query time in `TripRepository`.
 

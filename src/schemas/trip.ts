@@ -15,6 +15,7 @@ export const CreateTripSchema = z
     name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(100, VALIDATION_KEY.NAME_TOO_LONG),
     startDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
     endDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
+    isShared: z.boolean().optional().default(false),
   })
   .refine((data) => data.endDate >= data.startDate, {
     message: VALIDATION_KEY.END_DATE_BEFORE_START,
@@ -31,6 +32,7 @@ export const UpdateTripSchema = z
     name: z.string().min(1, VALIDATION_KEY.NAME_REQUIRED).max(100, VALIDATION_KEY.NAME_TOO_LONG).optional(),
     startDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }).optional(),
     endDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }).optional(),
+    isShared: z.boolean().optional(),
   })
   .refine(
     (data) => {

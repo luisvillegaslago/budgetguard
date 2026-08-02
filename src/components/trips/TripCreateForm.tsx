@@ -16,6 +16,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import { useCreateTrip } from '@/hooks/useTrips';
 import { type CreateTripInput, CreateTripSchema } from '@/schemas/trip';
 import { cn } from '@/utils/helpers';
+import { TripSharedToggle } from './TripSharedToggle';
 
 interface TripCreateFormProps {
   onClose: () => void;
@@ -36,6 +37,7 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<CreateTripInput>({
     resolver: zodResolver(CreateTripSchema),
+    defaultValues: { isShared: false },
   });
 
   const startDate = useWatch({ control, name: 'startDate' });
@@ -151,6 +153,9 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
               )}
             </div>
           </div>
+
+          {/* Shared Trip Toggle */}
+          <TripSharedToggle id="trip-is-shared" registration={register('isShared')} />
 
           {/* Error Message — surfaces the specific translated cause (conflict, validation) */}
           {createTrip.isError && (
