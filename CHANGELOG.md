@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.49.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.48.0...v0.49.0) (2026-08-02)
+
+
+### Features
+
+* **trips:** add a shared-trip flag that defaults new expenses to shared ([be5644d](https://github.com/luisvillegaslago/budgetguard/commit/be5644d0ddb35bb303173a96ca107fd1508963bb))
+
+
+### Bug Fixes
+
+* **api:** map caller faults to 404/400 and sniff upload media types ([85c866f](https://github.com/luisvillegaslago/budgetguard/commit/85c866f41061fbfda9adc6b9c6570db370dbd409))
+
 ## [0.48.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.47.1...v0.48.0) (2026-07-31)
 
 
