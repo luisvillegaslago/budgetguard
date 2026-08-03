@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.51.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.50.0...v0.51.0) (2026-08-03)
+
+
+### Features
+
+* **invoices:** allow reverting a finalized invoice back to draft ([a23ceeb](https://github.com/luisvillegaslago/budgetguard/commit/a23ceebf0a82adf396ba46cf3b8c35ca05141165))
+
+
+### Bug Fixes
+
+* **invoices:** tighten the PDF layout and move notes above the concepts ([e6e4428](https://github.com/luisvillegaslago/budgetguard/commit/e6e4428787b39e01c6db69cffb95e8cd01f3c960))
+
 ## [0.50.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.49.0...v0.50.0) (2026-08-03)
 
 
