@@ -33,8 +33,12 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
   // 2. Assign invoice number atomically (idempotent — skips if already assigned)
   await assignInvoiceNumber(invoiceId);
 
-  // 3. Generate PDF (handles snapshot refresh internally)
-  const { invoice: current, pdfBuffer, fileName } = await prepareInvoicePdf(invoiceId);
+  // 3. Generate PDF (handles snapshot refresh internally).
+  //
+  // renderAsIssued: the status change is committed in step 5, so the row is still a numbered
+  // draft right now. Rendering it as-is would stamp "not issued" on the very document being
+  // issued — and on the copy archived as its fiscal evidence.
+  const { invoice: current, pdfBuffer, fileName } = await prepareInvoicePdf(invoiceId, { renderAsIssued: true });
 
   // 4. Upload to Vercel Blob (outside transaction — if this fails, invoice stays draft)
   //

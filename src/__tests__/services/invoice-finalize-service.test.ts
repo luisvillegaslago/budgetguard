@@ -209,11 +209,14 @@ describe('InvoiceFinalizeService', () => {
       expect(result.fileName).toBe('invoice_INV-01.pdf');
     });
 
-    it('should call prepareInvoicePdf with correct id', async () => {
+    // The status change is committed after this call, so the row is still a numbered draft while
+    // the PDF renders — and the template stamps a numbered draft as "not issued". Rendering it as
+    // issued is what keeps that stamp off the document being issued and off its archived copy.
+    it('should call prepareInvoicePdf with correct id, rendered as issued', async () => {
       await finalizeInvoice(1);
 
       const { prepareInvoicePdf } = require('@/utils/invoicePdf');
-      expect(prepareInvoicePdf).toHaveBeenCalledWith(1);
+      expect(prepareInvoicePdf).toHaveBeenCalledWith(1, { renderAsIssued: true });
     });
   });
 
