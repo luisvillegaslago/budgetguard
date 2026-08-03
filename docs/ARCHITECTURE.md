@@ -224,6 +224,8 @@ src/
 │   ├── apiHandler.ts                 # API route handler wrapper (withApiHandler)
 │   ├── invoicePdf.ts                 # Invoice PDF generation
 │   ├── invoiceLabels.ts             # Invoice PDF i18n labels
+│   ├── csv.ts                        # Generic CSV tokenizer (quotes, CRLF, BOM)
+│   ├── invoiceCsv.ts                 # Invoice line-item CSV import parser
 │   ├── skydive-csv-parsers.ts        # CSV parsing for jump/tunnel imports
 │   └── staticTranslations.ts         # i18n for error boundaries
 │
@@ -831,6 +833,7 @@ Complete invoicing system with state machine (draft→finalized→paid→cancell
 - `src/utils/invoicePdf.ts`: `prepareInvoicePdf()` — single DRY method for all PDF generation
 - `src/services/database/InvoiceRepository.ts`: Invoice CRUD with ConflictError class
 - `src/schemas/invoice.ts`: Zod validation schemas for invoices
+- `src/utils/invoiceCsv.ts`: `parseInvoiceCsv()` — line-item CSV import, parsed in the browser and appended to the form (no endpoint, no DB change). Shares `INVOICE_LINE_ITEM_LIMIT` with the Zod schema so both agree on every limit.
 
 ### 10. Fiscal Documents Module (Tax Filing Management + OCR)
 

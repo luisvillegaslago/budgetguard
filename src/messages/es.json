@@ -1569,6 +1569,36 @@
       },
       "add-sub-item": "Añadir subconcepto"
     },
+    "csv": {
+      "import": "Importar CSV",
+      "title": "Importar conceptos desde CSV",
+      "select-file": "Seleccionar fichero CSV",
+      "drop-hint": "Arrastra el CSV aquí o haz clic para seleccionarlo",
+      "format-hint": "Columnas: title, subItems, description, hours, hourlyRate, amount",
+      "summary": "{count} conceptos · {total}",
+      "no-valid-rows": "El fichero no contiene ningún concepto válido",
+      "line": "Línea {line}",
+      "more-issues": "y {count} problemas más",
+      "confirm": "Añadir {count} conceptos",
+      "errors": {
+        "empty-file": "El fichero está vacío",
+        "not-csv": "Selecciona un fichero .csv",
+        "missing-columns": "Falta la columna «title» (o «description») en la cabecera",
+        "no-rows": "El fichero no tiene filas de datos",
+        "too-many-rows": "Solo caben {max} conceptos más en esta factura; el resto se ha descartado",
+        "title-required": "Falta el concepto y la descripción",
+        "title-too-long": "El concepto supera los {max} caracteres",
+        "sub-item-too-long": "Algún subconcepto supera los {max} caracteres",
+        "too-many-sub-items": "Más de {max} subconceptos",
+        "description-too-long": "La descripción supera los {max} caracteres",
+        "invalid-hours": "Horas no válidas",
+        "invalid-hourly-rate": "Tarifa no válida",
+        "invalid-amount": "Importe no válido",
+        "hourly-rate-required": "Hay horas pero no hay tarifa, y tu perfil de facturación no tiene una por defecto",
+        "amount-required": "Falta el importe, o las horas y la tarifa",
+        "amount-mismatch": "El importe no coincide con horas × tarifa"
+      }
+    },
     "detail": {
       "bill-to": "Facturar a",
       "date": "Fecha",

@@ -1569,6 +1569,36 @@
       },
       "add-sub-item": "Add sub-item"
     },
+    "csv": {
+      "import": "Import CSV",
+      "title": "Import line items from CSV",
+      "select-file": "Select CSV file",
+      "drop-hint": "Drag the CSV here or click to select it",
+      "format-hint": "Columns: title, subItems, description, hours, hourlyRate, amount",
+      "summary": "{count} line items · {total}",
+      "no-valid-rows": "The file contains no valid line item",
+      "line": "Line {line}",
+      "more-issues": "and {count} more problems",
+      "confirm": "Add {count} line items",
+      "errors": {
+        "empty-file": "The file is empty",
+        "not-csv": "Select a .csv file",
+        "missing-columns": "The header is missing the \"title\" (or \"description\") column",
+        "no-rows": "The file has no data rows",
+        "too-many-rows": "Only {max} more line items fit in this invoice; the rest was discarded",
+        "title-required": "Both concept and description are missing",
+        "title-too-long": "The concept exceeds {max} characters",
+        "sub-item-too-long": "A sub-item exceeds {max} characters",
+        "too-many-sub-items": "More than {max} sub-items",
+        "description-too-long": "The description exceeds {max} characters",
+        "invalid-hours": "Invalid hours",
+        "invalid-hourly-rate": "Invalid rate",
+        "invalid-amount": "Invalid amount",
+        "hourly-rate-required": "Hours given without a rate, and your billing profile has no default one",
+        "amount-required": "Missing amount, or hours and rate",
+        "amount-mismatch": "The amount does not match hours × rate"
+      }
+    },
     "detail": {
       "bill-to": "Bill To",
       "date": "Date",

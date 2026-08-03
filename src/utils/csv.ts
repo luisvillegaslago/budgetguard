@@ -1,5 +1,5 @@
 /**
- * Generic CSV parser shared by every exchange importer.
+ * Generic CSV parser shared by every CSV importer (exchanges, invoice line items).
  *
  * No dependencies. Handles quoted fields with embedded commas, escaped quotes
  * (`""`), CRLF line endings and a leading UTF-8 BOM (Binance, Kraken and

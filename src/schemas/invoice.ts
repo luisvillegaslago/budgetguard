@@ -4,7 +4,14 @@
  */
 
 import { z } from 'zod';
-import { INVOICE_STATUS, IRPF_RETENTION_RATE, PAYMENT_METHOD, VALIDATION_KEY, VAT_RATE } from '@/constants/finance';
+import {
+  INVOICE_LINE_ITEM_LIMIT,
+  INVOICE_STATUS,
+  IRPF_RETENTION_RATE,
+  PAYMENT_METHOD,
+  VALIDATION_KEY,
+  VAT_RATE,
+} from '@/constants/finance';
 import { requiredPositiveInt } from '@/schemas/shared';
 
 /**
@@ -92,12 +99,18 @@ export type UpdateInvoicePrefixInput = z.infer<typeof UpdateInvoicePrefixSchema>
  */
 const InvoiceLineItemSchema = z
   .object({
-    title: z.string().trim().min(1).max(500, VALIDATION_KEY.TITLE_TOO_LONG).nullable().optional(),
-    subItems: z
-      .array(z.string().trim().min(1).max(500, VALIDATION_KEY.SUB_ITEM_TOO_LONG))
-      .max(20, VALIDATION_KEY.TOO_MANY_SUB_ITEMS)
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(INVOICE_LINE_ITEM_LIMIT.TITLE_LENGTH, VALIDATION_KEY.TITLE_TOO_LONG)
+      .nullable()
       .optional(),
-    description: z.string().trim().min(1).max(2000).nullable().optional(),
+    subItems: z
+      .array(z.string().trim().min(1).max(INVOICE_LINE_ITEM_LIMIT.SUB_ITEM_LENGTH, VALIDATION_KEY.SUB_ITEM_TOO_LONG))
+      .max(INVOICE_LINE_ITEM_LIMIT.MAX_SUB_ITEMS, VALIDATION_KEY.TOO_MANY_SUB_ITEMS)
+      .optional(),
+    description: z.string().trim().min(1).max(INVOICE_LINE_ITEM_LIMIT.DESCRIPTION_LENGTH).nullable().optional(),
     hours: z.number().positive().nullable().optional(),
     hourlyRateCents: z.number().int().positive().nullable().optional(),
     amountCents: requiredPositiveInt(VALIDATION_KEY.AMOUNT_POSITIVE),
@@ -128,7 +141,10 @@ export const CreateInvoiceSchema = z.object({
   prefixId: z.number().int().positive(),
   invoiceDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
   companyId: z.number().int().positive(),
-  lineItems: z.array(InvoiceLineItemSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED).max(50),
+  lineItems: z
+    .array(InvoiceLineItemSchema)
+    .min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED)
+    .max(INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS),
   notes: z.string().max(2000).optional().nullable(),
   ...OptionalTaxRateFields,
 });
@@ -152,7 +168,10 @@ export type UpdateInvoiceStatusInput = z.infer<typeof UpdateInvoiceStatusSchema>
  */
 export const UpdateInvoiceSchema = z.object({
   invoiceDate: z.coerce.date({ message: VALIDATION_KEY.INVALID_DATE }),
-  lineItems: z.array(InvoiceLineItemSchema).min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED).max(50),
+  lineItems: z
+    .array(InvoiceLineItemSchema)
+    .min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED)
+    .max(INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS),
   notes: z.string().max(2000).optional().nullable(),
   ...RequiredTaxRateFields,
 });

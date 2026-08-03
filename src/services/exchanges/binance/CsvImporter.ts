@@ -21,7 +21,6 @@
  */
 
 import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE } from '@/constants/finance';
-import { parseCsv } from '@/services/exchanges/shared/csvParser';
 import { hashRow as sharedHashRow } from '@/services/exchanges/shared/externalId';
 import type {
   CsvImportResult,
@@ -29,9 +28,10 @@ import type {
   ExchangeCsvImporter,
   RawEventInput,
 } from '@/services/exchanges/shared/types';
+import { parseCsv } from '@/utils/csv';
 
 // Re-exported so existing callers/tests can keep importing the generic parser
-// from this module; the implementation now lives in shared/csvParser.
+// from this module; the implementation now lives in @/utils/csv.
 export { parseCsv };
 
 // ============================================================

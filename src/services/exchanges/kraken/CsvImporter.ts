@@ -28,7 +28,6 @@
 
 import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE } from '@/constants/finance';
 import { normalizeKrakenAsset } from '@/services/exchanges/kraken/krakenAssetCode';
-import { parseCsv } from '@/services/exchanges/shared/csvParser';
 import { hashRow as sharedHashRow } from '@/services/exchanges/shared/externalId';
 import type {
   CsvImportResult,
@@ -36,6 +35,7 @@ import type {
   ExchangeCsvImporter,
   RawEventInput,
 } from '@/services/exchanges/shared/types';
+import { parseCsv } from '@/utils/csv';
 
 // ============================================================
 // Row schema

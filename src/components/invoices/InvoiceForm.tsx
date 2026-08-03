@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { type Control, type UseFormRegister, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { InlinePrefixForm } from '@/components/invoices/InlinePrefixForm';
+import { InvoiceCsvImport } from '@/components/invoices/InvoiceCsvImport';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
@@ -32,6 +33,7 @@ import {
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Invoice } from '@/types/finance';
 import { computeInvoiceAmounts, getTaxBreakdownRows } from '@/utils/invoiceAmounts';
+import type { InvoiceCsvLineItem } from '@/utils/invoiceCsv';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 // Form schema (user enters euros, we convert to cents on submit)
@@ -78,6 +80,32 @@ const InvoiceFormSchema = z.object({
 });
 
 type InvoiceFormValues = z.infer<typeof InvoiceFormSchema>;
+
+/**
+ * A line the user never filled in: the pristine row the form opens with, or one
+ * added by mistake. Those are dropped when a CSV is imported so the file's rows
+ * are not appended below an empty placeholder that would fail validation.
+ */
+function isBlankLineItem(item: InvoiceFormValues['lineItems'][number]): boolean {
+  return (
+    item.title.trim().length === 0 &&
+    item.description.trim().length === 0 &&
+    item.subItems.every((sub) => sub.text.trim().length === 0) &&
+    typeof item.amount !== 'number' &&
+    typeof item.hours !== 'number'
+  );
+}
+
+function toFormLineItem(item: InvoiceCsvLineItem): InvoiceFormValues['lineItems'][number] {
+  return {
+    title: item.title,
+    subItems: item.subItems.map((text) => ({ text })),
+    description: item.description,
+    hours: item.hours ?? ('' as const),
+    hourlyRate: item.hourlyRateCents != null ? centsToEuros(item.hourlyRateCents) : ('' as const),
+    amount: centsToEuros(item.amountCents),
+  };
+}
 
 function detectBillingMode(invoice?: Invoice): InvoiceBillingMode {
   if (!invoice) return INVOICE_BILLING_MODE.HOURLY;
@@ -197,13 +225,14 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
     control,
     handleSubmit,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<InvoiceFormValues>({
     resolver: zodResolver(InvoiceFormSchema),
     defaultValues: buildDefaultValues(invoice, billingProfile?.defaultHourlyRateCents),
   });
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems' });
 
   const [billingMode, setBillingMode] = useState<InvoiceBillingMode>(detectBillingMode(invoice));
   const isFlat = billingMode === INVOICE_BILLING_MODE.FLAT;
@@ -221,6 +250,15 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           : '',
       amount: '',
     });
+
+  // CSV rows land after the lines already filled in; blank placeholders (the row
+  // the form opens with) are dropped so the result validates without extra edits.
+  const handleCsvImport = (items: InvoiceCsvLineItem[]) => {
+    const filledLines = getValues('lineItems').filter((item) => !isBlankLineItem(item));
+    replace([...filledLines, ...items.map(toFormLineItem)]);
+    // Hours would be discarded on submit while the form sits in flat mode
+    if (items.some((item) => item.hours != null)) setBillingMode(INVOICE_BILLING_MODE.HOURLY);
+  };
 
   const [showPrefixForm, setShowPrefixForm] = useState(false);
 
@@ -547,6 +585,14 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                 <Plus className="h-3 w-3" aria-hidden="true" />
                 {t('invoices.form.add-line')}
               </button>
+            </div>
+
+            <div className="mb-3">
+              <InvoiceCsvImport
+                defaultHourlyRateCents={billingProfile?.defaultHourlyRateCents}
+                usedSlots={(watchedLineItems ?? []).filter((item) => !isBlankLineItem(item)).length}
+                onImport={handleCsvImport}
+              />
             </div>
 
             <div className="space-y-3">

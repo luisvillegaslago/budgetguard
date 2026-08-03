@@ -403,6 +403,60 @@ export const INVOICE_BILLING_MODE = {
 
 export type InvoiceBillingMode = (typeof INVOICE_BILLING_MODE)[keyof typeof INVOICE_BILLING_MODE];
 
+/**
+ * Size limits of an invoice line item. Shared by the Zod schema and the CSV
+ * importer so a file that the importer accepts can never be rejected later by
+ * the API — or the other way round.
+ */
+export const INVOICE_LINE_ITEM_LIMIT = {
+  MAX_LINE_ITEMS: 50,
+  MAX_SUB_ITEMS: 20,
+  TITLE_LENGTH: 500,
+  SUB_ITEM_LENGTH: 500,
+  DESCRIPTION_LENGTH: 2000,
+} as const;
+
+/**
+ * Column names accepted by the invoice line-item CSV importer.
+ * Every column also accepts its Spanish alias, since the sheet is usually
+ * authored in Spanish. Headers are matched case-insensitively.
+ */
+export const INVOICE_CSV_COLUMN = {
+  TITLE: 'title',
+  SUB_ITEMS: 'subitems',
+  DESCRIPTION: 'description',
+  HOURS: 'hours',
+  HOURLY_RATE: 'hourlyrate',
+  AMOUNT: 'amount',
+} as const;
+
+export type InvoiceCsvColumn = (typeof INVOICE_CSV_COLUMN)[keyof typeof INVOICE_CSV_COLUMN];
+
+// Separator for the sub-items packed into a single CSV cell
+export const INVOICE_CSV_SUB_ITEM_SEPARATOR = '|';
+
+// i18n keys for CSV import failures (file-level and per-row)
+export const INVOICE_CSV_ERROR = {
+  EMPTY_FILE: 'invoices.csv.errors.empty-file',
+  NOT_CSV: 'invoices.csv.errors.not-csv',
+  MISSING_COLUMNS: 'invoices.csv.errors.missing-columns',
+  NO_ROWS: 'invoices.csv.errors.no-rows',
+  TOO_MANY_ROWS: 'invoices.csv.errors.too-many-rows',
+  TITLE_REQUIRED: 'invoices.csv.errors.title-required',
+  TITLE_TOO_LONG: 'invoices.csv.errors.title-too-long',
+  SUB_ITEM_TOO_LONG: 'invoices.csv.errors.sub-item-too-long',
+  TOO_MANY_SUB_ITEMS: 'invoices.csv.errors.too-many-sub-items',
+  DESCRIPTION_TOO_LONG: 'invoices.csv.errors.description-too-long',
+  INVALID_HOURS: 'invoices.csv.errors.invalid-hours',
+  INVALID_HOURLY_RATE: 'invoices.csv.errors.invalid-hourly-rate',
+  INVALID_AMOUNT: 'invoices.csv.errors.invalid-amount',
+  HOURLY_RATE_REQUIRED: 'invoices.csv.errors.hourly-rate-required',
+  AMOUNT_REQUIRED: 'invoices.csv.errors.amount-required',
+  AMOUNT_MISMATCH: 'invoices.csv.errors.amount-mismatch',
+} as const;
+
+export type InvoiceCsvError = (typeof INVOICE_CSV_ERROR)[keyof typeof INVOICE_CSV_ERROR];
+
 // Company Roles
 export const COMPANY_ROLE = {
   CLIENT: 'client',

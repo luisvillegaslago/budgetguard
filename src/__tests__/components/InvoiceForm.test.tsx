@@ -15,7 +15,7 @@ import userEvent from '@testing-library/user-event';
 import { IRPF_RETENTION_RATE, VAT_RATE } from '@/constants/finance';
 
 interface CreateInvoicePayload {
-  lineItems: { amountCents: number; hours: number | null }[];
+  lineItems: { title: string | null; amountCents: number; hours: number | null; subItems: string[] }[];
   vatPercent: number;
   retentionPercent: number;
 }
@@ -67,6 +67,22 @@ async function fillHeader() {
 
 function submit() {
   fireEvent.click(screen.getByRole('button', { name: 'common.buttons.create' }));
+}
+
+/** Waits for the parsed preview before confirming — the button is rendered disabled meanwhile. */
+async function confirmImport() {
+  await screen.findByText('invoices.csv.summary');
+  fireEvent.click(screen.getByRole('button', { name: 'invoices.csv.confirm' }));
+}
+
+/** Two line items: one billed by hours, one at a flat amount. */
+function csvFile() {
+  const csv = [
+    'title,subItems,description,hours,hourlyRate,amount',
+    'Reservas,"Endpoint|Solapes",,2,45,',
+    'Auditoría,,,,,350',
+  ].join('\n');
+  return new File([csv], 'factura.csv', { type: 'text/csv' });
 }
 
 describe('InvoiceForm', () => {
@@ -123,6 +139,55 @@ describe('InvoiceForm', () => {
 
     // 1.000,00 base + 210,00 VAT - 150,00 withheld = 1.060,00 to collect
     expect(await screen.findByText('1060,00 €')).toBeInTheDocument();
+  });
+
+  it('appends the CSV line items and drops the blank row the form opens with', async () => {
+    const { container } = render(<InvoiceForm onClose={jest.fn()} />);
+
+    await fillHeader();
+    fireEvent.click(screen.getByRole('button', { name: 'invoices.csv.import' }));
+
+    const input = container.querySelector('input[type="file"]');
+    await userEvent.upload(input as HTMLInputElement, csvFile());
+
+    await confirmImport();
+    submit();
+
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+
+    const payload = mockCreateInvoice.mock.calls[0]?.[0];
+    expect(payload?.lineItems).toHaveLength(2);
+    expect(payload?.lineItems[0]).toMatchObject({ title: 'Reservas', hours: 2, amountCents: 9000 });
+    expect(payload?.lineItems[0]?.subItems).toEqual(['Endpoint', 'Solapes']);
+    expect(payload?.lineItems[1]).toMatchObject({ title: 'Auditoría', hours: null, amountCents: 35000 });
+  });
+
+  it('parses a CSV dropped on the import modal', async () => {
+    render(<InvoiceForm onClose={jest.fn()} />);
+
+    await fillHeader();
+    fireEvent.click(screen.getByRole('button', { name: 'invoices.csv.import' }));
+
+    const dropzone = screen.getByRole('button', { name: /invoices\.csv\.drop-hint/ });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [csvFile()] } });
+
+    await confirmImport();
+    submit();
+
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    expect(mockCreateInvoice.mock.calls[0]?.[0]?.lineItems).toHaveLength(2);
+  });
+
+  it('closes only the import modal on Escape, leaving the invoice form open', async () => {
+    render(<InvoiceForm onClose={jest.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'invoices.csv.import' }));
+    expect(screen.getByText('invoices.csv.title')).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByText('invoices.csv.title'), { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByText('invoices.csv.title')).not.toBeInTheDocument());
+    expect(screen.getByText('invoices.form.title')).toBeInTheDocument();
   });
 
   it('shows the taxable base when the invoice carries a withholding but no VAT', async () => {
