@@ -37,11 +37,20 @@ function formatPdfRate(cents: number): string {
   }).format(euros)} €/hr`;
 }
 
+/**
+ * Width of every money column: the line item amounts, the tax breakdown and the total.
+ * Sized to the widest realistic figure rather than to the "BALANCE" header — the values are
+ * right-aligned, so any slack shows up as a gap between this column and the one before it.
+ */
+const AMOUNT_COLUMN_WIDTH = '12%';
+/** What is left for the label that precedes an amount in the breakdown and total rows */
+const LABEL_COLUMN_WIDTH = '88%';
+
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
     fontSize: 10,
-    padding: 50,
+    padding: 38,
     color: '#1e293b',
     backgroundColor: '#ffffff',
   },
@@ -49,7 +58,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   billerSection: {
     maxWidth: '50%',
@@ -92,8 +101,7 @@ const styles = StyleSheet.create({
   metaContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 25,
-    paddingBottom: 15,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
@@ -140,17 +148,20 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  colDescription: { width: '57%' },
-  colHours: { width: '9%', textAlign: 'center' },
-  colRate: { width: '15%', textAlign: 'right' },
-  colAmount: { width: '19%', textAlign: 'right' },
-  colDescriptionFlat: { width: '75%' },
-  colAmountFlat: { width: '25%', textAlign: 'right' },
+  // Column widths. The money columns are sized to their widest realistic value rather than to
+  // their headers: right-aligned text in an oversized column reads as a gap between columns.
+  // AMOUNT_COLUMN_WIDTH is shared with the subtotal/total rows so every figure lines up.
+  colDescription: { width: '66%' },
+  colHours: { width: '8%', textAlign: 'center' },
+  colRate: { width: '14%', textAlign: 'right' },
+  colAmount: { width: AMOUNT_COLUMN_WIDTH, textAlign: 'right' },
+  colDescriptionFlat: { width: LABEL_COLUMN_WIDTH },
+  colAmountFlat: { width: AMOUNT_COLUMN_WIDTH, textAlign: 'right' },
   cellText: {
     fontSize: 10,
     color: '#334155',
@@ -185,7 +196,7 @@ const styles = StyleSheet.create({
   lineItemDescription: {
     fontSize: 9,
     color: '#64748b',
-    marginTop: 6,
+    marginTop: 3,
     lineHeight: 1.4,
   },
   // Tax breakdown
@@ -195,14 +206,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   subtotalLabel: {
-    width: '80%',
+    width: LABEL_COLUMN_WIDTH,
     textAlign: 'right',
     fontSize: 9,
     color: '#475569',
     paddingRight: 10,
   },
   subtotalValue: {
-    width: '20%',
+    width: AMOUNT_COLUMN_WIDTH,
     textAlign: 'right',
     fontSize: 9,
     color: '#475569',
@@ -225,7 +236,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#334155',
   },
   totalLabel: {
-    width: '80%',
+    width: LABEL_COLUMN_WIDTH,
     textAlign: 'right',
     fontSize: 11,
     fontFamily: 'Helvetica-Bold',
@@ -233,7 +244,7 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   totalValue: {
-    width: '20%',
+    width: AMOUNT_COLUMN_WIDTH,
     textAlign: 'right',
     fontSize: 11,
     fontFamily: 'Helvetica-Bold',
@@ -241,7 +252,7 @@ const styles = StyleSheet.create({
   },
   // Footer (payment info)
   footer: {
-    marginTop: 40,
+    marginTop: 20,
     paddingTop: 15,
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
@@ -263,12 +274,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#475569',
   },
-  // Notes
+  // Notes — sit under the date/number block, where they read as context for the whole invoice
   notes: {
-    marginTop: 20,
+    flexDirection: 'row',
+    marginTop: 10,
     fontSize: 9,
     color: '#64748b',
     lineHeight: 1.5,
+  },
+  notesLabel: {
+    fontFamily: 'Helvetica-Bold',
+    color: '#475569',
+  },
+  // Separates the meta/notes header from the table when notes push them apart
+  tableSpacer: {
+    marginTop: 16,
   },
 });
 
@@ -342,8 +362,18 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
           </View>
         </View>
 
+        {/* Notes — context for the whole invoice, so they precede the concepts they explain */}
+        {invoice.notes && (
+          <View style={styles.notes}>
+            <Text>
+              <Text style={styles.notesLabel}>{l.notes}: </Text>
+              {invoice.notes}
+            </Text>
+          </View>
+        )}
+
         {/* Table Header */}
-        <View style={styles.tableHeader}>
+        <View style={[styles.tableHeader, styles.tableSpacer]}>
           <Text style={[styles.tableHeaderText, showHourlyColumns ? styles.colDescription : styles.colDescriptionFlat]}>
             {l.description}
           </Text>
@@ -414,15 +444,9 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
           </View>
         )}
 
-        {/* Notes */}
-        {invoice.notes && (
-          <View style={styles.notes}>
-            <Text>{invoice.notes}</Text>
-          </View>
-        )}
-
-        {/* Footer: Payment Information */}
-        <View style={styles.footer}>
+        {/* Footer: Payment Information. wrap={false} keeps the bank details from being split
+            across pages, which would strand the IBAN on its own page. */}
+        <View style={styles.footer} wrap={false}>
           <Text style={styles.footerTitle}>
             {l.paymentMethod}: {paymentLabel}
           </Text>
