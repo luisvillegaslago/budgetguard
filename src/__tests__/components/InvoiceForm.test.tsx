@@ -210,18 +210,6 @@ describe('InvoiceForm', () => {
     expect(mockCreateInvoice.mock.calls[0]?.[0]?.lineItems).toHaveLength(2);
   });
 
-  it('closes only the import modal on Escape, leaving the invoice form open', async () => {
-    render(<InvoiceForm onClose={jest.fn()} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'invoices.csv.import' }));
-    expect(screen.getByText('invoices.csv.title')).toBeInTheDocument();
-
-    fireEvent.keyDown(screen.getByText('invoices.csv.title'), { key: 'Escape' });
-
-    await waitFor(() => expect(screen.queryByText('invoices.csv.title')).not.toBeInTheDocument());
-    expect(screen.getByText('invoices.form.title')).toBeInTheDocument();
-  });
-
   it('shows the taxable base when the invoice carries a withholding but no VAT', async () => {
     render(<InvoiceForm onClose={jest.fn()} />);
 

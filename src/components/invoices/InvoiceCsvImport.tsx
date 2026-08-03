@@ -12,7 +12,7 @@
  */
 
 import { FileUp, Upload, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { INVOICE_CSV_ERROR, INVOICE_LINE_ITEM_LIMIT } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type InvoiceCsvIssue, type InvoiceCsvLineItem, parseInvoiceCsv } from '@/utils/invoiceCsv';
@@ -20,6 +20,10 @@ import { formatCurrency } from '@/utils/money';
 
 // Enough to spot a pattern without turning the panel into a scrollable log
 const MAX_VISIBLE_ISSUES = 5;
+
+// 50 line items never fill a megabyte; anything larger is the wrong file and would
+// only block the main thread while it parses
+const MAX_FILE_BYTES = 1_000_000;
 
 interface InvoiceCsvImportProps {
   /** Fallback rate for rows with hours but no rate column. */
@@ -38,34 +42,69 @@ interface ParsedFile {
 export function InvoiceCsvImport({ defaultHourlyRateCents, usedSlots, onImport }: InvoiceCsvImportProps) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
 
-  const close = () => {
+  const close = useCallback(() => {
     setIsOpen(false);
     setIsDragging(false);
     setParsed(null);
     setFileError(null);
     // Clear the input so re-picking the same file fires onChange again
     if (inputRef.current) inputRef.current.value = '';
-  };
+  }, []);
+
+  /**
+   * The invoice form traps Escape with a document-level listener (useFocusTrap),
+   * which no React handler can stop: the synthetic event and that native listener
+   * live on the same node. Without capturing the key here first, Escape while this
+   * modal is open would discard the whole invoice draft behind it.
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    dialogRef.current?.focus();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+      close();
+    };
+    document.addEventListener('keydown', handleEscape, true);
+    return () => document.removeEventListener('keydown', handleEscape, true);
+  }, [isOpen, close]);
 
   const processFile = async (file: File) => {
     setFileError(null);
+    setParsed(null);
+
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      setParsed(null);
       setFileError(INVOICE_CSV_ERROR.NOT_CSV);
       return;
     }
+    if (file.size > MAX_FILE_BYTES) {
+      setFileError(INVOICE_CSV_ERROR.FILE_TOO_LARGE);
+      return;
+    }
+    if (usedSlots >= INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS) {
+      setFileError(INVOICE_CSV_ERROR.INVOICE_FULL);
+      return;
+    }
 
-    const content = await file.text();
-    const result = parseInvoiceCsv(content, {
-      defaultHourlyRateCents,
-      maxItems: Math.max(0, INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS - usedSlots),
-    });
-    setParsed({ name: file.name, items: result.items, issues: result.issues });
+    try {
+      const content = await file.text();
+      const result = parseInvoiceCsv(content, {
+        defaultHourlyRateCents,
+        maxItems: INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS - usedSlots,
+      });
+      setParsed({ name: file.name, items: result.items, issues: result.issues });
+    } catch {
+      // A read that fails leaves no preview, so without this the modal just sat there
+      setFileError(INVOICE_CSV_ERROR.READ_FAILED);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,19 +153,15 @@ export function InvoiceCsvImport({ defaultHourlyRateCents, usedSlots, onImport }
       </button>
 
       {isOpen && (
-        // Sits above the invoice form's own backdrop. Escape is handled here and
-        // stopped, otherwise it would bubble up and close the whole form too.
+        // Sits above the invoice form's own backdrop (z-50). Focused on open so the
+        // keyboard lands inside it; Escape is captured in the effect above.
         <div
-          className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-backdrop-in"
+          ref={dialogRef}
+          tabIndex={-1}
+          className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-backdrop-in outline-none"
           role="dialog"
           aria-modal="true"
           aria-labelledby="invoice-csv-title"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.stopPropagation();
-              close();
-            }
-          }}
         >
           <div className="bg-card rounded-xl shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto animate-modal-in">
             <div className="flex items-center justify-between p-6 border-b border-border">

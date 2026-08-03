@@ -439,6 +439,9 @@ export const INVOICE_CSV_SUB_ITEM_SEPARATOR = '|';
 export const INVOICE_CSV_ERROR = {
   EMPTY_FILE: 'invoices.csv.errors.empty-file',
   NOT_CSV: 'invoices.csv.errors.not-csv',
+  FILE_TOO_LARGE: 'invoices.csv.errors.file-too-large',
+  READ_FAILED: 'invoices.csv.errors.read-failed',
+  INVOICE_FULL: 'invoices.csv.errors.invoice-full',
   MISSING_COLUMNS: 'invoices.csv.errors.missing-columns',
   NO_ROWS: 'invoices.csv.errors.no-rows',
   TOO_MANY_ROWS: 'invoices.csv.errors.too-many-rows',

@@ -96,6 +96,17 @@ function isBlankLineItem(item: InvoiceFormValues['lineItems'][number]): boolean 
   );
 }
 
+/**
+ * Amount shown for a line billed by hours, in euros.
+ *
+ * Rounds in cents exactly like buildLineItems() does before submitting, so the
+ * number in the input can never be a cent away from the one that gets persisted
+ * (which `(hours * rate).toFixed(2)` was on half-cent products, e.g. 2,5 h × 33,33 €).
+ */
+function amountForLine(hours: number, rateEuros: number): number {
+  return centsToEuros(Math.round(hours * eurosToCents(rateEuros)));
+}
+
 function toFormLineItem(item: InvoiceCsvLineItem): InvoiceFormValues['lineItems'][number] {
   return {
     title: item.title,
@@ -245,19 +256,20 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
    * and useForm freezes defaultValues at mount. Without this the rate column stayed
    * empty whenever the modal opened before the query resolved (i.e. any time the
    * profile was not already cached). Only untouched rates are filled, so a value
-   * the user typed meanwhile is never overwritten.
+   * the user typed meanwhile is never overwritten, and only in hourly mode —
+   * handleBillingModeChange() clears the rate on purpose when switching to flat.
    */
   useEffect(() => {
-    if (defaultRateEuros == null || isEditing) return;
+    if (defaultRateEuros == null || isEditing || isFlat) return;
     getValues('lineItems').forEach((item, index) => {
       if (typeof item.hourlyRate === 'number') return;
       setValue(`lineItems.${index}.hourlyRate`, defaultRateEuros);
       // Hours typed while the profile was loading would otherwise keep a 0 amount
       if (typeof item.hours === 'number' && item.hours > 0) {
-        setValue(`lineItems.${index}.amount`, Number((item.hours * defaultRateEuros).toFixed(2)));
+        setValue(`lineItems.${index}.amount`, amountForLine(item.hours, defaultRateEuros));
       }
     });
-  }, [defaultRateEuros, isEditing, getValues, setValue]);
+  }, [defaultRateEuros, isEditing, isFlat, getValues, setValue]);
 
   // Shared by the "add line" buttons above and below the list, so both stay in sync
   const appendLineItem = () =>
@@ -459,7 +471,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           : null;
 
     if (hours != null && rate != null && hours > 0 && rate > 0) {
-      setValue(`lineItems.${index}.amount`, Number((hours * rate).toFixed(2)));
+      setValue(`lineItems.${index}.amount`, amountForLine(hours, rate));
     }
   };
 

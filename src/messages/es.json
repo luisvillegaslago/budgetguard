@@ -1583,6 +1583,9 @@
       "errors": {
         "empty-file": "El fichero está vacío",
         "not-csv": "Selecciona un fichero .csv",
+        "file-too-large": "El fichero es demasiado grande para ser una lista de conceptos",
+        "read-failed": "No se ha podido leer el fichero",
+        "invoice-full": "La factura ya tiene el máximo de conceptos",
         "missing-columns": "Falta la columna «title» (o «description») en la cabecera",
         "no-rows": "El fichero no tiene filas de datos",
         "too-many-rows": "Solo caben {max} conceptos más en esta factura; el resto se ha descartado",

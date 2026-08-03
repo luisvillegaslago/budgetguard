@@ -56,6 +56,14 @@ describe('parseInvoiceCsv', () => {
       expect(result.items).toEqual([]);
       expect(result.issues[0]).toMatchObject({ line: 2, messageKey: INVOICE_CSV_ERROR.AMOUNT_MISMATCH });
     });
+
+    it('tolerates a one-cent rounding difference and keeps the computed amount', () => {
+      // 1,5 h × 33,33 €/h = 49,995 → we round to 50,00, a sheet may have written 49,99
+      const result = parseInvoiceCsv(buildCsv('Reservas,,,1.5,33.33,49.99'));
+
+      expect(result.issues).toEqual([]);
+      expect(result.items[0]?.amountCents).toBe(5000);
+    });
   });
 
   describe('flat rows', () => {
@@ -105,6 +113,36 @@ describe('parseInvoiceCsv', () => {
       const result = parseInvoiceCsv(buildCsv('Auditoría,,,,,"1.234,56"'));
 
       expect(result.items[0]?.amountCents).toBe(123456);
+    });
+
+    it('reads a lone three-digit group as thousands, not as a decimal', () => {
+      // Both locales agree here: "1,234" is 1234 €, never 1,23 €
+      const comma = parseInvoiceCsv(buildCsv('Auditoría,,,,,"1,234"'));
+      const dot = parseInvoiceCsv(buildCsv('Auditoría,,,,,1.234'));
+
+      expect(comma.items[0]?.amountCents).toBe(123400);
+      expect(dot.items[0]?.amountCents).toBe(123400);
+    });
+
+    it('still reads a leading zero group as a decimal', () => {
+      const result = parseInvoiceCsv(buildCsv('Auditoría,,,,,"0,500"'));
+
+      expect(result.items[0]?.amountCents).toBe(50);
+    });
+
+    it('rejects an amount that rounds down to zero cents', () => {
+      // eurosToCents(0.004) is 0, which requiredPositiveInt would reject with a 400
+      const result = parseInvoiceCsv(buildCsv('Auditoría,,,,,0.004'));
+
+      expect(result.items).toEqual([]);
+      expect(result.issues[0]).toMatchObject({ messageKey: INVOICE_CSV_ERROR.INVALID_AMOUNT });
+    });
+
+    it('rejects hours × rate that round down to zero cents', () => {
+      const result = parseInvoiceCsv(buildCsv('Auditoría,,,0.001,0.001,'));
+
+      expect(result.items).toEqual([]);
+      expect(result.issues[0]).toMatchObject({ messageKey: INVOICE_CSV_ERROR.INVALID_HOURLY_RATE });
     });
 
     it('strips the currency symbol from amounts', () => {

@@ -98,6 +98,15 @@ function mapColumns(headerRow: string[]): Partial<Record<InvoiceCsvColumn, numbe
 type NumericCell = { valid: true; value: number | null } | { valid: false };
 
 /**
+ * A single separator followed by exactly three digits, with a leading group that
+ * cannot be a decimal fraction (non-zero, no leading zero): `1,234` / `1.234`.
+ * Both locales agree this is a thousands group — Spanish writes decimals with one
+ * or two digits (`12,5`), English uses the dot. Reading it as a decimal instead
+ * would divide the amount by a thousand without a word.
+ */
+const THOUSANDS_GROUP = /^[1-9]\d{0,2}[.,]\d{3}$/;
+
+/**
  * Read a positive decimal out of a cell.
  *
  * Accepts the dot notation the generator emits (`12.5`) and the comma notation a
@@ -111,8 +120,9 @@ function parseNumericCell(raw: string | undefined): NumericCell {
 
   const lastComma = cleaned.lastIndexOf(',');
   const lastDot = cleaned.lastIndexOf('.');
-  const normalized =
-    lastComma > lastDot
+  const normalized = THOUSANDS_GROUP.test(cleaned)
+    ? cleaned.replace(/[.,]/, '') // 1,234 / 1.234 → 1234
+    : lastComma > lastDot
       ? cleaned.replace(/\./g, '').replace(',', '.') // 1.234,56 → 1234.56
       : cleaned.replace(/,/g, ''); // 1,234.56 → 1234.56
 
@@ -179,6 +189,10 @@ function parseRow(
   if (!amount.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
 
   const amountCents = amount.value === null ? null : eurosToCents(amount.value);
+  // A positive amount can still round down to zero cents (0,004 €), which the
+  // schema's requiredPositiveInt would then reject with a 400
+  if (amountCents !== null && amountCents <= 0) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
+
   const base = { title, subItems, description };
 
   // Flat line: the amount is the only source of truth and a rate without hours is noise
@@ -194,10 +208,17 @@ function parseRow(
         ? options.defaultHourlyRateCents
         : null;
   if (rateCents === null) return { errorKey: INVOICE_CSV_ERROR.HOURLY_RATE_REQUIRED };
+  if (rateCents <= 0) return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURLY_RATE };
 
   // Same rounding the form applies, so the schema's hours × rate refinement holds
   const computedCents = Math.round(hours.value * rateCents);
-  if (amountCents !== null && amountCents !== computedCents) return { errorKey: INVOICE_CSV_ERROR.AMOUNT_MISMATCH };
+  if (computedCents <= 0) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
+  // A sheet that rounded the product itself lands a cent away from ours; the computed
+  // value is the one that gets submitted, so tolerate the difference instead of
+  // throwing away the row
+  if (amountCents !== null && Math.abs(amountCents - computedCents) > 1) {
+    return { errorKey: INVOICE_CSV_ERROR.AMOUNT_MISMATCH };
+  }
 
   return { item: { ...base, hours: hours.value, hourlyRateCents: rateCents, amountCents: computedCents } };
 }
