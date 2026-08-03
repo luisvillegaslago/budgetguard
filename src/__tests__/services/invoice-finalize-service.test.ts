@@ -77,6 +77,8 @@ let capturedBlobBuffer: Buffer | null = null;
 let capturedTransactionQueries: { text: string; params: unknown[] }[] = [];
 let capturedPoolQueries: { text: string; params: unknown[] }[] = [];
 let transactionShouldFail = false;
+/** Whether the status UPDATE still finds the invoice in draft, i.e. nobody cancelled it mid-flight */
+let statusUpdateMatchesRow = true;
 
 // ============================================================
 // Mocks
@@ -86,6 +88,11 @@ const mockClientQuery = jest.fn(async (text: string, params?: unknown[]) => {
   capturedTransactionQueries.push({ text, params: params ?? [] });
   if (transactionShouldFail && text === 'COMMIT') {
     throw new Error('Transaction failed');
+  }
+  // The status UPDATE carries its own draft predicate, so it matches no row once a concurrent
+  // request has moved the invoice out of draft.
+  if (text.includes('UPDATE "Invoices"')) {
+    return { rows: [], rowCount: statusUpdateMatchesRow ? 1 : 0 };
   }
   return { rows: [] };
 });
@@ -159,6 +166,7 @@ describe('InvoiceFinalizeService', () => {
     capturedTransactionQueries = [];
     capturedPoolQueries = [];
     transactionShouldFail = false;
+    statusUpdateMatchesRow = true;
     jest.clearAllMocks();
   });
 
@@ -169,6 +177,27 @@ describe('InvoiceFinalizeService', () => {
 
     it('should throw when invoice is not draft', async () => {
       await expect(finalizeInvoice(2)).rejects.toThrow(API_ERROR.INVOICE.CANNOT_FINALIZE);
+    });
+
+    // The status read in step 1 is stale by the time the transaction runs: rendering the PDF and
+    // uploading the blob take seconds, and a numbered draft can be cancelled meanwhile. The UPDATE
+    // carries the draft predicate so it cannot resurrect a cancelled invoice as finalized.
+    it('guards the status update with its own draft predicate', async () => {
+      await finalizeInvoice(1);
+
+      const update = capturedTransactionQueries.find((q) => q.text.includes('UPDATE "Invoices"'));
+      expect(update?.text).toContain('"Status" = $4');
+      expect(update?.params).toContain(INVOICE_STATUS.DRAFT);
+    });
+
+    it('should refuse and roll back when the invoice left draft mid-flight', async () => {
+      statusUpdateMatchesRow = false;
+
+      await expect(finalizeInvoice(1)).rejects.toThrow(API_ERROR.INVOICE.CANNOT_FINALIZE);
+
+      const executed = capturedTransactionQueries.map((q) => q.text);
+      expect(executed).toContain('ROLLBACK');
+      expect(executed).not.toContain('COMMIT');
     });
   });
 

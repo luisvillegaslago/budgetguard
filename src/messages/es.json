@@ -1567,6 +1567,7 @@
         "amount": "Importe (€)",
         "notes": "Notas"
       },
+      "date-locked-hint": "No se puede cambiar la fecha: esta factura ya tiene número asignado.",
       "add-sub-item": "Añadir subconcepto"
     },
     "csv": {
@@ -1623,6 +1624,9 @@
       "confirm-finalize-title": "¿Emitir factura?",
       "confirm-finalize-message": "Se emitirá la factura y se guardará el PDF en Documentos Fiscales.",
       "confirm-finalize-submit": "Emitir",
+      "revert-to-draft": "Volver a Borrador",
+      "confirm-revert-title": "¿Volver a borrador?",
+      "confirm-revert-message": "La factura volverá a borrador para que puedas editarla y conservará su número actual, así que al volver a emitirla se reutilizará el mismo. El PDF archivado se eliminará de Documentos Fiscales y se generará de nuevo al emitirla otra vez. Hazlo solo si aún no has enviado la factura al cliente.",
       "finalizing": "Emitiendo...",
       "confirm-delete-title": "¿Eliminar factura?",
       "confirm-delete-message": "Esta factura borrador se eliminará permanentemente.",
@@ -1641,6 +1645,7 @@
       "deleted": "Factura eliminada",
       "finalized": "Factura emitida",
       "marked-paid": "Factura marcada como cobrada",
+      "reverted": "Factura devuelta a borrador",
       "updated": "Factura actualizada"
     },
     "vatRate": "Tipo de IVA",
@@ -2014,6 +2019,9 @@
       "cannot-finalize": "Solo se pueden emitir facturas en estado borrador",
       "only-draft-editable": "Solo se pueden editar facturas en estado borrador",
       "only-draft-deletable": "Solo se pueden eliminar facturas en estado borrador",
+      "numbered-not-deletable": "Esta factura ya tiene número asignado y no se puede eliminar, porque la serie de numeración debe mantenerse correlativa y sin huecos. Cancélala en su lugar.",
+      "period-already-filed": "Esta factura pertenece a un periodo fiscal ya presentado ante la AEAT, así que no se puede devolver a borrador. Cancélala o emite una factura rectificativa.",
+      "date-frozen-on-numbered": "Esta factura ya tiene número asignado, así que su fecha no se puede cambiar: la numeración debe mantenerse en orden cronológico.",
       "invalid-status-transition": "Transición de estado inválida",
       "bank-fee-category-not-found": "No existe la subcategoría 'Comisiones bancarias'. Créala bajo 'Trabajo' antes de registrar comisiones bancarias."
     },

@@ -9,6 +9,7 @@ import { getUserIdOrThrow } from '@/libs/auth';
 import { getPool } from '@/services/database/connection';
 import { assignInvoiceNumber, getInvoiceById } from '@/services/database/InvoiceRepository';
 import type { Invoice } from '@/types/finance';
+import { ValidationError } from '@/utils/apiErrors';
 import { prepareInvoicePdf } from '@/utils/invoicePdf';
 
 interface FinalizeResult {
@@ -24,7 +25,9 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
   const check = await getInvoiceById(invoiceId);
   if (!check) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
   if (check.status !== INVOICE_STATUS.DRAFT) {
-    throw new Error(API_ERROR.INVOICE.CANNOT_FINALIZE);
+    // A caller fault, not a server fault: ValidationError makes the route answer 400 with the
+    // i18n key, which the finalize dialog renders, instead of a logged 500.
+    throw new ValidationError(API_ERROR.INVOICE.CANNOT_FINALIZE);
   }
 
   // 2. Assign invoice number atomically (idempotent — skips if already assigned)
@@ -87,12 +90,20 @@ export async function finalizeInvoice(invoiceId: number): Promise<FinalizeResult
       ],
     );
 
-    // 5b. Update invoice status to finalized
-    await client.query(`UPDATE "Invoices" SET "Status" = $1 WHERE "InvoiceID" = $2 AND "UserID" = $3`, [
-      INVOICE_STATUS.FINALIZED,
-      invoiceId,
-      userId,
-    ]);
+    // 5b. Update invoice status to finalized.
+    //
+    // The predicate carries the draft check because the status validated in step 1 is stale by
+    // now: rendering the PDF and uploading the blob take seconds, and a numbered draft can be
+    // cancelled meanwhile. Without it, this UPDATE would resurrect a cancelled invoice as
+    // finalized and leave the FiscalDocument inserted above attached to it.
+    const updated = await client.query(
+      `UPDATE "Invoices" SET "Status" = $1 WHERE "InvoiceID" = $2 AND "UserID" = $3 AND "Status" = $4`,
+      [INVOICE_STATUS.FINALIZED, invoiceId, userId, INVOICE_STATUS.DRAFT],
+    );
+
+    if (updated.rowCount === 0) {
+      throw new ValidationError(API_ERROR.INVOICE.CANNOT_FINALIZE);
+    }
 
     await client.query('COMMIT');
   } catch (error) {

@@ -8,6 +8,8 @@ export interface InvoiceLabels {
   billTo: string;
   date: string;
   invoiceNumber: string;
+  /** Marks a PDF rendered from a draft, which is not an issued invoice and is not declared */
+  draft: string;
   description: string;
   hours: string;
   hourlyRate: string;
@@ -34,6 +36,7 @@ const labels: Record<string, InvoiceLabels> = {
     billTo: 'Bill To',
     date: 'Date',
     invoiceNumber: 'Invoice #',
+    draft: 'DRAFT — NOT ISSUED',
     description: 'Description',
     hours: 'Hours',
     hourlyRate: 'Hourly Rate',
@@ -58,6 +61,7 @@ const labels: Record<string, InvoiceLabels> = {
     billTo: 'Facturar a',
     date: 'Fecha',
     invoiceNumber: 'Factura #',
+    draft: 'BORRADOR — NO EMITIDA',
     description: 'Descripción',
     hours: 'Horas',
     hourlyRate: 'Tarifa (€)',

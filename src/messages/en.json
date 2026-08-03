@@ -1567,6 +1567,7 @@
         "amount": "Amount (€)",
         "notes": "Notes"
       },
+      "date-locked-hint": "The date cannot be changed: this invoice already has a number assigned.",
       "add-sub-item": "Add sub-item"
     },
     "csv": {
@@ -1623,6 +1624,9 @@
       "confirm-finalize-title": "Issue invoice?",
       "confirm-finalize-message": "The invoice will be issued and the PDF will be saved to Fiscal Documents.",
       "confirm-finalize-submit": "Issue",
+      "revert-to-draft": "Back to Draft",
+      "confirm-revert-title": "Back to draft?",
+      "confirm-revert-message": "The invoice will go back to draft so you can edit it, and it will keep its current number, so issuing it again reuses the same one. The archived PDF will be removed from Fiscal Documents and regenerated when you issue the invoice again. Only do this if you have not sent the invoice to the client yet.",
       "finalizing": "Issuing...",
       "confirm-delete-title": "Delete invoice?",
       "confirm-delete-message": "This draft invoice will be permanently deleted.",
@@ -1641,6 +1645,7 @@
       "deleted": "Invoice deleted",
       "finalized": "Invoice finalized",
       "marked-paid": "Invoice marked as paid",
+      "reverted": "Invoice returned to draft",
       "updated": "Invoice updated"
     },
     "vatRate": "VAT rate",
@@ -2014,6 +2019,9 @@
       "cannot-finalize": "Only draft invoices can be finalized",
       "only-draft-editable": "Only draft invoices can be edited",
       "only-draft-deletable": "Only draft invoices can be deleted",
+      "numbered-not-deletable": "This invoice already has a number assigned and cannot be deleted, because the numbering series must stay correlative and without gaps. Cancel it instead.",
+      "period-already-filed": "This invoice belongs to a tax period that has already been filed with the AEAT, so it can no longer be returned to draft. Cancel it or issue a corrective invoice instead.",
+      "date-frozen-on-numbered": "This invoice already has a number assigned, so its date can no longer be changed: the numbering has to stay in chronological order.",
       "invalid-status-transition": "Invalid status transition",
       "bank-fee-category-not-found": "Subcategory 'Comisiones bancarias' not found. Create it under 'Trabajo' before recording bank fees."
     },

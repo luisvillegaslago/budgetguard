@@ -5,7 +5,7 @@
  */
 
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
-import { PAYMENT_METHOD } from '@/constants/finance';
+import { INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
 import type { Invoice } from '@/types/finance';
 import { getTaxBreakdownRows, isNotSubjectToVat } from '@/utils/invoiceAmounts';
 import { getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
@@ -115,6 +115,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Helvetica-Bold',
     color: '#4f46e5',
+  },
+  draftNotice: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: '#dc2626',
+    marginTop: 2,
   },
   // Table
   tableHeader: {
@@ -324,7 +330,15 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
           </View>
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>{l.invoiceNumber}</Text>
-            <Text style={styles.invoiceNumberValue}>{invoice.invoiceNumber ?? 'BORRADOR'}</Text>
+            <Text style={styles.invoiceNumberValue}>{invoice.invoiceNumber ?? l.draft}</Text>
+            {/*
+              A draft reverted from finalized keeps its number, so the number alone no longer proves
+              the invoice was issued — and while it stays draft it is out of vw_FiscalAccrual, so no
+              tax return declares it. Mark the PDF so it can never pass for the issued document.
+            */}
+            {invoice.status === INVOICE_STATUS.DRAFT && invoice.invoiceNumber != null && (
+              <Text style={styles.draftNotice}>{l.draft}</Text>
+            )}
           </View>
         </View>
 

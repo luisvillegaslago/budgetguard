@@ -231,6 +231,8 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   const createPrefix = useCreateInvoicePrefix();
 
   const isEditing = !!invoice;
+  // A numbered draft (one reverted from finalized) has its date frozen by the backend
+  const isDateLocked = !!invoice?.invoiceNumber;
   const mutation = isEditing ? updateInvoice : createInvoice;
 
   const {
@@ -573,7 +575,20 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
               <label htmlFor="invoiceDate" className="block text-sm font-medium text-foreground mb-1">
                 {t('invoices.form.fields.date')}
               </label>
-              <input id="invoiceDate" type="date" {...register('invoiceDate')} className="w-full input-sm" />
+              {/*
+                An invoice that already carries a number keeps its date frozen: the numbering must
+                stay chronological, and re-dating it would move the income to another quarter.
+                readOnly (never disabled) so react-hook-form still submits the original date —
+                a disabled input is omitted from the values and the update would send no date.
+              */}
+              <input
+                id="invoiceDate"
+                type="date"
+                readOnly={isDateLocked}
+                {...register('invoiceDate')}
+                className={`w-full input-sm${isDateLocked ? ' bg-muted/30 text-guard-muted cursor-not-allowed' : ''}`}
+              />
+              {isDateLocked && <p className="text-xs text-guard-muted mt-1">{t('invoices.form.date-locked-hint')}</p>}
               {errors.invoiceDate && (
                 <p role="alert" className="text-xs text-guard-danger mt-1">
                   {t(errors.invoiceDate.message ?? '')}

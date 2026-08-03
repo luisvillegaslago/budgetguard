@@ -8,6 +8,7 @@ import {
   API_ERROR,
   BANK_FEE_CATEGORY,
   FISCAL_DOCUMENT_TYPE,
+  FISCAL_STATUS,
   INVOICE_STATUS,
   TRANSACTION_STATUS,
   TRANSACTION_TYPE,
@@ -23,6 +24,7 @@ import type {
   InvoiceStatus,
   PaymentMethod,
 } from '@/types/finance';
+import { ValidationError } from '@/utils/apiErrors';
 import { computeInvoiceAmounts } from '@/utils/invoiceAmounts';
 import { getPool, query } from './connection';
 
@@ -699,7 +701,8 @@ export async function assignInvoiceNumber(invoiceId: number): Promise<string> {
 /**
  * Update a draft invoice (date, line items, notes) — TRANSACTIONAL
  * Deletes existing line items and re-inserts. Recalculates TotalCents.
- * Only draft invoices can be edited.
+ * Only draft invoices can be edited, and a draft that already carries an invoice number
+ * (one that came back from a revert) can no longer have its InvoiceDate changed.
  */
 export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput): Promise<Invoice> {
   const userId = await getUserIdOrThrow();
@@ -719,6 +722,18 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
     if (!invoiceRow) throw new Error(API_ERROR.NOT_FOUND.INVOICE);
     if (invoiceRow.Status !== INVOICE_STATUS.DRAFT) {
       throw new Error(API_ERROR.INVOICE.ONLY_DRAFT_EDITABLE);
+    }
+
+    // A numbered draft (one that came back from a revert) keeps its date frozen: the number is
+    // already fixed, so re-dating it would let DW-05 end up dated after DW-06 — the series stays
+    // correlative but the dates stop being chronological, which RD 1619/2012 also requires — and
+    // the income would silently move to another quarter. An un-numbered draft is still free.
+    // Both sides go through toDateString() so a Date-vs-string mismatch cannot fake a change:
+    // the edit form resubmits the date on every save, and a false positive here would leave
+    // numbered drafts uneditable altogether.
+    const invoiceDate = toDateString(data.invoiceDate);
+    if (invoiceRow.InvoiceNumber && invoiceDate !== toDateString(invoiceRow.InvoiceDate)) {
+      throw new ValidationError(API_ERROR.INVOICE.DATE_FROZEN_ON_NUMBERED);
     }
 
     // 2. Delete existing line items
@@ -751,9 +766,7 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
     // 4. Recalculate the money breakdown
     const amounts = computeInvoiceAmounts(data.lineItems, data.vatPercent, data.retentionPercent);
 
-    // 5. Update invoice
-    const invoiceDate = toDateString(data.invoiceDate);
-
+    // 5. Update invoice (invoiceDate was normalised by the numbered-draft guard above)
     await client.query(
       `UPDATE "Invoices"
        SET "InvoiceDate" = $1, "Notes" = $2,
@@ -817,13 +830,78 @@ async function findBankFeeSubcategoryIdInTx(
   return result.rows[0]?.CategoryID ?? null;
 }
 
+// Escape the LIKE metacharacters of a value that is interpolated into a pattern.
+// The replacement `'\\$&'` is a single backslash followed by the matched character.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
+// Delete the archived FiscalDocument of an issued invoice using a tx-scoped client.
+// Shared by cancellation and by the revert-to-draft path so the lookup lives in one place.
+// Returns the blob URLs of the deleted rows so the caller can purge them after COMMIT.
+async function deleteIssuedFiscalDocumentInTx(
+  client: {
+    query: (text: string, params: unknown[]) => Promise<{ rows: Array<{ DocumentID: number; BlobUrl: string }> }>;
+  },
+  userId: number,
+  invoiceNumber: string,
+): Promise<string[]> {
+  // The invoice number embeds a user-defined prefix, so it must not leak LIKE wildcards:
+  // an unescaped `_` or `%` would match — and delete — the fiscal archive of a different,
+  // still-finalized invoice. ESCAPE '\' below arrives at the server as a single backslash.
+  const result = await client.query(
+    `DELETE FROM "FiscalDocuments"
+     WHERE "UserID" = $1
+       AND "DocumentType" = $2
+       AND "Description" LIKE $3 ESCAPE '\\'
+     RETURNING "DocumentID", "BlobUrl"`,
+    [userId, FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA, `Factura ${escapeLikePattern(invoiceNumber)} -%`],
+  );
+
+  return result.rows.map((row) => row.BlobUrl);
+}
+
+// Tell whether the AEAT filing that covers an invoice date has already been submitted.
+// The period is taken from the invoice's own date because that is what "vw_FiscalAccrual"
+// books the income on. Year and quarter are read in UTC — the date arrives as a DATE column,
+// so reading it in local time would push a 1 January invoice back into Q4 of the prior year.
+// The NULL-quarter branch is deliberate: per CK_FiscalDoc_Quarter, annual modelos (390, 100)
+// store no quarter and cover the whole fiscal year.
+async function isFiscalPeriodFiledInTx(
+  client: { query: (text: string, params: unknown[]) => Promise<{ rows: Array<{ exists: boolean }> }> },
+  userId: number,
+  invoiceDate: Date,
+): Promise<boolean> {
+  const fiscalYear = invoiceDate.getUTCFullYear();
+  const fiscalQuarter = Math.ceil((invoiceDate.getUTCMonth() + 1) / 3);
+
+  const result = await client.query(
+    `SELECT 1 AS "exists"
+     FROM "FiscalDocuments"
+     WHERE "UserID" = $1
+       AND "DocumentType" = $2
+       AND "Status" = $3
+       AND "FiscalYear" = $4
+       AND ("FiscalQuarter" = $5 OR "FiscalQuarter" IS NULL)
+     LIMIT 1`,
+    [userId, FISCAL_DOCUMENT_TYPE.MODELO, FISCAL_STATUS.FILED, fiscalYear, fiscalQuarter],
+  );
+
+  return result.rows.length > 0;
+}
+
 /**
  * Update invoice status with state machine validation (TRANSACTIONAL)
  * Valid transitions:
  *   draft → finalized
+ *   draft → cancelled (only a numbered draft; retires the number it cannot give back)
  *   finalized → paid (creates income transaction; optionally a bank fee expense)
  *   finalized → cancelled
+ *   finalized → draft (revert; deletes the FiscalDocument + PDF blob, keeps the number)
  *   paid → cancelled (deletes income + bank fee transactions)
+ *
+ * The finalized → draft revert is additionally refused when the invoice's fiscal period has
+ * already been filed with the AEAT. Cancelling such an invoice stays available.
  */
 export async function updateInvoiceStatus(
   invoiceId: number,
@@ -851,22 +929,62 @@ export async function updateInvoiceStatus(
 
     // Validate state transition.
     //
-    // Issuing an invoice is irreversible: it consumes a number from its series, and that
-    // numbering must stay correlative without gaps (RD 1619/2012). Reverting to draft and
-    // then deleting the invoice would erase the number for good. A mistake is corrected by
-    // cancelling — which keeps the number on record — or with a rectificativa.
+    // An issued invoice that has not been delivered to the client yet can be pulled back to
+    // draft to be corrected. The invoice number is deliberately RETAINED across the revert,
+    // and assignInvoiceNumber() is idempotent, so re-issuing reuses that same number and the
+    // series stays correlative with no gaps (RD 1619/2012). deleteInvoice() refuses invoices
+    // that already carry a number, which is what stops this path from ever opening a gap.
     //
-    // Verifactu will require the same from July 2027: an issued invoice is never modified,
-    // only annulled through its own record.
+    // Once the invoice has been delivered, the fix is cancelling it — which keeps the number
+    // on record — or issuing a rectificativa. Cancelled stays terminal. Paid never reverts:
+    // the money is already collected and an income transaction exists.
+    //
+    // A NUMBERED draft (one that came back from a revert, or whose finalization died after the
+    // number was assigned) may also be cancelled: since it cannot be deleted, cancelling is its
+    // only way out, and without it the job being called off would leave the row — and a
+    // permanent hole in the series — stuck forever. An un-numbered draft is NOT cancellable:
+    // cancelling exists to retire a number while keeping it on record, and a draft that never
+    // took a number has nothing to preserve, so it is deleted instead.
+    //
+    // The revert is further restricted below: it is refused once the fiscal period the invoice
+    // belongs to has been filed with the AEAT, because reverting drops the invoice out of
+    // "vw_FiscalAccrual" and every regenerated report for that period would stop matching what
+    // was actually submitted. Cancelling remains available there, and it is the legally correct
+    // remedy — the invoice and its number stay on record.
+    //
+    // Verifactu will require the same from July 2027 for invoices actually issued to a
+    // client: never modified, only annulled through their own record.
     const validTransitions: Record<string, InvoiceStatus[]> = {
-      [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.FINALIZED],
-      [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED],
+      [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.FINALIZED, INVOICE_STATUS.CANCELLED],
+      [INVOICE_STATUS.FINALIZED]: [INVOICE_STATUS.PAID, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.DRAFT],
       [INVOICE_STATUS.PAID]: [INVOICE_STATUS.CANCELLED],
       [INVOICE_STATUS.CANCELLED]: [],
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw new Error(API_ERROR.INVOICE.INVALID_STATUS_TRANSITION);
+      throw new ValidationError(API_ERROR.INVOICE.INVALID_STATUS_TRANSITION);
+    }
+
+    // draft → cancelled is reserved for numbered drafts (see above): an un-numbered draft is
+    // deleted, not cancelled. The cancellation branch below is harmless on this path — the
+    // FiscalDocument was already removed when the invoice was reverted, so the helper deletes
+    // zero rows, and a draft never carries a TransactionID to strand.
+    if (newStatus === INVOICE_STATUS.CANCELLED && currentStatus === INVOICE_STATUS.DRAFT && !invoiceRow.InvoiceNumber) {
+      throw new ValidationError(API_ERROR.INVOICE.INVALID_STATUS_TRANSITION);
+    }
+
+    // Reverting to draft is refused once the invoice's fiscal period has been filed: the revert
+    // takes the invoice out of "vw_FiscalAccrual" and deletes the archived PDF evidence, so every
+    // report regenerated for that period would stop matching what was submitted to the AEAT.
+    // Cancelling the invoice is still allowed and is the correct remedy in that situation.
+    // The period comes from the invoice's own date, normalised through toDateString() first:
+    // the driver may hand back a Date or a string, and a date-only string parses as UTC midnight,
+    // which is what keeps a 1 January invoice inside Q1 instead of Q4 of the previous year.
+    if (newStatus === INVOICE_STATUS.DRAFT && currentStatus === INVOICE_STATUS.FINALIZED) {
+      const invoiceDate = new Date(toDateString(invoiceRow.InvoiceDate));
+      if (await isFiscalPeriodFiledInTx(client, userId, invoiceDate)) {
+        throw new ValidationError(API_ERROR.INVOICE.PERIOD_ALREADY_FILED);
+      }
     }
 
     let transactionId: number | null = invoiceRow.TransactionID;
@@ -935,7 +1053,7 @@ export async function updateInvoiceStatus(
       }
     }
 
-    // Cancellation is the only way out of an issued invoice → clean up FiscalDocument + blob.
+    // Cancellation is the way out of a delivered invoice → clean up FiscalDocument + blob.
     // The invoice itself, and its number, stay on record.
     if (newStatus === INVOICE_STATUS.CANCELLED) {
       // Delete associated income transaction (if cancelling a paid invoice)
@@ -962,18 +1080,16 @@ export async function updateInvoiceStatus(
       }
 
       // Delete associated FiscalDocument (created when finalized)
-      const docResult = await client.query<{ DocumentID: number; BlobUrl: string }>(
-        `DELETE FROM "FiscalDocuments"
-         WHERE "UserID" = $1
-           AND "DocumentType" = $2
-           AND "Description" LIKE $3
-         RETURNING "DocumentID", "BlobUrl"`,
-        [userId, FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA, `Factura ${invoiceRow.InvoiceNumber} -%`],
-      );
+      if (invoiceRow.InvoiceNumber) {
+        blobUrlsToDelete.push(...(await deleteIssuedFiscalDocumentInTx(client, userId, invoiceRow.InvoiceNumber)));
+      }
+    }
 
-      docResult.rows.forEach((row) => {
-        blobUrlsToDelete.push(row.BlobUrl);
-      });
+    // Revert to draft: the archived FiscalDocument + PDF describe an issue that is being undone,
+    // so they are removed to avoid a duplicate when the invoice is issued again. The invoice
+    // number is kept, so re-issuing reuses it and the series stays gap-free.
+    if (newStatus === INVOICE_STATUS.DRAFT && invoiceRow.InvoiceNumber) {
+      blobUrlsToDelete.push(...(await deleteIssuedFiscalDocumentInTx(client, userId, invoiceRow.InvoiceNumber)));
     }
 
     // Update invoice status
@@ -1114,24 +1230,53 @@ export async function refreshDraftSnapshot(invoiceId: number): Promise<Invoice |
 }
 
 /**
- * Delete an invoice (only drafts)
+ * Delete an invoice (only drafts that have never been issued).
+ * A draft that already carries an InvoiceNumber comes from a reverted finalization:
+ * deleting it would burn that number, so it is rejected.
  */
 export async function deleteInvoice(invoiceId: number): Promise<boolean> {
   const userId = await getUserIdOrThrow();
 
   // Check status
-  const check = await query<{ Status: string }>(
-    `SELECT "Status" FROM "Invoices" WHERE "InvoiceID" = $1 AND "UserID" = $2`,
+  const check = await query<{ Status: string; InvoiceNumber: string | null }>(
+    `SELECT "Status", "InvoiceNumber" FROM "Invoices" WHERE "InvoiceID" = $1 AND "UserID" = $2`,
     [invoiceId, userId],
   );
 
+  // Both refusals below are caller faults, not server faults: ValidationError is what makes
+  // withApiHandler answer 400 with the i18n key instead of logging a 500 and swallowing it.
   if (!check[0]) return false;
   if (check[0].Status !== INVOICE_STATUS.DRAFT) {
-    throw new Error(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
+    throw new ValidationError(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
   }
 
-  // Line items cascade automatically
-  await query(`DELETE FROM "Invoices" WHERE "InvoiceID" = $1 AND "UserID" = $2`, [invoiceId, userId]);
+  // Refusing numbered drafts is what keeps the numbering series free of gaps
+  if (check[0].InvoiceNumber) {
+    throw new ValidationError(API_ERROR.INVOICE.NUMBERED_NOT_DELETABLE);
+  }
 
-  return true;
+  // The checks above only produce the precise error message: carrying them in the DELETE
+  // predicate is what makes the guard race-free. Without it, an invoice finalized between the
+  // SELECT and the DELETE would be removed after its number was already assigned and the
+  // prefix counter bumped, burning that number. Line items cascade automatically.
+  const deleted = await query<{ InvoiceID: number }>(
+    `DELETE FROM "Invoices"
+     WHERE "InvoiceID" = $1 AND "UserID" = $2 AND "Status" = $3 AND "InvoiceNumber" IS NULL
+     RETURNING "InvoiceID"`,
+    [invoiceId, userId, INVOICE_STATUS.DRAFT],
+  );
+
+  if (deleted.length > 0) return true;
+
+  // The row changed underneath us — re-read it and report the guard that now applies
+  const recheck = await query<{ Status: string; InvoiceNumber: string | null }>(
+    `SELECT "Status", "InvoiceNumber" FROM "Invoices" WHERE "InvoiceID" = $1 AND "UserID" = $2`,
+    [invoiceId, userId],
+  );
+
+  if (!recheck[0]) return false;
+  if (recheck[0].InvoiceNumber) {
+    throw new ValidationError(API_ERROR.INVOICE.NUMBERED_NOT_DELETABLE);
+  }
+  throw new ValidationError(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
 }

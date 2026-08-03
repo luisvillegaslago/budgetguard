@@ -5,7 +5,7 @@
  * Shows invoice preview with status actions and PDF download
  */
 
-import { ArrowLeft, Download, FolderPlus, Loader2, Pencil } from 'lucide-react';
+import { ArrowLeft, Download, FolderPlus, Loader2, Pencil, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -49,6 +49,7 @@ export default function InvoiceDetailPage() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [bankFeeEuros, setBankFeeEuros] = useState<string>('');
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -75,11 +76,35 @@ export default function InvoiceDetailPage() {
 
   const invoiceClient = clients?.find((c) => c.companyId === invoice.companyId);
 
+  // Every dialog below renders its mutation's errorMessage, and that error outlives the dialog
+  // that produced it — mark paid, cancel and revert even share one mutation. Clearing it as each
+  // dialog opens keeps a failed action from greeting the user before they have done anything.
   const handleOpenCategoryPicker = () => {
+    updateStatus.reset();
     setBankFeeEuros(
       invoiceClient?.defaultBankFeeCents != null ? centsToEuros(invoiceClient.defaultBankFeeCents).toString() : '',
     );
     setShowCategoryPicker(true);
+  };
+
+  const handleOpenCancel = () => {
+    updateStatus.reset();
+    setConfirmCancel(true);
+  };
+
+  const handleOpenRevert = () => {
+    updateStatus.reset();
+    setConfirmRevert(true);
+  };
+
+  const handleOpenFinalize = () => {
+    finalizeInvoice.reset();
+    setConfirmFinalize(true);
+  };
+
+  const handleOpenDelete = () => {
+    deleteInvoice.reset();
+    setConfirmDelete(true);
   };
 
   const handleFinalize = async () => {
@@ -113,6 +138,16 @@ export default function InvoiceDetailPage() {
       await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.CANCELLED } });
       setConfirmCancel(false);
       toast.success(t('invoices.toast.cancelled'));
+    } catch {
+      // Error surfaced via updateStatus.errorMessage in the confirm dialog.
+    }
+  };
+
+  const handleRevertToDraft = async () => {
+    try {
+      await updateStatus.mutateAsync({ invoiceId, data: { status: INVOICE_STATUS.DRAFT } });
+      setConfirmRevert(false);
+      toast.success(t('invoices.toast.reverted'));
     } catch {
       // Error surfaced via updateStatus.errorMessage in the confirm dialog.
     }
@@ -227,22 +262,34 @@ export default function InvoiceDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setConfirmFinalize(true)}
+                onClick={handleOpenFinalize}
                 disabled={finalizeInvoice.isPending}
                 className="btn-primary flex items-center gap-2"
               >
                 {finalizeInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {finalizeInvoice.isPending ? t('invoices.actions.finalizing') : t('invoices.actions.finalize')}
               </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                disabled={deleteInvoice.isPending}
-                className="btn-danger flex items-center gap-2"
-              >
-                {deleteInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('common.buttons.delete')}
-              </button>
+              {/*
+                A draft that never got a number was never issued, so deleting it leaves no gap in
+                the series and the backend allows it. A reverted draft keeps the number it was
+                issued with: the backend refuses to delete it, so the only way out is to cancel it,
+                which keeps the number on record (RD 1619/2012).
+              */}
+              {invoice.invoiceNumber == null ? (
+                <button
+                  type="button"
+                  onClick={handleOpenDelete}
+                  disabled={deleteInvoice.isPending}
+                  className="btn-danger flex items-center gap-2"
+                >
+                  {deleteInvoice.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t('common.buttons.delete')}
+                </button>
+              ) : (
+                <button type="button" onClick={handleOpenCancel} className="btn-danger">
+                  {t('invoices.actions.cancel')}
+                </button>
+              )}
             </>
           )}
 
@@ -256,14 +303,23 @@ export default function InvoiceDetailPage() {
               >
                 {t('invoices.actions.mark-paid')}
               </button>
-              <button type="button" onClick={() => setConfirmCancel(true)} className="btn-danger">
+              <button
+                type="button"
+                onClick={handleOpenRevert}
+                disabled={updateStatus.isPending}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <Undo2 className="h-4 w-4" aria-hidden="true" />
+                {t('invoices.actions.revert-to-draft')}
+              </button>
+              <button type="button" onClick={handleOpenCancel} className="btn-danger">
                 {t('invoices.actions.cancel')}
               </button>
             </>
           )}
 
           {invoice.status === INVOICE_STATUS.PAID && (
-            <button type="button" onClick={() => setConfirmCancel(true)} className="btn-danger">
+            <button type="button" onClick={handleOpenCancel} className="btn-danger">
               {t('invoices.actions.cancel')}
             </button>
           )}
@@ -524,14 +580,21 @@ export default function InvoiceDetailPage() {
 
       {/* Cancel Confirmation Modal */}
       {confirmCancel && (
-        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-foreground mb-2">{t('invoices.actions.confirm-cancel-title')}</h3>
+        <ModalBackdrop onClose={() => setConfirmCancel(false)} labelledBy="confirm-cancel-title">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm animate-modal-in">
+            <h3 id="confirm-cancel-title" className="text-lg font-semibold text-foreground mb-2">
+              {t('invoices.actions.confirm-cancel-title')}
+            </h3>
             <p className="text-sm text-guard-muted mb-4">
               {invoice.status === INVOICE_STATUS.PAID
                 ? t('invoices.actions.confirm-cancel-paid')
                 : t('invoices.actions.confirm-cancel-finalized')}
             </p>
+            {updateStatus.errorMessage && (
+              <p role="alert" className="mb-3 text-sm text-guard-danger">
+                {updateStatus.errorMessage}
+              </p>
+            )}
             <div className="flex gap-3">
               <button type="button" onClick={() => setConfirmCancel(false)} className="flex-1 btn-secondary">
                 {t('common.buttons.close')}
@@ -547,17 +610,58 @@ export default function InvoiceDetailPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
+      )}
+
+      {/* Revert to Draft Confirmation Modal */}
+      {confirmRevert && (
+        <ModalBackdrop onClose={() => setConfirmRevert(false)} labelledBy="confirm-revert-title">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm animate-modal-in">
+            <h3 id="confirm-revert-title" className="text-lg font-semibold text-foreground mb-2">
+              {t('invoices.actions.confirm-revert-title')}
+            </h3>
+            <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-revert-message')}</p>
+            {updateStatus.errorMessage && (
+              <p role="alert" className="mb-3 text-sm text-guard-danger">
+                {updateStatus.errorMessage}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmRevert(false)}
+                disabled={updateStatus.isPending}
+                className="flex-1 btn-secondary"
+              >
+                {t('common.buttons.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleRevertToDraft}
+                disabled={updateStatus.isPending}
+                className="flex-1 btn-primary flex items-center justify-center gap-2"
+              >
+                {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('invoices.actions.revert-to-draft')}
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>
       )}
 
       {/* Finalize Confirmation Modal */}
       {confirmFinalize && (
-        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-foreground mb-2">
+        <ModalBackdrop onClose={() => setConfirmFinalize(false)} labelledBy="confirm-finalize-title">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm animate-modal-in">
+            <h3 id="confirm-finalize-title" className="text-lg font-semibold text-foreground mb-2">
               {t('invoices.actions.confirm-finalize-title')}
             </h3>
             <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-finalize-message')}</p>
+            {finalizeInvoice.errorMessage && (
+              <p role="alert" className="mb-3 text-sm text-guard-danger">
+                {finalizeInvoice.errorMessage}
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 type="button"
@@ -580,15 +684,22 @@ export default function InvoiceDetailPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Delete Confirmation Modal */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-foreground mb-2">{t('invoices.actions.confirm-delete-title')}</h3>
+        <ModalBackdrop onClose={() => setConfirmDelete(false)} labelledBy="confirm-delete-title">
+          <div className="bg-card rounded-xl shadow-lg p-6 w-full max-w-sm animate-modal-in">
+            <h3 id="confirm-delete-title" className="text-lg font-semibold text-foreground mb-2">
+              {t('invoices.actions.confirm-delete-title')}
+            </h3>
             <p className="text-sm text-guard-muted mb-4">{t('invoices.actions.confirm-delete-message')}</p>
+            {deleteInvoice.errorMessage && (
+              <p role="alert" className="mb-3 text-sm text-guard-danger">
+                {deleteInvoice.errorMessage}
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 type="button"
@@ -609,7 +720,7 @@ export default function InvoiceDetailPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   );
