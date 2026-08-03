@@ -14,6 +14,8 @@ export interface InvoiceLabels {
   description: string;
   hours: string;
   hourlyRate: string;
+  /** Suffix appended to an hourly rate, e.g. the "/hr" in "60,00 €/hr" */
+  perHour: string;
   balance: string;
   taxableBase: string;
   vat: string;
@@ -42,6 +44,7 @@ const labels: Record<string, InvoiceLabels> = {
     description: 'Description',
     hours: 'Hours',
     hourlyRate: 'Hourly Rate',
+    perHour: '/hr',
     balance: 'Balance',
     taxableBase: 'Taxable base',
     vat: 'VAT',
@@ -68,6 +71,7 @@ const labels: Record<string, InvoiceLabels> = {
     description: 'Descripción',
     hours: 'Horas',
     hourlyRate: 'Tarifa (€)',
+    perHour: '/h',
     balance: 'Importe',
     taxableBase: 'Base imponible',
     vat: 'IVA',

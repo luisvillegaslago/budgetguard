@@ -1638,7 +1638,6 @@
       "load": "Error loading invoice",
       "pdf-download": "Could not download the PDF"
     },
-    "per-hour-suffix": "/ hour",
     "toast": {
       "cancelled": "Invoice cancelled",
       "created": "Invoice created",

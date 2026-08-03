@@ -1638,7 +1638,6 @@
       "load": "Error al cargar factura",
       "pdf-download": "No se pudo descargar el PDF"
     },
-    "per-hour-suffix": "/ hora",
     "toast": {
       "cancelled": "Factura cancelada",
       "created": "Factura creada",

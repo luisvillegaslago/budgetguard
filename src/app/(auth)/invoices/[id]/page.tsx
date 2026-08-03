@@ -212,12 +212,15 @@ export default function InvoiceDetailPage() {
   const l = getInvoiceLabels(invoice.invoiceLanguage);
   const invoiceLocale = getInvoiceLocale(invoice.invoiceLanguage);
   const showHourlyColumns = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
-  const tableGridClass = showHourlyColumns ? 'grid-cols-[2fr_1fr_1fr_1fr]' : 'grid-cols-[3fr_1fr]';
+  // Column ratios mirror InvoicePdfTemplate exactly, so the preview shows the same wrapping and
+  // the same spacing between the rate and the amount as the document the client receives.
+  const tableGridClass = showHourlyColumns ? 'grid-cols-[66fr_8fr_14fr_12fr]' : 'grid-cols-[88fr_12fr]';
   // Totals span the description columns so their amounts line up with the line items
   const totalLabelClass = `${showHourlyColumns ? 'col-span-3' : 'col-span-1'} text-right`;
 
-  // Reuse the central money formatter (DRY) and append the per-hour unit suffix.
-  const formatRate = (cents: number) => `${formatCurrency(cents)}${t('invoices.per-hour-suffix')}`;
+  // Reuse the central money formatter (DRY). The unit suffix comes from the invoice labels, not
+  // from the UI locale: the preview must read in the language the invoice is issued in.
+  const formatRate = (cents: number) => `${formatCurrency(cents)}${l.perHour}`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -360,6 +363,7 @@ export default function InvoiceDetailPage() {
                 {[invoice.clientPostalCode, invoice.clientCity].filter(Boolean).join(' ')}
               </p>
             )}
+            {invoice.clientCountry && <p className="text-sm text-guard-muted">{invoice.clientCountry}</p>}
             {invoice.clientTaxId && (
               <p className="text-sm text-guard-muted">
                 {l.taxId}: {invoice.clientTaxId}
@@ -372,13 +376,21 @@ export default function InvoiceDetailPage() {
         <div className="flex justify-between mb-6 pb-4 border-b border-border">
           <div>
             <p className="text-xs text-guard-muted uppercase tracking-wide">{l.date}</p>
-            <p className="font-medium text-foreground">{formatDate(invoice.invoiceDate, 'long', invoiceLocale)}</p>
+            <p className="font-medium text-foreground">{formatDate(invoice.invoiceDate, 'numeric', invoiceLocale)}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-guard-muted uppercase tracking-wide">{l.invoiceNumber}</p>
             <p className="text-lg font-bold text-guard-primary">{formatInvoiceLabel(invoice.invoiceNumber)}</p>
           </div>
         </div>
+
+        {/* Notes — context for the whole invoice, so they precede the concepts they explain */}
+        {invoice.notes && (
+          <p className="text-sm text-guard-muted mb-6">
+            <span className="font-medium text-foreground/80">{l.notes}: </span>
+            {invoice.notes}
+          </p>
+        )}
 
         {/* Table */}
         <div className="mb-6">
@@ -454,13 +466,6 @@ export default function InvoiceDetailPage() {
 
         {/* Legally required when the operation carries no Spanish VAT */}
         {isNotSubjectToVat(invoice.vatPercent) && <p className="text-xs text-guard-muted mb-6">{l.notSubjectNotice}</p>}
-
-        {/* Notes */}
-        {invoice.notes && (
-          <div className="mb-6">
-            <p className="text-sm text-guard-muted">{invoice.notes}</p>
-          </div>
-        )}
 
         {/* Payment info */}
         <div className="pt-4 border-t border-border">

@@ -7,6 +7,7 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { INVOICE_STATUS, PAYMENT_METHOD } from '@/constants/finance';
 import type { Invoice } from '@/types/finance';
+import { formatDate } from '@/utils/helpers';
 import { getTaxBreakdownRows, isNotSubjectToVat } from '@/utils/invoiceAmounts';
 import { getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
 import { centsToEuros } from '@/utils/money';
@@ -19,22 +20,14 @@ function formatPdfCurrency(cents: number): string {
   }).format(euros)} €`;
 }
 
+// Date and rate formatting live in shared helpers so the on-screen preview renders them
+// identically — the preview's whole job is to show what the client will receive.
 function formatPdfDate(dateStr: string, locale = 'es-ES'): string {
-  const d = new Date(dateStr);
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(d);
+  return formatDate(dateStr, 'numeric', locale);
 }
 
-function formatPdfRate(cents: number): string {
-  const euros = centsToEuros(cents);
-  return `${new Intl.NumberFormat('es-ES', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(euros)} €/hr`;
+function formatPdfRate(cents: number, perHour: string): string {
+  return `${formatPdfCurrency(cents)}${perHour}`;
 }
 
 /**
@@ -411,7 +404,7 @@ export function InvoicePdfDocument({ invoice }: InvoicePdfDocumentProps) {
                   {item.hours != null ? item.hours.toString() : '-'}
                 </Text>
                 <Text style={[item.hourlyRateCents != null ? styles.cellText : styles.cellMuted, styles.colRate]}>
-                  {item.hourlyRateCents != null ? formatPdfRate(item.hourlyRateCents) : '-'}
+                  {item.hourlyRateCents != null ? formatPdfRate(item.hourlyRateCents, l.perHour) : '-'}
                 </Text>
               </>
             )}

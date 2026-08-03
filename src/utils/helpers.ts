@@ -34,7 +34,7 @@ export function formatTripPeriod(startDate: string | null, endDate: string | nul
 
 export function formatDate(
   date: string | Date,
-  format: 'short' | 'long' | 'month' = 'short',
+  format: 'short' | 'long' | 'month' | 'numeric' = 'short',
   locale = 'es-ES',
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
@@ -42,6 +42,14 @@ export function formatDate(
   switch (format) {
     case 'month':
       return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+    // Zero-padded all-numeric date, used on invoices and their on-screen preview
+    case 'numeric':
+      return new Intl.DateTimeFormat(locale, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(d);
     case 'long':
       return new Intl.DateTimeFormat(locale, {
         day: 'numeric',
