@@ -1585,6 +1585,7 @@
         "not-csv": "Selecciona un fichero .csv",
         "file-too-large": "El fichero es demasiado grande para ser una lista de conceptos",
         "read-failed": "No se ha podido leer el fichero",
+        "bad-encoding": "El fichero no está en UTF-8: los acentos llegarían corruptos. Guárdalo como «CSV UTF-8»",
         "invoice-full": "La factura ya tiene el máximo de conceptos",
         "missing-columns": "Falta la columna «title» (o «description») en la cabecera",
         "no-rows": "El fichero no tiene filas de datos",

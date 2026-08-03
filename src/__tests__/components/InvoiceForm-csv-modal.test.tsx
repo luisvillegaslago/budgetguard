@@ -9,6 +9,7 @@
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 const mockClose = jest.fn();
 
@@ -46,6 +47,17 @@ function openImportModal() {
   fireEvent.click(screen.getByRole('button', { name: 'invoices.csv.import' }));
 }
 
+function fileInput() {
+  return document.querySelector('input[type="file"]') as HTMLInputElement;
+}
+
+/** Loads a valid file so the modal's last focusable (the confirm button) is enabled. */
+async function uploadCsv() {
+  const csv = 'title,subItems,description,hours,hourlyRate,amount\nReservas,,,2,45,';
+  await userEvent.upload(fileInput(), new File([csv], 'factura.csv', { type: 'text/csv' }));
+  await screen.findByText('invoices.csv.summary');
+}
+
 describe('InvoiceForm CSV modal', () => {
   beforeEach(() => {
     mockClose.mockClear();
@@ -80,6 +92,26 @@ describe('InvoiceForm CSV modal', () => {
     pressEscape();
 
     expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('wraps Tab inside the import modal instead of the form behind it', async () => {
+    render(<InvoiceForm onClose={mockClose} />);
+    openImportModal();
+    await uploadCsv();
+
+    const closeButton = screen.getByRole('button', { name: 'common.buttons.close' });
+    closeButton.focus();
+    fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
+
+    expect(screen.getByRole('button', { name: 'invoices.csv.confirm' })).toHaveFocus();
+  });
+
+  it('clears the file input so re-picking the same file parses it again', async () => {
+    render(<InvoiceForm onClose={mockClose} />);
+    openImportModal();
+    await uploadCsv();
+
+    expect(fileInput().value).toBe('');
   });
 
   it('moves focus into the import modal when it opens', () => {

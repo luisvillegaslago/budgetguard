@@ -1585,6 +1585,7 @@
         "not-csv": "Select a .csv file",
         "file-too-large": "The file is too large to be a list of line items",
         "read-failed": "The file could not be read",
+        "bad-encoding": "The file is not UTF-8: accents would arrive garbled. Save it as \"CSV UTF-8\"",
         "invoice-full": "The invoice already holds the maximum number of line items",
         "missing-columns": "The header is missing the \"title\" (or \"description\") column",
         "no-rows": "The file has no data rows",

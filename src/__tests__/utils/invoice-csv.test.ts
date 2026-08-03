@@ -151,14 +151,37 @@ describe('parseInvoiceCsv', () => {
       expect(result.items[0]?.amountCents).toBe(35000);
     });
 
-    it('flags non-numeric and non-positive numbers', () => {
-      const result = parseInvoiceCsv(buildCsv('Reservas,,,dos,45,', 'Auditoría,,,,,0'));
+    it('flags non-numeric and negative numbers', () => {
+      const result = parseInvoiceCsv(buildCsv('Reservas,,,dos,45,', 'Auditoría,,,,,-10'));
 
       expect(result.items).toEqual([]);
       expect(result.issues).toMatchObject([
         { line: 2, messageKey: INVOICE_CSV_ERROR.INVALID_HOURS },
         { line: 3, messageKey: INVOICE_CSV_ERROR.INVALID_AMOUNT },
       ]);
+    });
+
+    it('rejects zero hours, which no line can be billed for', () => {
+      const result = parseInvoiceCsv(buildCsv('Reservas,,,0,45,'));
+
+      expect(result.issues[0]).toMatchObject({ messageKey: INVOICE_CSV_ERROR.INVALID_HOURS });
+    });
+
+    it('reads three decimals in the hours column as decimals, not as thousands', () => {
+      // Toggl, Clockify and Harvest all export 1,5 h as "1.500"
+      const result = parseInvoiceCsv(buildCsv('Reservas,,,1.500,45,'));
+
+      expect(result.issues).toEqual([]);
+      expect(result.items[0]?.hours).toBe(1.5);
+      expect(result.items[0]?.amountCents).toBe(6750);
+    });
+
+    it('keeps an inch mark from swallowing the following rows', () => {
+      const result = parseInvoiceCsv(buildCsv('Pantalla 27" 4K,,,,,100', 'Auditoría,,,,,200'));
+
+      expect(result.issues).toEqual([]);
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0]?.title).toBe('Pantalla 27" 4K');
     });
   });
 

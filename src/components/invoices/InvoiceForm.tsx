@@ -264,7 +264,9 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
     getValues('lineItems').forEach((item, index) => {
       if (typeof item.hourlyRate === 'number') return;
       setValue(`lineItems.${index}.hourlyRate`, defaultRateEuros);
-      // Hours typed while the profile was loading would otherwise keep a 0 amount
+      // Hours typed while the profile was loading would otherwise keep a 0 amount —
+      // but never touch an amount the user already agreed and typed by hand
+      if (typeof item.amount === 'number') return;
       if (typeof item.hours === 'number' && item.hours > 0) {
         setValue(`lineItems.${index}.amount`, amountForLine(item.hours, defaultRateEuros));
       }
@@ -343,15 +345,14 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   };
 
   // Round each line to cents exactly as buildLineItems() does before sending it to the
-  // server. Summing euros first and converting once would drift by a cent on fractional
-  // line amounts (e.g. two lines of 1,5 h × 33,33 €/h), so the preview would promise a
-  // total the database never stores.
+  // server — through amountForLine(), so the breakdown cannot promise a total a cent
+  // away from the line amounts or from what the database stores (1,5 h × 33,33 €/h).
   const previewLineItems = (watchedLineItems ?? []).map((item) => {
     const hours = toNum(item.hours);
     const rate = toNum(item.hourlyRate);
     const amount = toNum(item.amount);
 
-    if (!isFlat && hours != null && rate != null) return { amountCents: eurosToCents(hours * rate) };
+    if (!isFlat && hours != null && rate != null) return { amountCents: eurosToCents(amountForLine(hours, rate)) };
     if (amount != null) return { amountCents: eurosToCents(amount) };
     return { amountCents: 0 };
   });

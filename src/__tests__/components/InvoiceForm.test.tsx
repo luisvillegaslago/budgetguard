@@ -109,6 +109,21 @@ describe('InvoiceForm', () => {
     await waitFor(() => expect(rateInput).toHaveValue(60));
   });
 
+  it('keeps an amount the user typed while the billing profile was loading', async () => {
+    mockBillingProfile = undefined;
+    const { rerender } = render(<InvoiceForm onClose={jest.fn()} />);
+
+    // Hours plus an agreed flat amount, rate left blank on purpose
+    const [hoursInput, , amountInput] = screen.getAllByRole('spinbutton');
+    fireEvent.change(hoursInput as HTMLInputElement, { target: { value: '10' } });
+    fireEvent.change(amountInput as HTMLInputElement, { target: { value: '500' } });
+
+    mockBillingProfile = { defaultHourlyRateCents: 6000 };
+    rerender(<InvoiceForm onClose={jest.fn()} />);
+
+    await waitFor(() => expect(amountInput).toHaveValue(500));
+  });
+
   it('keeps a rate the user typed while the billing profile was loading', async () => {
     mockBillingProfile = undefined;
     const { rerender } = render(<InvoiceForm onClose={jest.fn()} />);

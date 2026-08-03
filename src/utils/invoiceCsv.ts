@@ -106,6 +106,11 @@ type NumericCell = { valid: true; value: number | null } | { valid: false };
  */
 const THOUSANDS_GROUP = /^[1-9]\d{0,2}[.,]\d{3}$/;
 
+interface NumericCellOptions {
+  /** Money columns only: hours are written with up to three decimals by time trackers. */
+  thousands?: boolean;
+}
+
 /**
  * Read a positive decimal out of a cell.
  *
@@ -114,17 +119,18 @@ const THOUSANDS_GROUP = /^[1-9]\d{0,2}[.,]\d{3}$/;
  * last one is the decimal mark. Currency symbols and blanks are stripped.
  * An empty cell is a valid absent value; anything non-positive is invalid.
  */
-function parseNumericCell(raw: string | undefined): NumericCell {
+function parseNumericCell(raw: string | undefined, options: NumericCellOptions = {}): NumericCell {
   const cleaned = (raw ?? '').replace(/[\s€$%]/g, '').trim();
   if (cleaned.length === 0) return { valid: true, value: null };
 
   const lastComma = cleaned.lastIndexOf(',');
   const lastDot = cleaned.lastIndexOf('.');
-  const normalized = THOUSANDS_GROUP.test(cleaned)
-    ? cleaned.replace(/[.,]/, '') // 1,234 / 1.234 → 1234
-    : lastComma > lastDot
-      ? cleaned.replace(/\./g, '').replace(',', '.') // 1.234,56 → 1234.56
-      : cleaned.replace(/,/g, ''); // 1,234.56 → 1234.56
+  const normalized =
+    options.thousands && THOUSANDS_GROUP.test(cleaned)
+      ? cleaned.replace(/[.,]/, '') // 1,234 / 1.234 → 1234
+      : lastComma > lastDot
+        ? cleaned.replace(/\./g, '').replace(',', '.') // 1.234,56 → 1234.56
+        : cleaned.replace(/,/g, ''); // 1,234.56 → 1234.56
 
   if (!/^\d*\.?\d+$/.test(normalized)) return { valid: false };
 
@@ -179,13 +185,14 @@ function parseRow(
     return { errorKey: INVOICE_CSV_ERROR.SUB_ITEM_TOO_LONG, params: { max: INVOICE_LINE_ITEM_LIMIT.SUB_ITEM_LENGTH } };
   }
 
+  // No thousands grouping on hours: a time tracker exports 1,5 h as "1.500"
   const hours = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.HOURS]));
   if (!hours.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURS };
 
-  const hourlyRate = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.HOURLY_RATE]));
+  const hourlyRate = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.HOURLY_RATE]), { thousands: true });
   if (!hourlyRate.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURLY_RATE };
 
-  const amount = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.AMOUNT]));
+  const amount = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.AMOUNT]), { thousands: true });
   if (!amount.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
 
   const amountCents = amount.value === null ? null : eurosToCents(amount.value);

@@ -5,6 +5,10 @@
  * (`""`), CRLF line endings and a leading UTF-8 BOM (Binance, Kraken and
  * Coinbase all prepend one to their exports). Returns a matrix of string cells,
  * header row included.
+ *
+ * A quote only opens a quoted field at the START of a cell: in a hand-written
+ * file `Pantalla 27" 4K` is an inch mark, and treating it as an opening quote
+ * swallowed every comma and newline up to the next one, merging whole rows.
  */
 export function parseCsv(content: string): string[][] {
   // Strip the UTF-8 BOM that exchanges prepend to their CSV exports.
@@ -30,7 +34,7 @@ export function parseCsv(content: string): string[][] {
       }
       continue;
     }
-    if (ch === '"') {
+    if (ch === '"' && field.length === 0) {
       insideQuotes = true;
       continue;
     }

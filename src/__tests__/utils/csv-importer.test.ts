@@ -61,6 +61,16 @@ describe('parseCsv', () => {
       ['1', '2'],
     ]);
   });
+
+  it('treats a quote inside an unquoted field as a literal character', () => {
+    // An inch mark used to open a quoted field, swallowing the rest of the file
+    const result = parseCsv('a,b\nPantalla 27" 4K,100\nSegunda fila,200');
+    expect(result).toEqual([
+      ['a', 'b'],
+      ['Pantalla 27" 4K', '100'],
+      ['Segunda fila', '200'],
+    ]);
+  });
 });
 
 describe('rowsToBinanceCsvRows', () => {

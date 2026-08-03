@@ -441,6 +441,7 @@ export const INVOICE_CSV_ERROR = {
   NOT_CSV: 'invoices.csv.errors.not-csv',
   FILE_TOO_LARGE: 'invoices.csv.errors.file-too-large',
   READ_FAILED: 'invoices.csv.errors.read-failed',
+  BAD_ENCODING: 'invoices.csv.errors.bad-encoding',
   INVOICE_FULL: 'invoices.csv.errors.invoice-full',
   MISSING_COLUMNS: 'invoices.csv.errors.missing-columns',
   NO_ROWS: 'invoices.csv.errors.no-rows',
