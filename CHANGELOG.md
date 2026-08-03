@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.50.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.49.0...v0.50.0) (2026-08-03)
+
+
+### Features
+
+* **invoices:** allow a line item billed at zero ([983a4c4](https://github.com/luisvillegaslago/budgetguard/commit/983a4c48d79bf1bee34ad5921fe328353f6b2b24))
+* **invoices:** import line items from a CSV file ([1b8ee2d](https://github.com/luisvillegaslago/budgetguard/commit/1b8ee2d0a37b1a11cd60fbcfdf0ab28feb1f22fe))
+
+
+### Bug Fixes
+
+* **invoices:** address the code review of the CSV import ([6cfbb1c](https://github.com/luisvillegaslago/budgetguard/commit/6cfbb1c7b8a6192a90df52e3c729f21eba4bff6e))
+* **invoices:** fill the default hourly rate when the profile loads late ([fb552be](https://github.com/luisvillegaslago/budgetguard/commit/fb552be6f6912bded6e34e4f996b5bef5cb6411b))
+* **invoices:** harden the CSV import after code review ([90fb947](https://github.com/luisvillegaslago/budgetguard/commit/90fb9475c6821de76424392c586e40c41ac12714))
+
 ## [0.49.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.48.0...v0.49.0) (2026-08-02)
 
 
