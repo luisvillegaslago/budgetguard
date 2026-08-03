@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.51.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.51.0...v0.51.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* **invoices:** stop stamping the issued PDF as a draft ([71cd45a](https://github.com/luisvillegaslago/budgetguard/commit/71cd45a7fd9c5d078114ab211474291c964ba337))
+
 ## [0.51.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.50.0...v0.51.0) (2026-08-03)
 
 
