@@ -191,10 +191,26 @@ describe('CreateInvoiceSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should reject amountCents of 0', () => {
+  it('should accept amountCents of 0 (a line billed as a courtesy)', () => {
     const result = CreateInvoiceSchema.safeParse({
       ...validInvoice,
       lineItems: [{ description: 'Free', amountCents: 0 }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept an hourly line at a zero rate, keeping its hours', () => {
+    const result = CreateInvoiceSchema.safeParse({
+      ...validInvoice,
+      lineItems: [{ title: 'Onboarding', hours: 4, hourlyRateCents: 0, amountCents: 0 }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject a negative amountCents', () => {
+    const result = CreateInvoiceSchema.safeParse({
+      ...validInvoice,
+      lineItems: [{ description: 'Refund', amountCents: -100 }],
     });
     expect(result.success).toBe(false);
   });

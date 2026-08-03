@@ -109,15 +109,17 @@ const THOUSANDS_GROUP = /^[1-9]\d{0,2}[.,]\d{3}$/;
 interface NumericCellOptions {
   /** Money columns only: hours are written with up to three decimals by time trackers. */
   thousands?: boolean;
+  /** Amount and rate accept 0 (a line billed as a courtesy); hours do not. */
+  zero?: boolean;
 }
 
 /**
- * Read a positive decimal out of a cell.
+ * Read a decimal out of a cell.
  *
  * Accepts the dot notation the generator emits (`12.5`) and the comma notation a
  * Spanish spreadsheet produces (`1.234,56`): when both separators are present the
  * last one is the decimal mark. Currency symbols and blanks are stripped.
- * An empty cell is a valid absent value; anything non-positive is invalid.
+ * An empty cell is a valid absent value; a negative is always invalid.
  */
 function parseNumericCell(raw: string | undefined, options: NumericCellOptions = {}): NumericCell {
   const cleaned = (raw ?? '').replace(/[\s€$%]/g, '').trim();
@@ -135,7 +137,8 @@ function parseNumericCell(raw: string | undefined, options: NumericCellOptions =
   if (!/^\d*\.?\d+$/.test(normalized)) return { valid: false };
 
   const value = Number(normalized);
-  if (!Number.isFinite(value) || value <= 0) return { valid: false };
+  if (!Number.isFinite(value)) return { valid: false };
+  if (value < 0 || (value === 0 && !options.zero)) return { valid: false };
   return { valid: true, value };
 }
 
@@ -189,16 +192,21 @@ function parseRow(
   const hours = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.HOURS]));
   if (!hours.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURS };
 
-  const hourlyRate = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.HOURLY_RATE]), { thousands: true });
+  const hourlyRate = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.HOURLY_RATE]), {
+    thousands: true,
+    zero: true,
+  });
   if (!hourlyRate.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURLY_RATE };
 
-  const amount = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.AMOUNT]), { thousands: true });
+  const amount = parseNumericCell(cellAt(row, columns[INVOICE_CSV_COLUMN.AMOUNT]), { thousands: true, zero: true });
   if (!amount.valid) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
 
   const amountCents = amount.value === null ? null : eurosToCents(amount.value);
-  // A positive amount can still round down to zero cents (0,004 €), which the
-  // schema's requiredPositiveInt would then reject with a 400
-  if (amountCents !== null && amountCents <= 0) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
+  // An explicit 0 is a courtesy line, but a positive amount that rounds down to
+  // zero cents (0,004 €) is a typo the invoice would silently swallow
+  if (amount.value !== null && amount.value > 0 && amountCents === 0) {
+    return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
+  }
 
   const base = { title, subItems, description };
 
@@ -215,11 +223,13 @@ function parseRow(
         ? options.defaultHourlyRateCents
         : null;
   if (rateCents === null) return { errorKey: INVOICE_CSV_ERROR.HOURLY_RATE_REQUIRED };
-  if (rateCents <= 0) return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURLY_RATE };
+  // A rate typed as 0 bills the line at no charge; one that rounds down to zero is a typo
+  if (hourlyRate.value !== null && hourlyRate.value > 0 && rateCents === 0) {
+    return { errorKey: INVOICE_CSV_ERROR.INVALID_HOURLY_RATE };
+  }
 
   // Same rounding the form applies, so the schema's hours × rate refinement holds
   const computedCents = Math.round(hours.value * rateCents);
-  if (computedCents <= 0) return { errorKey: INVOICE_CSV_ERROR.INVALID_AMOUNT };
   // A sheet that rounded the product itself lands a cent away from ours; the computed
   // value is the one that gets submitted, so tolerate the difference instead of
   // throwing away the row

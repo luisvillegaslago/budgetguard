@@ -822,6 +822,7 @@ export const API_ERROR = {
 export const VALIDATION_KEY = {
   CATEGORY_REQUIRED: 'validation.category-required',
   AMOUNT_POSITIVE: 'validation.amount-positive',
+  AMOUNT_NON_NEGATIVE: 'validation.amount-non-negative',
   DESCRIPTION_TOO_LONG: 'validation.description-too-long',
   DESCRIPTION_REQUIRED: 'validation.description-required',
   TITLE_OR_DESCRIPTION_REQUIRED: 'validation.title-or-description-required',

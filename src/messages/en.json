@@ -1941,6 +1941,7 @@
   "validation": {
     "category-required": "Please select a category",
     "amount-positive": "Amount must be greater than 0",
+    "amount-non-negative": "The amount cannot be negative",
     "description-too-long": "Description is too long",
     "description-required": "Description is required",
     "title-or-description-required": "Add a concept or a description",

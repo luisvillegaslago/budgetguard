@@ -18,3 +18,12 @@ export function requiredPositiveNumber(messageKey: string) {
 export function requiredPositiveInt(messageKey: string) {
   return z.number({ required_error: messageKey, invalid_type_error: messageKey }).int().positive(messageKey);
 }
+
+/**
+ * Same as {@link requiredPositiveInt} but zero is a valid value — an invoice line
+ * billed at 0 (work done as a courtesy, still itemised) is legitimate, while an
+ * empty field must keep failing with the translated message.
+ */
+export function requiredNonNegativeInt(messageKey: string) {
+  return z.number({ required_error: messageKey, invalid_type_error: messageKey }).int().nonnegative(messageKey);
+}

@@ -46,12 +46,14 @@ const LineItemFormSchema = z
     subItems: z.array(SubItemFormSchema),
     description: z.string(),
     hours: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
-    hourlyRate: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
-    amount: z.union([z.number().positive(), z.literal(''), z.null()]).optional(),
+    // Rate and amount take 0 so a concept can be itemised and billed at no charge
+    hourlyRate: z.union([z.number().nonnegative(), z.literal(''), z.null()]).optional(),
+    amount: z.union([z.number().nonnegative(), z.literal(''), z.null()]).optional(),
   })
-  // Each line must resolve to a positive amount (direct or hours × rate auto-fill).
-  .refine((item) => typeof item.amount === 'number' && item.amount > 0, {
-    message: VALIDATION_KEY.AMOUNT_POSITIVE,
+  // Each line must resolve to an amount (direct or hours × rate auto-fill); an empty
+  // field is still a failure, a zero is not.
+  .refine((item) => typeof item.amount === 'number' && item.amount >= 0, {
+    message: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
     path: ['amount'],
   });
 
@@ -368,9 +370,11 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
 
   const buildLineItems = (values: InvoiceFormValues) =>
     values.lineItems.map((item) => {
+      // Rate and amount accept 0 — a line billed as a courtesy still belongs on the
+      // invoice with its hours. Hours themselves stay strictly positive.
       const hours = typeof item.hours === 'number' && item.hours > 0 ? item.hours : null;
-      const hourlyRate = typeof item.hourlyRate === 'number' && item.hourlyRate > 0 ? item.hourlyRate : null;
-      const directAmount = typeof item.amount === 'number' && item.amount > 0 ? item.amount : null;
+      const hourlyRate = typeof item.hourlyRate === 'number' && item.hourlyRate >= 0 ? item.hourlyRate : null;
+      const directAmount = typeof item.amount === 'number' && item.amount >= 0 ? item.amount : null;
 
       const title = item.title.trim();
       const description = item.description.trim();
@@ -396,7 +400,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
         ...base,
         hours: null,
         hourlyRateCents: null,
-        amountCents: directAmount ? eurosToCents(directAmount) : 0,
+        amountCents: directAmount != null ? eurosToCents(directAmount) : 0,
       };
     });
 
@@ -471,7 +475,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           ? currentItem.hourlyRate
           : null;
 
-    if (hours != null && rate != null && hours > 0 && rate > 0) {
+    if (hours != null && rate != null && hours > 0 && rate >= 0) {
       setValue(`lineItems.${index}.amount`, amountForLine(hours, rate));
     }
   };

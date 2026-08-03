@@ -124,6 +124,30 @@ describe('InvoiceForm', () => {
     await waitFor(() => expect(amountInput).toHaveValue(500));
   });
 
+  it('accepts a line billed at zero', async () => {
+    render(<InvoiceForm onClose={jest.fn()} />);
+
+    await fillHeader();
+    const [hoursInput, rateInput, amountInput] = screen.getAllByRole('spinbutton');
+    fireEvent.change(screen.getByPlaceholderText('invoices.form.fields.title-placeholder'), {
+      target: { value: 'Onboarding' },
+    });
+    fireEvent.change(hoursInput as HTMLInputElement, { target: { value: '4' } });
+    fireEvent.change(rateInput as HTMLInputElement, { target: { value: '0' } });
+
+    // The rate drives the amount, so it lands at 0 on its own
+    await waitFor(() => expect(amountInput).toHaveValue(0));
+
+    submit();
+
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    expect(mockCreateInvoice.mock.calls[0]?.[0]?.lineItems[0]).toMatchObject({
+      title: 'Onboarding',
+      hours: 4,
+      amountCents: 0,
+    });
+  });
+
   it('keeps a rate the user typed while the billing profile was loading', async () => {
     mockBillingProfile = undefined;
     const { rerender } = render(<InvoiceForm onClose={jest.fn()} />);

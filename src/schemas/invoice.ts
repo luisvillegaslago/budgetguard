@@ -12,7 +12,7 @@ import {
   VALIDATION_KEY,
   VAT_RATE,
 } from '@/constants/finance';
-import { requiredPositiveInt } from '@/schemas/shared';
+import { requiredNonNegativeInt } from '@/schemas/shared';
 
 /**
  * Tax rates an invoice may carry.
@@ -112,8 +112,10 @@ const InvoiceLineItemSchema = z
       .optional(),
     description: z.string().trim().min(1).max(INVOICE_LINE_ITEM_LIMIT.DESCRIPTION_LENGTH).nullable().optional(),
     hours: z.number().positive().nullable().optional(),
-    hourlyRateCents: z.number().int().positive().nullable().optional(),
-    amountCents: requiredPositiveInt(VALIDATION_KEY.AMOUNT_POSITIVE),
+    // Zero is allowed on both: a line can be itemised with its hours and billed at
+    // no charge (onboarding, goodwill), which still has to show up on the invoice
+    hourlyRateCents: z.number().int().nonnegative().nullable().optional(),
+    amountCents: requiredNonNegativeInt(VALIDATION_KEY.AMOUNT_NON_NEGATIVE),
   })
   .refine(
     (item) =>

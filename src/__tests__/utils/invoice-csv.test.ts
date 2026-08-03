@@ -66,6 +66,28 @@ describe('parseInvoiceCsv', () => {
     });
   });
 
+  describe('lines billed at no charge', () => {
+    it('accepts a flat amount of zero', () => {
+      const result = parseInvoiceCsv(buildCsv('Onboarding,,,,,0'));
+
+      expect(result.issues).toEqual([]);
+      expect(result.items[0]).toMatchObject({ title: 'Onboarding', hours: null, amountCents: 0 });
+    });
+
+    it('accepts hours at a zero rate, keeping the hours on the line', () => {
+      const result = parseInvoiceCsv(buildCsv('Onboarding,,,4,0,'), { defaultHourlyRateCents: 6000 });
+
+      expect(result.issues).toEqual([]);
+      expect(result.items[0]).toMatchObject({ hours: 4, hourlyRateCents: 0, amountCents: 0 });
+    });
+
+    it('still falls back to the profile rate when the rate cell is empty, not zero', () => {
+      const result = parseInvoiceCsv(buildCsv('Onboarding,,,4,,'), { defaultHourlyRateCents: 6000 });
+
+      expect(result.items[0]?.hourlyRateCents).toBe(6000);
+    });
+  });
+
   describe('flat rows', () => {
     it('takes the amount as-is and drops a rate given without hours', () => {
       const result = parseInvoiceCsv(buildCsv('Auditoría,,Informe de rendimiento,,45,350'));
