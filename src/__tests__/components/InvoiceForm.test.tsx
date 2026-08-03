@@ -23,9 +23,12 @@ interface CreateInvoicePayload {
 // Typed input, so the assertions below can read mock.calls[0][0] without casting it back.
 const mockCreateInvoice = jest.fn(async (_input: CreateInvoicePayload) => ({ invoiceId: 42 }));
 
+// Mutable so a test can reproduce the query resolving AFTER the form mounted
+let mockBillingProfile: { defaultHourlyRateCents: number | null } | undefined;
+
 jest.mock('@/hooks/useInvoices', () => ({
   useInvoicePrefixes: () => ({ data: [{ prefixId: 7, prefix: 'DW', nextNumber: 9, isActive: true }] }),
-  useBillingProfile: () => ({ data: { defaultHourlyRateCents: null } }),
+  useBillingProfile: () => ({ data: mockBillingProfile }),
   useCreateInvoice: () => ({ mutateAsync: mockCreateInvoice, isPending: false, errorMessage: null }),
   useUpdateInvoice: () => ({ mutateAsync: jest.fn(), isPending: false, errorMessage: null }),
   useCreateInvoicePrefix: () => ({ mutateAsync: jest.fn(), isPending: false, errorMessage: null }),
@@ -88,6 +91,35 @@ function csvFile() {
 describe('InvoiceForm', () => {
   beforeEach(() => {
     mockCreateInvoice.mockClear();
+    mockBillingProfile = { defaultHourlyRateCents: null };
+  });
+
+  it('fills the hourly rate when the billing profile resolves after mount', async () => {
+    // useForm freezes defaultValues at mount, so a late profile used to be lost
+    mockBillingProfile = undefined;
+    const { rerender } = render(<InvoiceForm onClose={jest.fn()} />);
+
+    // Hourly mode renders hours, rate and amount, in that order
+    const rateInput = screen.getAllByRole('spinbutton')[1];
+    expect(rateInput).toHaveValue(null);
+
+    mockBillingProfile = { defaultHourlyRateCents: 6000 };
+    rerender(<InvoiceForm onClose={jest.fn()} />);
+
+    await waitFor(() => expect(rateInput).toHaveValue(60));
+  });
+
+  it('keeps a rate the user typed while the billing profile was loading', async () => {
+    mockBillingProfile = undefined;
+    const { rerender } = render(<InvoiceForm onClose={jest.fn()} />);
+
+    const rateInput = screen.getAllByRole('spinbutton')[1] as HTMLInputElement;
+    fireEvent.change(rateInput, { target: { value: '75' } });
+
+    mockBillingProfile = { defaultHourlyRateCents: 6000 };
+    rerender(<InvoiceForm onClose={jest.fn()} />);
+
+    await waitFor(() => expect(rateInput).toHaveValue(75));
   });
 
   it('creates an invoice billed by concept after switching away from hourly mode', async () => {

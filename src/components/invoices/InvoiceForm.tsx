@@ -7,7 +7,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type Control, type UseFormRegister, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { InlinePrefixForm } from '@/components/invoices/InlinePrefixForm';
@@ -237,6 +237,28 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
   const [billingMode, setBillingMode] = useState<InvoiceBillingMode>(detectBillingMode(invoice));
   const isFlat = billingMode === INVOICE_BILLING_MODE.FLAT;
 
+  const defaultRateEuros =
+    billingProfile?.defaultHourlyRateCents != null ? centsToEuros(billingProfile.defaultHourlyRateCents) : null;
+
+  /**
+   * The billing profile is fetched, so it is still undefined on the first render —
+   * and useForm freezes defaultValues at mount. Without this the rate column stayed
+   * empty whenever the modal opened before the query resolved (i.e. any time the
+   * profile was not already cached). Only untouched rates are filled, so a value
+   * the user typed meanwhile is never overwritten.
+   */
+  useEffect(() => {
+    if (defaultRateEuros == null || isEditing) return;
+    getValues('lineItems').forEach((item, index) => {
+      if (typeof item.hourlyRate === 'number') return;
+      setValue(`lineItems.${index}.hourlyRate`, defaultRateEuros);
+      // Hours typed while the profile was loading would otherwise keep a 0 amount
+      if (typeof item.hours === 'number' && item.hours > 0) {
+        setValue(`lineItems.${index}.amount`, Number((item.hours * defaultRateEuros).toFixed(2)));
+      }
+    });
+  }, [defaultRateEuros, isEditing, getValues, setValue]);
+
   // Shared by the "add line" buttons above and below the list, so both stay in sync
   const appendLineItem = () =>
     append({
@@ -244,10 +266,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
       subItems: [],
       description: '',
       hours: '',
-      hourlyRate:
-        !isFlat && billingProfile?.defaultHourlyRateCents != null
-          ? centsToEuros(billingProfile.defaultHourlyRateCents)
-          : '',
+      hourlyRate: !isFlat && defaultRateEuros != null ? defaultRateEuros : '',
       amount: '',
     });
 
