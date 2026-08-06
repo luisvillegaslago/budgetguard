@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.51.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.51.2...v0.51.3) (2026-08-06)
+
+
+### Bug Fixes
+
+* **trips:** honor the shared-trip flag from the dashboard shortcut ([ef3d98b](https://github.com/luisvillegaslago/budgetguard/commit/ef3d98ba084ddbae3b8bc857e91e40b5cdb56fe5))
+
 ## [0.51.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.51.1...v0.51.2) (2026-08-03)
 
 
