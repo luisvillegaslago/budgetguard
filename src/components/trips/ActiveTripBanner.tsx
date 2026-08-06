@@ -18,9 +18,11 @@ import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { TripExpensesModal } from './TripExpensesModal';
 
-interface TripExpenseTarget {
+export interface TripExpenseTarget {
   tripId: number;
   startDate: string | null;
+  /** Shared trip: new expenses start with the shared (÷2) option enabled */
+  isShared: boolean;
 }
 
 interface ActiveTripBannerProps {
@@ -100,7 +102,7 @@ function ActiveTripItem({
       </div>
       <button
         type="button"
-        onClick={() => onAddExpense({ tripId: trip.tripId, startDate: trip.startDate })}
+        onClick={() => onAddExpense({ tripId: trip.tripId, startDate: trip.startDate, isShared: trip.isShared })}
         className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-sm shrink-0"
       >
         <Plus className="h-3.5 w-3.5" aria-hidden="true" />

@@ -19,7 +19,7 @@ import { FixedVsVariableCard } from '@/components/dashboard/widgets/FixedVsVaria
 import { TopVendorsWidget } from '@/components/dashboard/widgets/TopVendorsWidget';
 import { VouchersWidget } from '@/components/dashboard/widgets/VouchersWidget';
 import { QuickExpenseActions } from '@/components/transactions/QuickExpenseActions';
-import { ActiveTripBanner } from '@/components/trips/ActiveTripBanner';
+import { ActiveTripBanner, type TripExpenseTarget } from '@/components/trips/ActiveTripBanner';
 import { TripExpenseForm } from '@/components/trips/TripExpenseForm';
 import { AnimatedHeight } from '@/components/ui/AnimatedHeight';
 import { MonthPicker } from '@/components/ui/MonthPicker';
@@ -51,7 +51,7 @@ export default function DashboardPage() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
   const trendPeriod = useTrendPeriod();
-  const [tripExpenseTarget, setTripExpenseTarget] = useState<{ tripId: number; startDate: string | null } | null>(null);
+  const [tripExpenseTarget, setTripExpenseTarget] = useState<TripExpenseTarget | null>(null);
 
   // Bidirectional sync: URL ↔ Zustand (month, type filter)
   useDashboardUrlSync();
@@ -130,6 +130,7 @@ export default function DashboardPage() {
         <TripExpenseForm
           tripId={tripExpenseTarget.tripId}
           tripStartDate={tripExpenseTarget.startDate}
+          tripIsShared={tripExpenseTarget.isShared}
           onClose={() => setTripExpenseTarget(null)}
         />
       )}
