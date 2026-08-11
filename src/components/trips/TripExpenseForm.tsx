@@ -8,6 +8,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, X } from 'lucide-react';
+import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -54,6 +55,7 @@ export function TripExpenseForm({
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
+    setFocus,
     control,
   } = useForm<CreateTripExpenseInput>({
     resolver: zodResolver(CreateTripExpenseSchema),
@@ -71,6 +73,11 @@ export function TripExpenseForm({
           isShared: tripIsShared,
         },
   });
+
+  // Auto-focus amount input on mount
+  useEffect(() => {
+    setFocus('amount');
+  }, [setFocus]);
 
   const watchedAmount = useWatch({ control, name: 'amount' });
   const watchedIsShared = useWatch({ control, name: 'isShared' });

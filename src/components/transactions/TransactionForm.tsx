@@ -59,6 +59,7 @@ export function TransactionForm({
     formState: { errors, isSubmitting },
     reset,
     setValue,
+    setFocus,
     control,
   } = useForm<CreateTransactionInput>({
     resolver: zodResolver(CreateTransactionSchema),
@@ -218,16 +219,13 @@ export function TransactionForm({
     : '';
 
   // Auto-focus amount input on mount
-  const amountRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const amountInput = amountRef.current?.querySelector<HTMLElement>('#amount');
-    amountInput?.focus();
-  }, []);
+    setFocus('amount');
+  }, [setFocus]);
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="transaction-form-title" escapeClose={!isEditing}>
-      <div ref={amountRef} className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
+      <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 id="transaction-form-title" className="text-xl font-bold text-foreground">
