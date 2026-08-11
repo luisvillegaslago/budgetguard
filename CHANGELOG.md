@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.52.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.51.3...v0.52.0) (2026-08-11)
+
+
+### Features
+
+* **forms:** focus the amount field when an expense form opens ([5638965](https://github.com/luisvillegaslago/budgetguard/commit/5638965867f796b0654c548df537ec3fda11be60))
+
 ## [0.51.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.51.2...v0.51.3) (2026-08-06)
 
 
