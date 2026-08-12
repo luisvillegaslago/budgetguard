@@ -176,6 +176,19 @@
     @apply border-border;
   }
 
+  /* Long-pressing a control on a touch screen otherwise starts a text selection —
+     and on iOS pops the callout menu — on top of whatever the press was meant to
+     do, such as revealing a tooltip. A control's own label is never content worth
+     selecting. Links are left out: their long-press menu (open in new tab, copy
+     link, download) is genuinely useful. */
+  button,
+  [role='tab'],
+  summary {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   html {
     font-family: 'Inter', sans-serif;
   }

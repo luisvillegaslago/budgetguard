@@ -54,7 +54,7 @@ export function Tooltip({
         {/* biome-ignore lint/a11y/noStaticElementInteractions: tooltip tap handler for mobile */}
         {/* biome-ignore lint/a11y/useKeyWithClickEvents: tooltip trigger, not interactive control */}
         <span
-          className={cn('inline-flex', triggerClassName)}
+          className={cn('inline-flex select-none [-webkit-touch-callout:none]', triggerClassName)}
           onPointerDown={handleTap}
           onClick={handleTap as unknown as React.MouseEventHandler}
         >
