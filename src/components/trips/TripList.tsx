@@ -146,7 +146,14 @@ export function TripList({ onAdd }: TripListProps) {
             type="button"
             onClick={() => setIsUpcomingOpen((open) => !open)}
             aria-expanded={showUpcoming}
-            className={cn(SECTION_HEADING, 'tap-target justify-start gap-1.5 text-guard-primary')}
+            // While searching the section is forced open, so the toggle would
+            // flip hidden state and report a change that never happened.
+            disabled={isSearching}
+            className={cn(
+              SECTION_HEADING,
+              'tap-target justify-start gap-1.5 text-guard-primary',
+              isSearching && 'cursor-default',
+            )}
           >
             <ChevronDown
               className={cn('h-4 w-4 transition-transform duration-200', !showUpcoming && '-rotate-90')}

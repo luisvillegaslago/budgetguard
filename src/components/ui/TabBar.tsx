@@ -126,17 +126,31 @@ export function TabBar<TId extends string>({
     if (!list) return;
     const update = () => {
       const maxScroll = list.scrollWidth - list.clientWidth;
-      setOverflow({ start: list.scrollLeft > 1, end: list.scrollLeft < maxScroll - 1 });
+      const start = list.scrollLeft > 1;
+      const end = list.scrollLeft < maxScroll - 1;
+      // Keep the previous object when nothing changed: a swipe fires this ~60
+      // times a second, and every new object would re-render the whole strip.
+      setOverflow((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
     };
     update();
     list.addEventListener('scroll', update, { passive: true });
+
+    // Watch the strip for container resizes and every tab for content-driven ones.
+    // The strip's border box is fixed by its parent, so widening the labels — the
+    // web font swapping in, or switching locale — never notifies an observer that
+    // only watches the container, leaving the indicators stale exactly when the
+    // tabs start overflowing.
     const observer = new ResizeObserver(update);
     observer.observe(list);
+    tabRefs.current.slice(0, tabs.length).forEach((tab) => {
+      if (tab) observer.observe(tab);
+    });
+
     return () => {
       list.removeEventListener('scroll', update);
       observer.disconnect();
     };
-  }, []);
+  }, [tabs.length]);
 
   const scrollByStep = (direction: number) => {
     const list = listRef.current;

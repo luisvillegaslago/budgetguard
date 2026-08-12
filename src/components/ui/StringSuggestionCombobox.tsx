@@ -168,6 +168,9 @@ export function StringSuggestionCombobox({
           )}
         </span>
         <span className="flex items-center gap-1 shrink-0">
+          {/* Clear is sized to the trigger, not to .tap-target: a 44px box inside a
+              py-2 row grows it past the sibling form controls, and its handler would
+              swallow the right edge of the trigger that opens the dropdown. */}
           {value && !disabled && (
             <button
               type="button"
@@ -175,7 +178,7 @@ export function StringSuggestionCombobox({
                 e.stopPropagation();
                 handleClear();
               }}
-              className="tap-target -my-2 p-0.5 lg:my-0 hover:bg-muted rounded"
+              className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-muted"
               aria-label={t('common.buttons.clear')}
             >
               <X className="h-3 w-3 text-guard-muted" aria-hidden="true" />
