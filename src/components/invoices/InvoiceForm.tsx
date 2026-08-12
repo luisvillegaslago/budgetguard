@@ -75,6 +75,7 @@ const InvoiceFormSchema = z.object({
   prefixId: z.number().int().positive(VALIDATION_KEY.SELECT_PREFIX),
   invoiceDate: z.string().min(1, VALIDATION_KEY.DATE_REQUIRED),
   companyId: z.number().int().positive(VALIDATION_KEY.SELECT_CLIENT),
+  draftName: z.string().max(120).optional(),
   notes: z.string().optional(),
   vatPercent: z.number(),
   retentionPercent: z.number(),
@@ -141,6 +142,7 @@ function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number |
       prefixId: 0,
       invoiceDate: today,
       companyId: 0,
+      draftName: '',
       notes: '',
       vatPercent: VAT_RATE.EXEMPT,
       retentionPercent: IRPF_RETENTION_RATE.NONE,
@@ -152,6 +154,7 @@ function buildDefaultValues(invoice?: Invoice, defaultHourlyRateCents?: number |
     prefixId: invoice.prefixId,
     invoiceDate: invoice.invoiceDate,
     companyId: invoice.companyId ?? 0,
+    draftName: invoice.draftName ?? '',
     notes: invoice.notes ?? '',
     vatPercent: invoice.vatPercent,
     retentionPercent: invoice.retentionPercent,
@@ -416,6 +419,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           data: {
             invoiceDate: new Date(values.invoiceDate),
             lineItems,
+            draftName: values.draftName || null,
             notes: values.notes || null,
             vatPercent: values.vatPercent,
             retentionPercent: values.retentionPercent,
@@ -428,6 +432,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           invoiceDate: new Date(values.invoiceDate),
           companyId: Number(values.companyId),
           lineItems,
+          draftName: values.draftName || null,
           notes: values.notes || null,
           vatPercent: values.vatPercent,
           retentionPercent: values.retentionPercent,
@@ -503,6 +508,25 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5">
+          {/* Draft name — first field: it is what you reach for when starting a draft,
+              and it is how the draft is identified until it gets a number. Internal
+              only, never printed on the invoice. */}
+          <div>
+            <label htmlFor="draftName" className="block text-sm font-medium text-foreground mb-1">
+              {t('invoices.form.fields.draft-name')}{' '}
+              <span className="text-guard-muted text-xs">({t('common.labels.optional')})</span>
+            </label>
+            <input
+              id="draftName"
+              type="text"
+              maxLength={120}
+              {...register('draftName')}
+              placeholder={t('invoices.form.fields.draft-name-placeholder')}
+              className="w-full input-sm"
+            />
+            <p className="mt-1 text-xs text-guard-muted">{t('invoices.form.fields.draft-name-hint')}</p>
+          </div>
+
           {/* Client */}
           <div>
             <span className="block text-sm font-medium text-foreground mb-1">{t('invoices.form.fields.client')}</span>

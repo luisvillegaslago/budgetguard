@@ -7,6 +7,7 @@
 
 import { FileText } from 'lucide-react';
 import Link from 'next/link';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { SortableHeader } from '@/components/ui/SortableHeader';
 import { INVOICE_STATUS, SORT_DIRECTION } from '@/constants/finance';
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
@@ -29,7 +30,8 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
 };
 
 const SORT_FIELDS: SortableField<InvoiceListItem>[] = [
-  { key: 'number', accessor: (invoice) => invoice.invoiceNumber ?? '' },
+  // Drafts sort by their working title, which is what the column actually shows
+  { key: 'number', accessor: (invoice) => invoice.invoiceNumber ?? invoice.draftName ?? '' },
   { key: 'client', accessor: (invoice) => invoice.clientTradingName ?? invoice.clientName },
   { key: 'date', accessor: (invoice) => invoice.invoiceDate },
   { key: 'amount', accessor: (invoice) => invoice.totalCents },
@@ -92,23 +94,33 @@ export function InvoiceList({ invoices, isLoading }: InvoiceListProps) {
       </div>
 
       {/* Rows */}
-      {sorted.map((invoice) => (
-        <Link
-          key={invoice.invoiceId}
-          href={`/invoices/${invoice.invoiceId}`}
-          className="grid sm:grid-cols-[8rem_1fr_1fr_auto_auto] gap-2 sm:gap-4 px-4 py-3 border-t border-border hover:bg-muted/30 transition-colors items-center"
-        >
-          <span className="font-medium text-foreground">{formatInvoiceLabel(invoice.invoiceNumber)}</span>
-          <span className="text-sm text-foreground truncate min-w-0">
-            {invoice.clientTradingName ?? invoice.clientName}
-          </span>
-          <span className="text-sm text-guard-muted">{formatDate(invoice.invoiceDate, 'long')}</span>
-          <span className="text-sm font-medium text-foreground text-right">{formatCurrency(invoice.totalCents)}</span>
-          <span className="text-center w-28">
-            <StatusBadge status={invoice.status} />
-          </span>
-        </Link>
-      ))}
+      {sorted.map((invoice) => {
+        // A draft's working title is free text, so it outgrows the number column far
+        // more often than a real number does. Both columns truncate, so both get a
+        // tooltip — OverflowTooltip only opens it when the text is actually clipped.
+        const label = formatInvoiceLabel(invoice.invoiceNumber, invoice.draftName);
+        const client = invoice.clientTradingName ?? invoice.clientName;
+
+        return (
+          <Link
+            key={invoice.invoiceId}
+            href={`/invoices/${invoice.invoiceId}`}
+            className="grid sm:grid-cols-[8rem_1fr_1fr_auto_auto] gap-2 sm:gap-4 px-4 py-3 border-t border-border hover:bg-muted/30 transition-colors items-center"
+          >
+            <OverflowTooltip content={label}>
+              <span className="block font-medium text-foreground truncate">{label}</span>
+            </OverflowTooltip>
+            <OverflowTooltip content={client}>
+              <span className="block text-sm text-foreground truncate">{client}</span>
+            </OverflowTooltip>
+            <span className="text-sm text-guard-muted">{formatDate(invoice.invoiceDate, 'long')}</span>
+            <span className="text-sm font-medium text-foreground text-right">{formatCurrency(invoice.totalCents)}</span>
+            <span className="text-center w-28">
+              <StatusBadge status={invoice.status} />
+            </span>
+          </Link>
+        );
+      })}
     </div>
   );
 }

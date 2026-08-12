@@ -102,6 +102,7 @@ interface InvoiceRow {
   ClientCity: string | null;
   ClientPostalCode: string | null;
   ClientCountry: string | null;
+  DraftName: string | null;
   Notes: string | null;
   InvoiceLanguage: string | null;
   CreatedAt: Date;
@@ -111,6 +112,7 @@ interface InvoiceRow {
 interface InvoiceListRow {
   InvoiceID: number;
   InvoiceNumber: string | null;
+  DraftName: string | null;
   InvoiceDate: Date;
   ClientName: string;
   ClientTradingName: string | null;
@@ -198,6 +200,7 @@ function rowToInvoice(row: InvoiceRow, lineItems: InvoiceLineItem[]): Invoice {
     clientCity: row.ClientCity,
     clientPostalCode: row.ClientPostalCode,
     clientCountry: row.ClientCountry,
+    draftName: row.DraftName,
     notes: row.Notes,
     invoiceLanguage: row.InvoiceLanguage,
     lineItems,
@@ -224,6 +227,7 @@ function rowToListItem(row: InvoiceListRow): InvoiceListItem {
   return {
     invoiceId: row.InvoiceID,
     invoiceNumber: row.InvoiceNumber,
+    draftName: row.DraftName,
     invoiceDate: toDateString(row.InvoiceDate),
     clientName: row.ClientName,
     clientTradingName: row.ClientTradingName,
@@ -450,7 +454,7 @@ interface InvoiceFilters {
 export async function getInvoices(filters?: InvoiceFilters): Promise<InvoiceListItem[]> {
   const userId = await getUserIdOrThrow();
 
-  let sql = `SELECT "InvoiceID", "InvoiceNumber", "InvoiceDate", "ClientName",
+  let sql = `SELECT "InvoiceID", "InvoiceNumber", "DraftName", "InvoiceDate", "ClientName",
                     "ClientTradingName", "TotalCents", "Currency", "Status"
              FROM "Invoices"
              WHERE "UserID" = $1`;
@@ -555,7 +559,7 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
         "BillerBankName", "BillerIban", "BillerSwift", "BillerBankAddress",
         "ClientName", "ClientTradingName", "ClientTaxId", "ClientAddress",
         "ClientCity", "ClientPostalCode", "ClientCountry",
-        "Notes", "UserID"
+        "Notes", "DraftName", "UserID"
       ) VALUES (
         $1, $2, $3,
         $4, $5, $6, $7, $8,
@@ -564,7 +568,7 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
         $16, $17, $18, $19,
         $20, $21, $22, $23,
         $24, $25, $26,
-        $27, $28
+        $27, $28, $29
       ) RETURNING *`,
       [
         data.prefixId,
@@ -594,6 +598,7 @@ export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> 
         company.PostalCode,
         company.Country,
         data.notes ?? null,
+        data.draftName?.trim() || null,
         userId,
       ],
     );
@@ -769,7 +774,7 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
     // 5. Update invoice (invoiceDate was normalised by the numbered-draft guard above)
     await client.query(
       `UPDATE "Invoices"
-       SET "InvoiceDate" = $1, "Notes" = $2,
+       SET "InvoiceDate" = $1, "Notes" = $2, "DraftName" = $10,
            "BaseCents" = $3, "VatPercent" = $4, "VatCents" = $5,
            "RetentionPercent" = $6, "RetentionCents" = $7, "TotalCents" = $8
        WHERE "InvoiceID" = $9`,
@@ -783,6 +788,7 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
         amounts.retentionCents,
         amounts.totalCents,
         invoiceId,
+        data.draftName?.trim() || null,
       ],
     );
 
@@ -800,6 +806,7 @@ export async function updateInvoice(invoiceId: number, data: UpdateInvoiceInput)
         RetentionCents: amounts.retentionCents,
         TotalCents: amounts.totalCents,
         Notes: data.notes ?? null,
+        DraftName: data.draftName?.trim() || null,
       },
       lineItems,
     );

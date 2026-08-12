@@ -1569,7 +1569,10 @@
         "hours": "Horas",
         "hourly-rate": "Tarifa (€)",
         "amount": "Importe (€)",
-        "notes": "Notas"
+        "notes": "Notas",
+        "draft-name": "Nombre del borrador",
+        "draft-name-placeholder": "Ej: Reforma cocina Acme",
+        "draft-name-hint": "Solo para identificar el borrador en tu listado. No aparece en la factura."
       },
       "date-locked-hint": "No se puede cambiar la fecha: esta factura ya tiene número asignado.",
       "add-sub-item": "Añadir subconcepto"

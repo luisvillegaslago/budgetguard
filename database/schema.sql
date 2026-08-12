@@ -772,6 +772,9 @@ CREATE TABLE "Invoices" (
     "InvoiceID" SERIAL PRIMARY KEY,
     "PrefixID" INT NOT NULL,
     "InvoiceNumber" VARCHAR(20) NULL,
+    -- Working title for a draft, which has no InvoiceNumber yet. Internal only:
+    -- never rendered on the PDF, and superseded by the number once finalized.
+    "DraftName" VARCHAR(120) NULL,
     "InvoiceDate" DATE NOT NULL,
     "CompanyID" INT NULL,
     "TransactionID" INT NULL,

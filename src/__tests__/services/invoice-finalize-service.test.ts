@@ -14,6 +14,7 @@ const mockDraftInvoice: Invoice = {
   invoiceId: 1,
   prefixId: 1,
   invoiceNumber: null,
+  draftName: null,
   invoiceDate: '2025-07-15',
   companyId: 10,
   transactionId: null,

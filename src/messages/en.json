@@ -1569,7 +1569,10 @@
         "hours": "Hours",
         "hourly-rate": "Rate (€)",
         "amount": "Amount (€)",
-        "notes": "Notes"
+        "notes": "Notes",
+        "draft-name": "Draft name",
+        "draft-name-placeholder": "e.g. Acme kitchen refit",
+        "draft-name-hint": "Only to identify the draft in your list. It never appears on the invoice."
       },
       "date-locked-hint": "The date cannot be changed: this invoice already has a number assigned.",
       "add-sub-item": "Add sub-item"

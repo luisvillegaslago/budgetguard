@@ -102,9 +102,13 @@ export function getInvoiceLabels(lang?: string | null): InvoiceLabels {
   return DEFAULT_LABELS;
 }
 
-/** Format invoice number for display — returns the number or a dash for drafts without one */
-export function formatInvoiceLabel(invoiceNumber: string | null): string {
-  return invoiceNumber ?? '—';
+/**
+ * How an invoice identifies itself in the UI: its number once issued, otherwise the
+ * draft's working title, otherwise a dash. A draft has no number until it is
+ * finalized, so without this every draft in the list reads as the same dash.
+ */
+export function formatInvoiceLabel(invoiceNumber: string | null, draftName?: string | null): string {
+  return invoiceNumber ?? (draftName?.trim() || '—');
 }
 
 /** Get the Intl locale string for a given invoice language code */

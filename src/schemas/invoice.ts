@@ -147,6 +147,7 @@ export const CreateInvoiceSchema = z.object({
     .array(InvoiceLineItemSchema)
     .min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED)
     .max(INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS),
+  draftName: z.string().max(120).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   ...OptionalTaxRateFields,
 });
@@ -174,6 +175,7 @@ export const UpdateInvoiceSchema = z.object({
     .array(InvoiceLineItemSchema)
     .min(1, VALIDATION_KEY.LINE_ITEMS_REQUIRED)
     .max(INVOICE_LINE_ITEM_LIMIT.MAX_LINE_ITEMS),
+  draftName: z.string().max(120).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   ...RequiredTaxRateFields,
 });

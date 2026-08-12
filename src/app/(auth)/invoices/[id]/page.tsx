@@ -239,6 +239,12 @@ export default function InvoiceDetailPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t('invoices.back-to-list')}
         </Link>
+        {/* The draft's working title belongs to the app chrome, not to the document
+            preview below, which mirrors the PDF the client receives. It stands in for
+            a missing number, so a reverted draft that kept its number does not show it. */}
+        {invoice.invoiceNumber == null && invoice.draftName && (
+          <p className="min-w-0 truncate text-sm font-medium text-foreground sm:flex-1">{invoice.draftName}</p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"

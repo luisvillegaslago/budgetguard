@@ -225,6 +225,7 @@ export const SYNCABLE_TABLES: TableConfig[] = [
       'InvoiceID',
       'PrefixID',
       'InvoiceNumber',
+      'DraftName',
       'InvoiceDate',
       'CompanyID',
       'TransactionID',

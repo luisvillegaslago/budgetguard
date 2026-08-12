@@ -35,6 +35,7 @@ const mockInvoice: Invoice = {
   invoiceId: 1,
   prefixId: 1,
   invoiceNumber: null,
+  draftName: null,
   invoiceDate: '2026-03-09',
   companyId: 2,
   transactionId: null,
@@ -72,6 +73,7 @@ const mockInvoice: Invoice = {
 const mockListItem: InvoiceListItem = {
   invoiceId: 1,
   invoiceNumber: null,
+  draftName: null,
   invoiceDate: '2026-03-09',
   clientName: 'RMCI Alerts Pty Ltd',
   clientTradingName: 'No1 Property Guide',

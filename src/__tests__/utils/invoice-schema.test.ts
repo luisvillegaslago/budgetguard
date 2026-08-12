@@ -191,6 +191,16 @@ describe('CreateInvoiceSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('should accept an optional draft name', () => {
+    const result = CreateInvoiceSchema.safeParse({ ...validInvoice, draftName: 'Acme kitchen refit' });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject a draft name longer than 120 characters', () => {
+    const result = CreateInvoiceSchema.safeParse({ ...validInvoice, draftName: 'x'.repeat(121) });
+    expect(result.success).toBe(false);
+  });
+
   it('should accept amountCents of 0 (a line billed as a courtesy)', () => {
     const result = CreateInvoiceSchema.safeParse({
       ...validInvoice,

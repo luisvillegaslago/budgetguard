@@ -688,6 +688,8 @@ export interface Invoice {
   invoiceId: number;
   prefixId: number;
   invoiceNumber: string | null;
+  /** Working title while the invoice is a draft and has no number. Internal only. */
+  draftName: string | null;
   invoiceDate: string;
   companyId: number | null;
   transactionId: number | null;
@@ -731,6 +733,8 @@ export interface Invoice {
 export interface InvoiceListItem {
   invoiceId: number;
   invoiceNumber: string | null;
+  /** Shown in place of the number while the invoice is a draft */
+  draftName: string | null;
   invoiceDate: string;
   clientName: string;
   clientTradingName: string | null;

@@ -3,7 +3,31 @@
  * Tests getInvoiceLabels() and getInvoiceLocale() utilities
  */
 
-import { getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
+import { formatInvoiceLabel, getInvoiceLabels, getInvoiceLocale } from '@/utils/invoiceLabels';
+
+describe('formatInvoiceLabel', () => {
+  it('should return the number once the invoice has one', () => {
+    expect(formatInvoiceLabel('2026/014')).toBe('2026/014');
+  });
+
+  it('should prefer the number over the draft name', () => {
+    expect(formatInvoiceLabel('2026/014', 'Acme kitchen refit')).toBe('2026/014');
+  });
+
+  it('should fall back to the draft name while there is no number', () => {
+    expect(formatInvoiceLabel(null, 'Acme kitchen refit')).toBe('Acme kitchen refit');
+  });
+
+  it('should trim the draft name', () => {
+    expect(formatInvoiceLabel(null, '  Acme  ')).toBe('Acme');
+  });
+
+  it('should return a dash for a blank or missing draft name', () => {
+    expect(formatInvoiceLabel(null)).toBe('—');
+    expect(formatInvoiceLabel(null, null)).toBe('—');
+    expect(formatInvoiceLabel(null, '   ')).toBe('—');
+  });
+});
 
 describe('getInvoiceLabels', () => {
   it('should return Spanish labels by default', () => {
