@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.54.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.53.0...v0.54.0) (2026-08-12)
+
+
+### Features
+
+* **invoices:** let drafts carry a working title ([36ef6f7](https://github.com/luisvillegaslago/budgetguard/commit/36ef6f7f8911f78d38647a52c5e76eeb8bcc18ad))
+
 ## [0.53.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.52.0...v0.53.0) (2026-08-12)
 
 
