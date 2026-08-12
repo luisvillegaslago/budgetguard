@@ -17,8 +17,8 @@ import { FiscalReminderSettings } from '@/components/settings/FiscalReminderSett
 import { InvoicePrefixPanel } from '@/components/settings/InvoicePrefixPanel';
 import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
 import { useTranslate } from '@/hooks/useTranslations';
-import { cn } from '@/utils/helpers';
 
 type SettingsSection = 'general' | 'categories' | 'companies' | 'billing' | 'reminders' | 'crypto' | 'database';
 
@@ -39,15 +39,11 @@ const SECTIONS: SectionConfig[] = [
   { id: 'database', i18nKey: 'settings.sections.database', icon: Database, devOnly: true },
 ];
 
-const VALID_SECTIONS = new Set<string>([
-  'general',
-  'categories',
-  'companies',
-  'billing',
-  'reminders',
-  'crypto',
-  'database',
-]);
+// Derived from SECTIONS so a dev-only section can never be reached from a URL in
+// production — that would both render the panel and leave the tab bar with no
+// matching entry.
+const VISIBLE_SECTIONS = SECTIONS.filter((section) => !section.devOnly || process.env.NODE_ENV === 'development');
+const VALID_SECTIONS = new Set<string>(VISIBLE_SECTIONS.map((section) => section.id));
 
 function resolveInitialTab(param: string | null): SettingsSection {
   return param && VALID_SECTIONS.has(param) ? (param as SettingsSection) : 'general';
@@ -72,7 +68,11 @@ export default function SettingsPage() {
     window.history.replaceState({}, '', url.toString());
   }, []);
 
-  const visibleSections = SECTIONS.filter((section) => !section.devOnly || process.env.NODE_ENV === 'development');
+  const tabs: TabBarItem<SettingsSection>[] = VISIBLE_SECTIONS.map((section) => ({
+    id: section.id,
+    label: t(section.i18nKey),
+    icon: section.icon,
+  }));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -83,27 +83,13 @@ export default function SettingsPage() {
       </div>
 
       {/* Section tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border">
-        {visibleSections.map((section) => {
-          const Icon = section.icon;
-          return (
-            <button
-              key={section.id}
-              type="button"
-              onClick={() => setActiveSection(section.id)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
-                activeSection === section.id
-                  ? 'border-guard-primary text-guard-primary'
-                  : 'border-transparent text-guard-muted hover:text-foreground',
-              )}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {t(section.i18nKey)}
-            </button>
-          );
-        })}
-      </div>
+      <TabBar
+        tabs={tabs}
+        activeTab={activeSection}
+        onChange={setActiveSection}
+        ariaLabel={t('settings.title')}
+        className="mb-8"
+      />
 
       {/* Section Content */}
       {activeSection === 'general' && (

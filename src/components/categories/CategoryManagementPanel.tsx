@@ -12,11 +12,11 @@ import { CategoryFormModal } from '@/components/categories/CategoryFormModal';
 import { CategoryTree } from '@/components/categories/CategoryTree';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { FILTER_TYPE, TRANSACTION_TYPE } from '@/constants/finance';
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
+import { FILTER_TYPE, TAB_BAR_VARIANT, TRANSACTION_TYPE } from '@/constants/finance';
 import { useAllCategoriesHierarchical, useUpdateCategory } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Category, TransactionType } from '@/types/finance';
-import { cn } from '@/utils/helpers';
 
 type FilterType = typeof FILTER_TYPE.ALL | TransactionType;
 
@@ -73,10 +73,10 @@ export function CategoryManagementPanel() {
     setModal({ type: 'none' });
   };
 
-  const filterButtons: { key: FilterType; label: string }[] = [
-    { key: FILTER_TYPE.ALL, label: t('category-management.filter.all') },
-    { key: TRANSACTION_TYPE.INCOME, label: t('category-management.filter.income') },
-    { key: TRANSACTION_TYPE.EXPENSE, label: t('category-management.filter.expense') },
+  const filterTabs: TabBarItem<FilterType>[] = [
+    { id: FILTER_TYPE.ALL, label: t('category-management.filter.all') },
+    { id: TRANSACTION_TYPE.INCOME, label: t('category-management.filter.income') },
+    { id: TRANSACTION_TYPE.EXPENSE, label: t('category-management.filter.expense') },
   ];
 
   return (
@@ -88,27 +88,15 @@ export function CategoryManagementPanel() {
           <p className="text-sm text-guard-muted">{t('category-management.subtitle')}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Type Filter */}
-          <div className="flex gap-1 bg-muted rounded-lg p-1" role="tablist">
-            {filterButtons.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={typeFilter === key}
-                onClick={() => setTypeFilter(key)}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ease-out-quart',
-                  typeFilter === key
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-guard-muted hover:text-foreground',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <TabBar
+            tabs={filterTabs}
+            activeTab={typeFilter}
+            onChange={setTypeFilter}
+            ariaLabel={t('category-management.filter.a11y')}
+            variant={TAB_BAR_VARIANT.PILLS}
+          />
 
           {/* Add Category Button */}
           <button

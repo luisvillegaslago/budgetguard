@@ -51,7 +51,7 @@ function CategoryRow({
         className={cn(
           'flex items-center gap-3 py-3 group',
           'hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors',
-          depth > 0 && 'pl-12',
+          depth > 0 && 'pl-6 sm:pl-12',
         )}
       >
         {/* Expand/collapse chevron — only for parents */}
@@ -104,10 +104,10 @@ function CategoryRow({
           )}
         </div>
 
-        {/* Type badge */}
+        {/* Type badge — hidden on phones, where the row has no width to spare */}
         <span
           className={cn(
-            'px-2 py-0.5 text-[10px] font-semibold rounded-full',
+            'hidden sm:inline px-2 py-0.5 text-[10px] font-semibold rounded-full',
             category.type === TRANSACTION_TYPE.INCOME
               ? 'bg-guard-success/10 text-guard-success'
               : 'bg-guard-danger/10 text-guard-danger',
@@ -118,13 +118,13 @@ function CategoryRow({
             : t('category-management.filter.expense')}
         </span>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+        {/* Actions — always visible on touch devices, where hover never fires */}
+        <div className="flex items-center gap-1 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
           <Tooltip content={t('category-management.actions.edit')}>
             <button
               type="button"
               onClick={() => onEdit(category)}
-              className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              className="tap-target p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
               aria-label={t('category-management.actions.edit')}
             >
               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -141,7 +141,7 @@ function CategoryRow({
             <button
               type="button"
               onClick={() => onToggleActive(category)}
-              className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              className="tap-target p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
               aria-label={
                 category.isActive
                   ? t('category-management.actions.deactivate')
@@ -160,7 +160,7 @@ function CategoryRow({
             <button
               type="button"
               onClick={() => onDelete(category)}
-              className="p-1.5 text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 rounded-md transition-colors"
+              className="tap-target p-1.5 text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 rounded-md transition-colors"
               aria-label={t('category-management.actions.delete')}
             >
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -172,7 +172,7 @@ function CategoryRow({
               <button
                 type="button"
                 onClick={() => onAddSubcategory(category)}
-                className="p-1.5 text-guard-muted hover:text-guard-primary hover:bg-guard-primary/10 rounded-md transition-colors"
+                className="tap-target p-1.5 text-guard-muted hover:text-guard-primary hover:bg-guard-primary/10 rounded-md transition-colors"
                 aria-label={t('category-management.actions.add-subcategory')}
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />

@@ -42,14 +42,22 @@ function TransactionRow({ transaction, categoryType, onEdit, onRequestDelete }: 
   const { t } = useTranslate();
   const subcategoryName = transaction.category?.name ?? t('transactions.no-category');
   const isShared = transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR;
+  const formattedDate = formatDate(transaction.transactionDate);
 
   return (
     <div className="flex items-center gap-3 py-2.5 px-4 group hover:bg-muted/30 transition-colors">
-      <span className="text-xs text-guard-muted w-12 flex-shrink-0">{formatDate(transaction.transactionDate)}</span>
+      {/* Date keeps its own column from sm up; on phones it moves under the description */}
+      <span className="hidden sm:block text-xs text-guard-muted w-12 flex-shrink-0">{formattedDate}</span>
 
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground truncate">{transaction.description || subcategoryName}</p>
-        {transaction.description && <p className="text-xs text-guard-muted truncate">{subcategoryName}</p>}
+        <p className="text-xs text-guard-muted truncate sm:hidden">
+          {formattedDate}
+          {transaction.description ? ` · ${subcategoryName}` : ''}
+        </p>
+        {transaction.description && (
+          <p className="hidden sm:block text-xs text-guard-muted truncate">{subcategoryName}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -72,7 +80,7 @@ function TransactionRow({ transaction, categoryType, onEdit, onRequestDelete }: 
                     e.stopPropagation();
                     onEdit(transaction);
                   }}
-                  className="p-1.5 text-guard-muted hover:text-foreground rounded transition-colors"
+                  className="tap-target p-1.5 text-guard-muted hover:text-foreground rounded transition-colors"
                   aria-label={t('category-management.actions.edit')}
                 >
                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -87,7 +95,7 @@ function TransactionRow({ transaction, categoryType, onEdit, onRequestDelete }: 
                     e.stopPropagation();
                     onRequestDelete(transaction);
                   }}
-                  className="p-1.5 rounded transition-colors text-guard-muted hover:text-guard-danger"
+                  className="tap-target p-1.5 rounded transition-colors text-guard-muted hover:text-guard-danger"
                   aria-label={t('movements.delete-transaction')}
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

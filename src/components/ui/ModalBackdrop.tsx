@@ -36,9 +36,11 @@ export function ModalBackdrop({ children, onClose, labelledBy, escapeClose = tru
     };
   }, []);
 
+  // `items-start` plus `my-auto` on the wrapper keeps the dialog centred while it fits the viewport
+  // and lets it scroll from the top when it does not; plain `items-center` clips its top out of reach.
   return (
     <div
-      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-backdrop-in"
+      className="fixed inset-0 bg-guard-dark/50 backdrop-blur-sm flex items-start justify-center overflow-y-auto z-50 p-4 animate-backdrop-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby={labelledBy}
@@ -52,7 +54,7 @@ export function ModalBackdrop({ children, onClose, labelledBy, escapeClose = tru
         if (e.key === 'Escape' && escapeClose) onClose();
       }}
     >
-      <div ref={dialogRef} className="flex w-full justify-center">
+      <div ref={dialogRef} className="flex w-full justify-center my-auto">
         {children}
       </div>
     </div>

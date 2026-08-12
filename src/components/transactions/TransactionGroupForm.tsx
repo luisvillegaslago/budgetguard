@@ -340,7 +340,7 @@ export function TransactionGroupForm({
                         onChange={(e) => handleAmountChange(sub.categoryId, e.target.value)}
                         onWheel={(e) => e.currentTarget.blur()}
                         className={cn(
-                          'w-24 px-3 py-1.5 rounded-lg border bg-background text-foreground text-sm text-right',
+                          'w-20 sm:w-24 px-3 py-1.5 rounded-lg border bg-background text-foreground text-sm text-right',
                           'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
                           'transition-colors duration-200 ease-out-quart border-input',
                         )}

@@ -5,10 +5,10 @@
  * Displays preset range options (3M, 6M, 1Y, All)
  */
 
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
 import type { DateRangePreset } from '@/constants/finance';
-import { DATE_RANGE_PRESET } from '@/constants/finance';
+import { DATE_RANGE_PRESET, TAB_BAR_VARIANT } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
-import { cn } from '@/utils/helpers';
 
 interface DateRangeSelectorProps {
   value: DateRangePreset;
@@ -25,25 +25,18 @@ const RANGE_OPTIONS: DateRangePreset[] = [
 export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
   const { t } = useTranslate();
 
+  const tabs: TabBarItem<DateRangePreset>[] = RANGE_OPTIONS.map((range) => ({
+    id: range,
+    label: t(`category-history.range.${range}`),
+  }));
+
   return (
-    <div className="flex gap-1 rounded-lg bg-muted/50 p-1" role="tablist" aria-label={t('category-history.title')}>
-      {RANGE_OPTIONS.map((range) => (
-        <button
-          key={range}
-          type="button"
-          role="tab"
-          aria-selected={value === range}
-          onClick={() => onChange(range)}
-          className={cn(
-            'px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200',
-            value === range
-              ? 'bg-guard-primary text-white shadow-sm'
-              : 'text-guard-muted hover:text-foreground hover:bg-muted',
-          )}
-        >
-          {t(`category-history.range.${range}`)}
-        </button>
-      ))}
-    </div>
+    <TabBar
+      tabs={tabs}
+      activeTab={value}
+      onChange={onChange}
+      ariaLabel={t('category-history.title')}
+      variant={TAB_BAR_VARIANT.PILLS_PRIMARY}
+    />
   );
 }

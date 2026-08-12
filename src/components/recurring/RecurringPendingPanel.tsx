@@ -119,7 +119,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
               type="button"
               onClick={handleConfirm}
               disabled={isProcessing}
-              className="p-1 rounded text-guard-success hover:bg-guard-success/10"
+              className="tap-target p-1 rounded text-guard-success hover:bg-guard-success/10"
               aria-label={t('recurring.pending.confirm')}
             >
               <Check className="h-3.5 w-3.5" />
@@ -130,7 +130,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
                 setIsModifying(false);
                 setModifiedAmount('');
               }}
-              className="p-1 rounded text-guard-muted hover:bg-muted"
+              className="tap-target p-1 rounded text-guard-muted hover:bg-muted"
               aria-label={t('common.buttons.cancel')}
             >
               <X className="h-3.5 w-3.5" />
@@ -172,7 +172,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
       </div>
 
       {/* Mobile actions row */}
-      <div className="flex sm:hidden items-center justify-end gap-1.5 mt-2 pl-10">
+      <div className="flex sm:hidden flex-wrap items-center justify-end gap-1.5 mt-2 pl-10">
         {isModifying ? (
           <>
             <span className="text-xs text-guard-muted whitespace-nowrap" aria-hidden="true">
@@ -192,7 +192,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
               type="button"
               onClick={handleConfirm}
               disabled={isProcessing}
-              className="p-1 rounded text-guard-success hover:bg-guard-success/10"
+              className="tap-target p-1 rounded text-guard-success hover:bg-guard-success/10"
               aria-label={t('recurring.pending.confirm')}
             >
               <Check className="h-3.5 w-3.5" />
@@ -203,7 +203,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
                 setIsModifying(false);
                 setModifiedAmount('');
               }}
-              className="p-1 rounded text-guard-muted hover:bg-muted"
+              className="tap-target p-1 rounded text-guard-muted hover:bg-muted"
               aria-label={t('common.buttons.cancel')}
             >
               <X className="h-3.5 w-3.5" />

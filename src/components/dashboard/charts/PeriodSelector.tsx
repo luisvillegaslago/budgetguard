@@ -32,7 +32,7 @@ export function PeriodSelector() {
           onClick={() => setPeriod(option)}
           aria-pressed={period === option}
           className={cn(
-            'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+            'px-2.5 py-2.5 sm:py-1 text-xs font-medium rounded-md transition-colors',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guard-primary',
             period === option ? 'bg-guard-primary text-white' : 'text-foreground/70 hover:text-foreground',
           )}

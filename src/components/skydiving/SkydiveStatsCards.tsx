@@ -43,7 +43,7 @@ function StatsGrid({ title, cards }: { title: string; cards: StatCard[] }) {
               <card.icon className={`h-4 w-4 ${card.color}`} aria-hidden="true" />
               <span className="text-xs font-medium uppercase tracking-wide">{card.label}</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{card.value}</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">{card.value}</p>
             {card.subtitle && <p className="text-xs text-guard-muted">{card.subtitle}</p>}
           </div>
         ))}

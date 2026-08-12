@@ -201,11 +201,11 @@ export function InvoicePrefixPanel() {
     return (
       <li
         key={prefix.prefixId}
-        className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors"
+        className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors"
       >
         <span className="font-mono font-semibold text-foreground w-20 shrink-0">{prefix.prefix}</span>
 
-        <div className="flex-1 min-w-0">
+        <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
           <p className="text-sm text-foreground truncate">{clientName ?? t('settings.billing.fields.no-company')}</p>
           {prefix.description && <p className="text-xs text-guard-muted truncate">{prefix.description}</p>}
         </div>
@@ -223,7 +223,7 @@ export function InvoicePrefixPanel() {
               companyId: prefix.companyId ?? 0,
             })
           }
-          className="p-2 text-guard-muted hover:text-guard-primary rounded-lg transition-colors shrink-0"
+          className="tap-target p-2 text-guard-muted hover:text-guard-primary rounded-lg transition-colors shrink-0"
           aria-label={t('common.buttons.edit')}
           title={t('common.buttons.edit')}
         >
@@ -232,7 +232,7 @@ export function InvoicePrefixPanel() {
         <button
           type="button"
           onClick={() => setPendingDeleteId(prefix.prefixId)}
-          className="p-2 text-guard-muted hover:text-guard-danger rounded-lg transition-colors shrink-0"
+          className="tap-target p-2 text-guard-muted hover:text-guard-danger rounded-lg transition-colors shrink-0"
           aria-label={t('common.buttons.delete')}
           title={t('common.buttons.delete')}
         >

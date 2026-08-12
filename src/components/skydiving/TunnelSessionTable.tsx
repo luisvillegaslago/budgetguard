@@ -266,7 +266,7 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                       <button
                         type="button"
                         onClick={() => onEditSession(session)}
-                        className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-foreground rounded-lg transition-colors"
+                        className="tap-target p-2 text-guard-muted hover:text-foreground rounded-lg transition-colors"
                         aria-label={t('category-management.actions.edit')}
                       >
                         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -274,7 +274,7 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                       <button
                         type="button"
                         onClick={() => setSessionToDelete(session)}
-                        className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors text-guard-muted hover:text-guard-danger"
+                        className="tap-target p-2 rounded-lg transition-colors text-guard-muted hover:text-guard-danger"
                         aria-label={t('skydiving.tunnel.delete.button')}
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

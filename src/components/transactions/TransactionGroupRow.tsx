@@ -199,7 +199,7 @@ export function TransactionGroupRow({
               )}
               <button
                 type="button"
-                className="p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                className="tap-target p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
                 aria-label={isExpanded ? t('transactions.groups.collapse') : t('transactions.groups.expand')}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -215,7 +215,7 @@ export function TransactionGroupRow({
               {onEdit && (
                 <button
                   type="button"
-                  className="p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                  className="tap-target p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
                   aria-label={t('transactions.groups.edit')}
                   onClick={(e) => {
                     e.stopPropagation();

@@ -54,6 +54,8 @@ export function OverflowTooltip({
           sideOffset={sideOffset}
           className={cn(
             'z-[100] rounded-md bg-guard-dark px-2.5 py-1.5 text-xs font-medium text-white shadow-md',
+            // Never wider than the viewport: the tooltip shows text that is long by definition
+            'max-w-[calc(100vw-1rem)] break-words',
             'animate-fade-in select-none',
             'dark:bg-guard-light dark:text-guard-dark',
             className,

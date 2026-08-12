@@ -208,7 +208,7 @@ function SubItemsEditor({ control, register, lineItemIndex }: SubItemsEditorProp
               <button
                 type="button"
                 onClick={() => remove(subIndex)}
-                className="p-1 text-guard-muted hover:text-guard-danger transition-colors"
+                className="tap-target p-1 text-guard-muted hover:text-guard-danger transition-colors"
                 aria-label={t('common.buttons.delete')}
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -493,7 +493,11 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
             </h2>
             {previewNumber && <p className="text-sm text-guard-primary font-medium mt-0.5">{previewNumber}</p>}
           </div>
-          <button type="button" onClick={onClose} className="p-1 hover:bg-muted rounded-lg transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            className="tap-target p-1 hover:bg-muted rounded-lg transition-colors"
+          >
             <X className="h-5 w-5 text-guard-muted" aria-hidden="true" />
           </button>
         </div>
@@ -511,7 +515,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
           </div>
 
           {/* Prefix + Date row */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {showPrefixForm ? (
                 <InlinePrefixForm
@@ -664,7 +668,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                       <button
                         type="button"
                         onClick={() => remove(index)}
-                        className="mt-5 p-2 text-guard-muted hover:text-guard-danger transition-colors shrink-0"
+                        className="mt-5 tap-target p-2 text-guard-muted hover:text-guard-danger transition-colors shrink-0"
                         aria-label={t('common.buttons.delete')}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -688,7 +692,7 @@ export function InvoiceForm({ onClose, onCreated, invoice }: InvoiceFormProps) {
                   </div>
 
                   {/* Numeric fields row */}
-                  <div className={isFlat ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-3 gap-2'}>
+                  <div className={isFlat ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                     {!isFlat && (
                       <>
                         <div>

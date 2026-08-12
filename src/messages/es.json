@@ -47,7 +47,9 @@
       "clear": "Limpiar",
       "edit": "Editar",
       "clear-filter": "Quitar filtro",
-      "dismiss": "Ocultar aviso"
+      "dismiss": "Ocultar aviso",
+      "scroll-left": "Desplazar a la izquierda",
+      "scroll-right": "Desplazar a la derecha"
     },
     "alerts": {
       "dismiss-hint": "Ocultar hasta recargar la página"
@@ -453,7 +455,8 @@
     "filter": {
       "all": "Todas",
       "income": "Ingresos",
-      "expense": "Gastos"
+      "expense": "Gastos",
+      "a11y": "Filtrar categorías por tipo"
     },
     "badges": {
       "inactive": "Inactiva",
@@ -1525,7 +1528,8 @@
       "cancelled": "Cancelada"
     },
     "filters": {
-      "all": "Todas"
+      "all": "Todas",
+      "a11y": "Filtrar facturas por estado"
     },
     "table": {
       "number": "Factura #",
@@ -1665,7 +1669,8 @@
     "inactive": "Inactiva",
     "tabs": {
       "clients": "Clientes",
-      "providers": "Proveedores"
+      "providers": "Proveedores",
+      "a11y": "Filtrar empresas por rol"
     },
     "empty": {
       "title": "No hay empresas aún",

@@ -125,7 +125,7 @@ export function CryptoDisposalsTable({ year }: { year: number }) {
                             <button
                               type="button"
                               onClick={() => setExpandedRow(isExpanded ? null : d.disposalId)}
-                              className="text-guard-muted hover:text-foreground"
+                              className="tap-target -m-3 text-guard-muted hover:text-foreground lg:m-0"
                               aria-label={
                                 isExpanded ? t('crypto.fiscal.lots-collapse') : t('crypto.fiscal.lots-expand')
                               }

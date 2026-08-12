@@ -63,28 +63,29 @@ function DeadlineRow({ deadline }: { deadline: FiscalDeadline }) {
   return (
     <div
       className={cn(
-        'flex items-center justify-between py-2.5 border-b border-border last:border-0',
+        'flex flex-col items-start gap-1 py-2.5 border-b border-border last:border-0',
+        'sm:flex-row sm:items-center sm:justify-between sm:gap-0',
         dimmed && 'opacity-40',
       )}
     >
-      <div className="flex items-center gap-3">
-        <Icon className={cn('h-4 w-4', STATUS_STYLES[deadline.status])} aria-hidden="true" />
-        <div>
+      <div className="flex items-center gap-3 min-w-0">
+        <Icon className={cn('h-4 w-4 shrink-0', STATUS_STYLES[deadline.status])} aria-hidden="true" />
+        <div className="min-w-0">
           <span className="text-sm font-medium text-foreground">{label}</span>
-          <p className="text-xs text-guard-muted">
+          <p className="text-xs text-guard-muted whitespace-nowrap">
             {formatDeadlineDate(deadline.startDate)} — {formatDeadlineDate(deadline.endDate)}
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0 pl-7 sm:pl-0">
         {deadline.daysRemaining != null && deadline.daysRemaining >= 0 && deadline.status !== FILING_STATUS.FILED && (
-          <span className="text-xs text-guard-muted">
+          <span className="text-xs text-guard-muted whitespace-nowrap">
             {t('fiscal.deadlines.days-remaining', { count: deadline.daysRemaining })}
           </span>
         )}
         <span
           className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-medium',
+            'text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap',
             deadline.status === FILING_STATUS.FILED && 'bg-guard-success/10 text-guard-success',
             deadline.status === FILING_STATUS.NOT_DUE && 'bg-muted text-guard-muted',
             deadline.status === FILING_STATUS.UPCOMING && 'bg-guard-primary/10 text-guard-primary',

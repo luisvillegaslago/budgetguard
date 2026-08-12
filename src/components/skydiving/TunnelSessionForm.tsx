@@ -107,7 +107,7 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Date + Duration */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="sessionDate" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('skydiving.tunnel.form.fields.date')}

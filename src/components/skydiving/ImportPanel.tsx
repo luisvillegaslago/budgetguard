@@ -6,7 +6,8 @@
  */
 
 import { Upload, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { useTranslate } from '@/hooks/useTranslations';
 
 interface ImportPanelProps {
@@ -24,15 +25,6 @@ export function ImportPanel({ onImport, onClose, parseRow }: ImportPanelProps) {
   const [result, setResult] = useState<{ inserted: number; skipped: number; updated?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   const processFile = useCallback(
     (file: File) => {
@@ -157,11 +149,13 @@ export function ImportPanel({ onImport, onClose, parseRow }: ImportPanelProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-lg">
+    <ModalBackdrop onClose={onClose} labelledBy="import-panel-title">
+      <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-lg max-h-[90vh] overflow-y-auto animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">{t('skydiving.import.title')}</h2>
+          <h2 id="import-panel-title" className="text-lg font-semibold text-foreground">
+            {t('skydiving.import.title')}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -200,7 +194,9 @@ export function ImportPanel({ onImport, onClose, parseRow }: ImportPanelProps) {
               }`}
             >
               <Upload className="h-6 w-6" aria-hidden="true" />
-              <span className="text-sm font-medium">{fileName ?? t('skydiving.import.drop-hint')}</span>
+              <span className="text-sm font-medium max-w-full break-all">
+                {fileName ?? t('skydiving.import.drop-hint')}
+              </span>
               {!fileName && <span className="text-xs">{t('skydiving.import.format-hint')}</span>}
             </button>
           </div>
@@ -243,7 +239,7 @@ export function ImportPanel({ onImport, onClose, parseRow }: ImportPanelProps) {
           </div>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

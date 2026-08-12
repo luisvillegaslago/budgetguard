@@ -47,7 +47,11 @@ export function FiscalFilingStatus({ status, document }: FiscalFilingStatusProps
         <a
           href={document.downloadUrl}
           download
-          className="ml-1 hover:opacity-70 transition-opacity"
+          className={cn(
+            'ml-1 hover:opacity-70 transition-opacity',
+            // Expand the touch area on phones without changing the pill height
+            'tap-target -my-2 lg:my-0',
+          )}
           title={t('fiscal.documents.download')}
         >
           <FileDown className="h-3 w-3" aria-hidden="true" />

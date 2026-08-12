@@ -33,7 +33,7 @@ export function SearchInput({ value, onChange, placeholder, className }: SearchI
           <button
             type="button"
             onClick={() => onChange('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-guard-muted hover:text-foreground transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 tap-target -mr-2 p-0.5 lg:mr-0 text-guard-muted hover:text-foreground transition-colors"
             aria-label={t('common.buttons.clear')}
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />

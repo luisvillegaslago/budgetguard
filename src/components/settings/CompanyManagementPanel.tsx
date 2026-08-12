@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { CompanyFormModal } from '@/components/settings/CompanyFormModal';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
 import { useToast } from '@/components/ui/Toast';
 import type { CompanyRole } from '@/constants/finance';
 import { COMPANY_ROLE } from '@/constants/finance';
@@ -80,6 +81,11 @@ export function CompanyManagementPanel() {
 
   const isClient = activeRole === COMPANY_ROLE.CLIENT;
 
+  const roleTabs: TabBarItem<CompanyRole>[] = [
+    { id: COMPANY_ROLE.CLIENT, label: t('companies.tabs.clients') },
+    { id: COMPANY_ROLE.PROVIDER, label: t('companies.tabs.providers') },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -100,32 +106,7 @@ export function CompanyManagementPanel() {
       </div>
 
       {/* Role sub-tabs */}
-      <div className="flex gap-1 border-b border-border">
-        <button
-          type="button"
-          onClick={() => setActiveRole(COMPANY_ROLE.CLIENT)}
-          className={cn(
-            'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
-            activeRole === COMPANY_ROLE.CLIENT
-              ? 'border-guard-primary text-guard-primary'
-              : 'border-transparent text-guard-muted hover:text-foreground',
-          )}
-        >
-          {t('companies.tabs.clients')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveRole(COMPANY_ROLE.PROVIDER)}
-          className={cn(
-            'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
-            activeRole === COMPANY_ROLE.PROVIDER
-              ? 'border-guard-primary text-guard-primary'
-              : 'border-transparent text-guard-muted hover:text-foreground',
-          )}
-        >
-          {t('companies.tabs.providers')}
-        </button>
-      </div>
+      <TabBar tabs={roleTabs} activeTab={activeRole} onChange={setActiveRole} ariaLabel={t('companies.tabs.a11y')} />
 
       {/* Search */}
       <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={t('companies.search-placeholder')} />
@@ -183,9 +164,12 @@ export function CompanyManagementPanel() {
             {filtered.map((company) => (
               <div
                 key={company.companyId}
-                className={cn('flex items-center justify-between px-4 py-3 gap-4', !company.isActive && 'opacity-50')}
+                className={cn(
+                  'flex flex-wrap items-center justify-between px-4 py-3 gap-x-4 gap-y-2',
+                  !company.isActive && 'opacity-50',
+                )}
               >
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 w-full sm:w-auto sm:flex-1">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-guard-primary shrink-0" aria-hidden="true" />
                     <span className="font-medium text-foreground truncate">{company.name}</span>
@@ -210,7 +194,7 @@ export function CompanyManagementPanel() {
                 <div className="flex items-center gap-1 shrink-0">
                   <Link
                     href={`/movements?companyId=${company.companyId}&role=${activeRole}`}
-                    className="p-1.5 text-guard-muted hover:text-guard-primary hover:bg-muted rounded-md transition-colors"
+                    className="tap-target text-guard-muted hover:text-guard-primary hover:bg-muted rounded-md transition-colors lg:p-1.5"
                     aria-label={t('companies.actions.view-transactions')}
                     title={t('companies.actions.view-transactions')}
                   >
@@ -219,7 +203,7 @@ export function CompanyManagementPanel() {
                   <button
                     type="button"
                     onClick={() => setModal({ type: 'edit', company })}
-                    className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    className="tap-target text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors lg:p-1.5"
                     aria-label={t('companies.actions.edit')}
                   >
                     <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -227,7 +211,7 @@ export function CompanyManagementPanel() {
                   <button
                     type="button"
                     onClick={() => handleToggleActive(company)}
-                    className="p-1.5 text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    className="tap-target text-guard-muted hover:text-foreground hover:bg-muted rounded-md transition-colors lg:p-1.5"
                     aria-label={company.isActive ? t('companies.actions.deactivate') : t('companies.actions.activate')}
                   >
                     {company.isActive ? (

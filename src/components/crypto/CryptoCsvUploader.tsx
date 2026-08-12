@@ -193,7 +193,9 @@ export function CryptoCsvUploader() {
       >
         <FileUp className="h-6 w-6 text-guard-muted" aria-hidden="true" />
         {file ? (
-          <span className="font-mono text-xs text-foreground">{t('crypto.csv.selected', { name: file.name })}</span>
+          <span className="font-mono text-xs text-foreground break-all text-center">
+            {t('crypto.csv.selected', { name: file.name })}
+          </span>
         ) : (
           <span className="text-guard-muted">{t('crypto.csv.drop-here')}</span>
         )}

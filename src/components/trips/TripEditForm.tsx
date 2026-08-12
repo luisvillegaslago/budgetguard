@@ -108,7 +108,7 @@ export function TripEditForm({ trip, onClose }: TripEditFormProps) {
           </div>
 
           {/* Date Range */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="trip-edit-start-date" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('trips.create-form.fields.start-date')}

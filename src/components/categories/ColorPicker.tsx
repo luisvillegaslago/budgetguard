@@ -42,7 +42,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
         {t('category-management.form.fields.color')}
       </span>
       <fieldset
-        className="grid grid-cols-8 gap-2 border-0 p-0 m-0"
+        className="grid grid-cols-6 sm:grid-cols-8 gap-2 border-0 p-0 m-0"
         aria-label={t('category-management.form.fields.color')}
       >
         {PRESET_COLORS.map((color) => {

@@ -10,12 +10,14 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { InvoiceForm } from '@/components/invoices/InvoiceForm';
 import { InvoiceList } from '@/components/invoices/InvoiceList';
-import { INVOICE_STATUS } from '@/constants/finance';
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
+import { INVOICE_STATUS, STATUS_FILTER } from '@/constants/finance';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useUrlParams } from '@/hooks/useUrlParams';
 import type { InvoiceStatus } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+
+type InvoiceStatusFilter = InvoiceStatus | typeof STATUS_FILTER.ALL;
 
 const VALID_STATUSES = new Set<string>([
   INVOICE_STATUS.DRAFT,
@@ -24,8 +26,8 @@ const VALID_STATUSES = new Set<string>([
   INVOICE_STATUS.CANCELLED,
 ]);
 
-const STATUS_FILTERS: Array<{ key: string; value: InvoiceStatus | undefined }> = [
-  { key: 'all', value: undefined },
+const STATUS_FILTERS: Array<{ key: InvoiceStatusFilter; value: InvoiceStatus | undefined }> = [
+  { key: STATUS_FILTER.ALL, value: undefined },
   { key: INVOICE_STATUS.DRAFT, value: INVOICE_STATUS.DRAFT },
   { key: INVOICE_STATUS.FINALIZED, value: INVOICE_STATUS.FINALIZED },
   { key: INVOICE_STATUS.PAID, value: INVOICE_STATUS.PAID },
@@ -43,6 +45,15 @@ export default function InvoicesPage() {
     statusParam && VALID_STATUSES.has(statusParam) ? (statusParam as InvoiceStatus) : undefined;
 
   const { data: invoices, isLoading } = useInvoices(statusFilter ? { status: statusFilter } : undefined);
+
+  const filterTabs: TabBarItem<InvoiceStatusFilter>[] = STATUS_FILTERS.map(({ key }) => ({
+    id: key,
+    label: key === STATUS_FILTER.ALL ? t('invoices.filters.all') : t(`invoices.status.${key}`),
+  }));
+
+  const handleFilterChange = (key: InvoiceStatusFilter) => {
+    updateParams({ status: STATUS_FILTERS.find((filter) => filter.key === key)?.value });
+  };
 
   const handleCreated = (invoiceId: number) => {
     setShowCreateForm(false);
@@ -64,23 +75,13 @@ export default function InvoicesPage() {
       </div>
 
       {/* Status filters */}
-      <div className="flex gap-1 mb-6 border-b border-border">
-        {STATUS_FILTERS.map((filter) => (
-          <button
-            key={filter.key}
-            type="button"
-            onClick={() => updateParams({ status: filter.value })}
-            className={cn(
-              'px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
-              statusFilter === filter.value
-                ? 'border-guard-primary text-guard-primary'
-                : 'border-transparent text-guard-muted hover:text-foreground',
-            )}
-          >
-            {filter.key === 'all' ? t('invoices.filters.all') : t(`invoices.status.${filter.key}`)}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={filterTabs}
+        activeTab={statusFilter ?? STATUS_FILTER.ALL}
+        onChange={handleFilterChange}
+        ariaLabel={t('invoices.filters.a11y')}
+        className="mb-6"
+      />
 
       {/* Invoice List */}
       <InvoiceList invoices={invoices ?? []} isLoading={isLoading} />

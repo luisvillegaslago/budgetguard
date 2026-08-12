@@ -47,7 +47,9 @@
       "clear": "Clear",
       "edit": "Edit",
       "clear-filter": "Clear filter",
-      "dismiss": "Dismiss alert"
+      "dismiss": "Dismiss alert",
+      "scroll-left": "Scroll left",
+      "scroll-right": "Scroll right"
     },
     "alerts": {
       "dismiss-hint": "Hide until the page is reloaded"
@@ -453,7 +455,8 @@
     "filter": {
       "all": "All",
       "income": "Income",
-      "expense": "Expenses"
+      "expense": "Expenses",
+      "a11y": "Filter categories by type"
     },
     "badges": {
       "inactive": "Inactive",
@@ -1525,7 +1528,8 @@
       "cancelled": "Cancelled"
     },
     "filters": {
-      "all": "All"
+      "all": "All",
+      "a11y": "Filter invoices by status"
     },
     "table": {
       "number": "Invoice #",
@@ -1665,7 +1669,8 @@
     "inactive": "Inactive",
     "tabs": {
       "clients": "Clients",
-      "providers": "Providers"
+      "providers": "Providers",
+      "a11y": "Filter companies by role"
     },
     "empty": {
       "title": "No companies yet",

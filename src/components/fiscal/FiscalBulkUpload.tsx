@@ -162,7 +162,7 @@ export function FiscalBulkUpload({ onClose }: FiscalBulkUploadProps) {
                   <button
                     type="button"
                     onClick={() => removeFile(index)}
-                    className="p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
+                    className="shrink-0 tap-target p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -211,7 +211,7 @@ export function FiscalBulkUpload({ onClose }: FiscalBulkUploadProps) {
                   {results
                     .filter((r) => !r.success)
                     .map((r) => (
-                      <p key={r.fileName} className="text-xs text-guard-danger">
+                      <p key={r.fileName} className="text-xs text-guard-danger break-words">
                         {r.fileName}: {r.error}
                       </p>
                     ))}

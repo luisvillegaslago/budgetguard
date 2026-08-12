@@ -89,7 +89,7 @@ export default function FiscalPage() {
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-guard-primary" aria-hidden="true" />
             <h1 className="text-2xl font-bold text-foreground">{t('fiscal.title')}</h1>
@@ -109,10 +109,10 @@ export default function FiscalPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           {/* View Toggle */}
           <fieldset
-            className="flex gap-1 bg-muted rounded-lg p-1 border-0 m-0"
+            className="flex gap-1 bg-muted rounded-lg p-1 border-0 m-0 overflow-x-auto scrollbar-none"
             aria-label={t('fiscal.a11y.view-toggle')}
           >
             <button
@@ -120,7 +120,7 @@ export default function FiscalPage() {
               aria-pressed={view === 'quarterly'}
               onClick={() => setView('quarterly')}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                'shrink-0 whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
                 view === 'quarterly' ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground',
               )}
             >
@@ -131,7 +131,7 @@ export default function FiscalPage() {
               aria-pressed={view === 'annual'}
               onClick={() => setView('annual')}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                'shrink-0 whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
                 view === 'annual' ? 'bg-card text-foreground shadow-sm' : 'text-guard-muted hover:text-foreground',
               )}
             >

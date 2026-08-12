@@ -81,7 +81,7 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
           <p className="text-sm text-guard-muted mt-1">{t('crypto.fiscal.subtitle')}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {years.length > 0 && (
             <Select value={year} onChange={(e) => onYearChange(Number(e.target.value))} className="w-24 text-sm">
               {years.map((y) => (

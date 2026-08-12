@@ -133,6 +133,44 @@
 
 }
 
+@layer utilities {
+  /* Scrollable container without a visible scrollbar (tab bars, filter pills) */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Comfortable touch target for icon-only controls: 44px (Apple HIG minimum)
+     below the desktop breakpoint, natural box from lg up. Expressed as a media
+     query rather than `min-h-11 lg:min-h-0` so a consumer can still pin its own
+     desktop size (e.g. `lg:min-h-8`) without fighting a reset utility. */
+  .tap-target {
+    @apply inline-flex items-center justify-center;
+  }
+
+  @media (max-width: 1023px) {
+    .tap-target {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+  }
+
+  /* Affordances that only make sense with a mouse. Touch users pan a scroll
+     container with a finger, so arrow controls would only steal space. */
+  .pointer-only {
+    display: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .pointer-only {
+      display: inline-flex;
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

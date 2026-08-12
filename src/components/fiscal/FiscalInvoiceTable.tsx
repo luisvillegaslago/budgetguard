@@ -134,9 +134,9 @@ export function FiscalInvoiceTable({ invoices }: FiscalInvoiceTableProps) {
               </span>
             </div>
             <div className="flex items-center gap-4 text-xs text-guard-muted">
-              <span className="tabular-nums">{formatDate(invoice.transactionDate)}</span>
-              {invoice.description && <span className="truncate">{invoice.description}</span>}
-              <span className="tabular-nums ml-auto">
+              <span className="tabular-nums shrink-0">{formatDate(invoice.transactionDate)}</span>
+              {invoice.description && <span className="min-w-0 truncate">{invoice.description}</span>}
+              <span className="tabular-nums shrink-0 ml-auto">
                 {t('fiscal.invoices.vat')}: {formatCurrency(invoice.ivaCents)}
               </span>
             </div>

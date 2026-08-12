@@ -149,7 +149,7 @@ function LinkedGroupDetail({ transactionGroupId }: { transactionGroupId: number 
   const totalCents = transactions.reduce((sum, tx) => sum + (tx.originalAmountCents ?? tx.amountCents), 0);
 
   return (
-    <div className="px-6 py-3.5">
+    <div className="px-2 sm:px-6 py-3.5">
       <div className="flex items-center gap-3 mb-2">
         <span className="text-sm font-semibold tabular-nums text-guard-danger">-{formatCurrency(totalCents)}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-guard-primary/10 text-guard-primary font-medium">
@@ -195,7 +195,7 @@ function LinkedTransactionDetail({ transactionId }: { transactionId: number }) {
   const isIncome = transaction.type === TRANSACTION_TYPE.INCOME;
 
   return (
-    <div className="px-6 py-3.5">
+    <div className="px-2 sm:px-6 py-3.5">
       {/* Header: amount + category + shared badge */}
       <div className="flex items-center gap-3 mb-2">
         <span
@@ -295,7 +295,7 @@ function DocumentMobileCard({
           <a
             href={document.downloadUrl}
             download
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-guard-primary transition-colors rounded-lg"
+            className="tap-target p-2 text-guard-muted hover:text-guard-primary transition-colors rounded-lg"
             title={t('fiscal.documents.download')}
           >
             <Download className="h-4 w-4" aria-hidden="true" />
@@ -303,7 +303,7 @@ function DocumentMobileCard({
           <button
             type="button"
             onClick={() => onRequestDelete(document)}
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-guard-muted hover:text-guard-danger transition-colors rounded-lg"
+            className="tap-target p-2 text-guard-muted hover:text-guard-danger transition-colors rounded-lg"
             title={t('common.buttons.delete')}
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -334,7 +334,8 @@ function DocumentMobileCard({
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-xs text-guard-success hover:text-guard-success/80 transition-colors"
+            title={t('fiscal.documents.linked-transaction')}
+            className="tap-target -my-2 gap-1 text-xs text-guard-success hover:text-guard-success/80 transition-colors"
           >
             <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
             <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} aria-hidden="true" />

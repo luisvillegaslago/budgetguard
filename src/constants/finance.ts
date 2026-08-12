@@ -67,6 +67,15 @@ export const CARD_VARIANT = {
 
 export type CardVariant = (typeof CARD_VARIANT)[keyof typeof CARD_VARIANT];
 
+// Tab Bar Variants
+export const TAB_BAR_VARIANT = {
+  UNDERLINE: 'underline',
+  PILLS: 'pills',
+  PILLS_PRIMARY: 'pills-primary',
+} as const;
+
+export type TabBarVariant = (typeof TAB_BAR_VARIANT)[keyof typeof TAB_BAR_VARIANT];
+
 // Recurring Expense Frequencies
 export const RECURRING_FREQUENCY = {
   WEEKLY: 'weekly',

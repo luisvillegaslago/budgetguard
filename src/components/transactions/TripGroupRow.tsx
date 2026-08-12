@@ -141,7 +141,7 @@ export function TripGroupRow({ tripGroup, onEditTransaction, index }: TripGroupR
             <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
               <button
                 type="button"
-                className="p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+                className="tap-target p-1 rounded-lg text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
                 aria-label={isExpanded ? t('transactions.trip-group.collapse') : t('transactions.trip-group.expand')}
                 onClick={(e) => {
                   e.stopPropagation();

@@ -184,7 +184,7 @@ function InvoiceCsvImportDialog({ defaultHourlyRateCents, usedSlots, onImport, o
           <button
             type="button"
             onClick={close}
-            className="p-1 hover:bg-muted rounded-lg transition-colors"
+            className="tap-target p-1 hover:bg-muted rounded-lg transition-colors"
             aria-label={t('common.buttons.close')}
           >
             <X className="h-5 w-5 text-guard-muted" aria-hidden="true" />

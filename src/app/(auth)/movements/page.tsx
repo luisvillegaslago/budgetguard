@@ -19,6 +19,7 @@ import { QuickExpenseActions } from '@/components/transactions/QuickExpenseActio
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionList } from '@/components/transactions/TransactionList';
 import { MonthPicker } from '@/components/ui/MonthPicker';
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
 import { TRANSACTION_TYPE } from '@/constants/finance';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useAllCompanies } from '@/hooks/useCompanies';
@@ -93,7 +94,7 @@ export default function MovementsPage() {
     );
   }
 
-  const tabs: Array<{ id: MovementsTab; label: string }> = [
+  const tabs: TabBarItem<MovementsTab>[] = [
     { id: 'monthly', label: t('movements.tabs.monthly-list') },
     { id: 'by-category', label: t('movements.tabs.by-category') },
   ];
@@ -107,22 +108,13 @@ export default function MovementsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab.id
-                ? 'border-guard-primary text-guard-primary'
-                : 'border-transparent text-guard-muted hover:text-foreground'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        ariaLabel={t('movements.title')}
+        className="mb-6"
+      />
 
       {/* Monthly list tab */}
       {activeTab === 'monthly' && (

@@ -26,7 +26,7 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize, onPa
   const isLast = currentPage >= totalPages - 1;
 
   const btnClass =
-    'p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-30 disabled:pointer-events-none';
+    'tap-target p-1.5 lg:min-w-8 lg:min-h-8 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-30 disabled:pointer-events-none';
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-border">

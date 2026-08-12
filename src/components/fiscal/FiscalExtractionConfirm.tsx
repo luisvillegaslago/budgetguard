@@ -264,8 +264,8 @@ export function FiscalExtractionConfirm({
                 {t('fiscal.form.vendor-name')}
               </label>
               {detectedVendor && !autoMatchedCompany && (
-                <div className="flex items-center gap-2 mb-1.5">
-                  <p className="text-xs text-guard-warning">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <p className="min-w-0 break-words text-xs text-guard-warning">
                     {t('fiscal.extraction.detected-vendor')}: {detectedVendor}
                   </p>
                   <button
@@ -278,7 +278,7 @@ export function FiscalExtractionConfirm({
                       });
                       setCompanyId(company.companyId);
                     }}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-guard-primary hover:text-guard-primary/80 transition-colors disabled:opacity-50"
                   >
                     <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                     {t('fiscal.extraction.add-vendor')}

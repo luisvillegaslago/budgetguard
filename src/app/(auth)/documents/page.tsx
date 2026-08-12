@@ -174,12 +174,12 @@ export default function DocumentsPage() {
       </div>
 
       {/* Quarter Pills */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         <button
           type="button"
           onClick={() => setQuarter(undefined)}
           className={cn(
-            'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-200',
+            'px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors duration-200',
             quarter == null ? 'bg-guard-primary text-white' : 'bg-muted text-guard-muted hover:text-foreground',
           )}
         >

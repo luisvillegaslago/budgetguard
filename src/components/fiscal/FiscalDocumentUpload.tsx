@@ -193,12 +193,12 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
           >
             {selectedFile ? (
               <div className="flex items-center justify-center gap-2">
-                <span className="text-sm font-medium text-foreground">{selectedFile.name}</span>
+                <span className="min-w-0 truncate text-sm font-medium text-foreground">{selectedFile.name}</span>
                 {!failedDocId && (
                   <button
                     type="button"
                     onClick={() => setSelectedFile(null)}
-                    className="p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
+                    className="shrink-0 tap-target p-1 text-guard-muted hover:text-guard-danger rounded transition-colors"
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>

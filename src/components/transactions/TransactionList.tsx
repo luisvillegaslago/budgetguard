@@ -238,21 +238,25 @@ function TransactionRow({
           <p className="text-sm font-medium text-foreground truncate flex-1 min-w-0">{categoryName}</p>
           {amountEl}
         </div>
-        {/* Row 2: Date · Description ... Badges + Edit | Delete */}
-        <div className="flex items-center gap-1 mt-1 ml-11">
-          <span className="text-xs text-guard-muted flex-shrink-0">{formatDate(transaction.transactionDate)}</span>
-          {transaction.description && (
-            <span className="text-xs text-guard-muted truncate min-w-0">
-              {'· '}
-              {transaction.description}
-            </span>
-          )}
-          {voucherName && (
-            <span className="flex items-center gap-0.5 flex-shrink-0 text-xs text-guard-primary min-w-0">
-              <Ticket className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-              <span className="truncate">{voucherName}</span>
-            </span>
-          )}
+        {/* Row 2: Date · Description ... Badges + Edit | Delete.
+            Wraps so the action cluster drops to its own line instead of being clipped. */}
+        <div className="flex flex-wrap items-center gap-1 mt-1 ml-11">
+          {/* flex-1 keeps the text block from forcing a wrap on its own */}
+          <div className="flex flex-1 items-center gap-1 min-w-0">
+            <span className="text-xs text-guard-muted flex-shrink-0">{formatDate(transaction.transactionDate)}</span>
+            {transaction.description && (
+              <span className="text-xs text-guard-muted truncate min-w-0">
+                {'· '}
+                {transaction.description}
+              </span>
+            )}
+            {voucherName && (
+              <span className="flex items-center gap-0.5 text-xs text-guard-primary min-w-0">
+                <Ticket className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{voucherName}</span>
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
             {isPending && (
               <Tooltip content={t('transaction-status.pending')}>
@@ -303,7 +307,7 @@ function TransactionRow({
                   e.stopPropagation();
                   onMarkAsPaid(transaction.transactionId);
                 }}
-                className="p-1 rounded-lg text-guard-muted hover:bg-guard-success/10 hover:text-guard-success transition-colors"
+                className="tap-target p-1 rounded-lg text-guard-muted hover:bg-guard-success/10 hover:text-guard-success transition-colors"
                 aria-label={t('transactions.mark-as-paid')}
               >
                 <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
@@ -315,7 +319,7 @@ function TransactionRow({
                 e.stopPropagation();
                 onEdit(transaction);
               }}
-              className="p-1 rounded-lg text-guard-muted hover:bg-guard-primary/10 hover:text-guard-primary transition-colors"
+              className="tap-target p-1 rounded-lg text-guard-muted hover:bg-guard-primary/10 hover:text-guard-primary transition-colors"
               aria-label={t('category-management.actions.edit')}
             >
               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />

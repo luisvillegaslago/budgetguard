@@ -87,14 +87,14 @@ export function DbSyncPanel() {
             <div className="p-2 bg-guard-primary/10 rounded-lg">
               <Database className="h-5 w-5 text-guard-primary" aria-hidden="true" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-foreground">{t('settings.sync.title')}</h2>
               {compareResult && (
-                <div className="flex items-center gap-4 text-xs text-guard-muted mt-1">
-                  <span>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4 text-xs text-guard-muted mt-1">
+                  <span className="break-all">
                     {t('settings.sync.primary-label')}: {compareResult.primaryUrl}
                   </span>
-                  <span>
+                  <span className="break-all">
                     {t('settings.sync.backup-label')}: {compareResult.backupUrl}
                   </span>
                 </div>
@@ -122,36 +122,42 @@ export function DbSyncPanel() {
       {/* Diff Table */}
       {compareResult && !isSyncing && (
         <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted">
-                <th className="text-left px-4 py-2 font-medium text-foreground">{t('settings.sync.table')}</th>
-                <th className="text-right px-3 py-2 font-medium text-foreground">{t('settings.sync.primary-count')}</th>
-                <th className="text-right px-3 py-2 font-medium text-foreground">{t('settings.sync.backup-count')}</th>
-                <th className="text-right px-3 py-2 font-medium text-guard-success">
-                  <HardDriveUpload className="h-3.5 w-3.5 inline" aria-hidden="true" />{' '}
-                  {t('settings.sync.only-in-primary')}
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-guard-primary">
-                  <RefreshCw className="h-3.5 w-3.5 inline" aria-hidden="true" /> {t('settings.sync.modified')}
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-guard-danger">
-                  <HardDriveDownload className="h-3.5 w-3.5 inline" aria-hidden="true" />{' '}
-                  {t('settings.sync.only-in-backup')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {compareResult.tables.map((tableDiff) => (
-                <TableRow
-                  key={tableDiff.table}
-                  diff={tableDiff}
-                  isExpanded={expandedTables.has(tableDiff.table)}
-                  onToggle={() => toggleTable(tableDiff.table)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted">
+                  <th className="text-left px-4 py-2 font-medium text-foreground">{t('settings.sync.table')}</th>
+                  <th className="text-right px-3 py-2 font-medium text-foreground">
+                    {t('settings.sync.primary-count')}
+                  </th>
+                  <th className="text-right px-3 py-2 font-medium text-foreground">
+                    {t('settings.sync.backup-count')}
+                  </th>
+                  <th className="text-right px-3 py-2 font-medium text-guard-success">
+                    <HardDriveUpload className="h-3.5 w-3.5 inline" aria-hidden="true" />{' '}
+                    {t('settings.sync.only-in-primary')}
+                  </th>
+                  <th className="text-right px-3 py-2 font-medium text-guard-primary">
+                    <RefreshCw className="h-3.5 w-3.5 inline" aria-hidden="true" /> {t('settings.sync.modified')}
+                  </th>
+                  <th className="text-right px-3 py-2 font-medium text-guard-danger">
+                    <HardDriveDownload className="h-3.5 w-3.5 inline" aria-hidden="true" />{' '}
+                    {t('settings.sync.only-in-backup')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {compareResult.tables.map((tableDiff) => (
+                  <TableRow
+                    key={tableDiff.table}
+                    diff={tableDiff}
+                    isExpanded={expandedTables.has(tableDiff.table)}
+                    onToggle={() => toggleTable(tableDiff.table)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {!hasDifferences && (
             <div className="px-4 py-6 text-center text-guard-muted">
@@ -203,8 +209,8 @@ export function DbSyncPanel() {
             {lastResult.tables
               .filter((t) => t.inserted > 0 || t.updated > 0 || t.deleted > 0)
               .map((tableResult) => (
-                <div key={tableResult.table} className="flex items-center gap-3 text-sm">
-                  <span className="font-medium text-foreground w-48">{tableResult.table}</span>
+                <div key={tableResult.table} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
+                  <span className="font-medium text-foreground w-full sm:w-48">{tableResult.table}</span>
                   {tableResult.inserted > 0 && (
                     <span className="text-guard-success">
                       {t('settings.sync.result-inserted', { count: tableResult.inserted })}

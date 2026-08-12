@@ -385,9 +385,9 @@ function TradesList({ trades, base, locale }: { trades: PairTradeWithEur[]; base
     <Tooltip
       side="bottom"
       align="end"
-      className="max-w-none p-2"
+      className="max-w-[calc(100vw-2rem)] p-2 sm:max-w-none"
       content={
-        <div className="max-h-72 overflow-y-auto">
+        <div className="max-h-72 overflow-auto">
           <div
             className="grid items-center gap-x-4 gap-y-1 text-left text-xs tabular-nums"
             style={{ gridTemplateColumns: 'max-content max-content max-content max-content' }}

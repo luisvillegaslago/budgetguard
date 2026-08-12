@@ -27,7 +27,7 @@ export function QuickExpenseActions({ className }: QuickExpenseActionsProps) {
 
   return (
     <>
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn('flex flex-wrap items-center gap-2', className)}>
         <button
           type="button"
           onClick={() => setShowGroupForm(true)}

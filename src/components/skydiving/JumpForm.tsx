@@ -115,7 +115,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Jump Number + Date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="jumpNumber" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('skydiving.jumps.form.fields.jump-number')}

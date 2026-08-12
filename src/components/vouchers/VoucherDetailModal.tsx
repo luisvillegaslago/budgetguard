@@ -96,7 +96,7 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
     <div className="rounded-lg border border-guard-primary/40 bg-guard-primary/5 p-4 space-y-3 animate-fade-in">
       <p className="text-sm font-semibold text-foreground">{t('vouchers.use.title')}</p>
 
-      <div className="grid grid-cols-2 items-end gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 items-end gap-3">
         {/* Consumption date (defaults to today) */}
         <div>
           <label htmlFor="consume-date" className="block text-xs font-medium text-guard-muted mb-1">

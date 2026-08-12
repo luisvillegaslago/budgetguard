@@ -212,9 +212,15 @@ export default function InvoiceDetailPage() {
   const l = getInvoiceLabels(invoice.invoiceLanguage);
   const invoiceLocale = getInvoiceLocale(invoice.invoiceLanguage);
   const showHourlyColumns = invoice.lineItems.some((item) => item.hours != null || item.hourlyRateCents != null);
-  // Column ratios mirror InvoicePdfTemplate exactly, so the preview shows the same wrapping and
-  // the same spacing between the rate and the amount as the document the client receives.
-  const tableGridClass = showHourlyColumns ? 'grid-cols-[66fr_8fr_14fr_12fr]' : 'grid-cols-[88fr_12fr]';
+  // Column ratios mirror InvoicePdfTemplate exactly from sm up, so the preview shows the same
+  // wrapping and the same spacing between the rate and the amount as the document the client
+  // receives. Below sm the numeric tracks take fixed widths and the description shrinks, which
+  // keeps the amounts on screen instead of clipped by the shell's overflow-x-hidden. The widths
+  // must be fixed rather than `auto`: header, line items, tax rows and totals are separate grid
+  // containers, so content-sized tracks would resolve to a different width in every row.
+  const tableGridClass = showHourlyColumns
+    ? 'grid-cols-[minmax(0,1fr)_2.5rem_4.5rem_5rem] sm:grid-cols-[66fr_8fr_14fr_12fr]'
+    : 'grid-cols-[minmax(0,1fr)_5rem] sm:grid-cols-[88fr_12fr]';
   // Totals span the description columns so their amounts line up with the line items
   const totalLabelClass = `${showHourlyColumns ? 'col-span-3' : 'col-span-1'} text-right`;
 
@@ -332,7 +338,7 @@ export default function InvoiceDetailPage() {
       </div>
 
       {/* Invoice Preview Card */}
-      <div className="bg-card rounded-xl border border-border p-8">
+      <div className="bg-card rounded-xl border border-border p-4 sm:p-8">
         {/* Status badge */}
         <div className="flex justify-end mb-4">
           <span
@@ -346,14 +352,14 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Header */}
-        <div className="flex justify-between mb-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:justify-between mb-8">
           <div>
             <h2 className="text-xl font-bold text-foreground">{invoice.billerName}</h2>
             <p className="text-sm text-guard-muted">NIF: {invoice.billerNif}</p>
             {invoice.billerAddress && <p className="text-sm text-guard-muted">{invoice.billerAddress}</p>}
             {invoice.billerPhone && <p className="text-sm text-guard-muted">{invoice.billerPhone}</p>}
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-xs text-guard-muted uppercase tracking-wide mb-1">{l.billTo}</p>
             <p className="font-semibold text-foreground">{invoice.clientName}</p>
             {invoice.clientTradingName && <p className="text-sm text-guard-muted">{invoice.clientTradingName}</p>}
@@ -395,9 +401,9 @@ export default function InvoiceDetailPage() {
         {/* Table */}
         <div className="mb-6">
           <div
-            className={`grid ${tableGridClass} gap-4 px-3 py-2 bg-guard-dark text-white rounded-t-lg text-xs font-medium uppercase tracking-wide`}
+            className={`grid ${tableGridClass} gap-2 sm:gap-4 px-3 py-2 bg-guard-dark text-white rounded-t-lg text-xs font-medium uppercase tracking-wide`}
           >
-            <span>{l.description}</span>
+            <span className="break-words">{l.description}</span>
             {showHourlyColumns && (
               <>
                 <span className="text-center">{l.hours}</span>
@@ -410,9 +416,9 @@ export default function InvoiceDetailPage() {
           {invoice.lineItems.map((item) => (
             <div
               key={item.lineItemId}
-              className={`grid ${tableGridClass} gap-4 px-3 py-3 border-b border-border text-sm`}
+              className={`grid ${tableGridClass} gap-2 sm:gap-4 px-3 py-3 border-b border-border text-sm`}
             >
-              <div className="text-foreground">
+              <div className="text-foreground break-words">
                 {item.title && <p className="font-semibold text-foreground">{item.title}</p>}
                 {item.subItems.length > 0 && (
                   <ul className="mt-1 space-y-0.5">
@@ -450,7 +456,7 @@ export default function InvoiceDetailPage() {
 
           {/* Tax breakdown — same rows as the PDF, from the same helper */}
           {getTaxBreakdownRows(invoice, l).map((row) => (
-            <div key={row.key} className={`grid ${tableGridClass} gap-4 px-3`}>
+            <div key={row.key} className={`grid ${tableGridClass} gap-2 sm:gap-4 px-3`}>
               <span className={`${totalLabelClass} text-sm text-guard-muted`}>{row.label}</span>
               <span className="text-right text-sm text-guard-muted">
                 {row.negative ? `-${formatCurrency(row.cents)}` : formatCurrency(row.cents)}
@@ -458,7 +464,7 @@ export default function InvoiceDetailPage() {
             </div>
           ))}
 
-          <div className={`grid ${tableGridClass} gap-4 px-3 py-3 border-t-2 border-guard-dark`}>
+          <div className={`grid ${tableGridClass} gap-2 sm:gap-4 px-3 py-3 border-t-2 border-guard-dark`}>
             <span className={`${totalLabelClass} font-bold text-foreground`}>{l.total}</span>
             <span className="text-right font-bold text-foreground">{formatCurrency(invoice.totalCents)}</span>
           </div>
@@ -476,7 +482,7 @@ export default function InvoiceDetailPage() {
               : invoice.billerPaymentMethod}
           </p>
           {invoice.billerPaymentMethod === PAYMENT_METHOD.BANK_TRANSFER && (
-            <div className="text-sm text-guard-muted space-y-0.5">
+            <div className="text-sm text-guard-muted space-y-0.5 break-words">
               {invoice.billerBankName && (
                 <p>
                   <span className="font-medium text-foreground/80">{l.entityName}:</span> {invoice.billerBankName}

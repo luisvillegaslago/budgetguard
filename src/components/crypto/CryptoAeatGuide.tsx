@@ -149,8 +149,8 @@ function CasillaAccordion({ keyPrefix, stepCount, amount, isOpen, onToggle }: Ac
         className="flex items-center justify-between w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors"
         aria-expanded={isOpen}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <h3 className="text-sm font-semibold text-foreground truncate">{t(titleKey)}</h3>
+        <div className="flex flex-col items-start gap-1 min-w-0 sm:flex-row sm:items-center sm:gap-3">
+          <h3 className="text-sm font-semibold text-foreground sm:truncate">{t(titleKey)}</h3>
           {amount !== null && typeof amount === 'number' && (
             <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted shrink-0">{formatCurrency(amount)}</span>
           )}

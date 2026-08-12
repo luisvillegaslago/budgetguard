@@ -175,7 +175,7 @@ export function StringSuggestionCombobox({
                 e.stopPropagation();
                 handleClear();
               }}
-              className="p-0.5 hover:bg-muted rounded"
+              className="tap-target -my-2 p-0.5 lg:my-0 hover:bg-muted rounded"
               aria-label={t('common.buttons.clear')}
             >
               <X className="h-3 w-3 text-guard-muted" aria-hidden="true" />

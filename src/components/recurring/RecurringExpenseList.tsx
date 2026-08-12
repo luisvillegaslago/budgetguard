@@ -116,7 +116,7 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
         <button
           type="button"
           onClick={() => onEdit(expense)}
-          className="p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
+          className="tap-target p-1.5 rounded-md text-guard-muted hover:text-foreground hover:bg-muted transition-colors"
           aria-label={t('recurring.management.actions.edit')}
         >
           <Pencil className="h-4 w-4" />
@@ -143,7 +143,7 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
           type="button"
           onClick={() => setIsConfirmingDelete(true)}
           disabled={isProcessing}
-          className="p-1.5 rounded-md text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 transition-colors"
+          className="tap-target p-1.5 rounded-md text-guard-muted hover:text-guard-danger hover:bg-guard-danger/10 transition-colors"
           aria-label={t('recurring.management.actions.delete')}
         >
           <Trash2 className="h-4 w-4" />
@@ -215,7 +215,7 @@ function RecurringExpenseItem({ expense, onEdit }: RecurringExpenseItemProps) {
         </div>
         {/* Row 2: Schedule · Description ... Badges + Actions */}
         <div className="flex items-center gap-1 mt-1 ml-11">
-          {scheduleDetail && <span className="text-xs text-guard-muted flex-shrink-0">{scheduleDetail}</span>}
+          {scheduleDetail && <span className="text-xs text-guard-muted min-w-0 truncate">{scheduleDetail}</span>}
           {expense.description && (
             <span className="text-xs text-guard-muted truncate min-w-0">
               {scheduleDetail ? '· ' : ''}

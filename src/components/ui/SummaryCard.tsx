@@ -52,7 +52,7 @@ export function SummaryCard({
           value is still available via the overflow tooltip (and aria-label). */}
       <OverflowTooltip content={valueAriaLabel ? '' : value}>
         <p
-          className={cn('text-2xl font-bold mt-1 truncate tabular-nums', colors.value)}
+          className={cn('text-xl sm:text-2xl font-bold mt-1 truncate tabular-nums', colors.value)}
           aria-hidden={valueAriaLabel ? true : undefined}
         >
           {value}
@@ -92,7 +92,7 @@ export function SummaryCardSkeleton() {
         <div className="h-[20px] w-20 bg-muted rounded" />
         <div className="h-10 w-10 bg-muted rounded-xl flex-shrink-0" />
       </div>
-      <div className="h-[32px] w-24 bg-muted rounded mt-1" />
+      <div className="h-7 sm:h-8 w-24 bg-muted rounded mt-1" />
       <div className="h-[16px] w-28 bg-muted rounded mt-3" />
     </div>
   );

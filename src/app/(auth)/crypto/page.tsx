@@ -22,10 +22,10 @@ import { CryptoEventsTable } from '@/components/crypto/CryptoEventsTable';
 import { CryptoModelo100Section } from '@/components/crypto/CryptoModelo100Section';
 import { CryptoPriceChart } from '@/components/crypto/CryptoPriceChart';
 import { CryptoSyncPanel } from '@/components/crypto/CryptoSyncPanel';
+import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
 import { CRYPTO_EXCHANGE } from '@/constants/finance';
 import { useCryptoCredentialStatus } from '@/hooks/useCryptoCredentials';
 import { useTranslate } from '@/hooks/useTranslations';
-import { cn } from '@/utils/helpers';
 
 type TabId = 'summary' | 'events' | 'prices' | 'fiscal';
 
@@ -39,7 +39,7 @@ export default function CryptoPage() {
   // panel is gated behind a connected exchange.
   const connected = status.data?.connected ?? false;
 
-  const tabs: { id: TabId; label: string; icon: typeof Bitcoin }[] = [
+  const tabs: TabBarItem<TabId>[] = [
     { id: 'summary', label: t('crypto.tabs.summary'), icon: Bitcoin },
     { id: 'events', label: t('crypto.tabs.events'), icon: ListChecks },
     { id: 'prices', label: t('crypto.tabs.prices'), icon: TrendingUp },
@@ -64,27 +64,7 @@ export default function CryptoPage() {
         <p className="text-sm text-guard-muted mt-1">{t('crypto.subtitle')}</p>
       </header>
 
-      <div className="flex gap-1 border-b border-border">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
-                activeTab === tab.id
-                  ? 'border-guard-primary text-guard-primary'
-                  : 'border-transparent text-guard-muted hover:text-foreground',
-              )}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} ariaLabel={t('crypto.title')} />
 
       {activeTab === 'summary' && (
         <div className="space-y-6">

@@ -36,6 +36,8 @@ export function DeleteButton({ onDelete, isDeleting, confirmLabel, defaultLabel,
       }}
       disabled={isDeleting}
       className={cn(
+        // Comfortable 40px tap target on phones; collapses back to the icon-sized box from sm up
+        'tap-target lg:min-h-8 lg:min-w-8',
         'p-2 rounded-lg transition-all duration-200 ease-out-quart',
         showConfirm
           ? 'bg-guard-danger text-white'
