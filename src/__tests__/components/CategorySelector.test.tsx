@@ -95,7 +95,10 @@ jest.mock('@/hooks/useTranslations', () => ({
   }),
 }));
 
+// Only `cn` needs stubbing (predictable class strings); keep every other helper
+// real so adding one does not silently become undefined here.
 jest.mock('@/utils/helpers', () => ({
+  ...jest.requireActual('@/utils/helpers'),
   cn: (...args: unknown[]) => args.filter((a) => typeof a === 'string').join(' '),
 }));
 

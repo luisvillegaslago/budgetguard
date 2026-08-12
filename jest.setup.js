@@ -20,6 +20,22 @@ if (typeof Blob !== 'undefined' && !Blob.prototype.text) {
   };
 }
 
+// jsdom does not implement matchMedia. Report a desktop-like environment — a fine
+// pointer with hover — which is what jsdom emulates.
+window.matchMedia = (query) => ({
+  matches: /hover: hover|pointer: fine/.test(query),
+  media: query,
+  onchange: null,
+  addListener: () => {},
+  removeListener: () => {},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false,
+});
+
+// jsdom does not implement scrollIntoView
+Element.prototype.scrollIntoView = jest.fn();
+
 // jsdom does not implement ResizeObserver (used by AnimatedHeight)
 global.ResizeObserver = class ResizeObserver {
   observe() {}

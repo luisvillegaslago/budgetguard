@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCategoriesHierarchical } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Category, TransactionType } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+import { cn, usesFinePointer } from '@/utils/helpers';
 
 interface SearchableSelectProps {
   id: string;
@@ -247,6 +247,34 @@ export function CategorySelector({
   const [selectedParentId, setSelectedParentId] = useState<number | ''>('');
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | ''>('');
   const [selectedParent, setSelectedParent] = useState<Category | null>(null);
+  const subcategoryRef = useRef<HTMLDivElement>(null);
+  const [advanceAfterParent, setAdvanceAfterParent] = useState(false);
+
+  // Runs once the subcategory field has actually mounted, which a rAF callback
+  // could not guarantee. On a mouse, hand focus over so the flow keeps moving.
+  // On touch, do not: tapping an option already dismissed the keyboard, and
+  // focusing a text combobox would reopen it right on top of the option list.
+  // The dismissal un-pans the visual viewport, which reads as "jumped back to
+  // the top", so scroll the next field into view instead.
+  useEffect(() => {
+    if (!advanceAfterParent) return;
+    setAdvanceAfterParent(false);
+
+    const usesMouse = usesFinePointer();
+    const wrapper = subcategoryRef.current;
+
+    if (!wrapper) {
+      if (usesMouse) document.getElementById('isShared')?.focus();
+      return;
+    }
+
+    if (usesMouse) {
+      wrapper.querySelector('input')?.focus();
+      return;
+    }
+
+    wrapper.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [advanceAfterParent]);
 
   // Reset selections when type changes (using ref to avoid useEffect lint issue)
   const prevTypeRef = useRef(type);
@@ -346,23 +374,13 @@ export function CategorySelector({
         options={parentOptions}
         value={selectedParentId}
         onChange={handleParentChange}
-        onSelected={() => {
-          // Focus subcategory after render, or fall back to shared toggle
-          requestAnimationFrame(() => {
-            const subInput = document.getElementById('subcategory');
-            if (subInput) {
-              subInput.focus();
-            } else {
-              document.getElementById('isShared')?.focus();
-            }
-          });
-        }}
+        onSelected={() => setAdvanceAfterParent(true)}
         disabled={isLoading || disabled}
         error={error}
       />
 
       {hasSubcategories && (
-        <div className="animate-slide-up">
+        <div ref={subcategoryRef} className="animate-slide-up">
           <SearchableSelect
             id="subcategory"
             label={t('transactions.form.fields.subcategory')}
@@ -371,7 +389,10 @@ export function CategorySelector({
             value={selectedSubcategoryId}
             onChange={handleSubcategoryChange}
             onSelected={() => {
-              document.getElementById('isShared')?.focus();
+              // Mouse only, for the same reason as the parent handoff above.
+              if (usesFinePointer()) {
+                document.getElementById('isShared')?.focus();
+              }
             }}
             disabled={disabled}
           />

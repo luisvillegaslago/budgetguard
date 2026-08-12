@@ -191,3 +191,17 @@ export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
     timeout = setTimeout(() => func(...args), wait);
   };
 }
+
+/**
+ * Whether the primary input is a mouse rather than a finger.
+ *
+ * Mirrors the `.pointer-only` utility in global.css — keep the two queries in
+ * sync. Use it to gate behaviour that only makes sense with a pointer, such as
+ * moving focus between fields: on touch that pops or dismisses the on-screen
+ * keyboard, which shifts the visual viewport under the user.
+ *
+ * Browser-only; call it from an effect or an event handler, never during render.
+ */
+export function usesFinePointer(): boolean {
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
