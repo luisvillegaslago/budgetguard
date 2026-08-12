@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.53.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.52.0...v0.53.0) (2026-08-12)
+
+
+### Features
+
+* **trips:** collapse the upcoming section on load ([cb37c39](https://github.com/luisvillegaslago/budgetguard/commit/cb37c396407d1a3fe8dac371e2cac018a928bf15))
+* **ui:** make the app usable on mobile ([f1e2905](https://github.com/luisvillegaslago/budgetguard/commit/f1e29054ae0f802310c9769e47856f45dd1ea387))
+
+
+### Bug Fixes
+
+* **transactions:** keep the next field in view after picking a category ([9c92cda](https://github.com/luisvillegaslago/budgetguard/commit/9c92cda2d440c789fb8687c87d39a69e5529f982))
+* **ui:** correct overflow detection and oversized clear buttons ([1965e54](https://github.com/luisvillegaslago/budgetguard/commit/1965e545ce2e8f8266c09f7dd6313b2d887846d0))
+* **ui:** stop long-pressing a control from selecting text ([6c44ea1](https://github.com/luisvillegaslago/budgetguard/commit/6c44ea114fb1c09aee651cb78d1e4d04db68dd81))
+
 ## [0.52.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.51.3...v0.52.0) (2026-08-11)
 
 
