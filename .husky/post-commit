@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# Versioning happens here, right after the commit, so the release commit and tag
+# are already part of the branch when you push. Doing it at push time is not
+# possible: git freezes the refs it will send before running pre-push, so a commit
+# created there would stay local. Doing it in CI would put the release commit on
+# the remote and force a pull before every next commit.
+#
+# Trade-off of this approach: it versions per commit, not per push. Two fixes in a
+# row produce two versions.
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+# Releases are cut from main only
+[ "$branch" = "main" ] || exit 0
+
+# Stay out of the way while git is mid-sequence (rebase, merge, cherry-pick):
+# HEAD moves repeatedly and a release commit would land in the middle of it.
+git_dir=$(git rev-parse --git-dir)
+if [ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ] ||
+  [ -f "$git_dir/MERGE_HEAD" ] || [ -f "$git_dir/CHERRY_PICK_HEAD" ]; then
+  exit 0
+fi
+
+# Only feat/fix/perf bump a version, and never the release commit itself
+needed=$(node scripts/check-versionable.js --head --print)
+[ "$needed" = "true" ] || exit 0
+
+echo ""
+echo "Versionable commit detected. Releasing..."
+
+if ! npm run release; then
+  echo ""
+  echo "  Release failed. Your commit is safe; run 'npm run release' when fixed."
+  echo ""
+fi
+
+exit 0

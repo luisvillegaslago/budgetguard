@@ -4,8 +4,8 @@
  *
  * Scope:
  *   (default)     commits not yet on origin/main  — what a local push would publish
- *   --since-tag   commits after the last tag      — what CI sees, where everything
- *                                                   is already pushed
+ *   --head        the commit just created         — what the post-commit hook sees
+ *   --since-tag   commits after the last tag
  * Output:
  *   (default)     exit 0 = nothing to version, exit 1 = needs a bump
  *   --print       writes "true" / "false" to stdout and always exits 0
@@ -13,13 +13,21 @@
 
 const {
   getCommitsSinceLastTag,
+  getHeadCommit,
   getUnpushedCommits,
   hasVersionableCommits,
   isReleaseCommit,
 } = require('./release-utils');
 
 const args = process.argv.slice(2);
-const commits = args.includes('--since-tag') ? getCommitsSinceLastTag() : getUnpushedCommits();
+
+function selectCommits() {
+  if (args.includes('--head')) return getHeadCommit();
+  if (args.includes('--since-tag')) return getCommitsSinceLastTag();
+  return getUnpushedCommits();
+}
+
+const commits = selectCommits();
 const needsRelease = Boolean(commits) && hasVersionableCommits(commits) && !isReleaseCommit();
 
 if (args.includes('--print')) {

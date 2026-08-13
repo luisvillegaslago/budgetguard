@@ -18,7 +18,7 @@
     "format": "biome format --write src",
     "format-and-lint": "biome check --write src",
     "check-types": "tsc --noEmit --pretty",
-    "prepare": "husky",
+    "prepare": "husky && node scripts/setup-git.js",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "ship": "node scripts/ship.js",

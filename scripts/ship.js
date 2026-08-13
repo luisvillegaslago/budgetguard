@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 /**
- * Ship Script — manual fallback for releasing from a machine instead of CI.
+ * Ship Script — optional "validate everything, then publish" command.
  *
- * The normal flow is just `git commit` + `git push`: the release job in
- * .github/workflows/ci.yml does the bump, tag and CHANGELOG. Use this only when
- * you need to cut a release without CI (Actions down, offline). It is safe to
- * mix: whichever side releases first moves the tag, and the other finds no
- * versionable commits left and skips.
+ * The normal flow is just `git commit` + `git push`: the post-commit hook has
+ * already created the release commit and tag by then. Use this when you want the
+ * full suite (types, lint, tests) to run before publishing, or to recover a branch
+ * whose commits never got versioned — it bumps only if something is still pending.
  *
- * Note this cannot be wired into the pre-push hook. Git freezes the list of refs
- * to send BEFORE running pre-push, so a release commit created inside the hook is
+ * This cannot be wired into the pre-push hook. Git freezes the list of refs to
+ * send BEFORE running pre-push, so a release commit created inside the hook is
  * never part of that push — it stays local and needs a second one, which is how
  * 19 tags once went unpublished. Here the order is explicit: validate → bump →
  * push, with the push happening after the commit exists.

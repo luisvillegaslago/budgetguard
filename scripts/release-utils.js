@@ -30,6 +30,11 @@ function getUnpushedCommits() {
   return git(['log', 'origin/main..HEAD', '--oneline']);
 }
 
+/** Just the commit at HEAD, in the same `<sha> <subject>` shape as the others. */
+function getHeadCommit() {
+  return git(['log', '-1', '--oneline']);
+}
+
 /**
  * Conventional Commits → semver bump. Reads the subject line only, which is where
  * this project puts the type and any `!` breaking marker.
@@ -71,6 +76,7 @@ function isReleaseCommit() {
 module.exports = {
   git,
   getCommitsSinceLastTag,
+  getHeadCommit,
   getUnpushedCommits,
   determineReleaseType,
   hasVersionableCommits,
