@@ -1,11 +1,9 @@
 #!/bin/sh
 
-# Quality gate for direct pushes. The release itself lives in `npm run ship`:
-# git freezes the refs it will send BEFORE this hook runs, so a release commit
-# created here would never be part of the push (it would stay local, needing a
-# second push). `npm run ship` pushes with --no-verify, so it skips this hook.
-
-branch=$(git rev-parse --abbrev-ref HEAD)
+# Fast local quality gate. Versioning is NOT done here: git freezes the list of
+# refs it will send before running this hook, so a release commit created at this
+# point would never be part of the push (it would stay local, needing a second
+# push). The bump, tag and CHANGELOG happen in CI — see .github/workflows/ci.yml.
 
 echo "Running type checking..."
 npm run check-types || exit 1
@@ -14,24 +12,4 @@ echo "Running linting..."
 npm run lint || exit 1
 
 echo "All checks passed."
-
-# Only main is version-controlled by the release flow
-if [ "$branch" != "main" ]; then
-  exit 0
-fi
-
-git fetch origin main --quiet 2>/dev/null || true
-
-# Block versionable commits from reaching main without a version bump
-if node scripts/check-versionable.js; then
-  exit 0
-fi
-
-echo ""
-echo "  These commits need a version bump (feat/fix/perf) and this push would"
-echo "  publish them without one."
-echo ""
-echo "  Run 'npm run ship' instead: it validates, bumps, tags and pushes."
-echo "  To push anyway: git push --no-verify"
-echo ""
-exit 1
+exit 0
