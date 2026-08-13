@@ -21,6 +21,7 @@
     "prepare": "husky",
     "test": "jest",
     "test:coverage": "jest --coverage",
+    "ship": "node scripts/ship.js",
     "release": "node scripts/smart-release.js",
     "release:first": "commit-and-tag-version --first-release",
     "release:patch": "commit-and-tag-version --release-as patch",

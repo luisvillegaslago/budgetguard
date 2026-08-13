@@ -4,54 +4,15 @@
  * Determines correct version bump based on commit types since last tag
  * Uses commit-and-tag-version (drop-in replacement for deprecated standard-version)
  *
- * Note: This script uses execSync with hardcoded commands only (no user input).
- * This is safe as all command strings are static and controlled by the script.
+ * Bumps and tags only — it never pushes. Use `npm run ship` to release and publish
+ * in one go (see scripts/ship.js for why the push cannot live in the pre-push hook).
  */
 
-const { execSync } = require('node:child_process');
-
-function getCommitsSinceLastTag() {
-  try {
-    const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null', {
-      encoding: 'utf8',
-    }).trim();
-    return execSync(`git log ${lastTag}..HEAD --oneline`, {
-      encoding: 'utf8',
-    });
-  } catch {
-    try {
-      return execSync('git log --oneline', { encoding: 'utf8' });
-    } catch {
-      // No commits yet
-      return '';
-    }
-  }
-}
-
-function determineReleaseType(commits) {
-  const lines = commits.split('\n').filter(Boolean);
-
-  let hasBreaking = false;
-  let hasFeat = false;
-
-  lines.forEach((line) => {
-    const lowerLine = line.toLowerCase();
-    if (lowerLine.includes('breaking change') || lowerLine.includes('!:')) {
-      hasBreaking = true;
-    }
-    if (/\bfeat[:(]/.test(lowerLine)) {
-      hasFeat = true;
-    }
-  });
-
-  if (hasBreaking) return 'major';
-  if (hasFeat) return 'minor';
-  return 'patch';
-}
+const { execFileSync } = require('node:child_process');
+const { getCommitsSinceLastTag, determineReleaseType } = require('./release-utils');
 
 function run() {
-  const args = process.argv.slice(2);
-  const isDryRun = args.includes('--dry-run');
+  const isDryRun = process.argv.slice(2).includes('--dry-run');
 
   console.log('Analyzing commits since last tag...\n');
 
@@ -66,15 +27,14 @@ function run() {
 
   console.log(`Detected release type: ${releaseType.toUpperCase()}\n`);
 
-  // Build command with safe, controlled arguments
-  const dryRunFlag = isDryRun ? ' --dry-run' : '';
-  const command = `npx commit-and-tag-version --release-as ${releaseType}${dryRunFlag}`;
+  // Static arguments only, passed as an array so no shell parsing takes place
+  const args = ['commit-and-tag-version', '--release-as', releaseType, ...(isDryRun ? ['--dry-run'] : [])];
 
-  console.log(`Running: ${command}\n`);
+  console.log(`Running: npx ${args.join(' ')}\n`);
 
   try {
-    execSync(command, { stdio: 'inherit' });
-  } catch (_error) {
+    execFileSync('npx', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+  } catch {
     process.exit(1);
   }
 }
