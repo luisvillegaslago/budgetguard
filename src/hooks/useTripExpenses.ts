@@ -10,6 +10,7 @@ import type { CreateTripExpenseInput, UpdateTripExpenseInput } from '@/schemas/t
 import type { ApiResponse, Transaction } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function createTripExpenseRequest(params: {
   tripId: number;
@@ -79,12 +80,7 @@ export function useCreateTripExpense(tripId: number) {
 
   return useApiMutation({
     mutationFn: (data: CreateTripExpenseInput) => createTripExpenseRequest({ tripId, data }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS, tripId] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRIPS, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }
 
@@ -97,12 +93,7 @@ export function useUpdateTripExpense(tripId: number) {
   return useApiMutation({
     mutationFn: (params: { expenseId: number; data: UpdateTripExpenseInput }) =>
       updateTripExpenseRequest({ tripId, ...params }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS, tripId] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRIPS, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }
 
@@ -114,11 +105,6 @@ export function useDeleteTripExpense(tripId: number) {
 
   return useApiMutation({
     mutationFn: (expenseId: number) => deleteTripExpenseRequest({ tripId, expenseId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS, tripId] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRIPS, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }

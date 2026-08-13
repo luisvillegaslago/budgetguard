@@ -9,6 +9,7 @@ import { useApiMutation } from '@/hooks/useApiMutation';
 import type { ApiResponse, FiscalDeadline, FiscalDeadlineSettings } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 // ============================================================
 // Fetch Functions
@@ -100,9 +101,6 @@ export function useUpdateDeadlineSettings() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Settings update failed');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINE_SETTINGS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DEADLINE_SETTINGS, QUERY_KEY.FISCAL_DEADLINES]),
   });
 }

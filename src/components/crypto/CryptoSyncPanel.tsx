@@ -32,6 +32,7 @@ import {
   useStartCryptoSync,
 } from '@/hooks/useCryptoSync';
 import { useTranslate } from '@/hooks/useTranslations';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 type ScopePreset = 'current_year' | 'previous_year' | 'last_90_days' | 'all_time';
 
@@ -78,8 +79,10 @@ export function CryptoSyncPanel() {
       job.data.status === CRYPTO_SYNC_STATUS.FAILED ||
       job.data.status === CRYPTO_SYNC_STATUS.CANCELLED;
     if (isTerminal) {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_EVENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_SYNC_STATUS, 'latest', CRYPTO_EXCHANGE.BINANCE] });
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.CRYPTO_EVENTS,
+        [QUERY_KEY.CRYPTO_SYNC_STATUS, 'latest', CRYPTO_EXCHANGE.BINANCE],
+      ]);
     }
   }, [job.data, queryClient]);
 

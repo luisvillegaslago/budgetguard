@@ -149,7 +149,7 @@ interface CategoryHistoryMonthsProps {
   categoryType: TransactionType;
   groupByMonth?: boolean;
   onEditTransaction?: (transaction: Transaction) => void;
-  onDeleteTransaction?: (transactionId: number) => void;
+  onDeleteTransaction?: (transactionId: number) => void | Promise<void>;
   /** Whether a delete request is in flight (drives the ConfirmDialog spinner). */
   isDeleting?: boolean;
 }
@@ -168,9 +168,15 @@ export function CategoryHistoryMonths({
 
   const requestDelete = onDeleteTransaction ? (transaction: Transaction) => setPendingDelete(transaction) : undefined;
 
+  // Awaited so the dialog keeps its spinner until the delete (and the refetch it
+  // triggers) is done, instead of closing over a list that still shows the row.
   const confirmDelete = async () => {
     if (!pendingDelete) return;
-    onDeleteTransaction?.(pendingDelete.transactionId);
+    try {
+      await onDeleteTransaction?.(pendingDelete.transactionId);
+    } catch {
+      // The caller owns error reporting; the dialog just stops waiting.
+    }
     setPendingDelete(null);
   };
 

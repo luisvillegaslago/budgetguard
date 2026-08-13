@@ -11,6 +11,7 @@ import { useApiMutation } from '@/hooks/useApiMutation';
 import type { ApiResponse } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 export interface BucketSummary {
   transmissionValueCents: number;
@@ -133,12 +134,9 @@ export function useRecomputeCryptoFiscal() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: recomputeRequest,
-    onSuccess: () => {
-      // Recompute touches every year — invalidate the entire summary cache,
-      // not just one year.
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_MODELO] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_DISPOSALS] });
-    },
+    // Recompute touches every year — invalidate the entire summary cache,
+    // not just one year.
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.CRYPTO_MODELO, QUERY_KEY.CRYPTO_DISPOSALS]),
   });
 }
 

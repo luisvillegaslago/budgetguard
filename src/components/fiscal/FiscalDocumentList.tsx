@@ -10,6 +10,7 @@
 import { AlertTriangle, Check, ChevronDown, Clock, Download, FileText, Link2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SortableHeader } from '@/components/ui/SortableHeader';
 import type { FiscalDocumentType } from '@/constants/finance';
@@ -480,6 +481,34 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
   const [deleteTarget, setDeleteTarget] = useState<FiscalDocument | null>(null);
   const { sorted, sort, toggleSort } = useSortableData(documents, SORT_FIELDS, { initial: SORT_INITIAL });
 
+  // The dialog stays open (buttons disabled) until the document is gone from the
+  // refreshed list, so it never closes over a row that is still on screen.
+  const handleDelete = async (deleteTransaction: boolean) => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync({ id: deleteTarget.documentId, deleteTransaction });
+      setDeleteTarget(null);
+    } catch {
+      // Dialog stays open so the error message below explains why nothing changed.
+    }
+  };
+
+  // Which of the two delete buttons is the one currently running
+  const isDeleting = (withTransaction: boolean) =>
+    deleteMutation.isPending && deleteMutation.variables?.deleteTransaction === withTransaction;
+
+  // Reset clears a previous failure, so opening the dialog for another document
+  // never shows the error left behind by the last one.
+  const openDeleteDialog = (doc: FiscalDocument) => {
+    deleteMutation.reset();
+    setDeleteTarget(doc);
+  };
+
+  const closeDeleteDialog = () => {
+    if (deleteMutation.isPending) return;
+    setDeleteTarget(null);
+  };
+
   if (documents.length === 0) {
     return (
       <div className="card text-center py-8">
@@ -532,7 +561,7 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
             </thead>
             <tbody>
               {sorted.map((doc) => (
-                <DocumentRow key={doc.documentId} document={doc} year={year} onRequestDelete={setDeleteTarget} />
+                <DocumentRow key={doc.documentId} document={doc} year={year} onRequestDelete={openDeleteDialog} />
               ))}
             </tbody>
           </table>
@@ -541,14 +570,14 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
         {/* Mobile/Tablet cards */}
         <div className="lg:hidden divide-y divide-border">
           {sorted.map((doc) => (
-            <DocumentMobileCard key={doc.documentId} document={doc} year={year} onRequestDelete={setDeleteTarget} />
+            <DocumentMobileCard key={doc.documentId} document={doc} year={year} onRequestDelete={openDeleteDialog} />
           ))}
         </div>
       </div>
 
       {/* Delete Confirmation Modal — rendered outside table */}
       {deleteTarget && (
-        <ModalBackdrop onClose={() => setDeleteTarget(null)} labelledBy="delete-confirm-title">
+        <ModalBackdrop onClose={closeDeleteDialog} labelledBy="delete-confirm-title">
           <div className="card w-full max-w-sm animate-modal-in p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 rounded-full bg-guard-danger/10">
@@ -561,40 +590,49 @@ export function FiscalDocumentList({ documents, year }: FiscalDocumentListProps)
             {deleteTarget.transactionId != null && (
               <p className="text-sm text-guard-muted mb-4">{t('fiscal.documents.delete-has-transaction')}</p>
             )}
+            {deleteMutation.errorMessage && (
+              <p className="text-sm text-guard-danger mb-4" role="alert">
+                {deleteMutation.errorMessage}
+              </p>
+            )}
             <div className="flex flex-col gap-2">
               {deleteTarget.transactionId != null && (
                 <button
                   type="button"
-                  onClick={() => {
-                    deleteMutation.mutate({ id: deleteTarget.documentId, deleteTransaction: true });
-                    setDeleteTarget(null);
-                  }}
-                  className="w-full py-2.5 rounded-lg font-medium text-sm bg-guard-danger text-white hover:bg-guard-danger/90 transition-colors"
+                  onClick={() => handleDelete(true)}
+                  disabled={deleteMutation.isPending}
+                  className="w-full py-2.5 rounded-lg font-medium text-sm bg-guard-danger text-white hover:bg-guard-danger/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t('fiscal.documents.delete-with-transaction')}
+                  <span className="flex items-center justify-center gap-2">
+                    {isDeleting(true) && <LoadingSpinner size="sm" className="border-white/30 border-t-white" />}
+                    {t('fiscal.documents.delete-with-transaction')}
+                  </span>
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => {
-                  deleteMutation.mutate({ id: deleteTarget.documentId });
-                  setDeleteTarget(null);
-                }}
+                onClick={() => handleDelete(false)}
+                disabled={deleteMutation.isPending}
                 className={cn(
                   'w-full py-2.5 rounded-lg font-medium text-sm transition-colors',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
                   deleteTarget.transactionId != null
                     ? 'bg-guard-danger/10 text-guard-danger hover:bg-guard-danger/20'
                     : 'bg-guard-danger text-white hover:bg-guard-danger/90',
                 )}
               >
-                {deleteTarget.transactionId != null
-                  ? t('fiscal.documents.delete-keep-transaction')
-                  : t('common.buttons.delete')}
+                <span className="flex items-center justify-center gap-2">
+                  {isDeleting(false) && <LoadingSpinner size="sm" />}
+                  {deleteTarget.transactionId != null
+                    ? t('fiscal.documents.delete-keep-transaction')
+                    : t('common.buttons.delete')}
+                </span>
               </button>
               <button
                 type="button"
-                onClick={() => setDeleteTarget(null)}
-                className="w-full py-2.5 rounded-lg font-medium text-sm bg-muted text-guard-muted hover:text-foreground transition-colors"
+                onClick={closeDeleteDialog}
+                disabled={deleteMutation.isPending}
+                className="w-full py-2.5 rounded-lg font-medium text-sm bg-muted text-guard-muted hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('common.buttons.cancel')}
               </button>

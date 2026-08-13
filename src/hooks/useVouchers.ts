@@ -11,6 +11,7 @@ import type { ApiResponse, Transaction, Voucher } from '@/types/finance';
 import type { ReconcileConsumptionResult, SkydiveActivityType } from '@/types/skydive';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 export interface VoucherDetail {
   voucher: Voucher;
@@ -158,9 +159,7 @@ export function useCreateVoucher() {
 
   return useApiMutation({
     mutationFn: createVoucherRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.VOUCHERS]),
   });
 }
 
@@ -172,9 +171,7 @@ export function useUpdateVoucher() {
 
   return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateVoucherInput }) => updateVoucherRequest(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.VOUCHERS]),
   });
 }
 
@@ -186,10 +183,7 @@ export function useDeleteVoucher() {
 
   return useApiMutation({
     mutationFn: deleteVoucherRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.VOUCHERS, QUERY_KEY.TRANSACTIONS]),
   });
 }
 
@@ -203,14 +197,15 @@ export function useReconcileVoucherConsumption() {
 
   return useApiMutation({
     mutationFn: ({ transactionId }: { transactionId: number }) => reconcileVoucherConsumptionRequest(transactionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.VOUCHERS,
+        QUERY_KEY.SKYDIVE_JUMPS,
+        QUERY_KEY.TUNNEL_SESSIONS,
+        QUERY_KEY.SKYDIVE_STATS,
+        QUERY_KEY.SKYDIVE_DROPZONES,
+        QUERY_KEY.TUNNEL_LOCATIONS,
+        QUERY_KEY.TRANSACTIONS,
+      ]),
   });
 }

@@ -10,6 +10,7 @@ import type { CreateTransactionGroupInput, UpdateTransactionGroupInput } from '@
 import type { ApiResponse, Transaction } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function createTransactionGroupRequest(input: CreateTransactionGroupInput): Promise<Transaction[]> {
   const response = await fetchApi(API_ENDPOINT.TRANSACTION_GROUPS, {
@@ -75,11 +76,8 @@ export function useCreateTransactionGroup() {
 
   return useApiMutation({
     mutationFn: createTransactionGroupRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUBCATEGORY_SUMMARY] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY, QUERY_KEY.SUBCATEGORY_SUMMARY]),
   });
 }
 
@@ -91,11 +89,8 @@ export function useDeleteTransactionGroup() {
 
   return useApiMutation({
     mutationFn: deleteTransactionGroupRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUBCATEGORY_SUMMARY] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY, QUERY_KEY.SUBCATEGORY_SUMMARY]),
   });
 }
 
@@ -107,10 +102,7 @@ export function useUpdateTransactionGroup() {
 
   return useApiMutation({
     mutationFn: updateTransactionGroupRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUBCATEGORY_SUMMARY] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY, QUERY_KEY.SUBCATEGORY_SUMMARY]),
   });
 }

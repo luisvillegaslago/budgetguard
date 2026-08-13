@@ -11,6 +11,7 @@ import type { CreateCompanyInput, UpdateCompanyInput } from '@/schemas/company';
 import type { ApiResponse, Company } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function fetchCompanies(role?: CompanyRole): Promise<Company[]> {
   const params = new URLSearchParams({ isActive: 'true' });
@@ -156,9 +157,7 @@ export function useCreateCompany() {
 
   return useApiMutation({
     mutationFn: createCompanyRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.COMPANIES]),
   });
 }
 
@@ -170,9 +169,7 @@ export function useQuickCreateCompany() {
 
   return useApiMutation({
     mutationFn: quickCreateCompanyRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.COMPANIES]),
   });
 }
 
@@ -184,9 +181,7 @@ export function useUpdateCompany() {
 
   return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateCompanyInput }) => updateCompanyRequest(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.COMPANIES]),
   });
 }
 
@@ -198,8 +193,6 @@ export function useDeleteCompany() {
 
   return useApiMutation({
     mutationFn: deleteCompanyRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.COMPANIES]),
   });
 }

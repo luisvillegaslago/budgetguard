@@ -10,6 +10,7 @@ import type { CreateTripInput } from '@/schemas/trip';
 import type { ApiResponse, Trip, TripDetail, TripDisplay } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function fetchTrips(): Promise<TripDisplay[]> {
   const response = await fetchApi(API_ENDPOINT.TRIPS);
@@ -134,9 +135,7 @@ export function useCreateTrip() {
 
   return useApiMutation({
     mutationFn: createTripRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRIPS]),
   });
 }
 
@@ -148,9 +147,7 @@ export function useUpdateTrip() {
 
   return useApiMutation({
     mutationFn: updateTripRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRIPS]),
   });
 }
 
@@ -162,10 +159,6 @@ export function useDeleteTrip() {
 
   return useApiMutation({
     mutationFn: deleteTripRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRIPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRIPS, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }

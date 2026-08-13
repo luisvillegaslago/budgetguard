@@ -15,13 +15,15 @@ import { DateRangeSelector } from '@/components/category-history/DateRangeSelect
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useToast } from '@/components/ui/Toast';
 import type { DateRangePreset } from '@/constants/finance';
-import { DATE_RANGE_PRESET, QUERY_KEY, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, DATE_RANGE_PRESET, QUERY_KEY, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCompanyTransactions } from '@/hooks/useCompanyTransactions';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useGroupByMonth, useToggleGroupByMonth } from '@/stores/useFinanceStore';
 import type { Company, Transaction } from '@/types/finance';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 interface CompanyMovementDetailProps {
   company: Company;
@@ -29,10 +31,12 @@ interface CompanyMovementDetailProps {
 
 export function CompanyMovementDetail({ company }: CompanyMovementDetailProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [range, setRange] = useState<DateRangePreset>(DATE_RANGE_PRESET.ONE_YEAR);
   const { data, isLoading, isError, refetch } = useCompanyTransactions(company.companyId, range);
   const deleteTransaction = useDeleteTransaction();
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const groupByMonth = useGroupByMonth();
   const toggleGroupByMonth = useToggleGroupByMonth();
@@ -41,17 +45,28 @@ export function CompanyMovementDetail({ company }: CompanyMovementDetailProps) {
     setEditingTransaction(transaction);
   }, []);
 
+  // Local flag instead of deleteTransaction.isPending: it must also cover the
+  // company-transactions refetch below, which runs after the mutation has settled.
   const handleDelete = useCallback(
     async (transactionId: number) => {
-      await deleteTransaction.mutateAsync(transactionId);
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES, 'transactions'] });
+      setIsDeleting(true);
+      try {
+        await deleteTransaction.mutateAsync(transactionId);
+        await invalidateQueryKeys(queryClient, [[QUERY_KEY.COMPANIES, 'transactions']]);
+      } catch (error) {
+        // The thrown message is the i18n key produced by extractApiErrorKey
+        toast.error(t(error instanceof Error ? error.message : API_ERROR.MUTATION.DELETE.TRANSACTION));
+      } finally {
+        setIsDeleting(false);
+      }
     },
-    [deleteTransaction, queryClient],
+    [deleteTransaction, queryClient, toast, t],
   );
 
   const handleFormClose = useCallback(() => {
     setEditingTransaction(null);
-    queryClient.invalidateQueries({ queryKey: [QUERY_KEY.COMPANIES, 'transactions'] });
+    // Not awaited: nothing is waiting on it once the modal is gone
+    invalidateQueryKeys(queryClient, [[QUERY_KEY.COMPANIES, 'transactions']]);
   }, [queryClient]);
 
   if (isLoading) {
@@ -116,6 +131,7 @@ export function CompanyMovementDetail({ company }: CompanyMovementDetailProps) {
           groupByMonth={groupByMonth}
           onEditTransaction={handleEdit}
           onDeleteTransaction={handleDelete}
+          isDeleting={isDeleting}
         />
       ) : (
         <div className="card">

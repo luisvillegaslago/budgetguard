@@ -5,7 +5,14 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY, SHARED_EXPENSE } from '@/constants/finance';
+import {
+  API_ENDPOINT,
+  API_ERROR,
+  CACHE_TIME,
+  QUERY_KEY,
+  SHARED_EXPENSE,
+  TRANSACTION_STATUS,
+} from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateTransactionInput } from '@/schemas/transaction';
 import type {
@@ -18,6 +25,7 @@ import type {
 } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 interface TransactionsResponse {
   data: Transaction[];
@@ -148,12 +156,8 @@ export function useCreateTransaction() {
 
   return useApiMutation({
     mutationFn: createTransactionRequest,
-    onSuccess: () => {
-      // Invalidate all transaction and summary queries to refresh data
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-    },
+    // Invalidate all transaction and summary queries to refresh data
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY, QUERY_KEY.VOUCHERS]),
   });
 }
 
@@ -166,14 +170,15 @@ export function useUpdateTransaction() {
   return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<CreateTransactionInput> }) =>
       updateTransactionRequest(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+        QUERY_KEY.VOUCHERS,
+        QUERY_KEY.FISCAL_DOCUMENTS,
+        QUERY_KEY.FISCAL_REPORT,
+        QUERY_KEY.FISCAL_ANNUAL,
+      ]),
   });
 }
 
@@ -185,14 +190,15 @@ export function useDeleteTransaction() {
 
   return useApiMutation({
     mutationFn: deleteTransactionRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.VOUCHERS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+        QUERY_KEY.VOUCHERS,
+        QUERY_KEY.FISCAL_DOCUMENTS,
+        QUERY_KEY.FISCAL_REPORT,
+        QUERY_KEY.FISCAL_ANNUAL,
+      ]),
   });
 }
 
@@ -205,13 +211,49 @@ export function useUpdateTransactionStatus() {
   return useApiMutation({
     mutationFn: ({ id, status }: { id: number; status: TransactionStatus }) =>
       updateTransactionStatusRequest(id, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUBCATEGORY_SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_ANNUAL] });
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+        QUERY_KEY.SUBCATEGORY_SUMMARY,
+        QUERY_KEY.FISCAL_REPORT,
+        QUERY_KEY.FISCAL_ANNUAL,
+      ]),
+  });
+}
+
+/**
+ * Hook to mark several transactions as paid in one go.
+ *
+ * Firing useUpdateTransactionStatus in a loop would reuse a single mutation observer
+ * (only the last call keeps its pending state) and trigger one refetch per transaction.
+ * Batching here keeps a single pending state for the whole operation and invalidates
+ * once, when every request has settled.
+ */
+export function useMarkTransactionsPaid() {
+  const queryClient = useQueryClient();
+
+  return useApiMutation<void, number[]>({
+    mutationFn: async (ids: number[]) => {
+      // allSettled, not all: a rejection must not invalidate the cache while the
+      // remaining requests are still in flight, or their rows would linger as pending.
+      const results = await Promise.allSettled(
+        ids.map((id) => updateTransactionStatusRequest(id, TRANSACTION_STATUS.PAID)),
+      );
+      const firstFailure = results.find((result) => result.status === 'rejected');
+      if (firstFailure?.status === 'rejected') {
+        const reason: unknown = firstFailure.reason;
+        throw new Error(reason instanceof Error ? reason.message : API_ERROR.MUTATION.UPDATE.TRANSACTION);
+      }
     },
+    onSettled: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+        QUERY_KEY.SUBCATEGORY_SUMMARY,
+        QUERY_KEY.FISCAL_REPORT,
+        QUERY_KEY.FISCAL_ANNUAL,
+      ]),
   });
 }
 

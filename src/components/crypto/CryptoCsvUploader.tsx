@@ -17,6 +17,7 @@ import { useTranslate } from '@/hooks/useTranslations';
 import type { ApiResponse } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 // Direct export links per exchange, used to render the step-1 anchor. Keeping
 // them in code (not i18n) avoids translators having to maintain URLs.
@@ -100,11 +101,8 @@ export function CryptoCsvUploader() {
 
   const upload = useApiMutation({
     mutationFn: uploadCsv,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_EVENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_MODELO] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_DISPOSALS] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.CRYPTO_EVENTS, QUERY_KEY.CRYPTO_MODELO, QUERY_KEY.CRYPTO_DISPOSALS]),
   });
 
   const handleSelect = (selected: File | null) => {

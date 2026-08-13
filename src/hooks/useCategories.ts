@@ -10,6 +10,7 @@ import type { CreateCategoryInput, UpdateCategoryInput } from '@/schemas/transac
 import type { ApiResponse, Category, TransactionType } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function fetchCategories(type?: TransactionType, hierarchical = false): Promise<Category[]> {
   const params = new URLSearchParams();
@@ -171,9 +172,7 @@ export function useCreateCategory() {
 
   return useApiMutation({
     mutationFn: createCategoryRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORIES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.CATEGORIES]),
   });
 }
 
@@ -185,10 +184,7 @@ export function useUpdateCategory() {
 
   return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateCategoryInput }) => updateCategoryRequest(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORIES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.CATEGORIES, QUERY_KEY.SUMMARY]),
   });
 }
 
@@ -200,8 +196,6 @@ export function useDeleteCategory() {
 
   return useApiMutation({
     mutationFn: deleteCategoryRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORIES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.CATEGORIES]),
   });
 }

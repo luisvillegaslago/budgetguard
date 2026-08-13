@@ -16,14 +16,16 @@ import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useToast } from '@/components/ui/Toast';
 import type { DateRangePreset } from '@/constants/finance';
-import { DATE_RANGE_PRESET, QUERY_KEY } from '@/constants/finance';
+import { API_ERROR, DATE_RANGE_PRESET, QUERY_KEY } from '@/constants/finance';
 import { useCategoryHistory } from '@/hooks/useCategoryHistory';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useGroupByMonth, useToggleGroupByMonth } from '@/stores/useFinanceStore';
 import type { Category, CategoryHistoryMonth, Transaction } from '@/types/finance';
 import { cn } from '@/utils/helpers';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 interface SubcategoryOption {
   categoryId: number;
@@ -37,10 +39,12 @@ interface MovementDetailProps {
 
 export function MovementDetail({ category, initialSubcategoryId = null }: MovementDetailProps) {
   const { t } = useTranslate();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [range, setRange] = useState<DateRangePreset>(DATE_RANGE_PRESET.ONE_YEAR);
   const { data, isLoading, isError, refetch } = useCategoryHistory(category.categoryId, range);
   const deleteTransaction = useDeleteTransaction();
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(initialSubcategoryId);
   const groupByMonth = useGroupByMonth();
@@ -87,17 +91,28 @@ export function MovementDetail({ category, initialSubcategoryId = null }: Moveme
     setEditingTransaction(transaction);
   }, []);
 
+  // Local flag instead of deleteTransaction.isPending: it must also cover the
+  // CATEGORY_HISTORY refetch below, which runs after the mutation has settled.
   const handleDelete = useCallback(
     async (transactionId: number) => {
-      await deleteTransaction.mutateAsync(transactionId);
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORY_HISTORY] });
+      setIsDeleting(true);
+      try {
+        await deleteTransaction.mutateAsync(transactionId);
+        await invalidateQueryKeys(queryClient, [QUERY_KEY.CATEGORY_HISTORY]);
+      } catch (error) {
+        // The thrown message is the i18n key produced by extractApiErrorKey
+        toast.error(t(error instanceof Error ? error.message : API_ERROR.MUTATION.DELETE.TRANSACTION));
+      } finally {
+        setIsDeleting(false);
+      }
     },
-    [deleteTransaction, queryClient],
+    [deleteTransaction, queryClient, toast, t],
   );
 
   const handleFormClose = useCallback(() => {
     setEditingTransaction(null);
-    queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CATEGORY_HISTORY] });
+    // Not awaited: nothing is waiting on it once the modal is gone
+    invalidateQueryKeys(queryClient, [QUERY_KEY.CATEGORY_HISTORY]);
   }, [queryClient]);
 
   if (isLoading) {
@@ -199,6 +214,7 @@ export function MovementDetail({ category, initialSubcategoryId = null }: Moveme
           groupByMonth={groupByMonth}
           onEditTransaction={handleEdit}
           onDeleteTransaction={handleDelete}
+          isDeleting={isDeleting}
         />
       ) : months.length > 0 ? (
         <div className="card">

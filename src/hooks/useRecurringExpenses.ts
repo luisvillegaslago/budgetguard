@@ -10,6 +10,7 @@ import type { CreateRecurringExpenseInput, UpdateRecurringExpenseInput } from '@
 import type { ApiResponse, RecurringExpense } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 interface RecurringExpensesResponse {
   data: RecurringExpense[];
@@ -121,10 +122,7 @@ export function useCreateRecurringExpense() {
 
   return useApiMutation({
     mutationFn: createRecurringExpenseRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.RECURRING_EXPENSES, QUERY_KEY.PENDING_OCCURRENCES]),
   });
 }
 
@@ -137,10 +135,7 @@ export function useUpdateRecurringExpense() {
   return useApiMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateRecurringExpenseInput }) =>
       updateRecurringExpenseRequest(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.RECURRING_EXPENSES, QUERY_KEY.PENDING_OCCURRENCES]),
   });
 }
 
@@ -152,10 +147,7 @@ export function useDeleteRecurringExpense() {
 
   return useApiMutation({
     mutationFn: deleteRecurringExpenseRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.RECURRING_EXPENSES, QUERY_KEY.PENDING_OCCURRENCES]),
   });
 }
 
@@ -167,9 +159,6 @@ export function useHardDeleteRecurringExpense() {
 
   return useApiMutation({
     mutationFn: hardDeleteRecurringExpenseRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.RECURRING_EXPENSES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.RECURRING_EXPENSES, QUERY_KEY.PENDING_OCCURRENCES]),
   });
 }

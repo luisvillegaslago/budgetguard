@@ -11,6 +11,7 @@ import type { ApiResponse } from '@/types/finance';
 import type { ImportResult, SkydiveJump } from '@/types/skydive';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function fetchJumps(filters?: { year?: number; dropzone?: string }): Promise<SkydiveJump[]> {
   const params = new URLSearchParams();
@@ -56,11 +57,8 @@ export function useCreateJump() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.SKYDIVE_JUMPS, QUERY_KEY.SKYDIVE_STATS, QUERY_KEY.SKYDIVE_DROPZONES]),
   });
 }
 
@@ -84,11 +82,8 @@ export function useUpdateJump() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.SKYDIVE_JUMPS, QUERY_KEY.SKYDIVE_STATS, QUERY_KEY.SKYDIVE_DROPZONES]),
   });
 }
 
@@ -106,10 +101,7 @@ export function useDeleteJump() {
         throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.JUMP));
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.SKYDIVE_JUMPS, QUERY_KEY.SKYDIVE_STATS]),
   });
 }
 
@@ -134,10 +126,7 @@ export function useImportJumps() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_JUMPS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_DROPZONES] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.SKYDIVE_JUMPS, QUERY_KEY.SKYDIVE_STATS, QUERY_KEY.SKYDIVE_DROPZONES]),
   });
 }

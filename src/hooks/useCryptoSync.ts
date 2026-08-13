@@ -23,6 +23,7 @@ import { useApiMutation } from '@/hooks/useApiMutation';
 import type { ApiResponse } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 export interface SyncJobSummary {
   jobId: number;
@@ -95,10 +96,8 @@ export function useStartCryptoSync() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: startSyncRequest,
-    onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_SYNC_STATUS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_SYNC_STATUS, job.jobId] });
-    },
+    // The root prefix already covers [CRYPTO_SYNC_STATUS, jobId]
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.CRYPTO_SYNC_STATUS]),
   });
 }
 
@@ -154,9 +153,7 @@ export function useCancelCryptoSync() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: cancelSyncRequest,
-    onSuccess: (_data, jobId) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_SYNC_STATUS, jobId] });
-    },
+    onSuccess: (_data, jobId) => invalidateQueryKeys(queryClient, [[QUERY_KEY.CRYPTO_SYNC_STATUS, jobId]]),
   });
 }
 

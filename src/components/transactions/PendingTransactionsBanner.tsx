@@ -9,8 +9,9 @@
 import { CheckCircle, Clock } from 'lucide-react';
 import { useMemo } from 'react';
 import { AlertPanel } from '@/components/ui/AlertPanel';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ALERT_PANEL, TRANSACTION_STATUS } from '@/constants/finance';
-import { useTransactions, useUpdateTransactionStatus } from '@/hooks/useTransactions';
+import { useMarkTransactionsPaid, useTransactions, useUpdateTransactionStatus } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useIsPendingPanelCollapsed, useSelectedMonth, useTogglePendingPanel } from '@/stores/useFinanceStore';
 import type { Transaction } from '@/types/finance';
@@ -22,6 +23,7 @@ export function PendingTransactionsBanner() {
   const selectedMonth = useSelectedMonth();
   const { data } = useTransactions(selectedMonth);
   const updateStatus = useUpdateTransactionStatus();
+  const markAllPaid = useMarkTransactionsPaid();
   const isCollapsed = useIsPendingPanelCollapsed();
   const togglePanel = useTogglePendingPanel();
 
@@ -40,10 +42,10 @@ export function PendingTransactionsBanner() {
   };
 
   const handleMarkAllAsPaid = () => {
-    duePending.forEach((tx) => {
-      updateStatus.mutate({ id: tx.transactionId, status: TRANSACTION_STATUS.PAID });
-    });
+    markAllPaid.mutate(duePending.map((tx) => tx.transactionId));
   };
+
+  const isBusy = updateStatus.isPending || markAllPaid.isPending;
 
   return (
     <AlertPanel
@@ -74,10 +76,15 @@ export function PendingTransactionsBanner() {
                 e.stopPropagation();
                 handleMarkAsPaid(tx.transactionId);
               }}
-              disabled={updateStatus.isPending}
+              disabled={isBusy}
+              aria-busy={updateStatus.isPending && updateStatus.variables?.id === tx.transactionId}
               className="shrink-0 flex items-center gap-1 text-xs font-medium text-guard-success hover:text-guard-success/80 transition-colors disabled:opacity-50"
             >
-              <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              {updateStatus.isPending && updateStatus.variables?.id === tx.transactionId ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
               {t('transactions.mark-as-paid')}
             </button>
           </div>
@@ -88,12 +95,24 @@ export function PendingTransactionsBanner() {
           <button
             type="button"
             onClick={handleMarkAllAsPaid}
-            disabled={updateStatus.isPending}
+            disabled={isBusy}
+            aria-busy={markAllPaid.isPending}
             className="flex items-center gap-1.5 text-xs font-semibold text-guard-success hover:text-guard-success/80 transition-colors disabled:opacity-50 mt-1"
           >
-            <CheckCircle className="h-4 w-4" aria-hidden="true" />
+            {markAllPaid.isPending ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <CheckCircle className="h-4 w-4" aria-hidden="true" />
+            )}
             {t('transactions.pending-banner.mark-all')}
           </button>
+        )}
+
+        {/* Without this the rows would just stay pending with no explanation */}
+        {(updateStatus.errorMessage || markAllPaid.errorMessage) && (
+          <p className="text-xs text-guard-danger" role="alert">
+            {updateStatus.errorMessage ?? markAllPaid.errorMessage}
+          </p>
         )}
       </div>
     </AlertPanel>

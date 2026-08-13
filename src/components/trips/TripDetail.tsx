@@ -110,7 +110,7 @@ export function TripDetail({ trip, onAddExpense, onEditExpense }: TripDetailProp
                   transaction={expense}
                   onEdit={onEditExpense}
                   onDelete={handleDeleteExpense}
-                  isDeleting={deleteExpense.isPending}
+                  isDeleting={deleteExpense.isPending && deleteExpense.variables === expense.transactionId}
                   index={index}
                 />
               </li>

@@ -602,7 +602,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
                   onDelete={handleDeleteGroup}
                   onEdit={setEditingGroup}
                   onEditTransaction={onEditTransaction}
-                  isDeleting={deleteGroup.isPending}
+                  isDeleting={deleteGroup.isPending && deleteGroup.variables === item.data.transactionGroupId}
                   index={index}
                 />
               </li>
@@ -624,7 +624,7 @@ export function TransactionList({ onAddTransaction, onEditTransaction }: Transac
                 onDelete={handleDelete}
                 onEdit={onEditTransaction ?? (() => {})}
                 onMarkAsPaid={handleMarkAsPaid}
-                isDeleting={deleteTransaction.isPending}
+                isDeleting={deleteTransaction.isPending && deleteTransaction.variables === item.data.transactionId}
                 index={index}
                 voucherName={item.data.voucherId != null ? (voucherNames.get(item.data.voucherId) ?? null) : null}
               />

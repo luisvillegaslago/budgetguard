@@ -22,6 +22,7 @@ import type { CreateCryptoCredentialInput } from '@/schemas/crypto';
 import type { ApiResponse } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 export interface CryptoCredentialPermissions {
   ipRestrict: boolean;
@@ -107,9 +108,7 @@ export function useConnectCryptoCredential() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: connectRequest,
-    onSuccess: (credential) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_CREDENTIALS, credential.exchange] });
-    },
+    onSuccess: (credential) => invalidateQueryKeys(queryClient, [[QUERY_KEY.CRYPTO_CREDENTIALS, credential.exchange]]),
   });
 }
 
@@ -117,8 +116,6 @@ export function useDisconnectCryptoCredential() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: disconnectRequest,
-    onSuccess: (_data, exchange) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.CRYPTO_CREDENTIALS, exchange] });
-    },
+    onSuccess: (_data, exchange) => invalidateQueryKeys(queryClient, [[QUERY_KEY.CRYPTO_CREDENTIALS, exchange]]),
   });
 }

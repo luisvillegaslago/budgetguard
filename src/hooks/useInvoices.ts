@@ -24,6 +24,7 @@ import type {
 } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 // ============================================================
 // Fetch functions
@@ -198,9 +199,7 @@ export function useUpdateBillingProfile() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: updateBillingProfileRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.BILLING_PROFILE] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.BILLING_PROFILE]),
   });
 }
 
@@ -222,7 +221,7 @@ export function useCreateInvoicePrefix() {
       queryClient.setQueryData([QUERY_KEY.INVOICE_PREFIXES], (prefixes: InvoicePrefix[] | undefined) =>
         prefixes ? [...prefixes, created] : [created],
       );
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
+      return invalidateQueryKeys(queryClient, [QUERY_KEY.INVOICE_PREFIXES]);
     },
   });
 }
@@ -231,9 +230,7 @@ export function useUpdateInvoicePrefix() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: updateInvoicePrefixRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.INVOICE_PREFIXES]),
   });
 }
 
@@ -241,9 +238,7 @@ export function useDeleteInvoicePrefix() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: deleteInvoicePrefixRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.INVOICE_PREFIXES]),
   });
 }
 
@@ -268,10 +263,7 @@ export function useCreateInvoice() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: createInvoiceRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.INVOICES, QUERY_KEY.INVOICE_PREFIXES]),
   });
 }
 
@@ -279,9 +271,7 @@ export function useUpdateInvoice() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: updateInvoiceRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.INVOICES]),
   });
 }
 
@@ -289,13 +279,14 @@ export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: updateInvoiceStatusRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.INVOICES,
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+        QUERY_KEY.FISCAL_DOCUMENTS,
+        QUERY_KEY.FISCAL_REPORT,
+      ]),
   });
 }
 
@@ -303,9 +294,7 @@ export function useDeleteInvoice() {
   const queryClient = useQueryClient();
   return useApiMutation({
     mutationFn: deleteInvoiceRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.INVOICES]),
   });
 }
 
@@ -341,10 +330,12 @@ export function useFinalizeInvoice() {
       URL.revokeObjectURL(url);
 
       // Invalidate caches so UI refetches updated data (number assigned at finalization)
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.INVOICE_PREFIXES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_REPORT] });
+      return invalidateQueryKeys(queryClient, [
+        QUERY_KEY.INVOICES,
+        QUERY_KEY.INVOICE_PREFIXES,
+        QUERY_KEY.FISCAL_DOCUMENTS,
+        QUERY_KEY.FISCAL_REPORT,
+      ]);
     },
   });
 }

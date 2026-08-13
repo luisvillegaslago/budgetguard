@@ -120,7 +120,8 @@ export function DbSyncPanel() {
       )}
 
       {/* Diff Table */}
-      {compareResult && !isSyncing && (
+      {/* Hidden while re-comparing so the previous diff is never shown as current */}
+      {compareResult && !isSyncing && !isComparing && (
         <div className="border border-border rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -169,7 +170,7 @@ export function DbSyncPanel() {
       )}
 
       {/* Backup Controls */}
-      {compareResult && hasDifferences && !isSyncing && (
+      {compareResult && hasDifferences && !isSyncing && !isComparing && (
         <div className="space-y-4 pt-2">
           {/* Direction info */}
           <div className="rounded-lg bg-muted/50 border border-border p-3">

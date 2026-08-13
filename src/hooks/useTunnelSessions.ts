@@ -11,6 +11,7 @@ import type { ApiResponse } from '@/types/finance';
 import type { ImportResult, TunnelSession } from '@/types/skydive';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function fetchTunnelSessions(filters?: { year?: number; location?: string }): Promise<TunnelSession[]> {
   const params = new URLSearchParams();
@@ -56,11 +57,12 @@ export function useCreateTunnelSession() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TUNNEL_SESSIONS,
+        QUERY_KEY.SKYDIVE_STATS,
+        QUERY_KEY.TUNNEL_LOCATIONS,
+      ]),
   });
 }
 
@@ -84,11 +86,12 @@ export function useUpdateTunnelSession() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TUNNEL_SESSIONS,
+        QUERY_KEY.SKYDIVE_STATS,
+        QUERY_KEY.TUNNEL_LOCATIONS,
+      ]),
   });
 }
 
@@ -106,10 +109,7 @@ export function useDeleteTunnelSession() {
         throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.DELETE.TUNNEL_SESSION));
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.TUNNEL_SESSIONS, QUERY_KEY.SKYDIVE_STATS]),
   });
 }
 
@@ -134,12 +134,13 @@ export function useImportTunnelSessions() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_SESSIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SKYDIVE_STATS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TUNNEL_LOCATIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.TUNNEL_SESSIONS,
+        QUERY_KEY.SKYDIVE_STATS,
+        QUERY_KEY.TUNNEL_LOCATIONS,
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+      ]),
   });
 }

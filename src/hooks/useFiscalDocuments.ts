@@ -16,6 +16,7 @@ import type {
 } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 // ============================================================
 // Fetch Functions
@@ -111,13 +112,10 @@ export function useUploadFiscalDocument(_year: number) {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Upload failed');
       return data.data;
     },
-    onSuccess: () => {
-      // Invalidate the root prefixes, not [key, year]: the banner consumes
-      // [FISCAL_DEADLINES, 'active'] (not a descendant of [FISCAL_DEADLINES, year]),
-      // and the detected year may differ from the year selected on the page.
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
-    },
+    // Invalidate the root prefixes, not [key, year]: the banner consumes
+    // [FISCAL_DEADLINES, 'active'] (not a descendant of [FISCAL_DEADLINES, year]),
+    // and the detected year may differ from the year selected on the page.
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS, QUERY_KEY.FISCAL_DEADLINES]),
   });
 }
 
@@ -159,10 +157,7 @@ export function useBulkUploadDocuments() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Bulk upload failed');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS, QUERY_KEY.FISCAL_DEADLINES]),
   });
 }
 
@@ -187,11 +182,8 @@ export function useUpdateDocumentStatus(_year: number) {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Status update failed');
       return data.data;
     },
-    onSuccess: () => {
-      // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
-    },
+    // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS, QUERY_KEY.FISCAL_DEADLINES]),
   });
 }
 
@@ -211,13 +203,14 @@ export function useDeleteFiscalDocument(_year: number) {
         throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.MUTATION.DELETE.FISCAL_DOCUMENT));
       }
     },
-    onSuccess: () => {
-      // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DEADLINES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.FISCAL_DOCUMENTS,
+        QUERY_KEY.FISCAL_DEADLINES,
+        QUERY_KEY.TRANSACTIONS,
+        QUERY_KEY.SUMMARY,
+      ]),
   });
 }
 
@@ -253,9 +246,7 @@ export function useExtractDocument() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'extraction_failed');
       return data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS]),
   });
 }
 
@@ -316,11 +307,8 @@ export function useLinkTransaction() {
       if (!result.success || !result.data) throw new Error(result.error ?? 'Link transaction failed');
       return result.data;
     },
-    onSuccess: () => {
-      // Atomic triple invalidation to avoid layout shift
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.FISCAL_DOCUMENTS] });
-    },
+    // Atomic triple invalidation to avoid layout shift
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY, QUERY_KEY.FISCAL_DOCUMENTS]),
   });
 }

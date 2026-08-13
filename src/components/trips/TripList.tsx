@@ -116,7 +116,13 @@ export function TripList({ onAdd }: TripListProps) {
   const renderGrid = (list: TripDisplay[], flags?: { isInProgress?: boolean; isUpcoming?: boolean }) => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {list.map((trip) => (
-        <TripCard key={trip.tripId} trip={trip} onDelete={handleDelete} isDeleting={deleteTrip.isPending} {...flags} />
+        <TripCard
+          key={trip.tripId}
+          trip={trip}
+          onDelete={handleDelete}
+          isDeleting={deleteTrip.isPending && deleteTrip.variables === trip.tripId}
+          {...flags}
+        />
       ))}
     </div>
   );

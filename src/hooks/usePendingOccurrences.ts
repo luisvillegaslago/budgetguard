@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import type { ApiResponse, PendingOccurrencesSummary, RecurringOccurrence } from '@/types/finance';
 import { fetchApi } from '@/utils/fetchApi';
+import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 async function fetchPendingOccurrences(): Promise<PendingOccurrencesSummary> {
   const response = await fetchApi(`${API_ENDPOINT.RECURRING_EXPENSES}/pending`);
@@ -90,11 +91,8 @@ export function useConfirmOccurrence() {
 
   return useMutation({
     mutationFn: confirmOccurrenceRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.PENDING_OCCURRENCES, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }
 
@@ -106,9 +104,7 @@ export function useSkipOccurrence() {
 
   return useMutation({
     mutationFn: skipOccurrenceRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-    },
+    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.PENDING_OCCURRENCES]),
   });
 }
 
@@ -137,10 +133,7 @@ export function useConfirmAllOccurrences() {
       };
       return result;
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.PENDING_OCCURRENCES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.TRANSACTIONS] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY.SUMMARY] });
-    },
+    onSettled: () =>
+      invalidateQueryKeys(queryClient, [QUERY_KEY.PENDING_OCCURRENCES, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }
