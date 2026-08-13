@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.54.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.54.0...v0.54.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **ui:** keep loading state until refetched data is on screen ([003c9a4](https://github.com/luisvillegaslago/budgetguard/commit/003c9a4f6154b6ecdc6bcbf3b0ed372b8b8df7bc))
+
 ## [0.54.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.53.0...v0.54.0) (2026-08-12)
 
 
