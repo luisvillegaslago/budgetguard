@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.55.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.55.0...v0.55.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* **fiscal:** seed casilla 05 from the filed modelos ([8fc626d](https://github.com/luisvillegaslago/budgetguard/commit/8fc626d5205208701fe26d185961d21691159ec5))
+
 ## [0.55.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.54.1...v0.55.0) (2026-08-15)
 
 
