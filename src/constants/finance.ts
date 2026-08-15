@@ -119,6 +119,7 @@ export const QUERY_KEY = {
   CATEGORY_HISTORY: 'category-history',
   FISCAL_REPORT: 'fiscal-report',
   FISCAL_ANNUAL: 'fiscal-annual',
+  IRPF_PROJECTION: 'irpf-projection',
   VERSION: 'version',
   SYNC_COMPARE: 'sync-compare',
   SKYDIVE_JUMPS: 'skydive-jumps',
@@ -179,6 +180,7 @@ export const API_ENDPOINT = {
   CATEGORY_HISTORY: '/api/categories',
   FISCAL: '/api/fiscal',
   FISCAL_ANNUAL: '/api/fiscal/annual',
+  FISCAL_PROJECTION: '/api/fiscal/projection',
   VERSION: '/api/version',
   SYNC_COMPARE: '/api/sync/compare',
   SYNC_EXECUTE: '/api/sync/execute',
@@ -356,6 +358,57 @@ export const PROFESSIONAL_INCOME_CATEGORY = 'Facturas' as const;
 export const GASTOS_DIFICIL = {
   RATE: 5, // 5% of net income
   MAX_CENTS: 200_000, // 2,000€ annual cap
+} as const;
+
+// ── IRPF provision (Modelo 130 vs. the real progressive tax) ──
+
+/**
+ * IRPF progressive scale, state half (2026).
+ * Tuples of [upperLimitCents, rate]; the last bracket has no upper limit.
+ */
+export const IRPF_STATE_SCALE = [
+  [1_245_000, 0.095],
+  [2_020_000, 0.12],
+  [3_520_000, 0.15],
+  [6_000_000, 0.185],
+  [30_000_000, 0.225],
+  [Number.POSITIVE_INFINITY, 0.245],
+] as const;
+
+/** Autonomous regions with their own IRPF scale. */
+export const IRPF_REGION = {
+  MADRID: 'madrid',
+} as const;
+
+export type IrpfRegion = (typeof IRPF_REGION)[keyof typeof IRPF_REGION];
+
+/**
+ * IRPF progressive scale, regional half (2026).
+ * Extensible by region: only Madrid is supported today — add a new entry to IRPF_REGION
+ * and its bracket table here to support another comunidad autónoma.
+ */
+export const IRPF_REGIONAL_SCALE = {
+  [IRPF_REGION.MADRID]: [
+    [1_336_222, 0.085],
+    [1_900_463, 0.107],
+    [3_542_568, 0.128],
+    [5_732_040, 0.174],
+    [Number.POSITIVE_INFINITY, 0.205],
+  ],
+} as const;
+
+export const DEFAULT_IRPF_REGION: IrpfRegion = IRPF_REGION.MADRID;
+
+/** Mínimo personal del contribuyente (5.550 €). Taxed by the scale and then subtracted as a quota. */
+export const MINIMO_PERSONAL_CENTS = 555_000;
+
+/** Modelo 130 pays a flat rate on the accumulated net income — the same IRPF_RATE, as a factor. */
+export const IRPF_PROJECTION = {
+  M130_RATE: IRPF_RATE / 100,
+  /** Run-rate on fewer elapsed days is noise, not a projection. */
+  MIN_PROJECTION_DAYS: 30,
+  /** Sanity ceiling for the manual annual billing override, in euros. */
+  MAX_INCOME_EUROS: 100_000_000,
 } as const;
 
 // Modelo 100 — AEAT casilla codes for expense breakdown
@@ -835,6 +888,7 @@ export const VALIDATION_KEY = {
   CATEGORY_REQUIRED: 'validation.category-required',
   AMOUNT_POSITIVE: 'validation.amount-positive',
   AMOUNT_NON_NEGATIVE: 'validation.amount-non-negative',
+  AMOUNT_TOO_LARGE: 'validation.amount-too-large',
   DESCRIPTION_TOO_LONG: 'validation.description-too-long',
   DESCRIPTION_REQUIRED: 'validation.description-required',
   TITLE_OR_DESCRIPTION_REQUIRED: 'validation.title-or-description-required',

@@ -833,6 +833,38 @@
       "gastos-documentados": "Gastos documentados",
       "gastos-dificil": "5% difícil justificación (máx. 2.000€/año)"
     },
+    "irpf-projection": {
+      "title": "Provisión IRPF",
+      "subtitle": "Ejercicio {year}",
+      "no-activity": "Sin actividad registrada en este ejercicio",
+      "gap": "Desfase a provisionar para la Renta",
+      "projected-income": "Ingresos proyectados",
+      "projected-expenses": "Gastos deducibles proyectados",
+      "gastos-dificil": "5% difícil justificación (máx. 2.000€/año)",
+      "net-income": "Rendimiento neto",
+      "modelo130-total": "Modelo 130 del año (20%)",
+      "modelo130-paid": "Ya pagado en trimestres vencidos",
+      "retenciones": "Retenciones practicadas por tus clientes",
+      "modelo130-remaining": "Pendiente en próximos trimestres",
+      "estimated-irpf": "IRPF estimado (escala progresiva)",
+      "monthly-provision": "Provisión mensual recomendada",
+      "marginal-rate": "Tipo marginal actual",
+      "effective-rate": "Tipo efectivo",
+      "unreliable-projection": "El año acaba de empezar, así que proyectar el ritmo de facturación no es fiable. Escribe la facturación anual que esperas para afinar la estimación.",
+      "override": {
+        "label": "Facturación anual proyectada (€)",
+        "apply": "Recalcular",
+        "reset": "Volver a la proyección",
+        "hint": "Por defecto se proyecta el ritmo de facturación del año en curso."
+      },
+      "schedule": {
+        "title": "Vencimientos restantes",
+        "modelo130": "Modelo 130 · T{quarter}",
+        "renta": "Renta {year} (declaración anual)",
+        "renta-split": "La Renta se puede fraccionar: 60% en junio y 40% en noviembre."
+      },
+      "disclaimer": "Estimación prudente con la escala estatal y la de la Comunidad de Madrid: si tributas en otra comunidad el tipo autonómico cambia y esta cifra no te sirve. Tampoco incluye mínimo por descendientes, aportaciones a planes de pensiones ni deducciones autonómicas, así que en Madrid el IRPF real será algo menor."
+    },
     "modelo390": {
       "title": "Modelo 390 — Resumen anual IVA",
       "devengado": "IVA Devengado",
@@ -1954,6 +1986,7 @@
     "category-required": "Selecciona una categoría",
     "amount-positive": "El monto debe ser mayor a 0",
     "amount-non-negative": "El importe no puede ser negativo",
+    "amount-too-large": "El importe es demasiado grande",
     "description-too-long": "La descripción es muy larga",
     "description-required": "La descripción es requerida",
     "title-or-description-required": "Añade un concepto o una descripción",

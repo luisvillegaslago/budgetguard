@@ -12,22 +12,29 @@
  */
 
 import {
+  DEFAULT_IRPF_REGION,
+  FILING_STATUS,
+  IRPF_PROJECTION,
   IRPF_RATE,
   ISSUED_INVOICE_STATUSES,
   MODELO_100_DEFAULT_CASILLA,
+  MODELO_TYPE,
   PROFESSIONAL_INCOME_CATEGORY,
   TRANSACTION_TYPE,
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   FiscalTransaction,
+  IrpfProjection,
   Modelo100Section,
   Modelo130Summary,
   Modelo303Summary,
   Modelo390Summary,
 } from '@/types/finance';
 import { calcGastosDificilCents, computeFiscalFields } from '@/utils/fiscal';
+import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { toDateString } from '@/utils/helpers';
+import { computeIrpfCents, computeMarginalRate, getYearProgress, projectAnnualCents } from '@/utils/irpf';
 import { query } from './connection';
 
 interface FiscalViewRow {
@@ -260,6 +267,104 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
   };
 }
 
+interface Modelo130Accumulator {
+  ingresosAcum: number;
+  gastosDocAcum: number;
+  retencionesAcum: number;
+  pagosAnteriores: number;
+}
+
+interface QuarterTotals {
+  ingresos: number;
+  gastosDoc: number;
+  retenciones: number;
+}
+
+/** Income, documented expenses and withholdings of a single quarter. */
+function quarterTotals(rows: FiscalViewRow[], quarter: number): QuarterTotals {
+  return rows
+    .filter((row) => row.FiscalQuarter === quarter)
+    .reduce<QuarterTotals>(
+      (totals, row) => {
+        const { baseCents, baseDeducibleCents } = computeFiscalFields(
+          row.FullAmountCents,
+          row.VatPercent,
+          row.DeductionPercent,
+        );
+
+        if (isProfessionalIncome(row)) {
+          return {
+            ingresos: totals.ingresos + baseCents,
+            gastosDoc: totals.gastosDoc,
+            retenciones: totals.retenciones + row.RetentionCents,
+          };
+        }
+        if (row.Type === TRANSACTION_TYPE.EXPENSE) {
+          return {
+            ingresos: totals.ingresos,
+            gastosDoc: totals.gastosDoc + baseDeducibleCents,
+            retenciones: totals.retenciones,
+          };
+        }
+        return totals;
+      },
+      { ingresos: 0, gastosDoc: 0, retenciones: 0 },
+    );
+}
+
+/**
+ * Cumulative Modelo 130 for every quarter up to `upToQuarter`, in a single pass over the rows.
+ * Each quarter carries the previous payments (casilla 05), so the whole series is needed
+ * even when only the last quarter is displayed.
+ */
+function computeModelo130Series(rows: FiscalViewRow[], year: number, upToQuarter: number): Modelo130Summary[] {
+  const quarters = Array.from({ length: upToQuarter }, (_, index) => index + 1);
+  const summaries: Modelo130Summary[] = [];
+
+  quarters.reduce<Modelo130Accumulator>(
+    (acc, quarter) => {
+      const totals = quarterTotals(rows, quarter);
+
+      const ingresosAcum = acc.ingresosAcum + totals.ingresos;
+      const gastosDocAcum = acc.gastosDocAcum + totals.gastosDoc;
+      const retencionesAcum = acc.retencionesAcum + totals.retenciones;
+
+      const rendimientoPre = ingresosAcum - gastosDocAcum;
+      const gastosDificil = calcGastosDificilCents(rendimientoPre);
+      const gastosTotal = gastosDocAcum + gastosDificil;
+
+      const beneficio = ingresosAcum - gastosTotal;
+      const cuota20 = Math.max(0, Math.round((beneficio * IRPF_RATE) / 100));
+      // Casilla 07 = 04 - 05 - 06: what clients already withheld is already in the Treasury.
+      const aIngresar = Math.max(0, cuota20 - acc.pagosAnteriores - retencionesAcum);
+
+      summaries.push({
+        fiscalYear: year,
+        fiscalQuarter: quarter,
+        casilla1Cents: ingresosAcum,
+        casilla2Cents: gastosTotal,
+        casilla3Cents: beneficio,
+        casilla4Cents: cuota20,
+        casilla5Cents: acc.pagosAnteriores,
+        casilla6Cents: retencionesAcum,
+        casilla7Cents: aIngresar,
+        gastosDocumentadosCents: gastosDocAcum,
+        gastosDificilCents: gastosDificil,
+      });
+
+      return {
+        ingresosAcum,
+        gastosDocAcum,
+        retencionesAcum,
+        pagosAnteriores: acc.pagosAnteriores + aIngresar,
+      };
+    },
+    { ingresosAcum: 0, gastosDocAcum: 0, retencionesAcum: 0, pagosAnteriores: 0 },
+  );
+
+  return summaries;
+}
+
 /**
  * Compute Modelo 130 summary (user-scoped)
  */
@@ -269,60 +374,114 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
   // Modelo 130 is cumulative — needs all quarters up to current
   const rows = await loadFiscalRows(userId, year, { quarter, cumulative: true });
 
-  let ingresosAcum = 0;
-  let gastosDocAcum = 0;
-  let retencionesAcum = 0;
-  let pagosAnteriores = 0;
-  let currentSummary: Modelo130Summary | null = null;
+  // The series always covers quarters 1..quarter, which the route already validated as 1-4.
+  return computeModelo130Series(rows, year, quarter)[quarter - 1]!;
+}
 
-  for (let q = 1; q <= quarter; q++) {
-    const qRows = rows.filter((r) => r.FiscalQuarter === q);
+const ALL_QUARTERS = 4;
 
-    qRows.forEach((row) => {
-      const { baseCents, baseDeducibleCents } = computeFiscalFields(
-        row.FullAmountCents,
-        row.VatPercent,
-        row.DeductionPercent,
-      );
+/**
+ * Quarters whose Modelo 130 filing window has already closed — what the user has paid
+ * so far. A quarter still inside its window (e.g. Q3 on 5 October) counts as pending,
+ * so it shows up in the remaining-deadlines calendar instead.
+ */
+function settledM130Quarters(year: number, now: Date = new Date()): number[] {
+  return computeDeadlines(year, new Set(), 0, now)
+    .filter((deadline) => deadline.modeloType === MODELO_TYPE.M130 && deadline.status === FILING_STATUS.OVERDUE)
+    .flatMap((deadline) => (deadline.fiscalQuarter === null ? [] : [deadline.fiscalQuarter]));
+}
 
-      if (isProfessionalIncome(row)) {
-        ingresosAcum += baseCents;
-        retencionesAcum += row.RetentionCents;
-      }
-      if (row.Type === TRANSACTION_TYPE.EXPENSE) {
-        gastosDocAcum += baseDeducibleCents;
-      }
-    });
+/**
+ * IRPF provision for a year (user-scoped).
+ *
+ * Modelo 130 withholds a flat 20% of the net income, but the Renta applies a progressive
+ * scale: the difference lands in one payment the following June. This projects both and
+ * exposes the gap.
+ *
+ * Reads the same accrual rows as every other model — never "vw_FiscalQuarterly", which
+ * would book invoice income on the collection date.
+ *
+ * @param year - Fiscal year
+ * @param options.projectedIncomeCents - Manual override for the annual billing (cents)
+ * @param options.now - Current date (injectable for testing; defaults to the real clock)
+ */
+export async function getIrpfProjection(
+  year: number,
+  options: { projectedIncomeCents?: number; now?: Date } = {},
+): Promise<IrpfProjection> {
+  const userId = await getUserIdOrThrow();
 
-    const rendimientoPre = ingresosAcum - gastosDocAcum;
-    const gastosDificil = calcGastosDificilCents(rendimientoPre);
-    const gastosTotal = gastosDocAcum + gastosDificil;
+  const rows = await loadFiscalRows(userId, year);
 
-    const beneficio = ingresosAcum - gastosTotal;
-    const cuota20 = Math.max(0, Math.round((beneficio * IRPF_RATE) / 100));
-    // Casilla 07 = 04 - 05 - 06: what clients already withheld is already in the Treasury.
-    const aIngresar = Math.max(0, cuota20 - pagosAnteriores - retencionesAcum);
+  // Same criteria as Modelo 130: professional income only, expenses at their deductible share.
+  const ytdIncomeCents = rows
+    .filter(isProfessionalIncome)
+    .reduce(
+      (sum, row) => sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent).baseCents,
+      0,
+    );
+  const ytdExpensesCents = rows
+    .filter((row) => row.Type === TRANSACTION_TYPE.EXPENSE)
+    .reduce(
+      (sum, row) =>
+        sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent).baseDeducibleCents,
+      0,
+    );
 
-    if (q === quarter) {
-      currentSummary = {
-        fiscalYear: year,
-        fiscalQuarter: quarter,
-        casilla1Cents: ingresosAcum,
-        casilla2Cents: gastosTotal,
-        casilla3Cents: beneficio,
-        casilla4Cents: cuota20,
-        casilla5Cents: pagosAnteriores,
-        casilla6Cents: retencionesAcum,
-        casilla7Cents: aIngresar,
-        gastosDocumentadosCents: gastosDocAcum,
-        gastosDificilCents: gastosDificil,
-      };
-    }
+  const { elapsedDays, totalDaysInYear } = getYearProgress(year, options.now);
+  const projectedIncomeCents =
+    options.projectedIncomeCents ?? projectAnnualCents(ytdIncomeCents, elapsedDays, totalDaysInYear);
+  const projectedExpensesCents = projectAnnualCents(ytdExpensesCents, elapsedDays, totalDaysInYear);
 
-    pagosAnteriores += aIngresar;
-  }
+  const rendimientoPre = projectedIncomeCents - projectedExpensesCents;
+  const gastosDificilCents = calcGastosDificilCents(rendimientoPre);
+  const projectedNetIncomeCents = rendimientoPre - gastosDificilCents;
 
-  return currentSummary!;
+  const series = computeModelo130Series(rows, year, ALL_QUARTERS);
+
+  // Casilla 7 of the quarters already settled — real money out, withholdings deducted.
+  const settled = settledM130Quarters(year, options.now);
+  const modelo130PaidCents = series
+    .filter((summary) => settled.includes(summary.fiscalQuarter))
+    .reduce((sum, summary) => sum + summary.casilla7Cents, 0);
+
+  // Casilla 06 is cumulative over the year, so the last quarter already holds the annual total.
+  const retencionesCents = series.at(-1)?.casilla6Cents ?? 0;
+
+  const modelo130TotalCents = Math.max(0, Math.round(projectedNetIncomeCents * IRPF_PROJECTION.M130_RATE));
+  // The withholdings are money the Treasury already has but that no casilla 07 will ever charge
+  // again, so they leave the quarterly instalments still to be filed.
+  const modelo130RemainingCents = Math.max(0, modelo130TotalCents - modelo130PaidCents - retencionesCents);
+
+  const estimatedIrpfCents = computeIrpfCents(projectedNetIncomeCents, DEFAULT_IRPF_REGION);
+
+  return {
+    fiscalYear: year,
+    region: DEFAULT_IRPF_REGION,
+    ytdIncomeCents,
+    ytdExpensesCents,
+    projectedIncomeCents,
+    projectedExpensesCents,
+    gastosDificilCents,
+    projectedNetIncomeCents,
+    modelo130PaidCents,
+    modelo130RemainingCents,
+    modelo130TotalCents,
+    retencionesCents,
+    estimatedIrpfCents,
+    // The retenciones are NOT subtracted here: casilla 07 = 04 - 05 - 06 already nets them out
+    // quarter by quarter, so the four casillas 07 plus the withholdings add up to the whole 20%
+    // quota. Subtracting them again would count the withheld IRPF twice and understate the
+    // payment the Renta charges the following June.
+    provisionGapCents: estimatedIrpfCents - modelo130TotalCents,
+    marginalRate: computeMarginalRate(projectedNetIncomeCents, DEFAULT_IRPF_REGION),
+    monthlyProvisionCents: Math.round(estimatedIrpfCents / 12),
+    effectiveRate:
+      projectedNetIncomeCents > 0 ? Math.round((estimatedIrpfCents / projectedNetIncomeCents) * 10_000) / 10_000 : 0,
+    // Depends on the elapsed days alone: overriding the billing fixes the income side, but the
+    // expenses are still extrapolated from a handful of days, so the projection stays unreliable.
+    isProjectionReliable: elapsedDays >= IRPF_PROJECTION.MIN_PROJECTION_DAYS,
+  };
 }
 
 /**

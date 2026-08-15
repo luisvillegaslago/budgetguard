@@ -223,7 +223,7 @@ function CasillaHelpModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={onClose}
             className="text-guard-muted hover:text-foreground transition-colors shrink-0"
-            aria-label={t('common.close')}
+            aria-label={t('common.buttons.close')}
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>

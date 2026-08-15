@@ -1,5 +1,5 @@
 /**
- * AEAT Fiscal Deadline Calculator (server-side only)
+ * AEAT Fiscal Deadline Calculator
  * Computes all filing deadlines for Spanish tax models based on verified AEAT rules.
  * Pure functions — no database calls, no side effects.
  */

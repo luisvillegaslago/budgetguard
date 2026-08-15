@@ -9,6 +9,7 @@ import type {
   FiscalDocumentType,
   FiscalStatus,
   InvoiceStatus,
+  IrpfRegion,
   ModeloType,
   OccurrenceStatus,
   PaymentMethod,
@@ -26,6 +27,7 @@ export type {
   FiscalQuarter,
   FiscalStatus,
   InvoiceStatus,
+  IrpfRegion,
   ModeloType,
   OccurrenceStatus,
   PaymentMethod,
@@ -625,6 +627,42 @@ export interface AnnualFiscalReport {
   fiscalYear: number;
   modelo390: Modelo390Summary;
   modelo100: Modelo100Section;
+}
+
+/**
+ * One IRPF bracket: [upper limit in cents (Infinity for the last one), rate as a factor]
+ */
+export type IrpfScaleBracket = readonly [number, number];
+
+export type IrpfScale = readonly IrpfScaleBracket[];
+
+/**
+ * IRPF provision: the gap between the flat 20% paid through Modelo 130 and the
+ * progressive IRPF that the annual Renta will actually charge.
+ * Estimación directa simplificada only. Every amount is in cents.
+ */
+export interface IrpfProjection {
+  fiscalYear: number;
+  region: IrpfRegion;
+  /** Actuals so far this year (accrual basis) */
+  ytdIncomeCents: number;
+  ytdExpensesCents: number;
+  /** Full-year figures: the caller's override, or a linear run-rate projection */
+  projectedIncomeCents: number;
+  projectedExpensesCents: number;
+  gastosDificilCents: number; // 5% difícil justificación, capped
+  projectedNetIncomeCents: number; // Rendimiento neto
+  /** Modelo 130 already settled (casilla 7 of the quarters whose deadline has passed) */
+  modelo130PaidCents: number;
+  modelo130RemainingCents: number;
+  modelo130TotalCents: number; // 20% of the projected net income
+  retencionesCents: number; // IRPF withheld by clients this year (casilla 06); already netted out of modelo130PaidCents
+  estimatedIrpfCents: number; // Progressive scale (state + regional), minus the mínimo personal
+  provisionGapCents: number; // estimatedIrpfCents - modelo130TotalCents
+  marginalRate: number; // Factor (e.g. 0.43)
+  monthlyProvisionCents: number; // estimatedIrpfCents / 12
+  effectiveRate: number; // estimatedIrpfCents / projectedNetIncomeCents
+  isProjectionReliable: boolean; // False when the run-rate rests on fewer than MIN_PROJECTION_DAYS elapsed days
 }
 
 // ============================================================

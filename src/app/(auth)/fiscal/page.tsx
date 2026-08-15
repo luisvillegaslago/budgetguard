@@ -16,6 +16,7 @@ import { FiscalExpenseTable } from '@/components/fiscal/FiscalExpenseTable';
 import { FiscalFilingStatus } from '@/components/fiscal/FiscalFilingStatus';
 import { FiscalInvoiceTable } from '@/components/fiscal/FiscalInvoiceTable';
 import { FiscalQuarterSelector } from '@/components/fiscal/FiscalQuarterSelector';
+import { IrpfProvisionCard } from '@/components/fiscal/IrpfProvisionCard';
 import { Modelo100Card } from '@/components/fiscal/Modelo100Card';
 import { Modelo130Card } from '@/components/fiscal/Modelo130Card';
 import { Modelo303Card } from '@/components/fiscal/Modelo303Card';
@@ -170,6 +171,10 @@ export default function FiscalPage() {
               <Modelo130Card data={report.modelo130} />
             </div>
           </div>
+
+          {/* IRPF provision: what the flat 20% of Modelo 130 leaves for the annual Renta.
+              Keyed by year so switching year drops the card's manual billing override. */}
+          <IrpfProvisionCard key={year} year={year} />
 
           <FiscalInvoiceTable invoices={report.invoices} />
           <FiscalExpenseTable expenses={report.expenses} />

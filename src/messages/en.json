@@ -833,6 +833,38 @@
       "gastos-documentados": "Documented expenses",
       "gastos-dificil": "5% difficult-to-justify (max €2,000/year)"
     },
+    "irpf-projection": {
+      "title": "IRPF provision",
+      "subtitle": "Tax year {year}",
+      "no-activity": "No activity recorded for this tax year",
+      "gap": "Gap to set aside for the annual return",
+      "projected-income": "Projected income",
+      "projected-expenses": "Projected deductible expenses",
+      "gastos-dificil": "5% difficult-to-justify (max €2,000/year)",
+      "net-income": "Net income",
+      "modelo130-total": "Modelo 130 for the year (20%)",
+      "modelo130-paid": "Already paid in closed quarters",
+      "retenciones": "Withholdings applied by your clients",
+      "modelo130-remaining": "Left for the coming quarters",
+      "estimated-irpf": "Estimated IRPF (progressive scale)",
+      "monthly-provision": "Recommended monthly provision",
+      "marginal-rate": "Current marginal rate",
+      "effective-rate": "Effective rate",
+      "unreliable-projection": "The year has barely started, so projecting the run-rate is unreliable. Type the annual billing you expect to sharpen the estimate.",
+      "override": {
+        "label": "Projected annual billing (€)",
+        "apply": "Recalculate",
+        "reset": "Back to the projection",
+        "hint": "Defaults to the run-rate projection of the current year."
+      },
+      "schedule": {
+        "title": "Remaining deadlines",
+        "modelo130": "Modelo 130 · Q{quarter}",
+        "renta": "Renta {year} (annual return)",
+        "renta-split": "The annual return can be split: 60% in June and 40% in November."
+      },
+      "disclaimer": "Conservative estimate using the state scale plus the Comunidad de Madrid one: if you are taxed in another region the regional rates differ and this figure does not apply. It also excludes the minimum for dependants, pension plan contributions and regional deductions, so within Madrid the actual IRPF will be somewhat lower."
+    },
     "modelo390": {
       "title": "Modelo 390 — Annual VAT Summary",
       "devengado": "VAT Charged",
@@ -1954,6 +1986,7 @@
     "category-required": "Please select a category",
     "amount-positive": "Amount must be greater than 0",
     "amount-non-negative": "The amount cannot be negative",
+    "amount-too-large": "The amount is too large",
     "description-too-long": "Description is too long",
     "description-required": "Description is required",
     "title-or-description-required": "Add a concept or a description",

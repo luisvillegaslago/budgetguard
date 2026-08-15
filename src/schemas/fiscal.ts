@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { IRPF_PROJECTION, VALIDATION_KEY } from '@/constants/finance';
 
 /**
  * Schema for fiscal report filters (query params)
@@ -23,3 +24,34 @@ export const AnnualFiscalFiltersSchema = z.object({
 });
 
 export type AnnualFiscalFiltersInput = z.infer<typeof AnnualFiscalFiltersSchema>;
+
+/**
+ * Schema for the IRPF provision projection (query params).
+ * `projectedIncome` is an optional manual override of the annual billing, in euros.
+ */
+export const IrpfProjectionFiltersSchema = z.object({
+  year: z.coerce.number().int().min(2020).max(2100),
+  projectedIncome: z.coerce
+    .number()
+    .nonnegative(VALIDATION_KEY.AMOUNT_NON_NEGATIVE)
+    .max(IRPF_PROJECTION.MAX_INCOME_EUROS, VALIDATION_KEY.AMOUNT_TOO_LARGE)
+    .optional(),
+});
+
+export type IrpfProjectionFiltersInput = z.infer<typeof IrpfProjectionFiltersSchema>;
+
+/**
+ * Schema for the annual billing override typed in the IRPF provision card (euros).
+ * An empty input reaches the resolver as NaN, which the type error already covers.
+ */
+export const IrpfProjectionOverrideSchema = z.object({
+  projectedIncome: z
+    .number({
+      required_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
+      invalid_type_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
+    })
+    .nonnegative(VALIDATION_KEY.AMOUNT_NON_NEGATIVE)
+    .max(IRPF_PROJECTION.MAX_INCOME_EUROS, VALIDATION_KEY.AMOUNT_TOO_LARGE),
+});
+
+export type IrpfProjectionOverrideInput = z.infer<typeof IrpfProjectionOverrideSchema>;

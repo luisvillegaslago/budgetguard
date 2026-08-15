@@ -1666,6 +1666,75 @@ GET /api/fiscal?year=2025&quarter=1
 | `taxableBase` | number | Base for 20% tax calculation (cents) |
 | `taxAmount` | number | Estimated tax: 20% of taxable base (cents) |
 
+#### `GET /api/fiscal/projection`
+
+Get the IRPF provision for a year: the gap between the flat 20% paid through Modelo 130 and the progressive IRPF the annual Renta will charge. Estimación directa simplificada only, Madrid scale (`DEFAULT_IRPF_REGION`). Reads `vw_FiscalAccrual`, like every other fiscal model.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | Yes | - | Fiscal year (e.g., `2026`) |
+| `projectedIncome` | number | No | Run-rate projection | Manual override of the annual billing, **in euros** |
+
+**Example Request:**
+```bash
+GET /api/fiscal/projection?year=2026&projectedIncome=77237
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "fiscalYear": 2026,
+    "region": "madrid",
+    "ytdIncomeCents": 7723700,
+    "ytdExpensesCents": 604800,
+    "projectedIncomeCents": 7723700,
+    "projectedExpensesCents": 604800,
+    "gastosDificilCents": 200000,
+    "projectedNetIncomeCents": 6918900,
+    "modelo130PaidCents": 1383780,
+    "modelo130RemainingCents": 0,
+    "modelo130TotalCents": 1383780,
+    "retencionesCents": 0,
+    "estimatedIrpfCents": 2010345,
+    "provisionGapCents": 626565,
+    "marginalRate": 0.43,
+    "monthlyProvisionCents": 167529,
+    "effectiveRate": 0.2906,
+    "isProjectionReliable": true
+  }
+}
+```
+
+**IRPF Projection Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ytdIncomeCents` / `ytdExpensesCents` | number | Actuals so far this year (accrual basis) |
+| `projectedIncomeCents` | number | Override if given, otherwise the linear run-rate projection |
+| `projectedExpensesCents` | number | Run-rate projection of the deductible expenses |
+| `gastosDificilCents` | number | 5% difícil justificación, capped at `GASTOS_DIFICIL.MAX_CENTS` |
+| `projectedNetIncomeCents` | number | Rendimiento neto for the whole year |
+| `modelo130PaidCents` | number | Sum of casilla 7 of the quarters whose deadline has passed |
+| `modelo130RemainingCents` | number | `modelo130TotalCents - modelo130PaidCents - retencionesCents` (never negative) |
+| `modelo130TotalCents` | number | 20% of the projected net income |
+| `retencionesCents` | number | IRPF withheld by clients this year (casilla 06), already netted out of `modelo130PaidCents` |
+| `estimatedIrpfCents` | number | Progressive scale (state + regional) minus the mínimo personal quota |
+| `provisionGapCents` | number | `estimatedIrpfCents - modelo130TotalCents`: what to set aside for June |
+| `marginalRate` | number | Marginal rate at that net income, as a factor (e.g. `0.43`) |
+| `monthlyProvisionCents` | number | `estimatedIrpfCents / 12` |
+| `effectiveRate` | number | `estimatedIrpfCents / projectedNetIncomeCents` |
+| `isProjectionReliable` | boolean | `false` while fewer than `IRPF_PROJECTION.MIN_PROJECTION_DAYS` days have elapsed — the run-rate is noise that early, on both income and expenses |
+
+`provisionGapCents` does **not** subtract `retencionesCents`: casilla 07 = 04 − 05 − 06 already nets them out quarter by quarter, so the four casillas 07 plus the withholdings add up to the whole 20% quota. Subtracting them again would count the withheld IRPF twice.
+
+`projectedIncome` is rejected above `IRPF_PROJECTION.MAX_INCOME_EUROS` (100.000.000 €); an empty value falls back to the run-rate instead of being read as 0 €.
+
+Excludes the mínimo por descendientes, pension plan contributions and regional deductions, so within Madrid the real IRPF is somewhat lower — the figure is a conservative provision, not a settlement. Every figure uses the state scale plus the Comunidad de Madrid one (`DEFAULT_IRPF_REGION`); it does not apply to taxpayers in other regions.
+
 ---
 
 ### Summary

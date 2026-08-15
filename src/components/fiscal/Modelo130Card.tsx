@@ -7,62 +7,12 @@
  * Casilla 7 (amount to pay) is highlighted as the key figure
  */
 
-import { Tooltip } from '@/components/ui/Tooltip';
+import { FiscalAmountRow as CasillaRow } from '@/components/fiscal/FiscalAmountRow';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo130Summary } from '@/types/finance';
-import { cn } from '@/utils/helpers';
-import { formatCurrency } from '@/utils/money';
 
 interface Modelo130CardProps {
   data: Modelo130Summary;
-}
-
-interface CasillaRowProps {
-  number: string;
-  label: string;
-  cents: number;
-  highlight?: boolean;
-  indent?: boolean;
-  muted?: boolean;
-}
-
-function CasillaRow({ number, label, cents, highlight = false, indent = false, muted = false }: CasillaRowProps) {
-  return (
-    <div
-      className={cn(
-        'flex items-baseline justify-between gap-2 py-1.5',
-        highlight && 'bg-guard-primary/5 -mx-3 px-3 rounded-lg',
-        indent && 'pl-6',
-      )}
-    >
-      <div className="flex items-baseline gap-2 min-w-0">
-        <span className="text-xs text-guard-muted tabular-nums shrink-0">[{number}]</span>
-        <Tooltip content={label} side="bottom" triggerClassName="min-w-0 overflow-hidden">
-          <span
-            className={cn(
-              'text-sm truncate block',
-              highlight ? 'font-semibold text-foreground' : muted ? 'text-guard-muted' : 'text-foreground/80',
-            )}
-          >
-            {label}
-          </span>
-        </Tooltip>
-      </div>
-      <span
-        className={cn(
-          'tabular-nums shrink-0',
-          highlight
-            ? 'text-lg font-bold text-guard-primary'
-            : muted
-              ? 'text-sm text-guard-muted'
-              : 'text-sm font-medium',
-        )}
-      >
-        {formatCurrency(cents, false)}
-        <span className="ml-1">€</span>
-      </span>
-    </div>
-  );
 }
 
 export function Modelo130Card({ data }: Modelo130CardProps) {
