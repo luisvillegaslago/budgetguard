@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.55.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.54.1...v0.55.0) (2026-08-15)
+
+
+### Features
+
+* **fiscal:** add IRPF provision projection widget ([00633ac](https://github.com/luisvillegaslago/budgetguard/commit/00633ac46c7035bd1d5ed1236cc52ad05280f4eb))
+
 ## [0.54.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.54.0...v0.54.1) (2026-08-13)
 
 
