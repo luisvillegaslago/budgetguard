@@ -19,6 +19,7 @@ const mockProjection: IrpfProjection = {
   gastosDificilCents: 200_000,
   projectedNetIncomeCents: 6_918_900,
   modelo130PaidCents: 1_383_780,
+  modelo130PaidIsEstimated: false,
   modelo130RemainingCents: 0,
   modelo130TotalCents: 1_383_780,
   retencionesCents: 0,

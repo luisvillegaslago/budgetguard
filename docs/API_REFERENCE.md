@@ -1656,15 +1656,22 @@ GET /api/fiscal?year=2025&quarter=1
 | `vatDeductible` | number | Total deductible VAT on expense transactions (cents) |
 | `vatBalance` | number | Net VAT position: collected - deductible (cents) |
 
-**Modelo 130 Fields:**
+**Modelo 130 Fields** (cumulative from 1 January to the end of the quarter, all in cents):
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `grossIncome` | number | Total income for the quarter (cents) |
-| `deductibleExpenses` | number | Total deductible expenses (cents) |
-| `netIncome` | number | Gross income - deductible expenses (cents) |
-| `taxableBase` | number | Base for 20% tax calculation (cents) |
-| `taxAmount` | number | Estimated tax: 20% of taxable base (cents) |
+| `casilla1Cents` | number | Ingresos computables |
+| `casilla2Cents` | number | Gastos deducibles (documented + 5% difícil justificación) |
+| `casilla3Cents` | number | Rendimiento neto (01 − 02) |
+| `casilla4Cents` | number | 20% of casilla 03, floored at zero |
+| `casilla5Cents` | number | Pagos fraccionados de trimestres anteriores — see below |
+| `casilla6Cents` | number | Retenciones soportadas |
+| `casilla7Cents` | number | A ingresar (04 − 05 − 06), floored at zero |
+| `gastosDocumentadosCents` | number | Documented share of casilla 02 |
+| `gastosDificilCents` | number | 5% difícil justificación, capped at `GASTOS_DIFICIL.MAX_CENTS` |
+| `casilla5IsEstimated` | boolean | `true` when some previous quarter had no filed amount recorded |
+
+`casilla5Cents` is money already paid, so it is seeded from the amounts of the modelos 130 actually filed (`FiscalDocuments.TaxAmountCents`, positive results only, as the AEAT form words it) and only falls back to recomputing the previous quarters when no amount was recorded. A recomputation that drifts from the filing would propagate for the rest of the year, so the UI labels casilla 05 as estimated whenever it happens.
 
 #### `GET /api/fiscal/projection`
 
@@ -1696,6 +1703,7 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
     "gastosDificilCents": 200000,
     "projectedNetIncomeCents": 6918900,
     "modelo130PaidCents": 1383780,
+    "modelo130PaidIsEstimated": false,
     "modelo130RemainingCents": 0,
     "modelo130TotalCents": 1383780,
     "retencionesCents": 0,
@@ -1718,7 +1726,8 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
 | `projectedExpensesCents` | number | Run-rate projection of the deductible expenses |
 | `gastosDificilCents` | number | 5% difícil justificación, capped at `GASTOS_DIFICIL.MAX_CENTS` |
 | `projectedNetIncomeCents` | number | Rendimiento neto for the whole year |
-| `modelo130PaidCents` | number | Sum of casilla 7 of the quarters whose deadline has passed |
+| `modelo130PaidCents` | number | What the closed quarters settled: the filed casilla 7 when recorded, the recomputation otherwise |
+| `modelo130PaidIsEstimated` | boolean | `true` when some closed quarter had no filed amount and was recomputed |
 | `modelo130RemainingCents` | number | `modelo130TotalCents - modelo130PaidCents - retencionesCents` (never negative) |
 | `modelo130TotalCents` | number | 20% of the projected net income |
 | `retencionesCents` | number | IRPF withheld by clients this year (casilla 06), already netted out of `modelo130PaidCents` |

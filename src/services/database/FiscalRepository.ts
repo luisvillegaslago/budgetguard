@@ -23,6 +23,7 @@ import {
   TRANSACTION_TYPE,
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
+import { getFiledModeloAmounts } from '@/services/database/FiscalDocumentRepository';
 import type {
   FiscalTransaction,
   IrpfProjection,
@@ -272,6 +273,20 @@ interface Modelo130Accumulator {
   gastosDocAcum: number;
   retencionesAcum: number;
   pagosAnteriores: number;
+  /** True once a previous quarter had to be guessed because no filed amount was recorded */
+  anyQuarterEstimated: boolean;
+}
+
+/** Filed casilla 07 per quarter, from the modelos already presented (see FiscalDocumentRepository) */
+type FiledModeloAmounts = Map<number, number>;
+
+/**
+ * What a quarter contributed to casilla 05: the amount actually filed when it is known,
+ * the recomputation otherwise. Only positive results settled anything — the form says
+ * "suma de los importes POSITIVOS de la casilla 07", so a negative quarter adds nothing.
+ */
+function settledAmountCents(quarter: number, computedCents: number, filedAmounts: FiledModeloAmounts): number {
+  return Math.max(0, filedAmounts.get(quarter) ?? computedCents);
 }
 
 interface QuarterTotals {
@@ -316,8 +331,17 @@ function quarterTotals(rows: FiscalViewRow[], quarter: number): QuarterTotals {
  * Cumulative Modelo 130 for every quarter up to `upToQuarter`, in a single pass over the rows.
  * Each quarter carries the previous payments (casilla 05), so the whole series is needed
  * even when only the last quarter is displayed.
+ *
+ * Casilla 05 is seeded from what was actually filed and only falls back to the recomputation
+ * for quarters with no recorded amount: the AEAT box means money already paid, and a
+ * recomputation that drifts from the filing propagates for the rest of the year.
  */
-function computeModelo130Series(rows: FiscalViewRow[], year: number, upToQuarter: number): Modelo130Summary[] {
+function computeModelo130Series(
+  rows: FiscalViewRow[],
+  year: number,
+  upToQuarter: number,
+  filedAmounts: FiledModeloAmounts = new Map(),
+): Modelo130Summary[] {
   const quarters = Array.from({ length: upToQuarter }, (_, index) => index + 1);
   const summaries: Modelo130Summary[] = [];
 
@@ -350,16 +374,18 @@ function computeModelo130Series(rows: FiscalViewRow[], year: number, upToQuarter
         casilla7Cents: aIngresar,
         gastosDocumentadosCents: gastosDocAcum,
         gastosDificilCents: gastosDificil,
+        casilla5IsEstimated: acc.anyQuarterEstimated,
       });
 
       return {
         ingresosAcum,
         gastosDocAcum,
         retencionesAcum,
-        pagosAnteriores: acc.pagosAnteriores + aIngresar,
+        pagosAnteriores: acc.pagosAnteriores + settledAmountCents(quarter, aIngresar, filedAmounts),
+        anyQuarterEstimated: acc.anyQuarterEstimated || !filedAmounts.has(quarter),
       };
     },
-    { ingresosAcum: 0, gastosDocAcum: 0, retencionesAcum: 0, pagosAnteriores: 0 },
+    { ingresosAcum: 0, gastosDocAcum: 0, retencionesAcum: 0, pagosAnteriores: 0, anyQuarterEstimated: false },
   );
 
   return summaries;
@@ -372,10 +398,13 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
   const userId = await getUserIdOrThrow();
 
   // Modelo 130 is cumulative — needs all quarters up to current
-  const rows = await loadFiscalRows(userId, year, { quarter, cumulative: true });
+  const [rows, filedAmounts] = await Promise.all([
+    loadFiscalRows(userId, year, { quarter, cumulative: true }),
+    getFiledModeloAmounts(userId, MODELO_TYPE.M130, year),
+  ]);
 
   // The series always covers quarters 1..quarter, which the route already validated as 1-4.
-  return computeModelo130Series(rows, year, quarter)[quarter - 1]!;
+  return computeModelo130Series(rows, year, quarter, filedAmounts)[quarter - 1]!;
 }
 
 const ALL_QUARTERS = 4;
@@ -411,7 +440,10 @@ export async function getIrpfProjection(
 ): Promise<IrpfProjection> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await loadFiscalRows(userId, year);
+  const [rows, filedAmounts] = await Promise.all([
+    loadFiscalRows(userId, year),
+    getFiledModeloAmounts(userId, MODELO_TYPE.M130, year),
+  ]);
 
   // Same criteria as Modelo 130: professional income only, expenses at their deductible share.
   const ytdIncomeCents = rows
@@ -437,13 +469,16 @@ export async function getIrpfProjection(
   const gastosDificilCents = calcGastosDificilCents(rendimientoPre);
   const projectedNetIncomeCents = rendimientoPre - gastosDificilCents;
 
-  const series = computeModelo130Series(rows, year, ALL_QUARTERS);
+  const series = computeModelo130Series(rows, year, ALL_QUARTERS, filedAmounts);
 
-  // Casilla 7 of the quarters already settled — real money out, withholdings deducted.
+  // What the closed quarters actually settled: the filed casilla 7 when it is known.
   const settled = settledM130Quarters(year, options.now);
-  const modelo130PaidCents = series
-    .filter((summary) => settled.includes(summary.fiscalQuarter))
-    .reduce((sum, summary) => sum + summary.casilla7Cents, 0);
+  const settledSummaries = series.filter((summary) => settled.includes(summary.fiscalQuarter));
+  const modelo130PaidCents = settledSummaries.reduce(
+    (sum, summary) => sum + settledAmountCents(summary.fiscalQuarter, summary.casilla7Cents, filedAmounts),
+    0,
+  );
+  const modelo130PaidIsEstimated = settledSummaries.some((summary) => !filedAmounts.has(summary.fiscalQuarter));
 
   // Casilla 06 is cumulative over the year, so the last quarter already holds the annual total.
   const retencionesCents = series.at(-1)?.casilla6Cents ?? 0;
@@ -465,6 +500,7 @@ export async function getIrpfProjection(
     gastosDificilCents,
     projectedNetIncomeCents,
     modelo130PaidCents,
+    modelo130PaidIsEstimated,
     modelo130RemainingCents,
     modelo130TotalCents,
     retencionesCents,

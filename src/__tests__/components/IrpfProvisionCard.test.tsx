@@ -49,6 +49,7 @@ const BASE_PROJECTION: IrpfProjection = {
   gastosDificilCents: 200_000,
   projectedNetIncomeCents: 7_200_000,
   modelo130PaidCents: 720_000,
+  modelo130PaidIsEstimated: false,
   modelo130RemainingCents: 720_000,
   modelo130TotalCents: 1_440_000,
   retencionesCents: 0,

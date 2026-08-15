@@ -192,7 +192,16 @@ function ProvisionBreakdown({ data }: { data: IrpfProjection }) {
         <div className="border-t border-border my-2" />
 
         <AmountRow label={t('fiscal.irpf-projection.modelo130-total')} cents={data.modelo130TotalCents} />
-        <AmountRow label={t('fiscal.irpf-projection.modelo130-paid')} cents={data.modelo130PaidCents} indent muted />
+        <AmountRow
+          label={t(
+            data.modelo130PaidIsEstimated
+              ? 'fiscal.irpf-projection.modelo130-paid-estimated'
+              : 'fiscal.irpf-projection.modelo130-paid',
+          )}
+          cents={data.modelo130PaidCents}
+          indent
+          muted
+        />
         {/* Withholdings already in the Treasury's hands — together with paid + remaining they add up to the total */}
         {data.retencionesCents > 0 && (
           <AmountRow label={t('fiscal.irpf-projection.retenciones')} cents={data.retencionesCents} indent muted />

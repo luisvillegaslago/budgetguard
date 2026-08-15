@@ -34,6 +34,7 @@ const mockModelo130: Modelo130Summary = {
   casilla7Cents: 333552,
   gastosDocumentadosCents: 191973,
   gastosDificilCents: 97881,
+  casilla5IsEstimated: false,
 };
 
 const mockExpenses: FiscalTransaction[] = [

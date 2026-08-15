@@ -566,6 +566,8 @@ export interface Modelo130Summary {
   casilla7Cents: number; // Amount to pay
   gastosDocumentadosCents: number; // Documented expenses subtotal
   gastosDificilCents: number; // 5% difficult-to-justify expenses (capped at 2000€/year)
+  /** True when a previous quarter had no filed amount and casilla 05 fell back to a recomputation */
+  casilla5IsEstimated: boolean;
 }
 
 /**
@@ -652,8 +654,10 @@ export interface IrpfProjection {
   projectedExpensesCents: number;
   gastosDificilCents: number; // 5% difícil justificación, capped
   projectedNetIncomeCents: number; // Rendimiento neto
-  /** Modelo 130 already settled (casilla 7 of the quarters whose deadline has passed) */
+  /** Modelo 130 already settled: the filed casilla 7 of the quarters whose deadline has passed */
   modelo130PaidCents: number;
+  /** True when some settled quarter had no filed amount and was recomputed instead */
+  modelo130PaidIsEstimated: boolean;
   modelo130RemainingCents: number;
   modelo130TotalCents: number; // 20% of the projected net income
   retencionesCents: number; // IRPF withheld by clients this year (casilla 06); already netted out of modelo130PaidCents

@@ -1,12 +1,13 @@
 /**
  * BudgetGuard Fiscal Document Repository
  * CRUD operations for fiscal documents and deadline settings.
- * All queries are user-scoped via getUserIdOrThrow().
+ * All queries are user-scoped: through getUserIdOrThrow(), except getFiledModeloAmounts(),
+ * which takes the id from a caller that already resolved it.
  */
 
 import { FISCAL_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import type { FiscalDeadlineSettings, FiscalDocument, FiscalStatus } from '@/types/finance';
+import type { FiscalDeadlineSettings, FiscalDocument, FiscalStatus, ModeloType } from '@/types/finance';
 import { query } from './connection';
 
 // ============================================================
@@ -500,6 +501,40 @@ export async function getFiledModelos(year: number): Promise<Set<string>> {
     filedSet.add(key);
   });
   return filedSet;
+}
+
+interface FiledAmountRow {
+  FiscalQuarter: number;
+  TaxAmountCents: number;
+}
+
+/**
+ * Amounts of the quarterly modelos already filed for a year, keyed by quarter.
+ *
+ * Casilla 05 of the Modelo 130 is "the sum of the POSITIVE casillas 07 of the previous
+ * quarters" — what actually reached the Treasury, not what a recomputation says it should
+ * have been. This is that source of truth.
+ *
+ * Takes the userId instead of resolving it: the caller is a fiscal model that already has it.
+ * MAX() collapses duplicated uploads of the same period; when a complementaria legitimately
+ * adds a second row it keeps the higher figure, which is the settled one.
+ */
+export async function getFiledModeloAmounts(
+  userId: number,
+  modeloType: ModeloType,
+  year: number,
+): Promise<Map<number, number>> {
+  const rows = await query<FiledAmountRow>(
+    `SELECT "FiscalQuarter", MAX("TaxAmountCents") AS "TaxAmountCents"
+     FROM "FiscalDocuments"
+     WHERE "UserID" = $1 AND "ModeloType" = $2 AND "FiscalYear" = $3
+       AND "DocumentType" = 'modelo' AND "Status" = $4
+       AND "FiscalQuarter" IS NOT NULL AND "TaxAmountCents" IS NOT NULL
+     GROUP BY "FiscalQuarter"`,
+    [userId, modeloType, year, FISCAL_STATUS.FILED],
+  );
+
+  return new Map(rows.map((row) => [row.FiscalQuarter, row.TaxAmountCents]));
 }
 
 // ============================================================

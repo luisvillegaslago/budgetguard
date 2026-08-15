@@ -89,8 +89,12 @@ function accrualRows(): AccrualRow[] {
 
 const executedSql: string[] = [];
 
+/** Modelos 130 already filed, as "FiscalDocuments" returns them (empty unless a test sets them) */
+let filedAmounts: Array<{ FiscalQuarter: number; TaxAmountCents: number }> = [];
+
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
   executedSql.push(sql);
+  if (sql.includes('FiscalDocuments')) return filedAmounts;
   if (!sql.includes('vw_FiscalAccrual')) return [];
 
   // Every fiscal query binds [year, userId, quarter?] in that order.
@@ -126,6 +130,7 @@ describe('Fiscal models read the accrual view', () => {
     executedSql.length = 0;
     includeStandaloneIncome = false;
     extraRows = [];
+    filedAmounts = [];
   });
 
   it.each([
@@ -136,9 +141,10 @@ describe('Fiscal models read the accrual view', () => {
   ])('%s reads vw_FiscalAccrual and never the cash-basis view', async (_name, run) => {
     await run();
 
-    expect(executedSql).not.toHaveLength(0);
+    // Every model must source its rows from the accrual view. Modelo 130 also queries
+    // "FiscalDocuments" for the amounts already filed, so not every statement is the view.
+    expect(executedSql.some((sql) => sql.includes('vw_FiscalAccrual'))).toBe(true);
     executedSql.forEach((sql) => {
-      expect(sql).toContain('vw_FiscalAccrual');
       expect(sql).not.toContain('vw_FiscalQuarterly');
     });
   });
@@ -158,6 +164,7 @@ describe('Modelo 130', () => {
     executedSql.length = 0;
     includeStandaloneIncome = false;
     extraRows = [];
+    filedAmounts = [];
   });
 
   it('matches the Modelo 130 filed with the AEAT for T1 2026', async () => {
@@ -172,6 +179,44 @@ describe('Modelo 130', () => {
     expect(summary.casilla4Cents).toBe(195671);
     expect(summary.casilla5Cents).toBe(0);
     expect(summary.casilla7Cents).toBe(195671);
+  });
+
+  // ── Casilla 05: money already paid, not a recomputation ──
+
+  it('takes casilla 05 from the modelo actually filed, not from its own arithmetic', async () => {
+    // The AEAT received 2.000,00 € for T1, whatever this app recomputes for that quarter
+    filedAmounts = [{ FiscalQuarter: 1, TaxAmountCents: 200000 }];
+
+    const summary = await getModelo130Summary(2026, 2);
+
+    expect(summary.casilla4Cents).toBe(653270);
+    expect(summary.casilla5Cents).toBe(200000);
+    expect(summary.casilla7Cents).toBe(453270);
+    expect(summary.casilla5IsEstimated).toBe(false);
+  });
+
+  it('falls back to the recomputation and flags it when a quarter was never filed', async () => {
+    const summary = await getModelo130Summary(2026, 2);
+
+    expect(summary.casilla5Cents).toBe(195671);
+    expect(summary.casilla5IsEstimated).toBe(true);
+  });
+
+  it('adds nothing for a quarter filed as negative', async () => {
+    // A negative declaration settles no money: "suma de los importes positivos de la casilla 07"
+    filedAmounts = [{ FiscalQuarter: 1, TaxAmountCents: -23799 }];
+
+    const summary = await getModelo130Summary(2026, 2);
+
+    expect(summary.casilla5Cents).toBe(0);
+    expect(summary.casilla7Cents).toBe(653270);
+  });
+
+  it('never estimates casilla 05 in the first quarter — there is nothing to estimate', async () => {
+    const summary = await getModelo130Summary(2026, 1);
+
+    expect(summary.casilla5Cents).toBe(0);
+    expect(summary.casilla5IsEstimated).toBe(false);
   });
 
   it('accumulates T2 and deducts the T1 payment in casilla 05', async () => {
@@ -241,6 +286,7 @@ describe('Modelo 303 and 100', () => {
     executedSql.length = 0;
     includeStandaloneIncome = false;
     extraRows = [];
+    filedAmounts = [];
   });
 
   it('reports VAT-free invoice income as non-subject operations in casilla 120', async () => {

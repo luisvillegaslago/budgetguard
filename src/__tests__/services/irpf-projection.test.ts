@@ -88,8 +88,12 @@ let rows: AccrualRow[] = [];
 
 const executedSql: string[] = [];
 
+/** Amounts of the modelos 130 already filed, keyed by quarter (empty unless a test sets them). */
+let filedAmounts: Array<{ FiscalQuarter: number; TaxAmountCents: number }> = [];
+
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
   executedSql.push(sql);
+  if (sql.includes('FiscalDocuments')) return filedAmounts;
   if (!sql.includes('vw_FiscalAccrual')) return [];
 
   const [year] = params as [number, number];
@@ -113,14 +117,15 @@ describe('getIrpfProjection', () => {
     mockQuery.mockClear();
     executedSql.length = 0;
     rows = [...ACCEPTANCE_ROWS];
+    filedAmounts = [];
   });
 
   it('reads the accrual view and never the cash-basis one', async () => {
     await getIrpfProjection(YEAR);
 
-    expect(executedSql).not.toHaveLength(0);
+    // The fiscal rows come from the accrual view; the other query reads the filed modelos.
+    expect(executedSql.some((sql) => sql.includes('vw_FiscalAccrual'))).toBe(true);
     executedSql.forEach((sql) => {
-      expect(sql).toContain('vw_FiscalAccrual');
       expect(sql).not.toContain('vw_FiscalQuarterly');
     });
   });
@@ -166,6 +171,47 @@ describe('getIrpfProjection', () => {
     // The four quarterly casillas 7 add up to the whole 20% of the year
     expect(projection.modelo130PaidCents).toBe(projection.modelo130TotalCents);
     expect(projection.modelo130RemainingCents).toBe(0);
+    // Nothing was filed in the fixture, so the figure is a recomputation and says so
+    expect(projection.modelo130PaidIsEstimated).toBe(true);
+  });
+
+  // ── What was actually filed beats the recomputation ──
+
+  describe('filed amounts', () => {
+    it('reports what the filed quarters actually settled, not the recomputation', async () => {
+      // Real 2025 figures: the third quarter was a negative declaration and settled nothing
+      filedAmounts = [
+        { FiscalQuarter: 1, TaxAmountCents: 357_938 },
+        { FiscalQuarter: 2, TaxAmountCents: 208_121 },
+        { FiscalQuarter: 3, TaxAmountCents: -23_799 },
+        { FiscalQuarter: 4, TaxAmountCents: 122_415 },
+      ];
+
+      const projection = await getIrpfProjection(YEAR);
+
+      // 3.579,38 + 2.081,21 + 0 (negative quarter) + 1.224,15
+      expect(projection.modelo130PaidCents).toBe(688_474);
+      expect(projection.modelo130PaidIsEstimated).toBe(false);
+    });
+
+    it('falls back to the recomputation only for the quarters with no filed amount', async () => {
+      filedAmounts = [{ FiscalQuarter: 1, TaxAmountCents: 357_938 }];
+
+      const projection = await getIrpfProjection(YEAR);
+
+      expect(projection.modelo130PaidIsEstimated).toBe(true);
+      // The filed first quarter replaces its own recomputed casilla 7
+      expect(projection.modelo130PaidCents).toBeGreaterThan(0);
+    });
+
+    it('never lets a negative filed quarter reduce what was paid', async () => {
+      filedAmounts = [{ FiscalQuarter: 1, TaxAmountCents: -50_000 }];
+
+      const projection = await getIrpfProjection(YEAR);
+
+      // "Suma de los importes POSITIVOS de la casilla 07": a negative quarter adds zero
+      expect(projection.modelo130PaidCents).toBeGreaterThanOrEqual(0);
+    });
   });
 
   it('deducts the IRPF clients withheld from what Modelo 130 actually paid', async () => {
