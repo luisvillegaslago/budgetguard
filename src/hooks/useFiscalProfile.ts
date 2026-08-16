@@ -61,15 +61,21 @@ export function useUpsertFiscalProfile() {
       fiscalYear,
       pensionIndividualCents,
       pensionEmploymentCents,
+      vatPoolOpeningCents,
     }: UpsertFiscalProfileVariables) => {
+      // Only what the caller actually edits travels: an omitted field keeps its stored value,
+      // so the pension card and the IVA card never overwrite each other's figures.
+      const toEuros = (cents: number | undefined) => (cents === undefined ? undefined : centsToEuros(cents));
+
       const response = await fetchApi(API_ENDPOINT.FISCAL_PROFILE, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        // The API takes the contributions in euros; cents stay the internal representation.
+        // The API takes the amounts in euros; cents stay the internal representation.
         body: JSON.stringify({
           fiscalYear,
-          pensionIndividual: centsToEuros(pensionIndividualCents),
-          pensionEmployment: centsToEuros(pensionEmploymentCents),
+          pensionIndividual: toEuros(pensionIndividualCents),
+          pensionEmployment: toEuros(pensionEmploymentCents),
+          vatPoolOpening: toEuros(vatPoolOpeningCents),
         }),
       });
 

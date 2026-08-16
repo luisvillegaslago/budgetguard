@@ -25,6 +25,7 @@ interface StoredRow {
   FiscalYear: number;
   PensionIndividualCents: number;
   PensionEmploymentCents: number;
+  VatPoolOpeningCents: number;
 }
 
 /** One row per (UserID, FiscalYear), exactly like "UQ_FiscalProfiles_UserYear". */
@@ -41,20 +42,33 @@ function toReturnedRow(row: StoredRow) {
     FiscalYear: row.FiscalYear,
     PensionIndividualCents: row.PensionIndividualCents,
     PensionEmploymentCents: row.PensionEmploymentCents,
+    VatPoolOpeningCents: row.VatPoolOpeningCents,
   };
 }
+
+/** What COALESCE($n, "column") does: a null parameter leaves the stored value alone. */
+const coalesce = (incoming: number | null, storedValue: number | undefined): number => incoming ?? storedValue ?? 0;
 
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
   executed.push({ sql, params });
 
   if (sql.includes('INSERT INTO "FiscalProfiles"')) {
-    const [userId, year, individualCents, employmentCents] = params as [number, number, number, number];
-    // ON CONFLICT ("UserID", "FiscalYear") DO UPDATE: same key, the amounts are overwritten
+    const [userId, year, individualCents, employmentCents, vatPoolCents] = params as [
+      number,
+      number,
+      number | null,
+      number | null,
+      number | null,
+    ];
+    // ON CONFLICT ("UserID", "FiscalYear") DO UPDATE with COALESCE: the fields the caller sent
+    // are overwritten, the ones it omitted keep whatever the row already held.
+    const previous = stored.get(keyOf(userId, year));
     const row: StoredRow = {
       UserID: userId,
       FiscalYear: year,
-      PensionIndividualCents: individualCents,
-      PensionEmploymentCents: employmentCents,
+      PensionIndividualCents: coalesce(individualCents, previous?.PensionIndividualCents),
+      PensionEmploymentCents: coalesce(employmentCents, previous?.PensionEmploymentCents),
+      VatPoolOpeningCents: coalesce(vatPoolCents, previous?.VatPoolOpeningCents),
     };
     stored.set(keyOf(userId, year), row);
     return [toReturnedRow(row)];
@@ -104,7 +118,12 @@ describe('FiscalProfileRepository', () => {
     it('returns a zeroed profile instead of null', async () => {
       const profile = await getFiscalProfile(YEAR);
 
-      expect(profile).toEqual({ fiscalYear: YEAR, pensionIndividualCents: 0, pensionEmploymentCents: 0 });
+      expect(profile).toEqual({
+        fiscalYear: YEAR,
+        pensionIndividualCents: 0,
+        pensionEmploymentCents: 0,
+        vatPoolOpeningCents: 0,
+      });
     });
 
     it('echoes the requested year back, so the caller can key on it', async () => {
@@ -124,7 +143,7 @@ describe('FiscalProfileRepository', () => {
     it('creates the row the first time the year is saved', async () => {
       const profile = await upsertFiscalProfile(YEAR, MAXED_OUT);
 
-      expect(profile).toEqual({ fiscalYear: YEAR, ...MAXED_OUT });
+      expect(profile).toEqual({ fiscalYear: YEAR, ...MAXED_OUT, vatPoolOpeningCents: 0 });
       expect(stored.size).toBe(1);
     });
 
@@ -142,6 +161,7 @@ describe('FiscalProfileRepository', () => {
         fiscalYear: YEAR,
         pensionIndividualCents: 150_000,
         pensionEmploymentCents: 100_000,
+        vatPoolOpeningCents: 0,
       });
     });
 
@@ -150,7 +170,9 @@ describe('FiscalProfileRepository', () => {
 
       const insert = executed.find(({ sql }) => sql.includes('INSERT INTO "FiscalProfiles"'));
       expect(insert?.sql).toContain('ON CONFLICT ("UserID", "FiscalYear")');
-      expect(insert?.params).toEqual([2, YEAR, 150_000, 425_000]);
+      expect(insert?.params).toEqual([2, YEAR, 150_000, 425_000, null]);
+      // COALESCE, not EXCLUDED: an omitted field must survive the write
+      expect(insert?.sql).toContain('COALESCE');
     });
 
     it('keeps each year on its own row', async () => {
@@ -169,6 +191,7 @@ describe('FiscalProfileRepository', () => {
         fiscalYear: YEAR,
         pensionIndividualCents: 0,
         pensionEmploymentCents: 0,
+        vatPoolOpeningCents: 0,
       });
     });
 
@@ -180,6 +203,20 @@ describe('FiscalProfileRepository', () => {
         fiscalYear: 2026,
         pensionIndividualCents: 0,
         pensionEmploymentCents: 0,
+        vatPoolOpeningCents: 0,
+      });
+    });
+
+    it('keeps the fields the caller did not send', async () => {
+      await upsertFiscalProfile(YEAR, MAXED_OUT);
+      await upsertFiscalProfile(YEAR, { vatPoolOpeningCents: 114_452 });
+
+      // Saving the IVA pool must not wipe the pension contributions of the same row
+      expect(await getFiscalProfile(YEAR)).toEqual({
+        fiscalYear: YEAR,
+        pensionIndividualCents: 150_000,
+        pensionEmploymentCents: 425_000,
+        vatPoolOpeningCents: 114_452,
       });
     });
 
@@ -193,6 +230,7 @@ describe('FiscalProfileRepository', () => {
         fiscalYear: YEAR,
         pensionIndividualCents: 0,
         pensionEmploymentCents: 425_000,
+        vatPoolOpeningCents: 0,
       });
     });
 
@@ -215,6 +253,7 @@ describe('FiscalProfileRepository', () => {
         fiscalYear: YEAR,
         pensionIndividualCents: 0,
         pensionEmploymentCents: 0,
+        vatPoolOpeningCents: 0,
       });
     });
 
@@ -247,7 +286,7 @@ describe('FiscalProfileRepository', () => {
 
       const profile = await getFiscalProfileForUser(2, YEAR);
 
-      expect(profile).toEqual({ fiscalYear: YEAR, ...MAXED_OUT });
+      expect(profile).toEqual({ fiscalYear: YEAR, ...MAXED_OUT, vatPoolOpeningCents: 0 });
       expect(getUserIdOrThrow).not.toHaveBeenCalled();
     });
 

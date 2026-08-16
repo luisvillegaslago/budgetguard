@@ -37,6 +37,7 @@ const SAVED_PROFILE: FiscalProfile = {
   fiscalYear: 2025,
   pensionIndividualCents: 150_000,
   pensionEmploymentCents: 425_000,
+  vatPoolOpeningCents: 114_452,
 };
 
 function createMockRequest(url: string, body?: Record<string, unknown>) {
@@ -134,8 +135,9 @@ describe('PUT /api/fiscal/profile', () => {
     expect(mockUpsertFiscalProfile).toHaveBeenCalledWith(2025, {
       pensionIndividualCents: 150_000,
       pensionEmploymentCents: 425_000,
+      vatPoolOpeningCents: undefined,
     });
-    expect(body.data).toEqual(SAVED_PROFILE);
+    expect(body.data).toEqual({ ...SAVED_PROFILE, vatPoolOpeningCents: undefined });
   });
 
   it('should keep the decimals of a contribution', async () => {
@@ -149,6 +151,7 @@ describe('PUT /api/fiscal/profile', () => {
     expect(mockUpsertFiscalProfile).toHaveBeenCalledWith(2026, {
       pensionIndividualCents: 150_055,
       pensionEmploymentCents: 0,
+      vatPoolOpeningCents: undefined,
     });
   });
 
@@ -164,6 +167,7 @@ describe('PUT /api/fiscal/profile', () => {
     expect(mockUpsertFiscalProfile).toHaveBeenCalledWith(2026, {
       pensionIndividualCents: 0,
       pensionEmploymentCents: 0,
+      vatPoolOpeningCents: undefined,
     });
   });
 
@@ -180,6 +184,7 @@ describe('PUT /api/fiscal/profile', () => {
     expect(mockUpsertFiscalProfile).toHaveBeenCalledWith(2026, {
       pensionIndividualCents: 575_000,
       pensionEmploymentCents: 0,
+      vatPoolOpeningCents: undefined,
     });
   });
 
@@ -250,15 +255,22 @@ describe('PUT /api/fiscal/profile', () => {
     expect(mockUpsertFiscalProfile).not.toHaveBeenCalled();
   });
 
-  it('should return 400 when a bucket is missing', async () => {
+  it('should accept a partial write and leave the omitted figures alone', async () => {
+    // Two cards edit this row — the pension contributions and the IVA pool — so a write may
+    // legitimately carry one field. `undefined` reaches the repository as "keep what is stored",
+    // which is the difference between correcting one figure and wiping the other.
     const request = createMockRequest('http://localhost:3000/api/fiscal/profile', {
       fiscalYear: 2026,
-      pensionIndividual: 1500,
+      vatPoolOpening: 1144.52,
     });
     const response = await PUT(request as never);
 
-    expect(response.status).toBe(400);
-    expect(mockUpsertFiscalProfile).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mockUpsertFiscalProfile).toHaveBeenCalledWith(2026, {
+      pensionIndividualCents: undefined,
+      pensionEmploymentCents: undefined,
+      vatPoolOpeningCents: 114_452,
+    });
   });
 
   it('should return 400 when the year is missing', async () => {

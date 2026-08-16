@@ -818,7 +818,11 @@
       "casilla120": "Op. no sujetas por reglas de localización",
       "result": "Resultado",
       "to-pay": "A ingresar",
-      "to-compensate": "A compensar"
+      "to-compensate": "A compensar",
+      "casilla110": "IVA a compensar de periodos anteriores",
+      "casilla87": "Pendiente para periodos posteriores",
+      "pool-stranded": "Este saldo solo puede crecer: no repercutes IVA contra el que compensarlo. Se pide la devolución en el 4T (casilla 73).",
+      "pool-claim-now": "Es el trimestre para pedir la devolución: marca la casilla 73 y reclama los {total} acumulados."
     },
     "modelo130": {
       "title": "Modelo 130 — IRPF",
@@ -1106,6 +1110,10 @@
     "no-activity": "Sin operaciones registradas en este trimestre",
     "result": {
       "neutral": "Sin resultado"
+    },
+    "uncounted-income": {
+      "summary": "{count} ingresos de este trimestre no computan en los modelos · {total}",
+      "hint": "Solo los ingresos de la categoría Facturas entran en el 303, el 130 y el 100. Si alguno de estos debería declararse, cámbialo de categoría."
     }
   },
   "auth": {

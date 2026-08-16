@@ -818,7 +818,11 @@
       "casilla120": "Operations not subject by localization rules",
       "result": "Result",
       "to-pay": "To pay",
-      "to-compensate": "To offset"
+      "to-compensate": "To offset",
+      "casilla110": "IVA a compensar from earlier periods",
+      "casilla87": "Left for later periods",
+      "pool-stranded": "This balance can only grow: there is no output VAT to compensate it against. The refund is requested in Q4 (casilla 73).",
+      "pool-claim-now": "This is the quarter to ask for the refund: tick casilla 73 and claim the {total} accumulated."
     },
     "modelo130": {
       "title": "Modelo 130 — Income Tax",
@@ -1106,6 +1110,10 @@
     "no-activity": "No operations recorded this quarter",
     "result": {
       "neutral": "No result"
+    },
+    "uncounted-income": {
+      "summary": "{count} income entries this quarter are not counted by the models · {total}",
+      "hint": "Only income in the Facturas category feeds the 303, 130 and 100. If any of these should be declared, move it to that category."
     }
   },
   "auth": {

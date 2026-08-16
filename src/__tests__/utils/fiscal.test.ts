@@ -7,7 +7,7 @@
 import { GASTOS_DIFICIL, VAT_RATE } from '@/constants/finance';
 import { FiscalReportFiltersSchema } from '@/schemas/fiscal';
 import type { FiscalComputedFields } from '@/types/finance';
-import { calcGastosDificilCents, computeFiscalFields } from '@/utils/fiscal';
+import { calcGastosDificilCents, computeFiscalFields, rollVatPoolCents } from '@/utils/fiscal';
 
 // ---------------------------------------------------------------------------
 // computeFiscalFields
@@ -311,5 +311,45 @@ describe('FiscalReportFiltersSchema', () => {
       const result = FiscalReportFiltersSchema.safeParse({ year: 2025.5, quarter: 1 });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rollVatPoolCents — casillas 110 / 78 / 87 of the Modelo 303
+// ---------------------------------------------------------------------------
+
+describe('rollVatPoolCents', () => {
+  it('keeps the opening balance when no quarter has been filed yet', () => {
+    expect(rollVatPoolCents(114_452, [])).toBe(114_452);
+  });
+
+  it('adds a negative quarter to the pool', () => {
+    // −168,67 € of input VAT with nothing to set it against: the pool grows by that much
+    expect(rollVatPoolCents(114_452, [-16_867])).toBe(131_319);
+  });
+
+  it('accumulates a whole year of negative quarters', () => {
+    // The user's real 2025 results, quarter by quarter
+    expect(rollVatPoolCents(0, [-4_467, -3_663, -7_526, -16_867])).toBe(32_523);
+  });
+
+  it('settles a positive quarter against the pool instead of paying it', () => {
+    // Casilla 78: 300,00 € to pay, absorbed by a 500,00 € pool
+    expect(rollVatPoolCents(50_000, [30_000])).toBe(20_000);
+  });
+
+  it('never goes negative: what the pool cannot absorb is simply paid', () => {
+    expect(rollVatPoolCents(10_000, [30_000])).toBe(0);
+  });
+
+  it('starts from zero when the opening balance is negative or missing', () => {
+    expect(rollVatPoolCents(-5_000, [-1_000])).toBe(1_000);
+    expect(rollVatPoolCents(0, [])).toBe(0);
+  });
+
+  it('applies the quarters in order, which matters when one of them is positive', () => {
+    // Pay first and the pool absorbs it; generate first and there is more to absorb with
+    expect(rollVatPoolCents(0, [20_000, -50_000])).toBe(50_000);
+    expect(rollVatPoolCents(0, [-50_000, 20_000])).toBe(30_000);
   });
 });

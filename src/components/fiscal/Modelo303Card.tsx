@@ -8,11 +8,15 @@
  */
 
 import { Tooltip } from '@/components/ui/Tooltip';
+import { FISCAL_QUARTER } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo303Summary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { classifyFiscalResult, FISCAL_RESULT_KIND } from './fiscalResult';
+
+/** The refund can only be asked for in the last quarter of the year (casilla 73). */
+const LAST_QUARTER = FISCAL_QUARTER.Q4;
 
 interface Modelo303CardProps {
   data: Modelo303Summary;
@@ -116,6 +120,25 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
           <p className={cn('text-xs mt-0.5', result.labelClassName)}>{resultLabel}</p>
         </div>
       </div>
+
+      {/* The accumulated "a compensar" balance, which the quarterly result alone never shows */}
+      {data.vatPoolClosingCents > 0 && (
+        <div className="mt-4 pt-4 border-t border-border space-y-0.5">
+          <CasillaRow number="110" label={t('fiscal.modelo303.casilla110')} cents={data.vatPoolOpeningCents} />
+          <CasillaRow number="87" label={t('fiscal.modelo303.casilla87')} cents={data.vatPoolClosingCents} isTotal />
+
+          {data.vatPoolIsStranded && (
+            <p className="text-xs text-guard-muted pt-2">
+              {t(
+                data.fiscalQuarter === LAST_QUARTER
+                  ? 'fiscal.modelo303.pool-claim-now'
+                  : 'fiscal.modelo303.pool-stranded',
+                { total: formatCurrency(data.vatPoolClosingCents) },
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

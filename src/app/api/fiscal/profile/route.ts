@@ -31,11 +31,14 @@ export const PUT = withApiHandler(async (request) => {
   const validation = validateRequest(FiscalProfileSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { fiscalYear, pensionIndividual, pensionEmployment } = validation.data;
+  const { fiscalYear, pensionIndividual, pensionEmployment, vatPoolOpening } = validation.data;
 
+  // An omitted amount is not zero: the repository keeps whatever the row already holds, so the
+  // two cards that edit this profile never overwrite each other.
   const profile = await upsertFiscalProfile(fiscalYear, {
-    pensionIndividualCents: eurosToCents(pensionIndividual),
-    pensionEmploymentCents: eurosToCents(pensionEmployment),
+    pensionIndividualCents: pensionIndividual === undefined ? undefined : eurosToCents(pensionIndividual),
+    pensionEmploymentCents: pensionEmployment === undefined ? undefined : eurosToCents(pensionEmployment),
+    vatPoolOpeningCents: vatPoolOpening === undefined ? undefined : eurosToCents(vatPoolOpening),
   });
 
   return { data: profile };

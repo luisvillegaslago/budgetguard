@@ -79,14 +79,29 @@ export const FiscalProfileAmountsSchema = z.object({
   pensionEmployment: pensionContributionEuros,
 });
 
+/** Schema for the IVA compensation pool carried into the year, typed in the Modelo 303 card. */
+export const VatPoolOpeningSchema = z.object({
+  vatPoolOpening: z
+    .number({
+      required_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
+      invalid_type_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
+    })
+    .nonnegative(VALIDATION_KEY.AMOUNT_NON_NEGATIVE)
+    .max(PENSION_PLAN.MAX_CONTRIBUTION_EUROS, VALIDATION_KEY.AMOUNT_TOO_LARGE),
+});
+
+export type VatPoolOpeningInput = z.infer<typeof VatPoolOpeningSchema>;
+
 export type FiscalProfileAmountsInput = z.infer<typeof FiscalProfileAmountsSchema>;
 
 /**
  * Schema for the annual fiscal profile write (PUT body).
  * The year identifies the row; the amounts are converted to cents at the route edge.
  */
-export const FiscalProfileSchema = FiscalProfileAmountsSchema.extend({
-  fiscalYear: z.coerce.number().int().min(2020).max(2100),
-});
+export const FiscalProfileSchema = FiscalProfileAmountsSchema.partial()
+  .merge(VatPoolOpeningSchema.partial())
+  .extend({
+    fiscalYear: z.coerce.number().int().min(2020).max(2100),
+  });
 
 export type FiscalProfileSchemaInput = z.infer<typeof FiscalProfileSchema>;

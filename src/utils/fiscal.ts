@@ -34,6 +34,24 @@ export function computeFiscalFields(
 }
 
 /**
+ * Roll the "IVA a compensar" pool forward through a year's quarterly results.
+ *
+ * Modelo 303 casillas 110/78/87: a negative quarter adds its excess input VAT to the pool, and
+ * a positive one is settled against the pool first (casilla 78) before anything is paid. The
+ * pool never goes negative — what a positive quarter cannot absorb is simply paid.
+ *
+ * @param openingCents - Pool carried into the year (casilla 110 of its first 303)
+ * @param quarterResultsCents - Each quarter's own result: negative = a compensar, positive = a ingresar
+ * @returns The pool left after the last quarter given, in cents
+ */
+export function rollVatPoolCents(openingCents: number, quarterResultsCents: number[]): number {
+  return quarterResultsCents.reduce(
+    (pool, result) => (result < 0 ? pool - result : Math.max(0, pool - result)),
+    Math.max(0, openingCents),
+  );
+}
+
+/**
  * Calculate 5% gastos de difícil justificación (estimación directa simplificada)
  * Capped at GASTOS_DIFICIL.MAX_CENTS (2,000€) annually.
  *

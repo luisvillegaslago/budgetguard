@@ -16,6 +16,7 @@ import { FiscalExpenseTable } from '@/components/fiscal/FiscalExpenseTable';
 import { FiscalFilingStatus } from '@/components/fiscal/FiscalFilingStatus';
 import { FiscalInvoiceTable } from '@/components/fiscal/FiscalInvoiceTable';
 import { FiscalQuarterSelector } from '@/components/fiscal/FiscalQuarterSelector';
+import { FiscalUncountedIncome } from '@/components/fiscal/FiscalUncountedIncome';
 import { IrpfProvisionCard } from '@/components/fiscal/IrpfProvisionCard';
 import { Modelo100Card } from '@/components/fiscal/Modelo100Card';
 import { Modelo130Card } from '@/components/fiscal/Modelo130Card';
@@ -174,6 +175,9 @@ export default function FiscalPage() {
 
           {/* IRPF provision: what the flat 20% of Modelo 130 leaves for the annual Renta.
               Keyed by year so switching year drops the card's manual billing override. */}
+          {/* Income the models leave out, so a miscategorised invoice cannot vanish unnoticed */}
+          <FiscalUncountedIncome income={report.uncountedIncome} />
+
           <IrpfProvisionCard key={year} year={year} />
 
           <FiscalInvoiceTable invoices={report.invoices} />

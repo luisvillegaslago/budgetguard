@@ -33,7 +33,7 @@ import type {
   Modelo303Summary,
   Modelo390Summary,
 } from '@/types/finance';
-import { calcGastosDificilCents, computeFiscalFields } from '@/utils/fiscal';
+import { calcGastosDificilCents, computeFiscalFields, rollVatPoolCents } from '@/utils/fiscal';
 import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { toDateString } from '@/utils/helpers';
 import {
@@ -224,54 +224,102 @@ export async function getFiscalInvoices(year: number, quarter: number): Promise<
 }
 
 /**
+ * Income of the quarter that no model counts (user-scoped).
+ *
+ * Only "Facturas" income is professional activity, so everything else — a benefit payment, a
+ * private sale — stays out of the 303/130/390/100 by design. Showing it is the point: an
+ * invoice filed under the wrong category would otherwise disappear from every model in silence,
+ * which is exactly how the 2023 income went missing for a year.
+ */
+export async function getUncountedIncome(year: number, quarter: number): Promise<FiscalTransaction[]> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await loadFiscalRows(userId, year, { quarter, cumulative: false });
+
+  return rows
+    .filter((row) => row.Type === TRANSACTION_TYPE.INCOME && !isProfessionalIncome(row))
+    .map(rowToFiscalTransaction);
+}
+
+interface Modelo303Totals {
+  casilla07: number;
+  casilla09: number;
+  casilla120: number;
+  casilla28: number;
+  casilla29: number;
+}
+
+/** The 303 boxes of a single quarter, from that quarter's accrual rows. */
+function modelo303Totals(rows: FiscalViewRow[]): Modelo303Totals {
+  return rows.reduce<Modelo303Totals>(
+    (totals, row) => {
+      const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
+        row.FullAmountCents,
+        row.VatPercent,
+        row.DeductionPercent,
+      );
+
+      const professional = isProfessionalIncome(row);
+      const withVat = row.VatPercent > 0;
+      const deductibleExpense = row.Type === TRANSACTION_TYPE.EXPENSE && withVat;
+
+      return {
+        casilla07: totals.casilla07 + (professional && withVat ? baseCents : 0),
+        casilla09: totals.casilla09 + (professional && withVat ? ivaCents : 0),
+        casilla120: totals.casilla120 + (professional && !withVat ? baseCents : 0),
+        casilla28: totals.casilla28 + (deductibleExpense ? baseDeducibleCents : 0),
+        casilla29: totals.casilla29 + (deductibleExpense ? ivaDeducibleCents : 0),
+      };
+    },
+    { casilla07: 0, casilla09: 0, casilla120: 0, casilla28: 0, casilla29: 0 },
+  );
+}
+
+/** A quarter's own result: output VAT minus deductible VAT. Negative means "a compensar". */
+const modelo303Result = (totals: Modelo303Totals): number => totals.casilla09 - totals.casilla29;
+
+/**
  * Compute Modelo 303 summary for a single quarter (user-scoped)
  */
 export async function getModelo303Summary(year: number, quarter: number): Promise<Modelo303Summary> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await loadFiscalRows(userId, year, { quarter, cumulative: false });
+  // Cumulative rows: the earlier quarters are needed to roll the compensation pool forward
+  const [rows, profile] = await Promise.all([
+    loadFiscalRows(userId, year, { quarter, cumulative: true }),
+    getFiscalProfileForUser(userId, year),
+  ]);
 
-  let casilla07 = 0;
-  let casilla09 = 0;
-  let casilla120 = 0;
-  let casilla28 = 0;
-  let casilla29 = 0;
-
-  rows.forEach((row) => {
-    const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
-      row.FullAmountCents,
-      row.VatPercent,
-      row.DeductionPercent,
-    );
-
-    if (isProfessionalIncome(row)) {
-      if (row.VatPercent > 0) {
-        casilla07 += baseCents;
-        casilla09 += ivaCents;
-      } else {
-        casilla120 += baseCents;
-      }
-    } else if (row.Type === TRANSACTION_TYPE.EXPENSE && row.VatPercent > 0) {
-      casilla28 += baseDeducibleCents;
-      casilla29 += ivaDeducibleCents;
-    }
-  });
-
-  const casilla27 = casilla09;
-  const casilla45 = casilla29;
+  const totals = modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter));
+  const casilla27 = totals.casilla09;
+  const casilla45 = totals.casilla29;
   const resultCents = casilla27 - casilla45;
+
+  // Casilla 110: the pool as it stands when this quarter is filed
+  const earlierResults = Array.from({ length: quarter - 1 }, (_, index) =>
+    modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === index + 1))),
+  );
+  const vatPoolOpeningCents = rollVatPoolCents(profile.vatPoolOpeningCents, earlierResults);
+  const vatPoolClosingCents = rollVatPoolCents(vatPoolOpeningCents, [resultCents]);
+
+  // Output VAT is what a pool gets compensated against. With none in the whole year — every
+  // client outside Spain — the balance can only grow, and the refund is the only way out.
+  const outputVatThisYear = modelo303Totals(rows).casilla09;
 
   return {
     fiscalYear: year,
     fiscalQuarter: quarter,
-    casilla07Cents: casilla07,
-    casilla09Cents: casilla09,
+    casilla07Cents: totals.casilla07,
+    casilla09Cents: totals.casilla09,
     casilla27Cents: casilla27,
-    casilla28Cents: casilla28,
-    casilla29Cents: casilla29,
+    casilla28Cents: totals.casilla28,
+    casilla29Cents: totals.casilla29,
     casilla45Cents: casilla45,
-    casilla120Cents: casilla120,
+    casilla120Cents: totals.casilla120,
     resultCents,
+    vatPoolOpeningCents,
+    vatPoolClosingCents,
+    vatPoolIsStranded: outputVatThisYear === 0 && vatPoolClosingCents > 0,
   };
 }
 

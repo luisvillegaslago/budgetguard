@@ -549,6 +549,15 @@ export interface Modelo303Summary {
   casilla45Cents: number; // Total IVA deducible
   casilla120Cents: number; // Operaciones no sujetas por reglas de localización (VatPercent = 0)
   resultCents: number;
+  /** Casilla 110: IVA a compensar carried into this quarter from earlier periods */
+  vatPoolOpeningCents: number;
+  /** Casilla 87 + what this quarter generates: the balance left after filing it */
+  vatPoolClosingCents: number;
+  /**
+   * True when the pool can only ever grow: no output VAT this year, so nothing to compensate
+   * it against. The only way out is asking for the refund in the fourth quarter.
+   */
+  vatPoolIsStranded: boolean;
 }
 
 /**
@@ -620,6 +629,8 @@ export interface FiscalReport {
   modelo130: Modelo130Summary;
   expenses: FiscalTransaction[];
   invoices: FiscalTransaction[];
+  /** Income of the quarter that falls outside the professional category, so no model counts it */
+  uncountedIncome: FiscalTransaction[];
 }
 
 /**
@@ -687,10 +698,16 @@ export interface FiscalProfile {
   pensionIndividualCents: number;
   /** Plan de empleo simplificado de trabajadores por cuenta propia — increment of art. 52.1.b) 2.º */
   pensionEmploymentCents: number;
+  /** IVA a compensar carried into 1 January of this year (casilla 110 of its first 303) */
+  vatPoolOpeningCents: number;
 }
 
-/** Writable half of the annual fiscal profile: the year identifies the row, it is not stored data. */
-export type FiscalProfileInput = Omit<FiscalProfile, 'fiscalYear'>;
+/**
+ * Writable half of the annual fiscal profile: the year identifies the row, it is not stored data.
+ * Every field is optional and an omitted one keeps its stored value — two different cards edit
+ * this row (pension contributions, IVA pool) and neither may wipe the other's figure.
+ */
+export type FiscalProfileInput = Partial<Omit<FiscalProfile, 'fiscalYear'>>;
 
 // ============================================================
 // INVOICING TYPES

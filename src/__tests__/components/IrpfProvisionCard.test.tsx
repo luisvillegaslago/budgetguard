@@ -83,6 +83,7 @@ const STORED_PROFILE: FiscalProfile = {
   fiscalYear: TEST_YEAR,
   pensionIndividualCents: 0,
   pensionEmploymentCents: 0,
+  vatPoolOpeningCents: 0,
 };
 
 function renderCard(overrides: Partial<IrpfProjection> = {}, profile: Partial<FiscalProfile> = {}) {

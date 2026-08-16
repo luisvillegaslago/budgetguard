@@ -20,10 +20,11 @@ interface FiscalProfileRow {
   FiscalYear: number;
   PensionIndividualCents: number;
   PensionEmploymentCents: number;
+  VatPoolOpeningCents: number;
 }
 
 /** Columns shared by the SELECT and the RETURNING of the upsert */
-const PROFILE_COLUMNS = '"FiscalYear", "PensionIndividualCents", "PensionEmploymentCents"';
+const PROFILE_COLUMNS = '"FiscalYear", "PensionIndividualCents", "PensionEmploymentCents", "VatPoolOpeningCents"';
 
 // ============================================================
 // Transformers
@@ -34,12 +35,13 @@ function rowToFiscalProfile(row: FiscalProfileRow): FiscalProfile {
     fiscalYear: row.FiscalYear,
     pensionIndividualCents: row.PensionIndividualCents,
     pensionEmploymentCents: row.PensionEmploymentCents,
+    vatPoolOpeningCents: row.VatPoolOpeningCents,
   };
 }
 
 /** A year the user never filled in behaves as a year with nothing contributed. */
 function emptyProfile(year: number): FiscalProfile {
-  return { fiscalYear: year, pensionIndividualCents: 0, pensionEmploymentCents: 0 };
+  return { fiscalYear: year, pensionIndividualCents: 0, pensionEmploymentCents: 0, vatPoolOpeningCents: 0 };
 }
 
 // ============================================================
@@ -72,13 +74,22 @@ export async function getFiscalProfile(year: number): Promise<FiscalProfile> {
 export async function upsertFiscalProfile(year: number, input: FiscalProfileInput): Promise<FiscalProfile> {
   const userId = await getUserIdOrThrow();
   const rows = await query<FiscalProfileRow>(
-    `INSERT INTO "FiscalProfiles" ("UserID", "FiscalYear", "PensionIndividualCents", "PensionEmploymentCents")
-     VALUES ($1, $2, $3, $4)
+    // COALESCE, not EXCLUDED: an omitted field keeps what is stored, so the card that edits the
+    // pension contributions cannot wipe the IVA pool of the same row, nor the other way round.
+    `INSERT INTO "FiscalProfiles" ("UserID", "FiscalYear", "PensionIndividualCents", "PensionEmploymentCents", "VatPoolOpeningCents")
+     VALUES ($1, $2, COALESCE($3, 0), COALESCE($4, 0), COALESCE($5, 0))
      ON CONFLICT ("UserID", "FiscalYear") DO UPDATE SET
-       "PensionIndividualCents" = EXCLUDED."PensionIndividualCents",
-       "PensionEmploymentCents" = EXCLUDED."PensionEmploymentCents"
+       "PensionIndividualCents" = COALESCE($3, "FiscalProfiles"."PensionIndividualCents"),
+       "PensionEmploymentCents" = COALESCE($4, "FiscalProfiles"."PensionEmploymentCents"),
+       "VatPoolOpeningCents" = COALESCE($5, "FiscalProfiles"."VatPoolOpeningCents")
      RETURNING ${PROFILE_COLUMNS}`,
-    [userId, year, input.pensionIndividualCents, input.pensionEmploymentCents],
+    [
+      userId,
+      year,
+      input.pensionIndividualCents ?? null,
+      input.pensionEmploymentCents ?? null,
+      input.vatPoolOpeningCents ?? null,
+    ],
   );
   return rowToFiscalProfile(rows[0]!);
 }

@@ -474,7 +474,14 @@ FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
 WHERE t."Status" = 'paid'
-    AND (t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
+    -- Income always enters the view. Whether it counts as professional activity is the models'
+    -- decision (ParentCategoryName = 'Facturas'), never something to infer from missing VAT
+    -- data: inferring it here silently erased every 2023 invoice, 44.954,00 € imported without
+    -- fiscal coding, from the 130, the 390 and the 100 of that year.
+    AND (t."Type" = 'income'
+    -- An expense, on the other hand, only becomes fiscal once someone codes it: a VAT rate, a
+    -- deduction share or an invoice number. Everything else is private spending.
+    OR t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
     OR t."InvoiceNumber" IS NOT NULL);
 
 -- View: Skydiving statistics (user-scoped)
@@ -1037,11 +1044,16 @@ CREATE TABLE "FiscalProfiles" (
     -- Plan de empleo simplificado de trabajadores por cuenta propia:
     -- the increment of art. 52.1.b) 2.o (up to 4.250 EUR/year on top of the general limit)
     "PensionEmploymentCents" INT NOT NULL DEFAULT 0,
+    -- IVA a compensar carried into 1 January of this year: casilla 110 of the first 303 of the
+    -- year. Seeded from the filed modelo, never recomputed — the AEAT's own registry is what
+    -- a refund is paid against.
+    "VatPoolOpeningCents" INT NOT NULL DEFAULT 0,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     -- Contributions are amounts paid in: never negative
     CONSTRAINT "CK_FiscalProfiles_NonNegative" CHECK (
         "PensionIndividualCents" >= 0 AND "PensionEmploymentCents" >= 0
+        AND "VatPoolOpeningCents" >= 0
     ),
     -- Also the lookup index: every read is by (UserID, FiscalYear), which this covers
     CONSTRAINT "UQ_FiscalProfiles_UserYear" UNIQUE ("UserID", "FiscalYear")

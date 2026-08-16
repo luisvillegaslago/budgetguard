@@ -24,12 +24,17 @@ interface AccrualRow {
   CategoryID: number;
   CategoryName: string;
   ParentCategoryName: string;
+  /** The real view returns it; getUncountedIncome maps rows to a FiscalTransaction and needs it */
+  TransactionDate: Date;
   FullAmountCents: number;
   VatPercent: number;
   DeductionPercent: number;
   RetentionCents: number;
   Modelo100CasillaCode?: string | null;
 }
+
+/** Mid-quarter date, UTC like every date the views return */
+const quarterDate = (fiscalQuarter: number): Date => new Date(Date.UTC(2026, (fiscalQuarter - 1) * 3 + 1, 15));
 
 function income(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0, retentionCents = 0): AccrualRow {
   return {
@@ -40,6 +45,7 @@ function income(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0, 
     CategoryID: 0,
     CategoryName: PROFESSIONAL_INCOME_CATEGORY,
     ParentCategoryName: PROFESSIONAL_INCOME_CATEGORY,
+    TransactionDate: quarterDate(fiscalQuarter),
     FullAmountCents: fullAmountCents,
     VatPercent: vatPercent,
     DeductionPercent: 0,
@@ -56,6 +62,7 @@ function expense(fiscalQuarter: number, fullAmountCents: number, vatPercent = 0)
     CategoryID: 30,
     CategoryName: 'Software',
     ParentCategoryName: 'Gastos deducibles',
+    TransactionDate: quarterDate(fiscalQuarter),
     FullAmountCents: fullAmountCents,
     VatPercent: vatPercent,
     DeductionPercent: 100,
@@ -92,9 +99,21 @@ const executedSql: string[] = [];
 /** Modelos 130 already filed, as "FiscalDocuments" returns them (empty unless a test sets them) */
 let filedAmounts: Array<{ FiscalQuarter: number; TaxAmountCents: number }> = [];
 
+/** The annual fiscal profile the 303 reads for the IVA pool carried into the year. */
+let vatPoolOpeningCents = 0;
+
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
   executedSql.push(sql);
   if (sql.includes('FiscalDocuments')) return filedAmounts;
+  if (sql.includes('FiscalProfiles'))
+    return [
+      {
+        FiscalYear: 2026,
+        PensionIndividualCents: 0,
+        PensionEmploymentCents: 0,
+        VatPoolOpeningCents: vatPoolOpeningCents,
+      },
+    ];
   if (!sql.includes('vw_FiscalAccrual')) return [];
 
   // Every fiscal query binds [year, userId, quarter?] in that order.
@@ -120,6 +139,7 @@ import {
   getModelo130Summary,
   getModelo303Summary,
   getModelo390Summary,
+  getUncountedIncome,
 } from '@/services/database/FiscalRepository';
 
 // ── Tests ──
@@ -131,6 +151,7 @@ describe('Fiscal models read the accrual view', () => {
     includeStandaloneIncome = false;
     extraRows = [];
     filedAmounts = [];
+    vatPoolOpeningCents = 0;
   });
 
   it.each([
@@ -165,6 +186,7 @@ describe('Modelo 130', () => {
     includeStandaloneIncome = false;
     extraRows = [];
     filedAmounts = [];
+    vatPoolOpeningCents = 0;
   });
 
   it('matches the Modelo 130 filed with the AEAT for T1 2026', async () => {
@@ -230,6 +252,37 @@ describe('Modelo 130', () => {
     expect(summary.casilla7Cents).toBe(457599);
   });
 
+  // ── Income the models leave out ──
+
+  it('surfaces the income no model counts, and only that', async () => {
+    // A benefit payment and a private sale: real income, but not professional activity
+    extraRows = [
+      { ...income(1, 111264), CategoryName: 'Seguridad Social', ParentCategoryName: 'Seguridad Social' },
+      { ...income(1, 17918), CategoryName: 'Ventas', ParentCategoryName: 'Otros Ingresos' },
+    ];
+
+    const uncounted = await getUncountedIncome(2026, 1);
+
+    // The three "Facturas" invoices of the quarter are counted, so they must NOT be listed here
+    expect(uncounted).toHaveLength(2);
+    expect(uncounted.map((row) => row.categoryName).sort()).toEqual(['Seguridad Social', 'Ventas']);
+    expect(uncounted.reduce((sum, row) => sum + row.baseCents, 0)).toBe(129182);
+  });
+
+  it('lists nothing when every income of the quarter is professional', async () => {
+    const uncounted = await getUncountedIncome(2026, 1);
+
+    expect(uncounted).toEqual([]);
+  });
+
+  it('never lists an expense, however uncoded', async () => {
+    extraRows = [expense(1, 500000)];
+
+    const uncounted = await getUncountedIncome(2026, 1);
+
+    expect(uncounted).toEqual([]);
+  });
+
   it('counts standalone professional income that has no invoice behind it', async () => {
     includeStandaloneIncome = true;
 
@@ -287,6 +340,63 @@ describe('Modelo 303 and 100', () => {
     includeStandaloneIncome = false;
     extraRows = [];
     filedAmounts = [];
+    vatPoolOpeningCents = 0;
+  });
+
+  // ── The IVA a compensar pool (casillas 110 / 78 / 87) ──
+
+  it('carries the pool of earlier years into the first quarter untouched', async () => {
+    // What the last filed 303 left pending: casilla 87 of 4T 2025
+    vatPoolOpeningCents = 114_452;
+
+    const summary = await getModelo303Summary(2026, 1);
+
+    expect(summary.vatPoolOpeningCents).toBe(114_452);
+    // Q1 2026 is VAT-free income only, so the quarter adds its whole deductible VAT to the pool
+    expect(summary.vatPoolClosingCents).toBe(114_452 - summary.resultCents);
+  });
+
+  it('grows the pool with each quarter that closes negative', async () => {
+    vatPoolOpeningCents = 100_000;
+    extraRows = [expense(1, 121000, 21), expense(2, 121000, 21)]; // 210,00 € of input VAT each
+
+    const first = await getModelo303Summary(2026, 1);
+    const second = await getModelo303Summary(2026, 2);
+
+    // The second quarter opens where the first one closed
+    expect(second.vatPoolOpeningCents).toBe(first.vatPoolClosingCents);
+    expect(second.vatPoolClosingCents).toBeGreaterThan(second.vatPoolOpeningCents);
+  });
+
+  it('flags the pool as stranded while no output VAT exists to compensate it against', async () => {
+    vatPoolOpeningCents = 114_452;
+
+    const summary = await getModelo303Summary(2026, 1);
+
+    // Every client is outside Spain: casilla 27 is structurally zero and the balance can only
+    // grow, so the refund of the fourth quarter is the only way to ever recover it.
+    expect(summary.casilla27Cents).toBe(0);
+    expect(summary.vatPoolIsStranded).toBe(true);
+  });
+
+  it('stops flagging it once there is output VAT to set the pool against', async () => {
+    vatPoolOpeningCents = 114_452;
+    extraRows = [income(1, 121000, 21)]; // a Spanish client: 210,00 € of output VAT
+
+    const summary = await getModelo303Summary(2026, 1);
+
+    expect(summary.casilla27Cents).toBeGreaterThan(0);
+    expect(summary.vatPoolIsStranded).toBe(false);
+  });
+
+  it('never reports a negative pool', async () => {
+    vatPoolOpeningCents = 0;
+    extraRows = [income(1, 1210000, 21)]; // output VAT far above anything deductible
+
+    const summary = await getModelo303Summary(2026, 1);
+
+    expect(summary.resultCents).toBeGreaterThan(0);
+    expect(summary.vatPoolClosingCents).toBe(0);
   });
 
   it('reports VAT-free invoice income as non-subject operations in casilla 120', async () => {

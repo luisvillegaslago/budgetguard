@@ -20,6 +20,9 @@ const mockModelo303: Modelo303Summary = {
   casilla45Cents: 2751,
   casilla120Cents: 1957615,
   resultCents: -2751,
+  vatPoolOpeningCents: 0,
+  vatPoolClosingCents: 2751,
+  vatPoolIsStranded: true,
 };
 
 const mockModelo130: Modelo130Summary = {
@@ -119,12 +122,14 @@ const mockInvoices: FiscalTransaction[] = [
 
 const mockGetFiscalExpenses = jest.fn();
 const mockGetFiscalInvoices = jest.fn();
+const mockGetUncountedIncome = jest.fn();
 const mockGetModelo303Summary = jest.fn();
 const mockGetModelo130Summary = jest.fn();
 
 jest.mock('@/services/database/FiscalRepository', () => ({
   getFiscalExpenses: (...args: [number, number]) => mockGetFiscalExpenses(...args),
   getFiscalInvoices: (...args: [number, number]) => mockGetFiscalInvoices(...args),
+  getUncountedIncome: (...args: [number, number]) => mockGetUncountedIncome(...args),
   getModelo303Summary: (...args: [number, number]) => mockGetModelo303Summary(...args),
   getModelo130Summary: (...args: [number, number]) => mockGetModelo130Summary(...args),
 }));
@@ -156,6 +161,7 @@ describe('GET /api/fiscal', () => {
     mockGetModelo130Summary.mockResolvedValue(mockModelo130);
     mockGetFiscalExpenses.mockResolvedValue(mockExpenses);
     mockGetFiscalInvoices.mockResolvedValue(mockInvoices);
+    mockGetUncountedIncome.mockResolvedValue([]);
   });
 
   // ── Success ──
@@ -173,9 +179,10 @@ describe('GET /api/fiscal', () => {
     expect(body.data.modelo130).toEqual(mockModelo130);
     expect(body.data.expenses).toEqual(mockExpenses);
     expect(body.data.invoices).toEqual(mockInvoices);
+    expect(body.data.uncountedIncome).toEqual([]);
   });
 
-  it('should call all 4 repository functions with correct year and quarter params', async () => {
+  it('should call all 5 repository functions with correct year and quarter params', async () => {
     const request = createMockRequest('http://localhost:3000/api/fiscal?year=2025&quarter=3');
     await GET(request as never);
 
@@ -190,6 +197,9 @@ describe('GET /api/fiscal', () => {
 
     expect(mockGetFiscalInvoices).toHaveBeenCalledTimes(1);
     expect(mockGetFiscalInvoices).toHaveBeenCalledWith(2025, 3);
+
+    expect(mockGetUncountedIncome).toHaveBeenCalledTimes(1);
+    expect(mockGetUncountedIncome).toHaveBeenCalledWith(2025, 3);
   });
 
   // ── Validation: missing parameters ──
