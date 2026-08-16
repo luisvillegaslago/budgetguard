@@ -423,6 +423,40 @@ describe('Modelo 303 and 100', () => {
     expect(summary.gastosPorCasilla).toEqual([{ casilla: MODELO_100_DEFAULT_CASILLA, cents: 318036 }]);
   });
 
+  // ── Modelo 390: casillas 97 and 662 split the year by period ──
+
+  it('puts only the last quarter in casilla 97 and the rest in 662', async () => {
+    // Deductible input VAT in three different quarters, no output VAT anywhere
+    extraRows = [expense(1, 121000, 21), expense(3, 242000, 21), expense(4, 605000, 21)];
+
+    const summary = await getModelo390Summary(2026);
+
+    // The AEAT reconciles casilla 97 against the 4T 303, so it carries that quarter alone
+    expect(summary.casilla97Cents).toBe(105000);
+    expect(summary.casilla662Cents).toBe(21000 + 42000);
+    // Together they still add up to everything the year generated
+    expect(summary.casilla97Cents + summary.casilla662Cents).toBe(Math.abs(summary.casilla86Cents));
+  });
+
+  it('leaves casilla 97 at zero when the last quarter had nothing to compensate', async () => {
+    extraRows = [expense(1, 121000, 21)];
+
+    const summary = await getModelo390Summary(2026);
+
+    expect(summary.casilla97Cents).toBe(0);
+    expect(summary.casilla662Cents).toBe(21000);
+  });
+
+  it('never reports a quarter that closed positive as an amount to compensate', async () => {
+    // Output VAT above the deductible one in the last quarter: nothing to carry from it
+    extraRows = [expense(2, 121000, 21), income(4, 1210000, 21)];
+
+    const summary = await getModelo390Summary(2026);
+
+    expect(summary.casilla97Cents).toBe(0);
+    expect(summary.casilla662Cents).toBe(21000);
+  });
+
   it('carries the whole year of invoice income into Modelo 390', async () => {
     const summary = await getModelo390Summary(2026);
 

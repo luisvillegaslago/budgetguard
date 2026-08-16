@@ -593,7 +593,8 @@ export interface Modelo390Summary {
   casilla65Cents: number; // Resultado (C47 - C64)
   casilla84Cents: number; // Suma resultados (= C65)
   casilla86Cents: number; // Resultado liquidación (= C84)
-  casilla97Cents: number; // A compensar (abs(C86) if negative, else 0)
+  casilla97Cents: number; // A compensar del ÚLTIMO periodo (lo que la AEAT cruza contra el 4T 303)
+  casilla662Cents: number; // Cuotas a compensar generadas en los demás trimestres del año
   casilla110Cents: number; // Op. no sujetas por reglas de localización (sum of C120)
   casilla108Cents: number; // Total volumen operaciones (= C110)
 }

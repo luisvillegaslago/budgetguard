@@ -897,9 +897,10 @@
       "casilla49": "Total cuotas deducibles",
       "casilla64": "Total deducciones",
       "casilla65": "Resultado",
-      "casilla97": "A compensar",
+      "casilla97": "A compensar (4T)",
       "casilla110": "Op. no sujetas por reglas de localización",
-      "casilla108": "Total vol. operaciones"
+      "casilla108": "Total vol. operaciones",
+      "casilla662": "Generado en los demás trimestres"
     },
     "modelo100": {
       "title": "Modelo 100 — IRPF anual",

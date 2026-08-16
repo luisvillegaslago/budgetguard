@@ -897,9 +897,10 @@
       "casilla49": "Total deductible VAT",
       "casilla64": "Total deductions",
       "casilla65": "Result",
-      "casilla97": "To offset",
+      "casilla97": "To compensate (Q4)",
       "casilla110": "Operations not subject by localization rules",
-      "casilla108": "Total volume of operations"
+      "casilla108": "Total volume of operations",
+      "casilla662": "Generated in the other quarters"
     },
     "modelo100": {
       "title": "Modelo 100 — Annual Income Tax",

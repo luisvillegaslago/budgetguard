@@ -92,9 +92,17 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
             <span className="ml-1">€</span>
           </span>
           {isToCompensate ? (
-            <p className="text-xs mt-0.5 text-guard-success/70">
-              {t('fiscal.modelo390.casilla97')}: {formatCurrency(data.casilla97Cents, false)} €
-            </p>
+            // 97 and 662 are filled separately, and the AEAT cross-checks 97 against the 4T 303
+            <div className="text-xs mt-0.5 text-guard-success/70 space-y-0.5">
+              <p>
+                {t('fiscal.modelo390.casilla97')}: {formatCurrency(data.casilla97Cents, false)} €
+              </p>
+              {data.casilla662Cents > 0 && (
+                <p>
+                  {t('fiscal.modelo390.casilla662')}: {formatCurrency(data.casilla662Cents, false)} €
+                </p>
+              )}
+            </div>
           ) : (
             <p className={cn('text-xs mt-0.5', result.labelClassName)}>
               {result.kind === FISCAL_RESULT_KIND.TO_PAY ? t('fiscal.modelo303.to-pay') : t('fiscal.result.neutral')}

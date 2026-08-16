@@ -464,6 +464,9 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
 
 const ALL_QUARTERS = 4;
 
+/** [1, 2, 3, 4] — the quarters of a fiscal year, in order. */
+const ALL_QUARTER_NUMBERS = Array.from({ length: ALL_QUARTERS }, (_, index) => index + 1);
+
 /**
  * Quarters whose Modelo 130 filing window has already closed — what the user has paid
  * so far. A quarter still inside its window (e.g. Q3 on 5 October) counts as pending,
@@ -638,7 +641,17 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   const casilla65 = casilla47 - casilla64;
   const casilla84 = casilla65;
   const casilla86 = casilla84;
-  const casilla97 = casilla86 < 0 ? Math.abs(casilla86) : 0;
+
+  // Casillas 97 and 662 split the year's "a compensar" by period, which is what the AEAT
+  // reconciles against the quarterly 303s: 97 carries ONLY the last period's own result —
+  // the form says "si el resultado de la autoliquidación del último periodo es a compensar" —
+  // and 662 the amounts generated in the other quarters. Putting the annual aggregate in 97,
+  // as this did, mismatches the 4T 303 by the whole of the rest of the year.
+  const quarterCompensations = ALL_QUARTER_NUMBERS.map((quarter) =>
+    Math.max(0, -modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter)))),
+  );
+  const casilla97 = quarterCompensations[ALL_QUARTERS - 1] ?? 0;
+  const casilla662 = quarterCompensations.slice(0, ALL_QUARTERS - 1).reduce((sum, cents) => sum + cents, 0);
 
   return {
     fiscalYear: year,
@@ -652,6 +665,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
     casilla84Cents: casilla84,
     casilla86Cents: casilla86,
     casilla97Cents: casilla97,
+    casilla662Cents: casilla662,
     casilla110Cents: totalC120,
     casilla108Cents: totalC120,
   };
