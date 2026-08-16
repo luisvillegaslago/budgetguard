@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.57.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.0...v0.57.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **fiscal:** split the Modelo 390 compensation between casillas 97 and 662 ([3734c5b](https://github.com/luisvillegaslago/budgetguard/commit/3734c5ba74e6162d84aa826f79249f6ddf2c35d1))
+
 ## [0.57.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.56.1...v0.57.0) (2026-08-16)
 
 
