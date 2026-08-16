@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.57.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.56.1...v0.57.0) (2026-08-16)
+
+
+### Features
+
+* **fiscal:** stop losing rows to the view filter and model the IVA pool ([f03b83e](https://github.com/luisvillegaslago/budgetguard/commit/f03b83e0b199e7a067bf690b913e4dd736ea971c))
+
 ## [0.56.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.56.0...v0.56.1) (2026-08-16)
 
 
