@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { IRPF_PROJECTION, VALIDATION_KEY } from '@/constants/finance';
+import { IRPF_PROJECTION, PENSION_PLAN, VALIDATION_KEY } from '@/constants/finance';
 
 /**
  * Schema for fiscal report filters (query params)
@@ -55,3 +55,38 @@ export const IrpfProjectionOverrideSchema = z.object({
 });
 
 export type IrpfProjectionOverrideInput = z.infer<typeof IrpfProjectionOverrideSchema>;
+
+/**
+ * One pension contribution as it travels on the wire and as it is typed in the form: EUROS.
+ * The ceiling is a sanity one, not the legal limit: the user must be able to record what was
+ * actually paid in, and computePensionReductionCents() decides how much of it reduces the base.
+ */
+const pensionContributionEuros = z
+  .number({
+    required_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
+    invalid_type_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
+  })
+  .nonnegative(VALIDATION_KEY.AMOUNT_NON_NEGATIVE)
+  .max(PENSION_PLAN.MAX_CONTRIBUTION_EUROS, VALIDATION_KEY.AMOUNT_TOO_LARGE);
+
+/**
+ * Schema for the pension contributions typed in the IRPF provision card (euros).
+ * One field per product: each bucket has its own legal ceiling, so a single total could not
+ * be validated.
+ */
+export const FiscalProfileAmountsSchema = z.object({
+  pensionIndividual: pensionContributionEuros,
+  pensionEmployment: pensionContributionEuros,
+});
+
+export type FiscalProfileAmountsInput = z.infer<typeof FiscalProfileAmountsSchema>;
+
+/**
+ * Schema for the annual fiscal profile write (PUT body).
+ * The year identifies the row; the amounts are converted to cents at the route edge.
+ */
+export const FiscalProfileSchema = FiscalProfileAmountsSchema.extend({
+  fiscalYear: z.coerce.number().int().min(2020).max(2100),
+});
+
+export type FiscalProfileSchemaInput = z.infer<typeof FiscalProfileSchema>;

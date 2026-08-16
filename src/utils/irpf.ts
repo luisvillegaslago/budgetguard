@@ -15,6 +15,7 @@ import {
   IRPF_STATE_SCALE,
   type IrpfRegion,
   MINIMO_PERSONAL_CENTS,
+  PENSION_PLAN,
 } from '@/constants/finance';
 import type { IrpfScale } from '@/types/finance';
 
@@ -85,6 +86,56 @@ export function computeIrpfCents(baseCents: number, region: IrpfRegion = DEFAULT
   const minimoQuotaCents = scales.reduce((sum, scale) => sum + applyScale(minimoBaseCents, scale), 0);
 
   return Math.max(0, grossQuotaCents - minimoQuotaCents);
+}
+
+/**
+ * Reduction of the base imponible general for pension plan contributions (arts. 51-52
+ * Ley 35/2006). It is neither an expense nor a deducción en cuota: it lowers the base the
+ * scale is applied to, and only in the annual Renta — the pagos fraccionados of Modelo 130
+ * (art. 110 RIRPF) ignore it entirely.
+ *
+ * Two buckets, because each carries its own ceiling and they cannot be added up first:
+ * the general limit covers any plan (an individual one included), while the increment is
+ * reserved for planes de empleo simplificados de trabajadores por cuenta propia. Capping a
+ * single total would let an individual contribution absorb an allowance it is not entitled to.
+ *
+ * The caps, in the order the law applies them:
+ *  1. Art. 52.1.b): each bucket against its own ceiling (1.500 € / +4.250 €).
+ *  2. Art. 52.1.a): 30% of the rendimientos netos del trabajo y de actividades económicas,
+ *     applied to the SUM — it is the joint ceiling of the whole reduction, not of one bucket.
+ *  3. Art. 50.1: the base itself, which can never turn negative because of a reduction. Here it
+ *     needs no separate term: the base equals the net income, and 30% of it is always smaller.
+ *
+ * Returns a single figure rather than a per-bucket breakdown on purpose: once the joint 30%
+ * cap bites, splitting the shortfall back across the two buckets would need an allocation rule
+ * the law does not define. The caller can still tell that a cap applied by comparing the result
+ * with what was contributed.
+ *
+ * The excess is not lost — art. 52.2 carries it to the next five years — but this projection
+ * only measures the current year.
+ *
+ * @param individualCents - Contributed to a plan de pensiones individual, in cents
+ * @param employmentCents - Contributed to a plan de empleo simplificado de autónomos, in cents
+ * @param netIncomeCents - Rendimiento neto de actividades económicas, in cents
+ * @returns Reduction in cents: never above what was contributed, never below zero
+ */
+export function computePensionReductionCents(
+  individualCents: number,
+  employmentCents: number,
+  netIncomeCents: number,
+): number {
+  const individual = Math.max(0, individualCents);
+  const employment = Math.max(0, employmentCents);
+
+  // The 1.500 € general limit applies to the TOTAL, whatever the instrument; only the 4.250 €
+  // increment is reserved to the self-employed products. So an individual plan can never use
+  // more than the general limit, while an employment plan may absorb both (1.500 + 4.250).
+  const deductibleContributionsCents = Math.min(individual, PENSION_PLAN.GENERAL_LIMIT_CENTS) + employment;
+  const absoluteCapCents =
+    PENSION_PLAN.GENERAL_LIMIT_CENTS + Math.min(employment, PENSION_PLAN.SELF_EMPLOYED_EXTRA_CENTS);
+  const percentageCapCents = Math.round(Math.max(0, netIncomeCents) * PENSION_PLAN.INCOME_PERCENTAGE_CAP);
+
+  return Math.min(deductibleContributionsCents, absoluteCapCents, percentageCapCents);
 }
 
 /** Rate that the next cent of income would pay in a single scale. */

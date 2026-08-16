@@ -13,7 +13,14 @@ import {
   IRPF_STATE_SCALE,
   MINIMO_PERSONAL_CENTS,
 } from '@/constants/finance';
-import { applyScale, computeIrpfCents, computeMarginalRate, getYearProgress, projectAnnualCents } from '@/utils/irpf';
+import {
+  applyScale,
+  computeIrpfCents,
+  computeMarginalRate,
+  computePensionReductionCents,
+  getYearProgress,
+  projectAnnualCents,
+} from '@/utils/irpf';
 
 const MADRID_SCALE = IRPF_REGIONAL_SCALE[IRPF_REGION.MADRID];
 
@@ -117,6 +124,140 @@ describe('computeMarginalRate', () => {
 
   it('returns the top rate above the last limit', () => {
     expect(computeMarginalRate(40_000_000)).toBe(0.45); // 24,5% + 20,5%
+  });
+});
+
+describe('computePensionReductionCents', () => {
+  /** Rendimiento neto high enough (≥ 19.166,67 €) for the 30% cap never to bite. */
+  const HIGH_NET_INCOME = 6_918_900;
+
+  it('reduces the whole contribution when every limit is respected', () => {
+    // The user's real 2025 figures: 1.500 € individual + 4.250 € plan de empleo (casilla 0492)
+    expect(computePensionReductionCents(150_000, 425_000, HIGH_NET_INCOME)).toBe(575_000);
+  });
+
+  it('reduces nothing when nothing was contributed', () => {
+    expect(computePensionReductionCents(0, 0, HIGH_NET_INCOME)).toBe(0);
+  });
+
+  it('never reduces more than what was contributed', () => {
+    expect(computePensionReductionCents(100_000, 50_000, HIGH_NET_INCOME)).toBe(150_000);
+  });
+
+  it('reduces each bucket in full while it stays below its own ceiling', () => {
+    // 900 € individual + 3.000 € plan de empleo, both under their limits
+    expect(computePensionReductionCents(90_000, 300_000, HIGH_NET_INCOME)).toBe(390_000);
+  });
+
+  it('reduces each bucket in full exactly at its own ceiling', () => {
+    // The limits are inclusive: the last euro of each allowance still reduces
+    expect(computePensionReductionCents(150_000, 0, HIGH_NET_INCOME)).toBe(150_000);
+    expect(computePensionReductionCents(0, 425_000, HIGH_NET_INCOME)).toBe(425_000);
+  });
+
+  it('caps the individual plan at the 1.500 € general limit', () => {
+    // Art. 52.1.b): a plan individual can never exceed the general limit, whatever was paid in
+    expect(computePensionReductionCents(575_000, 0, HIGH_NET_INCOME)).toBe(150_000);
+  });
+
+  it('lets an employment plan alone absorb the general limit plus its own increment', () => {
+    // Art. 52.1.b): the 1.500 € general limit applies to the total whatever the instrument, and
+    // 2.º "incrementa" it by 4.250 € for the self-employed products. So a plan de empleo carries
+    // 5.750 € on its own — AEAT's cuadro-resumen for autónomos — and only the excess is lost.
+    expect(computePensionReductionCents(0, 575_000, HIGH_NET_INCOME)).toBe(575_000);
+    expect(computePensionReductionCents(0, 800_000, HIGH_NET_INCOME)).toBe(575_000);
+  });
+
+  it('caps each bucket separately instead of pooling the two ceilings', () => {
+    // 5.750 € in total, but split the wrong way round: only 1.500 + 4.250 of each own bucket
+    expect(computePensionReductionCents(425_000, 150_000, HIGH_NET_INCOME)).toBe(150_000 + 150_000);
+  });
+
+  it('does not treat the same total as interchangeable between the two buckets', () => {
+    // The reason the profile stores two amounts instead of one: 5.750 € is fully deductible as
+    // 1.500 + 4.250, but a plan individual alone can never carry more than its 1.500 € limit.
+    const asIndividualOnly = computePensionReductionCents(575_000, 0, HIGH_NET_INCOME);
+    const asBothBuckets = computePensionReductionCents(150_000, 425_000, HIGH_NET_INCOME);
+
+    expect(asBothBuckets).toBe(575_000);
+    expect(asIndividualOnly).toBe(150_000);
+    expect(asIndividualOnly).not.toBe(asBothBuckets);
+  });
+
+  it('caps the sum at 30% of the rendimiento neto', () => {
+    // Art. 52.1.a): 30% of 9.500,00 € = 2.850,00 €, below the 5.750,00 € contributed
+    expect(computePensionReductionCents(150_000, 425_000, 950_000)).toBe(285_000);
+  });
+
+  it('applies the percentage cap to the sum, not to one bucket', () => {
+    // 30% of 15.000,00 € = 4.500,00 €: it trims the joint 5.750,00 €, not just the increment
+    expect(computePensionReductionCents(150_000, 425_000, 1_500_000)).toBe(450_000);
+  });
+
+  it('stops capping once the net income clears the 19.166,67 € threshold', () => {
+    // 30% of 19.166,67 € = 5.750,00 €, exactly the whole allowance
+    expect(computePensionReductionCents(150_000, 425_000, 1_916_667)).toBe(575_000);
+  });
+
+  it('reduces nothing when the year made no profit', () => {
+    expect(computePensionReductionCents(150_000, 425_000, 0)).toBe(0);
+    expect(computePensionReductionCents(150_000, 425_000, -1_500_000)).toBe(0);
+  });
+
+  it('ignores negative contributions instead of adding tax', () => {
+    expect(computePensionReductionCents(-150_000, 425_000, HIGH_NET_INCOME)).toBe(425_000);
+  });
+
+  it("reduces the whole 5.750 € of the user's filed 2025 (casilla 0492)", () => {
+    // 37.051,76 € of rendimiento neto: 30% of it is 11.115,53 €, so no cap bites
+    expect(computePensionReductionCents(150_000, 425_000, 3_705_176)).toBe(575_000);
+  });
+
+  it('reduces the 2.500 € contributed so far in 2026', () => {
+    // 1.500 € individual + 1.000 € plan de empleo: both under their ceilings, nothing trimmed
+    expect(computePensionReductionCents(150_000, 100_000, 3_705_176)).toBe(250_000);
+  });
+
+  it('returns whole cents', () => {
+    // 30% of 3.333,33 € = 999,999 € → rounded, never a fraction of a cent
+    expect(computePensionReductionCents(150_000, 425_000, 333_333)).toBe(100_000);
+  });
+
+  it('trims by exactly what the percentage cap falls short of, not down to a round figure', () => {
+    // 30% of 19.000,00 € = 5.700,00 €: 50,00 € of the 5.750,00 € contributed stay out
+    expect(computePensionReductionCents(150_000, 425_000, 1_900_000)).toBe(570_000);
+  });
+
+  it('lets the percentage cap bite before the absolute ones, never after', () => {
+    // 30% of 4.000,00 € = 1.200,00 €, below the 1.500 € general limit alone: the joint ceiling
+    // of art. 52.1 is the SMALLEST of the limits, so the percentage one wins on a small year
+    expect(computePensionReductionCents(150_000, 425_000, 400_000)).toBe(120_000);
+    expect(computePensionReductionCents(150_000, 0, 400_000)).toBe(120_000);
+  });
+
+  it('never reduces more than the base it is subtracted from (art. 50.1)', () => {
+    // The base can never turn negative because of the reduction: 30% of it is always smaller
+    [1, 100_000, 950_000, 1_916_667, 6_918_900].forEach((netIncomeCents) => {
+      expect(computePensionReductionCents(575_000, 575_000, netIncomeCents)).toBeLessThan(netIncomeCents);
+    });
+  });
+
+  it('ignores a negative amount in either bucket', () => {
+    expect(computePensionReductionCents(150_000, -425_000, HIGH_NET_INCOME)).toBe(150_000);
+    expect(computePensionReductionCents(-150_000, -425_000, HIGH_NET_INCOME)).toBe(0);
+  });
+
+  it('never reduces less when more is contributed to the same bucket', () => {
+    // Monotonicity: the asymmetry between the two buckets is exactly where the ceilings live,
+    // so a rule that trims the wrong one shows up as a contribution that lowers the reduction.
+    const steps = [0, 100_000, 150_000, 300_000, 425_000, 575_000, 800_000];
+
+    steps.forEach((employment, index) => {
+      const previous = steps[index - 1] ?? 0;
+      expect(computePensionReductionCents(150_000, employment, HIGH_NET_INCOME)).toBeGreaterThanOrEqual(
+        computePensionReductionCents(150_000, previous, HIGH_NET_INCOME),
+      );
+    });
   });
 });
 

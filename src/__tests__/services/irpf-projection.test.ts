@@ -87,13 +87,26 @@ let rows: AccrualRow[] = [];
 // ── Fake Postgres ──
 
 const executedSql: string[] = [];
+/** Params of every FiscalProfiles read, so the year the projection asks for can be asserted. */
+const profileQueryParams: unknown[][] = [];
 
 /** Amounts of the modelos 130 already filed, keyed by quarter (empty unless a test sets them). */
 let filedAmounts: Array<{ FiscalQuarter: number; TaxAmountCents: number }> = [];
 
+/** Annual fiscal profile rows (empty unless a test declares a pension contribution). */
+let fiscalProfiles: Array<{
+  FiscalYear: number;
+  PensionIndividualCents: number;
+  PensionEmploymentCents: number;
+}> = [];
+
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
   executedSql.push(sql);
   if (sql.includes('FiscalDocuments')) return filedAmounts;
+  if (sql.includes('FiscalProfiles')) {
+    profileQueryParams.push(params);
+    return fiscalProfiles;
+  }
   if (!sql.includes('vw_FiscalAccrual')) return [];
 
   const [year] = params as [number, number];
@@ -116,9 +129,22 @@ describe('getIrpfProjection', () => {
   beforeEach(() => {
     mockQuery.mockClear();
     executedSql.length = 0;
+    profileQueryParams.length = 0;
     rows = [...ACCEPTANCE_ROWS];
     filedAmounts = [];
+    fiscalProfiles = [];
   });
+
+  /** The real 2025 contributions: 1.500 € individual + 4.250 € plan de empleo (casilla 0492). */
+  function contribute(individualCents: number, employmentCents: number): void {
+    fiscalProfiles = [
+      {
+        FiscalYear: YEAR,
+        PensionIndividualCents: individualCents,
+        PensionEmploymentCents: employmentCents,
+      },
+    ];
+  }
 
   it('reads the accrual view and never the cash-basis one', async () => {
     await getIrpfProjection(YEAR);
@@ -316,6 +342,180 @@ describe('getIrpfProjection', () => {
 
     expect(projection.ytdIncomeCents).toBe(7_723_700);
     expect(projection.ytdExpensesCents).toBe(604_800);
+  });
+
+  // ── Pension contributions (annual fiscal profile) ──
+
+  describe('pension plan contributions', () => {
+    it('asks for the profile of the projected year and of nobody else', async () => {
+      await getIrpfProjection(YEAR);
+
+      // Without this the fixture answers whatever is asked, and a refactor that reads the wrong
+      // year (or another taxpayer) would apply last year's reduction to this year's estimate.
+      expect(profileQueryParams).toHaveLength(1);
+      expect(profileQueryParams[0]).toEqual([2, YEAR]);
+    });
+
+    it('reports nothing contributed when the year has no fiscal profile', async () => {
+      const projection = await getIrpfProjection(YEAR);
+
+      expect(projection.pensionIndividualCents).toBe(0);
+      expect(projection.pensionEmploymentCents).toBe(0);
+      expect(projection.pensionReductionCents).toBe(0);
+      // With no reduction the base the scale taxes is the rendimiento neto itself
+      expect(projection.baseLiquidableCents).toBe(projection.projectedNetIncomeCents);
+    });
+
+    it('reduces the base by the whole 5.750 € the law allows an autónomo', async () => {
+      contribute(150_000, 425_000);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      expect(projection.pensionIndividualCents).toBe(150_000);
+      expect(projection.pensionEmploymentCents).toBe(425_000);
+      expect(projection.pensionReductionCents).toBe(575_000);
+      // 69.189,00 − 5.750,00 = 63.439,00 €
+      expect(projection.baseLiquidableCents).toBe(6_343_900);
+    });
+
+    it('cuts the estimated IRPF by the contribution at the marginal rate', async () => {
+      contribute(150_000, 425_000);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      // 20.103,45 € without the reduction → 17.630,95 €: 2.472,50 € less, 5.750 € × 43%
+      expect(projection.estimatedIrpfCents).toBe(1_763_095);
+      expect(projection.monthlyProvisionCents).toBe(146_925);
+    });
+
+    it('leaves the whole Modelo 130 side untouched', async () => {
+      const withoutProfile = await getIrpfProjection(YEAR);
+      contribute(150_000, 425_000);
+      const withProfile = await getIrpfProjection(YEAR);
+
+      // The pagos fraccionados of art. 110 RIRPF ignore the reduction: same rendimiento neto,
+      // same 20% quota, same settled and remaining amounts
+      expect(withProfile.projectedNetIncomeCents).toBe(withoutProfile.projectedNetIncomeCents);
+      expect(withProfile.modelo130TotalCents).toBe(withoutProfile.modelo130TotalCents);
+      expect(withProfile.modelo130PaidCents).toBe(withoutProfile.modelo130PaidCents);
+      expect(withProfile.modelo130RemainingCents).toBe(withoutProfile.modelo130RemainingCents);
+    });
+
+    it('shrinks the gap the Renta will charge by exactly the tax saved', async () => {
+      contribute(150_000, 425_000);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      // 17.630,95 − 13.837,80: the 6.265,65 € gap drops to 3.793,15 €
+      expect(projection.provisionGapCents).toBe(379_315);
+    });
+
+    it('keeps the effective rate measured against what was earned, not against the reduced base', async () => {
+      contribute(150_000, 425_000);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      expect(projection.effectiveRate).toBe(Math.round((1_763_095 / 6_918_900) * 10_000) / 10_000);
+    });
+
+    it('caps each bucket against its own ceiling', async () => {
+      // 5.750 € paid entirely into an individual plan: only the 1.500 € general limit reduces
+      contribute(575_000, 0);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      expect(projection.pensionIndividualCents).toBe(575_000);
+      expect(projection.pensionReductionCents).toBe(150_000);
+      expect(projection.baseLiquidableCents).toBe(6_918_900 - 150_000);
+    });
+
+    it('caps the joint reduction at 30% of the rendimiento neto', async () => {
+      rows = [];
+      contribute(150_000, 425_000);
+
+      // 10.000,00 € billed − 500,00 € (5% difícil justificación) = 9.500,00 € net income
+      const projection = await getIrpfProjection(YEAR, { projectedIncomeCents: 1_000_000 });
+
+      expect(projection.projectedNetIncomeCents).toBe(950_000);
+      // 30% of 9.500,00 € = 2.850,00 €, far below the 5.750,00 € contributed
+      expect(projection.pensionReductionCents).toBe(285_000);
+      expect(projection.baseLiquidableCents).toBe(665_000);
+      expect(projection.estimatedIrpfCents).toBe(19_800);
+      // The Modelo 130 quota still reads the full net income
+      expect(projection.modelo130TotalCents).toBe(190_000);
+    });
+
+    it('takes the marginal rate from the reduced base', async () => {
+      rows = ACCEPTANCE_ROWS.filter((row) => row.Type === TRANSACTION_TYPE.EXPENSE);
+      contribute(150_000, 425_000);
+
+      // 69.048,00 − 6.048,00 − 2.000,00 = 61.000,00 € net income, 55.250,00 € after the reduction
+      const projection = await getIrpfProjection(YEAR, { projectedIncomeCents: 6_904_800 });
+
+      expect(projection.projectedNetIncomeCents).toBe(6_100_000);
+      // The reduction drops the base out of the 22,5% + 20,5% brackets into the 18,5% + 17,4% ones
+      expect(projection.marginalRate).toBe(0.359);
+    });
+
+    it('moves the Renta leg alone: the same year taxed less, the pago fraccionado untouched', async () => {
+      // The single regression this whole feature could hide. Modelo 130 (art. 110 RIRPF) is
+      // computed on the rendimiento neto and knows nothing about arts. 51-52, so a contribution
+      // must lower the Renta side and leave the quarterly side byte-identical. If the reduction
+      // ever leaked into projectedNetIncomeCents, both legs would fall together, the gap would
+      // look right, and the quarterly instalments would be silently understated.
+      const before = await getIrpfProjection(YEAR);
+      contribute(150_000, 425_000);
+      const after = await getIrpfProjection(YEAR);
+
+      // The Renta leg falls
+      expect(after.estimatedIrpfCents).toBeLessThan(before.estimatedIrpfCents);
+      expect(after.provisionGapCents).toBeLessThan(before.provisionGapCents);
+      // ...by exactly the tax on the reduction, nothing else
+      expect(before.estimatedIrpfCents - after.estimatedIrpfCents).toBe(
+        before.provisionGapCents - after.provisionGapCents,
+      );
+
+      // The Modelo 130 leg does not move a cent
+      expect(after.projectedNetIncomeCents).toBe(before.projectedNetIncomeCents);
+      expect(after.modelo130TotalCents).toBe(before.modelo130TotalCents);
+      expect(after.modelo130PaidCents).toBe(before.modelo130PaidCents);
+      expect(after.modelo130RemainingCents).toBe(before.modelo130RemainingCents);
+      expect(after.retencionesCents).toBe(before.retencionesCents);
+
+      // Nor does anything upstream of the rendimiento neto
+      expect(after.projectedIncomeCents).toBe(before.projectedIncomeCents);
+      expect(after.projectedExpensesCents).toBe(before.projectedExpensesCents);
+      expect(after.gastosDificilCents).toBe(before.gastosDificilCents);
+    });
+
+    it('charges no IRPF when the reduction drops the base under the mínimo personal', async () => {
+      rows = [income(1, 620_000)];
+      contribute(150_000, 425_000);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      // 6.200,00 − 310,00 (5%) = 5.890,00 € net income, over the 5.550,00 € mínimo personal
+      expect(projection.projectedNetIncomeCents).toBe(589_000);
+      // 30% of it = 1.767,00 €, so the base drops to 4.123,00 €: below the mínimo
+      expect(projection.pensionReductionCents).toBe(176_700);
+      expect(projection.baseLiquidableCents).toBe(412_300);
+      // The mínimo is relieved as a quota capped at the base, so the result is 0 and never a refund
+      expect(projection.estimatedIrpfCents).toBe(0);
+      // Modelo 130 still withholds 20% of the whole rendimiento neto
+      expect(projection.modelo130TotalCents).toBe(117_800);
+    });
+
+    it('reduces nothing in a loss-making year', async () => {
+      rows = [income(1, 500_000), expense(1, 2_000_000)];
+      contribute(150_000, 425_000);
+
+      const projection = await getIrpfProjection(YEAR);
+
+      // No positive base to reduce: the excess is carried forward (art. 52.2), not applied here
+      expect(projection.pensionReductionCents).toBe(0);
+      expect(projection.baseLiquidableCents).toBe(projection.projectedNetIncomeCents);
+      expect(projection.estimatedIrpfCents).toBe(0);
+    });
   });
 
   // ── Edge cases ──

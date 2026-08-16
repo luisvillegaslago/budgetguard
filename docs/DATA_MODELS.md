@@ -702,6 +702,54 @@ CREATE TABLE "FiscalDeadlineSettings" (
 
 ---
 
+#### FiscalProfiles
+
+The per-year fiscal facts that live nowhere else in the app: figures the user knows but no
+transaction records. One row per user and fiscal year, created on demand — a missing row reads
+as zeros, never as an error.
+
+Today it holds the pension plan contributions, which reduce the base of the annual Renta and
+**never touch Modelo 130** (the pago fraccionado ignores them). This is the table to extend with
+the other annual facts the fiscal audit flagged as missing — mínimo por descendientes, other
+income — as plain columns rather than new tables.
+
+```sql
+CREATE TABLE "FiscalProfiles" (
+    "ProfileID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "FiscalYear" INT NOT NULL,
+    "PensionIndividualCents" INT NOT NULL DEFAULT 0,
+    "PensionEmploymentCents" INT NOT NULL DEFAULT 0,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CK_FiscalProfiles_NonNegative" CHECK (
+        "PensionIndividualCents" >= 0 AND "PensionEmploymentCents" >= 0
+    ),
+    CONSTRAINT "UQ_FiscalProfiles_UserYear" UNIQUE ("UserID", "FiscalYear")
+);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `ProfileID` | SERIAL | Auto-increment primary key |
+| `UserID` | INT | FK to Users (CASCADE) |
+| `FiscalYear` | INT | Tax year the figures belong to |
+| `PensionIndividualCents` | INT | Plan de pensiones individual, in cents |
+| `PensionEmploymentCents` | INT | Plan de empleo simplificado de trabajadores por cuenta propia, in cents |
+
+**Why two columns and not one total.** Each product carries a different ceiling: art. 52.1.b)
+sets a 1.500 €/year general limit on the total whatever the instrument, and 2.º *increases* it by
+up to 4.250 €/year for the self-employed products. A single stored total could not be validated —
+5.750 € might be a legal 1.500 + 4.250 or an illegal 5.750 all individual, and the code would
+have no way to tell them apart. The reduction is therefore
+`min( min(individual, 1.500) + employment , 1.500 + min(employment, 4.250) , 30% of net earnings )`,
+implemented in `computePensionReductionCents()` (`src/utils/irpf.ts`).
+
+The unique constraint on `(UserID, FiscalYear)` doubles as the lookup index: every read is by
+both columns.
+
+---
+
 ### Database Views
 
 #### vw_MonthlySummary
@@ -968,7 +1016,8 @@ Users
 ├── InvoicePrefixes.UserID → Users.UserID
 ├── Invoices.UserID → Users.UserID
 ├── FiscalDocuments.UserID → Users.UserID
-└── FiscalDeadlineSettings.UserID → Users.UserID (UNIQUE)
+├── FiscalDeadlineSettings.UserID → Users.UserID (UNIQUE)
+└── FiscalProfiles.UserID → Users.UserID (CASCADE, UNIQUE per FiscalYear)
 
 Invoices
 ├── PrefixID → InvoicePrefixes.PrefixID
@@ -1456,6 +1505,24 @@ export interface FiscalDeadlineSettings {
   isActive: boolean;                   // Whether reminders are enabled
 }
 ```
+
+### FiscalProfile
+
+The annual fiscal profile and the payload that saves it. Amounts are cents, like everywhere else;
+the API takes euros on the wire and converts at the edge.
+
+```typescript
+export interface FiscalProfile {
+  fiscalYear: number;
+  pensionIndividualCents: number;   // Plan de pensiones individual
+  pensionEmploymentCents: number;   // Plan de empleo simplificado de autónomos
+}
+
+/** Writable half: the year identifies the row, it is not stored data */
+export type FiscalProfileInput = Omit<FiscalProfile, 'fiscalYear'>;
+```
+
+A year with no stored row resolves to zeros, so the card always has something to render.
 
 ### Subcategory Summary
 

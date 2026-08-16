@@ -1702,6 +1702,10 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
     "projectedExpensesCents": 604800,
     "gastosDificilCents": 200000,
     "projectedNetIncomeCents": 6918900,
+    "pensionIndividualCents": 150000,
+    "pensionEmploymentCents": 100000,
+    "pensionReductionCents": 250000,
+    "baseLiquidableCents": 6668900,
     "modelo130PaidCents": 1383780,
     "modelo130PaidIsEstimated": false,
     "modelo130RemainingCents": 0,
@@ -1717,6 +1721,46 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
 }
 ```
 
+#### `GET /api/fiscal/profile`
+
+Get the annual fiscal profile: the per-year facts only the taxpayer knows. A year that was never saved resolves to zeros rather than a 404, so the card always has something to render.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `year` | number | Yes | Fiscal year (e.g. `2026`) |
+
+```json
+{
+  "success": true,
+  "data": {
+    "fiscalYear": 2026,
+    "pensionIndividualCents": 150000,
+    "pensionEmploymentCents": 100000
+  }
+}
+```
+
+#### `PUT /api/fiscal/profile`
+
+Create or update the profile of a year (upsert on `UserID` + `FiscalYear`). Contributions travel **in euros** and are converted with `eurosToCents()` at the route edge, like `projectedIncome` on the projection endpoint. The response comes back in cents.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `fiscalYear` | number | Yes | Tax year the contributions belong to |
+| `pensionIndividual` | number | Yes | Plan de pensiones individual, in euros |
+| `pensionEmployment` | number | Yes | Plan de empleo simplificado de autónomos, in euros |
+
+```bash
+PUT /api/fiscal/profile
+{ "fiscalYear": 2026, "pensionIndividual": 1500, "pensionEmployment": 1000 }
+```
+
+The two amounts are stored separately because each carries its own legal ceiling — see `FiscalProfiles` in [DATA_MODELS.md](DATA_MODELS.md). The contributions reduce the base of the annual Renta only: **no Modelo 130 figure changes**.
+
 **IRPF Projection Fields:**
 
 | Field | Type | Description |
@@ -1731,7 +1775,10 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
 | `modelo130RemainingCents` | number | `modelo130TotalCents - modelo130PaidCents - retencionesCents` (never negative) |
 | `modelo130TotalCents` | number | 20% of the projected net income |
 | `retencionesCents` | number | IRPF withheld by clients this year (casilla 06), already netted out of `modelo130PaidCents` |
-| `estimatedIrpfCents` | number | Progressive scale (state + regional) minus the mínimo personal quota |
+| `pensionIndividualCents` / `pensionEmploymentCents` | number | What the fiscal profile of the year records, per product |
+| `pensionReductionCents` | number | What actually reduced the base after every legal cap |
+| `baseLiquidableCents` | number | `projectedNetIncomeCents - pensionReductionCents`: the base the scale taxes |
+| `estimatedIrpfCents` | number | Progressive scale (state + regional) on the base liquidable, minus the mínimo personal quota |
 | `provisionGapCents` | number | `estimatedIrpfCents - modelo130TotalCents`: what to set aside for June |
 | `marginalRate` | number | Marginal rate at that net income, as a factor (e.g. `0.43`) |
 | `monthlyProvisionCents` | number | `estimatedIrpfCents / 12` |
@@ -1742,7 +1789,7 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
 
 `projectedIncome` is rejected above `IRPF_PROJECTION.MAX_INCOME_EUROS` (100.000.000 €); an empty value falls back to the run-rate instead of being read as 0 €.
 
-Excludes the mínimo por descendientes, pension plan contributions and regional deductions, so within Madrid the real IRPF is somewhat lower — the figure is a conservative provision, not a settlement. Every figure uses the state scale plus the Comunidad de Madrid one (`DEFAULT_IRPF_REGION`); it does not apply to taxpayers in other regions.
+Excludes the mínimo por descendientes and regional deductions (pension contributions ARE covered, through the fiscal profile), so within Madrid the real IRPF is somewhat lower — the figure is a conservative provision, not a settlement. Every figure uses the state scale plus the Comunidad de Madrid one (`DEFAULT_IRPF_REGION`); it does not apply to taxpayers in other regions.
 
 ---
 

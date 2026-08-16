@@ -136,6 +136,7 @@ export const QUERY_KEY = {
   FISCAL_DOCUMENTS: 'fiscal-documents',
   FISCAL_DEADLINES: 'fiscal-deadlines',
   FISCAL_DEADLINE_SETTINGS: 'fiscal-deadline-settings',
+  FISCAL_PROFILE: 'fiscal-profile',
   CRYPTO_CREDENTIALS: 'crypto-credentials',
   CRYPTO_SYNC_STATUS: 'crypto-sync-status',
   CRYPTO_EVENTS: 'crypto-events',
@@ -199,6 +200,7 @@ export const API_ENDPOINT = {
   FISCAL_DOCUMENTS: '/api/fiscal/documents',
   FISCAL_DEADLINES: '/api/fiscal/deadlines',
   FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
+  FISCAL_PROFILE: '/api/fiscal/profile',
   CRYPTO_CREDENTIALS: '/api/crypto/credentials',
   CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
   CRYPTO_SYNC: '/api/crypto/sync',
@@ -401,6 +403,28 @@ export const DEFAULT_IRPF_REGION: IrpfRegion = IRPF_REGION.MADRID;
 
 /** Mínimo personal del contribuyente (5.550 €). Taxed by the scale and then subtracted as a quota. */
 export const MINIMO_PERSONAL_CENTS = 555_000;
+
+/**
+ * Pension plan contributions that reduce the base imponible general (arts. 51-52 Ley 35/2006).
+ *
+ * Tax years 2025 and 2026: art. 52.1 as worded by Ley 31/2022, in force since 01-01-2023 and
+ * unchanged for 2026 (no PGE 2026; the 2023 figures were prorrogadas).
+ *
+ * The two ceilings are kept apart on purpose: the general limit covers any plan (an individual
+ * one included), while the increment is reserved for planes de empleo simplificados de
+ * trabajadores por cuenta propia. A single joint ceiling could not tell 1.500 + 4.250 (legal)
+ * from 5.750 in an individual plan (illegal).
+ */
+export const PENSION_PLAN = {
+  /** Art. 52.1.b): general limit, 1.500 €/year, in cents */
+  GENERAL_LIMIT_CENTS: 150_000,
+  /** Art. 52.1.b) 2.º: increment for the self-employed, 4.250 €/year on top of the general one, in cents */
+  SELF_EMPLOYED_EXTRA_CENTS: 425_000,
+  /** Art. 52.1.a): 30% of the rendimientos netos del trabajo y de actividades económicas, as a factor */
+  INCOME_PERCENTAGE_CAP: 0.3,
+  /** Sanity ceiling for the amount typed per bucket, in euros — no bucket can legally come near it. */
+  MAX_CONTRIBUTION_EUROS: 100_000,
+} as const;
 
 /** Modelo 130 pays a flat rate on the accumulated net income — the same IRPF_RATE, as a factor. */
 export const IRPF_PROJECTION = {
@@ -840,6 +864,7 @@ export const API_ERROR = {
       VOUCHER: 'api-error.mutation.update.voucher',
       FISCAL_STATUS: 'api-error.mutation.update.fiscal-status',
       FISCAL_SETTINGS: 'api-error.mutation.update.fiscal-settings',
+      FISCAL_PROFILE: 'api-error.mutation.update.fiscal-profile',
     },
     DELETE: {
       TRANSACTION: 'api-error.mutation.delete.transaction',

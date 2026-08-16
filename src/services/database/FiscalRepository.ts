@@ -24,6 +24,7 @@ import {
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { getFiledModeloAmounts } from '@/services/database/FiscalDocumentRepository';
+import { getFiscalProfileForUser } from '@/services/database/FiscalProfileRepository';
 import type {
   FiscalTransaction,
   IrpfProjection,
@@ -35,7 +36,13 @@ import type {
 import { calcGastosDificilCents, computeFiscalFields } from '@/utils/fiscal';
 import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { toDateString } from '@/utils/helpers';
-import { computeIrpfCents, computeMarginalRate, getYearProgress, projectAnnualCents } from '@/utils/irpf';
+import {
+  computeIrpfCents,
+  computeMarginalRate,
+  computePensionReductionCents,
+  getYearProgress,
+  projectAnnualCents,
+} from '@/utils/irpf';
 import { query } from './connection';
 
 interface FiscalViewRow {
@@ -430,6 +437,9 @@ function settledM130Quarters(year: number, now: Date = new Date()): number[] {
  * Reads the same accrual rows as every other model — never "vw_FiscalQuarterly", which
  * would book invoice income on the collection date.
  *
+ * The pension contributions of the annual fiscal profile lower the base the scale taxes, but
+ * only there: Modelo 130 is left untouched, which is exactly why the gap shrinks.
+ *
  * @param year - Fiscal year
  * @param options.projectedIncomeCents - Manual override for the annual billing (cents)
  * @param options.now - Current date (injectable for testing; defaults to the real clock)
@@ -440,9 +450,10 @@ export async function getIrpfProjection(
 ): Promise<IrpfProjection> {
   const userId = await getUserIdOrThrow();
 
-  const [rows, filedAmounts] = await Promise.all([
+  const [rows, filedAmounts, profile] = await Promise.all([
     loadFiscalRows(userId, year),
     getFiledModeloAmounts(userId, MODELO_TYPE.M130, year),
+    getFiscalProfileForUser(userId, year),
   ]);
 
   // Same criteria as Modelo 130: professional income only, expenses at their deductible share.
@@ -469,6 +480,19 @@ export async function getIrpfProjection(
   const gastosDificilCents = calcGastosDificilCents(rendimientoPre);
   const projectedNetIncomeCents = rendimientoPre - gastosDificilCents;
 
+  // Pension contributions reduce the base imponible general of the annual Renta (arts. 51-52
+  // Ley 35/2006) and nothing else: the pagos fraccionados of art. 110 RIRPF ignore them. So the
+  // reduced base feeds the progressive scale only, and the whole Modelo 130 side below keeps
+  // reading projectedNetIncomeCents.
+  const pensionReductionCents = computePensionReductionCents(
+    profile.pensionIndividualCents,
+    profile.pensionEmploymentCents,
+    projectedNetIncomeCents,
+  );
+  // The reduction never exceeds the net income, so a positive base can never turn negative;
+  // a loss-making year keeps its negative figure, which the scale already treats as zero.
+  const baseLiquidableCents = projectedNetIncomeCents - pensionReductionCents;
+
   const series = computeModelo130Series(rows, year, ALL_QUARTERS, filedAmounts);
 
   // What the closed quarters actually settled: the filed casilla 7 when it is known.
@@ -488,7 +512,7 @@ export async function getIrpfProjection(
   // again, so they leave the quarterly instalments still to be filed.
   const modelo130RemainingCents = Math.max(0, modelo130TotalCents - modelo130PaidCents - retencionesCents);
 
-  const estimatedIrpfCents = computeIrpfCents(projectedNetIncomeCents, DEFAULT_IRPF_REGION);
+  const estimatedIrpfCents = computeIrpfCents(baseLiquidableCents, DEFAULT_IRPF_REGION);
 
   return {
     fiscalYear: year,
@@ -499,6 +523,10 @@ export async function getIrpfProjection(
     projectedExpensesCents,
     gastosDificilCents,
     projectedNetIncomeCents,
+    pensionIndividualCents: profile.pensionIndividualCents,
+    pensionEmploymentCents: profile.pensionEmploymentCents,
+    pensionReductionCents,
+    baseLiquidableCents,
     modelo130PaidCents,
     modelo130PaidIsEstimated,
     modelo130RemainingCents,
@@ -510,8 +538,11 @@ export async function getIrpfProjection(
     // quota. Subtracting them again would count the withheld IRPF twice and understate the
     // payment the Renta charges the following June.
     provisionGapCents: estimatedIrpfCents - modelo130TotalCents,
-    marginalRate: computeMarginalRate(projectedNetIncomeCents, DEFAULT_IRPF_REGION),
+    // On the reduced base: it is the rate the next euro billed would actually pay.
+    marginalRate: computeMarginalRate(baseLiquidableCents, DEFAULT_IRPF_REGION),
     monthlyProvisionCents: Math.round(estimatedIrpfCents / 12),
+    // Still divided by the rendimiento neto, not by the reduced base: the card reads this as
+    // "tax over what I earned". Dividing by the base would silently redefine the percentage.
     effectiveRate:
       projectedNetIncomeCents > 0 ? Math.round((estimatedIrpfCents / projectedNetIncomeCents) * 10_000) / 10_000 : 0,
     // Depends on the elapsed days alone: overriding the billing fixes the income side, but the

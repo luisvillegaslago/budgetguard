@@ -654,6 +654,12 @@ export interface IrpfProjection {
   projectedExpensesCents: number;
   gastosDificilCents: number; // 5% difícil justificación, capped
   projectedNetIncomeCents: number; // Rendimiento neto
+  /** Pension contributions declared for the year, per bucket: each has its own legal ceiling */
+  pensionIndividualCents: number;
+  pensionEmploymentCents: number;
+  /** What of them actually reduced the base after every cap (arts. 51-52); ≤ the sum of both buckets */
+  pensionReductionCents: number;
+  baseLiquidableCents: number; // Rendimiento neto minus the pension reduction — the base the scale taxes
   /** Modelo 130 already settled: the filed casilla 7 of the quarters whose deadline has passed */
   modelo130PaidCents: number;
   /** True when some settled quarter had no filed amount and was recomputed instead */
@@ -668,6 +674,23 @@ export interface IrpfProjection {
   effectiveRate: number; // estimatedIrpfCents / projectedNetIncomeCents
   isProjectionReliable: boolean; // False when the run-rate rests on fewer than MIN_PROJECTION_DAYS elapsed days
 }
+
+/**
+ * Annual fiscal profile: the per-year figures only the taxpayer knows, because they are
+ * savings rather than income or expense and no transaction can carry them.
+ * They reduce the base imponible general of the Renta and never touch Modelo 130.
+ * Every amount is in cents.
+ */
+export interface FiscalProfile {
+  fiscalYear: number;
+  /** Plan de pensiones individual — general limit of art. 52.1.b) */
+  pensionIndividualCents: number;
+  /** Plan de empleo simplificado de trabajadores por cuenta propia — increment of art. 52.1.b) 2.º */
+  pensionEmploymentCents: number;
+}
+
+/** Writable half of the annual fiscal profile: the year identifies the row, it is not stored data. */
+export type FiscalProfileInput = Omit<FiscalProfile, 'fiscalYear'>;
 
 // ============================================================
 // INVOICING TYPES

@@ -843,6 +843,8 @@
       "projected-expenses": "Projected deductible expenses",
       "gastos-dificil": "5% difficult-to-justify (max €2,000/year)",
       "net-income": "Net income",
+      "pension-reduction": "Pension plan reduction applied",
+      "base-liquidable": "Base liquidable general",
       "modelo130-total": "Modelo 130 for the year (20%)",
       "modelo130-paid": "Already paid in closed quarters",
       "modelo130-paid-estimated": "Already paid in closed quarters (estimated)",
@@ -859,13 +861,25 @@
         "reset": "Back to the projection",
         "hint": "Defaults to the run-rate projection of the current year."
       },
+      "pension": {
+        "title": "Pension plan contributions",
+        "description": "They are savings, not an expense: they reduce the base of the annual return but never affect Modelo 130. Record them once a year and the estimate will take them into account.",
+        "individual-label": "Individual pension plan (€)",
+        "individual-hint": "The one you take out yourself at a bank or insurer. Maximum €1,500 per year.",
+        "employment-label": "Simplified employment plan for the self-employed (€)",
+        "employment-hint": "The employment plan for self-employed workers. It allows up to €4,250 more per year, on top of the individual one.",
+        "save": "Save contributions",
+        "saved": "Contributions saved",
+        "cap-individual": "You recorded {declared} in the individual plan, above its own limit: the estimate only applies {applied}.",
+        "cap-applied": "Of the {declared} recorded, this estimate applies {applied}: the rest is above the legal caps."
+      },
       "schedule": {
         "title": "Remaining deadlines",
         "modelo130": "Modelo 130 · Q{quarter}",
         "renta": "Renta {year} (annual return)",
         "renta-split": "The annual return can be split: 60% in June and 40% in November."
       },
-      "disclaimer": "Conservative estimate using the state scale plus the Comunidad de Madrid one: if you are taxed in another region the regional rates differ and this figure does not apply. It also excludes the minimum for dependants, pension plan contributions and regional deductions, so within Madrid the actual IRPF will be somewhat lower."
+      "disclaimer": "Conservative estimate using the state scale plus the Comunidad de Madrid one: if you are taxed in another region the regional rates differ and this figure does not apply. It relieves the personal minimum and the pension plan contributions you recorded, but excludes the minimum for dependants, any other income you declare and regional deductions, so within Madrid the actual IRPF will be somewhat lower."
     },
     "modelo390": {
       "title": "Modelo 390 — Annual VAT Summary",
@@ -2134,7 +2148,8 @@
         "tunnel-session": "Error updating tunnel session",
         "voucher": "Error updating voucher",
         "fiscal-status": "Error updating document status",
-        "fiscal-settings": "Error updating fiscal settings"
+        "fiscal-settings": "Error updating fiscal settings",
+        "fiscal-profile": "Error saving the annual fiscal profile"
       },
       "delete": {
         "transaction": "Error deleting transaction",

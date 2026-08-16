@@ -843,6 +843,8 @@
       "projected-expenses": "Gastos deducibles proyectados",
       "gastos-dificil": "5% difícil justificación (máx. 2.000€/año)",
       "net-income": "Rendimiento neto",
+      "pension-reduction": "Reducción por planes de pensiones aplicada",
+      "base-liquidable": "Base liquidable general",
       "modelo130-total": "Modelo 130 del año (20%)",
       "modelo130-paid": "Ya pagado en trimestres vencidos",
       "modelo130-paid-estimated": "Ya pagado en trimestres vencidos (estimado)",
@@ -859,13 +861,25 @@
         "reset": "Volver a la proyección",
         "hint": "Por defecto se proyecta el ritmo de facturación del año en curso."
       },
+      "pension": {
+        "title": "Aportaciones a planes de pensiones",
+        "description": "Son ahorro, no gasto: reducen la base de la Renta anual, pero no afectan al Modelo 130. Apúntalas una vez al año y la estimación las tendrá en cuenta.",
+        "individual-label": "Plan de pensiones individual (€)",
+        "individual-hint": "El que contratas por tu cuenta en el banco o la aseguradora. Máximo 1.500 € al año.",
+        "employment-label": "Plan de empleo simplificado de autónomos (€)",
+        "employment-hint": "El plan de empleo para trabajadores por cuenta propia. Admite hasta 4.250 € más al año, además del individual.",
+        "save": "Guardar aportaciones",
+        "saved": "Aportaciones guardadas",
+        "cap-individual": "Has apuntado {declared} en el plan individual, por encima de su límite: la estimación solo aplica {applied}.",
+        "cap-applied": "De los {declared} apuntados, esta estimación aplica {applied}: el resto supera los topes legales."
+      },
       "schedule": {
         "title": "Vencimientos restantes",
         "modelo130": "Modelo 130 · T{quarter}",
         "renta": "Renta {year} (declaración anual)",
         "renta-split": "La Renta se puede fraccionar: 60% en junio y 40% en noviembre."
       },
-      "disclaimer": "Estimación prudente con la escala estatal y la de la Comunidad de Madrid: si tributas en otra comunidad el tipo autonómico cambia y esta cifra no te sirve. Tampoco incluye mínimo por descendientes, aportaciones a planes de pensiones ni deducciones autonómicas, así que en Madrid el IRPF real será algo menor."
+      "disclaimer": "Estimación prudente con la escala estatal y la de la Comunidad de Madrid: si tributas en otra comunidad el tipo autonómico cambia y esta cifra no te sirve. Descuenta el mínimo personal y las aportaciones a planes de pensiones que hayas apuntado, pero no incluye el mínimo por descendientes, otras rentas que declares ni las deducciones autonómicas, así que en Madrid el IRPF real será algo menor."
     },
     "modelo390": {
       "title": "Modelo 390 — Resumen anual IVA",
@@ -2134,7 +2148,8 @@
         "tunnel-session": "Error al actualizar la sesión de túnel",
         "voucher": "Error al actualizar el bono",
         "fiscal-status": "Error al actualizar el estado del documento",
-        "fiscal-settings": "Error al actualizar los ajustes fiscales"
+        "fiscal-settings": "Error al actualizar los ajustes fiscales",
+        "fiscal-profile": "Error al guardar los datos fiscales del año"
       },
       "delete": {
         "transaction": "Error al eliminar la transacción",

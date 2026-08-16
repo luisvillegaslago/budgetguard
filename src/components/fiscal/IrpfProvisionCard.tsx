@@ -7,19 +7,23 @@
  *
  * Owns its own query (unlike Modelo303/130Card, which receive data) because the annual
  * billing override is card-local state that re-runs the projection.
+ *
+ * It also edits the annual fiscal profile: the pension contributions of the year, which reduce
+ * the base of the Renta and never touch Modelo 130. Those are persisted, not simulated.
  */
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, PiggyBank } from 'lucide-react';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { type UseFormRegisterReturn, useForm } from 'react-hook-form';
 import { FiscalAmountRow as AmountRow } from '@/components/fiscal/FiscalAmountRow';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { FILING_STATUS, MODELO_TYPE } from '@/constants/finance';
+import { FILING_STATUS, MODELO_TYPE, PENSION_PLAN } from '@/constants/finance';
+import { useFiscalProfile, useUpsertFiscalProfile } from '@/hooks/useFiscalProfile';
 import { useIrpfProjection } from '@/hooks/useIrpfProjection';
 import { useTranslate } from '@/hooks/useTranslations';
-import type { IrpfProjectionOverrideInput } from '@/schemas/fiscal';
-import { IrpfProjectionOverrideSchema } from '@/schemas/fiscal';
+import type { FiscalProfileAmountsInput, IrpfProjectionOverrideInput } from '@/schemas/fiscal';
+import { FiscalProfileAmountsSchema, IrpfProjectionOverrideSchema } from '@/schemas/fiscal';
 import type { FiscalDeadline, IrpfProjection } from '@/types/finance';
 import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { cn, formatDate } from '@/utils/helpers';
@@ -39,6 +43,22 @@ interface ProjectedIncomeFormProps {
 const ERROR_ID = 'projectedIncome-error';
 /** Ties the collapse toggle to the region it controls (aria-controls) */
 const CONTENT_ID = 'irpf-provision-content';
+
+/** Shared by every amount input of the card; the border is the only error-dependent part. */
+const inputClasses = (hasError: boolean): string =>
+  cn(
+    'w-full px-4 py-2 rounded-lg border bg-background text-foreground tabular-nums',
+    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
+    'transition-colors duration-200 ease-out-quart',
+    hasError ? 'border-guard-danger' : 'border-input',
+  );
+
+const SUBMIT_CLASSES = cn(
+  'shrink-0 px-4 py-2 rounded-lg font-semibold text-white',
+  'bg-guard-primary hover:bg-guard-primary/90',
+  'transition-all duration-200 ease-out-quart active:scale-[0.98]',
+  'disabled:opacity-50 disabled:cursor-not-allowed',
+);
 
 /**
  * Annual billing override. The card keys this form on the override state, not on the
@@ -70,21 +90,9 @@ function ProjectedIncomeForm({ defaultEuros, onApply, onReset }: ProjectedIncome
           onWheel={(e) => e.currentTarget.blur()}
           aria-invalid={!!errors.projectedIncome}
           aria-describedby={errors.projectedIncome ? ERROR_ID : undefined}
-          className={cn(
-            'w-full px-4 py-2 rounded-lg border bg-background text-foreground tabular-nums',
-            'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
-            'transition-colors duration-200 ease-out-quart',
-            errors.projectedIncome ? 'border-guard-danger' : 'border-input',
-          )}
+          className={inputClasses(!!errors.projectedIncome)}
         />
-        <button
-          type="submit"
-          className={cn(
-            'shrink-0 px-4 py-2 rounded-lg font-semibold text-white',
-            'bg-guard-primary hover:bg-guard-primary/90',
-            'transition-all duration-200 ease-out-quart active:scale-[0.98]',
-          )}
-        >
+        <button type="submit" className={SUBMIT_CLASSES}>
           {t('fiscal.irpf-projection.override.apply')}
         </button>
         {onReset && (
@@ -108,6 +116,175 @@ function ProjectedIncomeForm({ defaultEuros, onApply, onReset }: ProjectedIncome
       )}
       <p className="text-xs text-guard-muted">{t('fiscal.irpf-projection.override.hint')}</p>
     </form>
+  );
+}
+
+interface PensionFieldProps {
+  id: string;
+  label: string;
+  hint: string;
+  /** Translation key produced by the Zod resolver, not a ready-made sentence */
+  errorKey?: string;
+  registration: UseFormRegisterReturn;
+}
+
+/** One pension bucket. Each field owns its own error id so aria-describedby never collides. */
+function PensionField({ id, label, hint, errorKey, registration }: PensionFieldProps) {
+  const { t } = useTranslate();
+  const errorId = `${id}-error`;
+
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-sm font-medium text-foreground">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="number"
+        step="0.01"
+        min="0"
+        {...registration}
+        onWheel={(e) => e.currentTarget.blur()}
+        aria-invalid={!!errorKey}
+        aria-describedby={errorKey ? errorId : undefined}
+        className={inputClasses(!!errorKey)}
+      />
+      {errorKey && (
+        <p id={errorId} role="alert" className="text-sm text-guard-danger">
+          {t(errorKey)}
+        </p>
+      )}
+      <p className="text-xs text-guard-muted">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * Pension contributions of the year, one field per product because each bucket has its own
+ * legal ceiling and a single total could not be validated.
+ *
+ * Unlike the billing override this is a saved setting, not a simulation: the form seeds itself
+ * from the stored profile and the mutation persists it, so the figures survive a reload.
+ */
+function PensionContributionsForm({ year }: { year: number }) {
+  const { t } = useTranslate();
+  const { data: profile } = useFiscalProfile(year);
+  const saveMutation = useUpsertFiscalProfile();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FiscalProfileAmountsInput>({
+    resolver: zodResolver(FiscalProfileAmountsSchema),
+    defaultValues: { pensionIndividual: 0, pensionEmployment: 0 },
+  });
+
+  // Seed the fields once the stored profile lands (and again after a save refetches it)
+  useEffect(() => {
+    if (profile) {
+      reset({
+        pensionIndividual: centsToEuros(profile.pensionIndividualCents),
+        pensionEmployment: centsToEuros(profile.pensionEmploymentCents),
+      });
+    }
+  }, [profile, reset]);
+
+  const onSubmit = ({ pensionIndividual, pensionEmployment }: FiscalProfileAmountsInput) =>
+    saveMutation.mutate({
+      fiscalYear: year,
+      pensionIndividualCents: eurosToCents(pensionIndividual),
+      pensionEmploymentCents: eurosToCents(pensionEmployment),
+    });
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 border-t border-border pt-4">
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">{t('fiscal.irpf-projection.pension.title')}</h4>
+        <p className="text-xs text-guard-muted">{t('fiscal.irpf-projection.pension.description')}</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <PensionField
+          id="pensionIndividual"
+          label={t('fiscal.irpf-projection.pension.individual-label')}
+          hint={t('fiscal.irpf-projection.pension.individual-hint')}
+          errorKey={errors.pensionIndividual?.message}
+          registration={register('pensionIndividual', { valueAsNumber: true })}
+        />
+        <PensionField
+          id="pensionEmployment"
+          label={t('fiscal.irpf-projection.pension.employment-label')}
+          hint={t('fiscal.irpf-projection.pension.employment-hint')}
+          errorKey={errors.pensionEmployment?.message}
+          registration={register('pensionEmployment', { valueAsNumber: true })}
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={saveMutation.isPending} className={SUBMIT_CLASSES}>
+          {saveMutation.isPending ? t('common.loading') : t('fiscal.irpf-projection.pension.save')}
+        </button>
+        {saveMutation.isSuccess && (
+          <output className="block text-sm text-guard-success animate-fade-in">
+            {t('fiscal.irpf-projection.pension.saved')}
+          </output>
+        )}
+      </div>
+
+      {saveMutation.errorMessage && (
+        <p role="alert" className="text-sm text-guard-danger">
+          {saveMutation.errorMessage}
+        </p>
+      )}
+    </form>
+  );
+}
+
+/**
+ * Tells the user when the estimate could not use everything he declared. Each bucket is
+ * clamped against its own ceiling first; the joint 30%-of-earnings cap then trims the sum, so
+ * it can bite even when neither bucket exceeded its own limit.
+ */
+function PensionCapNotices({ data }: { data: IrpfProjection }) {
+  const { t } = useTranslate();
+
+  // The only per-bucket statement that is exact: an individual plan contributes at most the
+  // general limit, whatever else was paid. Which of the remaining ceilings trimmed the rest is
+  // the backend's business — re-deriving it here would let the card contradict the figure it
+  // was given.
+  const declaredCents = data.pensionIndividualCents + data.pensionEmploymentCents;
+  const individualExceedsLimit = data.pensionIndividualCents > PENSION_PLAN.GENERAL_LIMIT_CENTS;
+
+  if (data.pensionReductionCents >= declaredCents) return null;
+
+  const notices = [
+    individualExceedsLimit
+      ? t('fiscal.irpf-projection.pension.cap-individual', {
+          declared: formatCurrency(data.pensionIndividualCents),
+          applied: formatCurrency(PENSION_PLAN.GENERAL_LIMIT_CENTS),
+        })
+      : null,
+  ].filter((notice): notice is string => notice !== null);
+
+  return (
+    <output className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-guard-warning/10 border border-guard-warning/20">
+      <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+      <div className="space-y-1">
+        {notices.map((notice) => (
+          <p key={notice} className="text-sm text-guard-warning">
+            {notice}
+          </p>
+        ))}
+        <p className="text-sm font-semibold text-guard-warning">
+          {t('fiscal.irpf-projection.pension.cap-applied', {
+            declared: formatCurrency(declaredCents),
+            applied: formatCurrency(data.pensionReductionCents),
+          })}
+        </p>
+      </div>
+    </output>
   );
 }
 
@@ -188,6 +365,18 @@ function ProvisionBreakdown({ data }: { data: IrpfProjection }) {
         />
         <AmountRow label={t('fiscal.irpf-projection.gastos-dificil')} cents={data.gastosDificilCents} indent muted />
         <AmountRow label={t('fiscal.irpf-projection.net-income')} cents={data.projectedNetIncomeCents} />
+        {/* Only the Renta leg sees the reduction: Modelo 130 still charges 20% of the net income */}
+        {data.pensionReductionCents > 0 && (
+          <>
+            <AmountRow
+              label={t('fiscal.irpf-projection.pension-reduction')}
+              cents={data.pensionReductionCents}
+              indent
+              muted
+            />
+            <AmountRow label={t('fiscal.irpf-projection.base-liquidable')} cents={data.baseLiquidableCents} />
+          </>
+        )}
 
         <div className="border-t border-border my-2" />
 
@@ -304,6 +493,11 @@ export function IrpfProvisionCard({ year }: IrpfProvisionCardProps) {
                 onApply={setOverrideCents}
                 onReset={overrideCents !== null ? () => setOverrideCents(null) : undefined}
               />
+
+              <PensionContributionsForm year={year} />
+
+              {/* Only meaningful next to a breakdown: with no activity there is nothing to reduce */}
+              {showBreakdown && <PensionCapNotices data={data} />}
 
               {/* Too few days elapsed for the run-rate to mean anything — ask for the expected annual
                   billing. <output> is the semantic live-status element (Biome a11y rule). */}

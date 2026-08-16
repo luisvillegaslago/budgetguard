@@ -27,6 +27,7 @@ DROP TRIGGER IF EXISTS "TR_RecurringExpenses_SyncVendorName" ON "RecurringExpens
 DROP TRIGGER IF EXISTS "TR_Companies_PropagateNameChange" ON "Companies";
 DROP TRIGGER IF EXISTS "TR_FiscalDocuments_UpdatedAt" ON "FiscalDocuments";
 DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineSettings";
+DROP TRIGGER IF EXISTS "TR_FiscalProfiles_UpdatedAt" ON "FiscalProfiles";
 DROP TRIGGER IF EXISTS "TR_ExchangeCredentials_UpdatedAt" ON "ExchangeCredentials";
 DROP TRIGGER IF EXISTS "TR_CryptoSyncJobs_UpdatedAt" ON "CryptoSyncJobs";
 DROP TRIGGER IF EXISTS "TR_TaxableEvents_UpdatedAt" ON "TaxableEvents";
@@ -61,6 +62,7 @@ DROP TABLE IF EXISTS "BinanceRawEvents";
 DROP TABLE IF EXISTS "CryptoSyncJobs";
 DROP TABLE IF EXISTS "ExchangeApiCallLog";
 DROP TABLE IF EXISTS "ExchangeCredentials";
+DROP TABLE IF EXISTS "FiscalProfiles";
 DROP TABLE IF EXISTS "FiscalDeadlineSettings";
 DROP TABLE IF EXISTS "FiscalDocuments";
 DROP TABLE IF EXISTS "InvoiceLineItems";
@@ -827,7 +829,7 @@ CREATE TABLE "Invoices" (
     CONSTRAINT "FK_Invoices_Transaction"
         FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
     CONSTRAINT "FK_Invoices_User"
-        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID"),
+        FOREIGN KEY ("UserID") REFERENCES "Users"("UserID")
 );
 
 -- Partial unique index: only enforced when InvoiceNumber is assigned (at finalization)
@@ -1011,6 +1013,42 @@ CREATE TABLE "FiscalDeadlineSettings" (
 
 CREATE TRIGGER "TR_FiscalDeadlineSettings_UpdatedAt"
     BEFORE UPDATE ON "FiscalDeadlineSettings"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Annual fiscal profile (1 row per user x fiscal year).
+--
+-- Holds the per-year facts only the taxpayer knows and that no transaction can carry,
+-- because they are savings rather than income or expense. They reduce the base
+-- imponible general of the annual Renta (arts. 51-52 Ley 35/2006) and are ignored by
+-- the pagos fraccionados of Modelo 130, so they only feed the IRPF provision estimate.
+--
+-- Pension contributions are split per product because each has its own legal ceiling:
+-- a single total could not be validated (5.750 EUR is legal as 1.500 + 4.250, but
+-- illegal as 5.750 in an individual plan alone).
+--
+-- Future per-year facts (minimo por descendientes, other income) belong here as plain
+-- additional columns.
+CREATE TABLE "FiscalProfiles" (
+    "ProfileID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "FiscalYear" INT NOT NULL,
+    -- Plan de pensiones individual: general limit of art. 52.1.b) (1.500 EUR/year)
+    "PensionIndividualCents" INT NOT NULL DEFAULT 0,
+    -- Plan de empleo simplificado de trabajadores por cuenta propia:
+    -- the increment of art. 52.1.b) 2.o (up to 4.250 EUR/year on top of the general limit)
+    "PensionEmploymentCents" INT NOT NULL DEFAULT 0,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- Contributions are amounts paid in: never negative
+    CONSTRAINT "CK_FiscalProfiles_NonNegative" CHECK (
+        "PensionIndividualCents" >= 0 AND "PensionEmploymentCents" >= 0
+    ),
+    -- Also the lookup index: every read is by (UserID, FiscalYear), which this covers
+    CONSTRAINT "UQ_FiscalProfiles_UserYear" UNIQUE ("UserID", "FiscalYear")
+);
+
+CREATE TRIGGER "TR_FiscalProfiles_UpdatedAt"
+    BEFORE UPDATE ON "FiscalProfiles"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
