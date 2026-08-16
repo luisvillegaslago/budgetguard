@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.56.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.55.1...v0.56.0) (2026-08-16)
+
+
+### Features
+
+* **fiscal:** add annual fiscal profile with pension contributions ([1d122c7](https://github.com/luisvillegaslago/budgetguard/commit/1d122c7f1dc1ce2b3aa8fba6d277daf38105a786))
+
 ## [0.55.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.55.0...v0.55.1) (2026-08-15)
 
 
