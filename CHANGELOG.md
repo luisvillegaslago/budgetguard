@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.56.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.56.0...v0.56.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **ui:** draw the focus ring inside the element so no container can clip it ([83424a7](https://github.com/luisvillegaslago/budgetguard/commit/83424a75740b80a8ed83e5e62b38aed1aa240abe))
+
 ## [0.56.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.55.1...v0.56.0) (2026-08-16)
 
 
