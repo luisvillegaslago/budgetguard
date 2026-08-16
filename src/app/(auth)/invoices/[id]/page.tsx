@@ -538,7 +538,7 @@ export default function InvoiceDetailPage() {
                 value={bankFeeEuros}
                 onChange={(e) => setBankFeeEuros(e.target.value)}
                 placeholder="0.00"
-                className="mt-1 block w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-guard-primary"
+                className="mt-1 block w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none"
               />
               <span className="mt-1 block text-xs text-guard-muted">{t('invoices.actions.bank-fee-help')}</span>
             </label>

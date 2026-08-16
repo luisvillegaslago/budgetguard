@@ -48,7 +48,6 @@ const CONTENT_ID = 'irpf-provision-content';
 const inputClasses = (hasError: boolean): string =>
   cn(
     'w-full px-4 py-2 rounded-lg border bg-background text-foreground tabular-nums',
-    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
     'transition-colors duration-200 ease-out-quart',
     hasError ? 'border-guard-danger' : 'border-input',
   );

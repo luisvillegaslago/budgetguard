@@ -208,7 +208,7 @@ export function StringSuggestionCombobox({
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder={resolvedSearchPlaceholder}
-              className="w-full px-3 py-1.5 text-sm rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-input bg-background text-foreground"
               autoComplete="off"
             />
           </div>

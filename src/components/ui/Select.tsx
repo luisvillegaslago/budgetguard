@@ -14,7 +14,6 @@ export const Select = forwardRef<HTMLSelectElement, ComponentPropsWithRef<'selec
     ref={ref}
     className={cn(
       'w-full appearance-none px-4 py-2.5 pr-9 rounded-lg border border-input bg-background text-foreground text-sm',
-      'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
       'disabled:opacity-50 disabled:cursor-not-allowed',
       'transition-colors duration-200 ease-out-quart',
       'bg-[length:16px_16px] bg-[position:right_10px_center] bg-no-repeat',

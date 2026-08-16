@@ -59,7 +59,7 @@ export function AppTopBar() {
               <button
                 type="button"
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="tap-target -m-1 lg:m-0 rounded-full focus:outline-none focus:ring-2 focus:ring-guard-primary focus:ring-offset-2 focus:ring-offset-card"
+                className="tap-target -m-1 lg:m-0 rounded-full focus:outline-none"
                 aria-label={session.user.name ?? 'User menu'}
                 aria-expanded={showUserMenu}
                 aria-haspopup="true"

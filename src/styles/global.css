@@ -6,8 +6,27 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * The focus ring, drawn INSIDE the element's own box, and the only place it is defined.
+   *
+   * An outward ring is painted beyond the border box, so every ancestor that clips cuts it
+   * off — and this app clips a lot: `.card` is overflow-hidden, collapsible panels animate
+   * behind overflow-hidden, tab bars scroll behind overflow-x-auto. Patching containers one
+   * by one never converged. Drawing the ring inward makes clipping impossible by construction,
+   * whatever any ancestor does.
+   *
+   * Two bands: the inner one in the page background separates the ring from the element's own
+   * fill, which is what keeps it visible on brand-coloured buttons where an indigo ring on an
+   * indigo background would vanish. It replaces the element's own shadow while focused.
+   *
+   * Components must NOT add their own `focus:ring-*`: a utility beats this rule, brings the
+   * outward ring back and the clipping with it.
+   */
   *:focus-visible {
-    @apply rounded outline-none ring-2 ring-ring ring-offset-2;
+    @apply rounded outline-none;
+    box-shadow:
+      inset 0 0 0 2px hsl(var(--background)),
+      inset 0 0 0 4px hsl(var(--ring));
   }
 
   :root {
@@ -124,11 +143,11 @@
 
   /* Form input tokens */
   .input-base {
-    @apply px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent transition-colors duration-200;
+    @apply px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm transition-colors duration-200;
   }
 
   .input-sm {
-    @apply px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent transition-colors duration-200;
+    @apply px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm transition-colors duration-200;
   }
 
 }

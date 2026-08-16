@@ -147,7 +147,6 @@ function SearchableSelect({
 
   const selectClasses = cn(
     'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground pr-10',
-    'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
     'disabled:opacity-50 disabled:cursor-not-allowed',
     'transition-colors duration-200 ease-out-quart',
     error ? 'border-guard-danger' : 'border-input',

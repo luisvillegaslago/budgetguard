@@ -160,7 +160,7 @@ export function AmountSumPopover({ onApply, disabled }: AmountSumPopoverProps) {
               onKeyDown={handleKeyDown}
               placeholder="0,00"
               autoComplete="off"
-              className="w-full min-w-0 px-3 py-1.5 text-sm text-right rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              className="w-full min-w-0 px-3 py-1.5 text-sm text-right rounded-md border border-input bg-background text-foreground"
             />
             <button
               type="button"

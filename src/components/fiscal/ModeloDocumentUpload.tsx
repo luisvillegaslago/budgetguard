@@ -39,7 +39,6 @@ function isSelectableYear(year: number | null): year is number {
 
 const INPUT_CLASSES = cn(
   'w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground',
-  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
   'transition-colors duration-200 ease-out-quart',
 );
 

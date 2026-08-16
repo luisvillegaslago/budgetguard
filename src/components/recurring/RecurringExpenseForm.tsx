@@ -65,7 +65,6 @@ const DEFAULT_OCCURRENCE_COUNT: Record<RecurringFrequency, number> = {
 
 const INPUT_CLASSES = cn(
   'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
   'transition-colors duration-200 ease-out-quart',
 );
 
@@ -479,7 +478,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                         register('vatPercent', { setValueAs: toNullableNumber }).onChange(e);
                       }}
                       onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm"
                     />
                   </div>
 
@@ -500,7 +499,7 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                         register('deductionPercent', { setValueAs: toNullableNumber }).onChange(e);
                       }}
                       onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm"
                     />
                   </div>
                 </div>

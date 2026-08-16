@@ -63,7 +63,7 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize, onPa
               if (val >= 1 && val <= totalPages) onPageChange(val - 1);
             }}
             onWheel={(e) => e.currentTarget.blur()}
-            className="w-12 text-center text-xs py-1 rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-12 text-center text-xs py-1 rounded border border-input bg-background text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             aria-label={t('skydiving.pagination.page-input')}
           />
           <span>/ {totalPages}</span>

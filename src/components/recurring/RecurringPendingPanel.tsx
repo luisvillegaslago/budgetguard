@@ -112,7 +112,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
               value={modifiedAmount}
               onChange={(e) => setModifiedAmount(e.target.value)}
               placeholder={t('recurring.pending.amount-placeholder')}
-              className="w-28 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              className="w-28 px-2 py-1 text-sm rounded border border-input bg-background text-foreground"
               aria-label={t('recurring.pending.modified-amount')}
             />
             <button
@@ -185,7 +185,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
               value={modifiedAmount}
               onChange={(e) => setModifiedAmount(e.target.value)}
               placeholder={t('recurring.pending.amount-placeholder')}
-              className="w-28 px-2 py-1 text-sm rounded border border-input bg-background text-foreground focus:ring-2 focus:ring-guard-primary focus:border-transparent"
+              className="w-28 px-2 py-1 text-sm rounded border border-input bg-background text-foreground"
               aria-label={t('recurring.pending.modified-amount')}
             />
             <button

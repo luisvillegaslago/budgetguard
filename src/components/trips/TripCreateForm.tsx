@@ -95,7 +95,6 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
               {...register('name')}
               className={cn(
                 'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
                 'transition-colors duration-200 ease-out-quart',
                 errors.name ? 'border-guard-danger' : 'border-input',
               )}
@@ -119,7 +118,6 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
                 {...register('startDate')}
                 className={cn(
                   'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
                   'transition-colors duration-200 ease-out-quart',
                   errors.startDate ? 'border-guard-danger' : 'border-input',
                 )}
@@ -141,7 +139,6 @@ export function TripCreateForm({ onClose, onCreated }: TripCreateFormProps) {
                 {...register('endDate')}
                 className={cn(
                   'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'focus:ring-2 focus:ring-guard-primary focus:border-transparent',
                   'transition-colors duration-200 ease-out-quart',
                   errors.endDate ? 'border-guard-danger' : 'border-input',
                 )}

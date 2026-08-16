@@ -42,7 +42,7 @@ export function InlinePrefixForm({ inputId, isPending, onSubmit, onCancel }: Inl
           onChange={(e) => setPrefixCode(e.target.value.toUpperCase())}
           placeholder={t('settings.billing.fields.prefix-placeholder')}
           maxLength={PREFIX_MAX_LENGTH}
-          className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-guard-primary font-mono"
+          className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm font-mono"
         />
       </div>
       <button
