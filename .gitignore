@@ -35,7 +35,11 @@ yarn-error.log*
 next-env.d.ts
 
 # IDE
-.idea/
+# .idea is personal EXCEPT the shared run configurations: those describe how
+# the project is run and are worth versioning, so a fresh clone gets the same
+# buttons instead of everyone rebuilding them by hand.
+.idea/*
+!.idea/runConfigurations/
 .vscode/
 *.swp
 *.swo
