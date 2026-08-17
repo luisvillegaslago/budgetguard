@@ -1526,6 +1526,7 @@ export interface Modelo100Section {
   casilla0223Cents: number;         // Total gastos deducibles (C0218 + C0222)
   casilla0224Cents: number;         // Rendimiento neto (C0180 - C0223)
   gastosPorCasilla: Modelo100GastoCasilla[];  // { casilla, cents } per AEAT expense box
+  unmappedCents: number;                      // Of the above, what had no casilla and fell back to 0202
 }
 
 // Full report for a year + quarter

@@ -8,6 +8,7 @@
 
 import { ExternalLink } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { MODELO_100_DEFAULT_CASILLA } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo100Section } from '@/types/finance';
 import { cn } from '@/utils/helpers';
@@ -109,6 +110,15 @@ export function Modelo100Card({ data }: Modelo100CardProps) {
             <CasillaRow number="0222" label={t('fiscal.modelo100.casilla0222')} cents={data.casilla0222Cents} />
             <CasillaRow number="0223" label={t('fiscal.modelo100.casilla0223')} cents={data.casilla0223Cents} isTotal />
           </div>
+          {/* The fallback is invisible in the rows above: it looks like a deliberate 0202 */}
+          {data.unmappedCents > 0 && (
+            <p className="mt-2 text-xs text-guard-warning">
+              {t('fiscal.modelo100.unmapped', {
+                amount: formatCurrency(data.unmappedCents),
+                casilla: MODELO_100_DEFAULT_CASILLA,
+              })}
+            </p>
+          )}
         </div>
       </div>
 

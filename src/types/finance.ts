@@ -618,6 +618,12 @@ export interface Modelo100Section {
   casilla0223Cents: number; // Total gastos deducibles (C0218 + C0222)
   casilla0224Cents: number; // Rendimiento neto (C0180 - C0223)
   gastosPorCasilla: Modelo100GastoCasilla[]; // Desglose de gastos por casilla AEAT
+  /**
+   * Deductible expenses whose category carries no casilla, already counted in the default one.
+   * Surfaced because the breakdown would otherwise look complete: an unmapped category and a
+   * deliberate "otros servicios exteriores" produce the same row.
+   */
+  unmappedCents: number;
 }
 
 /**

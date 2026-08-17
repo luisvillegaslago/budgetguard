@@ -314,6 +314,7 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
         ['Asistenta', 'spray-can', '#EF4444', 2, true, null],
         ['Calefaccion', 'flame', '#EF4444', 3, true, '0194'],
         ['Luz', 'zap', '#EF4444', 4, true, '0194'],
+        // Sin casilla a proposito: ver el comentario de seed.sql
         ['Garaje', 'warehouse', '#EF4444', 5, true, null],
         ['Comunidad', 'building-2', '#EF4444', 6, true, '0217'],
         ['Compras Casa', 'package', '#EF4444', 7, true, null],
@@ -353,11 +354,11 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
       parent: 'Trabajo',
       entries: [
         ['Seguridad Social', 'shield', '#F59E0B', 1, false, '0186'],
-        ['Regularización RETA', 'shield-alert', '#F59E0B', 2, false, '0196'],
-        ['Impuestos', 'landmark', '#F59E0B', 3, false, null],
-        ['Anthropic', 'cpu', '#F59E0B', 4, false, '0217'],
-        ['General', 'alert-circle', '#F59E0B', 5, false, null],
-        ['Comisiones bancarias', 'landmark', '#F59E0B', 6, false, null],
+        ['Regularización RETA', 'shield-alert', '#F59E0B', 2, false, '0186'],
+        ['Impuestos', 'landmark', '#F59E0B', 3, false, '0206'],
+        ['Anthropic', 'cpu', '#F59E0B', 4, false, '0202'],
+        ['General', 'alert-circle', '#F59E0B', 5, false, '0217'],
+        ['Comisiones bancarias', 'landmark', '#F59E0B', 6, false, '0202'],
       ],
     },
     {
@@ -374,10 +375,10 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
     {
       parent: 'Viajes',
       entries: [
-        ['Alojamiento', 'bed', '#8B5CF6', 1, false, null],
-        ['Transporte', 'car', '#EF4444', 2, false, null],
-        ['Comida', 'utensils', '#F59E0B', 3, false, null],
-        ['Restaurante', 'chef-hat', '#06B6D4', 4, false, null],
+        ['Alojamiento', 'bed', '#8B5CF6', 1, false, '0202'],
+        ['Transporte', 'car', '#EF4444', 2, false, '0202'],
+        ['Comida', 'utensils', '#F59E0B', 3, false, '0191'],
+        ['Restaurante', 'chef-hat', '#06B6D4', 4, false, '0191'],
         ['Actividades', 'ticket', '#10B981', 5, false, null],
         ['Copas', 'wine', '#EC4899', 6, false, null],
         ['Otros', 'ellipsis', '#64748B', 7, false, null],

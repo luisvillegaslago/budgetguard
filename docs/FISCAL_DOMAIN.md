@@ -211,8 +211,26 @@ Income and expense totals mirror the 130's annual position (casillas 0171/0180/0
 rendimiento neto in 0224). The extra work is `gastosPorCasilla`: each expense category must land in
 the right AEAT expense box.
 
-`MODELO_100_CASILLA` maps them today, with `C0202` (*otros servicios exteriores*) as the fallback
-for anything unmapped. **The fallback currently absorbs most categories** — see [Known gaps](#known-gaps).
+`MODELO_100_CASILLA` holds **every** expense box of the official form, and a category may only be
+assigned one of them. `C0202` (*otros servicios exteriores*) is the fallback for a category with
+none, and `Modelo100Section.unmappedCents` reports how much the fallback absorbed — without it, an
+unmapped category and a deliberate 0202 produce an identical row.
+
+**Box numbers are per campaign.** They held from 2021 to 2024, but AEAT renumbers; check a filed
+modelo before assuming. The authority is the form itself (ANEXO I, BOE-A-2024-5721), and the
+invariant that catches an invented box is the definition of casilla 218:
+
+```
+Suma ([0181] a [0195] + [0198] a [0200] + [0202] + [0203] + [0205] + [0206] + [0208] +
+      [0227] + [0214] a [0217])
+```
+
+A code outside every one of those ranges is not a deductible-expense box at all. An earlier version
+offered **0196** for the RETA regularisation — 0196 and 0197 fall in the gaps between the ranges, so
+anything filed there reaches no total. `modelo100-category-map.test.ts` now checks membership
+against the ranges rather than restating the constant, which is why the old test passed.
+
+The RETA regularisation belongs in **0186**, the same box as the ordinary quota.
 
 Note that invoice-derived rows carry `CategoryID = 0`. `getModelo100Summary()` joins `Categories`
 with a `LEFT JOIN` for that reason; an `INNER JOIN` makes every invoice disappear.
@@ -327,6 +345,7 @@ fact. **Add the new window here every year.**
 | All income enters the view; only coded expenses do | `vw_FiscalQuarterly` WHERE clause | Uncoded invoices vanish from 130/390/100 |
 | Casilla 05 prefers the filed amount | `settledAmountCents()` | Drift propagates through the rest of the year |
 | Casilla 97 = last period only | `getModelo390Summary()` | 390 mismatches the 4T 303 |
+| Every Modelo 100 casilla is one casilla 218 sums | `modelo100-category-map.test.ts` | Expenses filed into a box that does not exist |
 | The VAT pool opening is stored, not derived | `FiscalProfiles.VatPoolOpeningCents` | The app's pool diverges from AEAT's registry |
 | Pension caps applied per bucket, 30% on the sum | `computePensionReductionCents()` | An illegal reduction is projected |
 | `FiscalProfileInput` writes are partial | `COALESCE` in the repository upsert | One card wipes the other's figure |
@@ -342,8 +361,10 @@ Open items from the fiscal audit, in the order they matter:
 1. **036 affectation not declared.** Deducting home-office supplies (art. 30.2.5.ª b LIRPF, 30% of
    the affected share) requires the affectation to be declared in the censo. Until the 036 is filed
    and the real m² share known, those deductions are exposed on inspection.
-2. **Modelo 100 casilla map is incomplete.** 73 of 81 expense categories fall through to the
-   `C0202` fallback. The breakdown is therefore indicative, not filing-ready.
+2. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
+   deductible expense is now assigned; the rest are personal categories left unmapped on purpose. A
+   new one falls through to `C0202` and is reported in `unmappedCents`, so the gap is visible rather
+   than silent.
 3. **No amortizaciones.** Fixed assets are expensed in full in the year of purchase; there is no
    amortisation table.
 4. **No cross-quarter invoice alert.** An invoice whose issue and collection dates fall in different

@@ -56,6 +56,8 @@ BEGIN
   ('Asistenta', 'expense', 'spray-can', '#EF4444', 2, v_id, TRUE, NULL),
   ('Calefaccion', 'expense', 'flame', '#EF4444', 3, v_id, TRUE, '0194'),
   ('Luz', 'expense', 'zap', '#EF4444', 4, v_id, TRUE, '0194'),
+  -- Sin casilla: un alquiler sin factura no es deducible (art. 106 LGT), y asignarle una
+  -- casilla invitaria a deducirlo. Ponla solo si el arrendador emite factura.
   ('Garaje', 'expense', 'warehouse', '#EF4444', 5, v_id, TRUE, NULL),
   ('Comunidad', 'expense', 'building-2', '#EF4444', 6, v_id, TRUE, '0217'),
   ('Compras Casa', 'expense', 'package', '#EF4444', 7, v_id, TRUE, NULL),
@@ -123,11 +125,11 @@ BEGIN
 
   INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode") VALUES
   ('Seguridad Social', 'expense', 'shield', '#F59E0B', 1, v_id, FALSE, '0186'),
-  ('Regularización RETA', 'expense', 'shield-alert', '#F59E0B', 2, v_id, FALSE, '0196'),
-  ('Impuestos', 'expense', 'landmark', '#F59E0B', 3, v_id, FALSE, NULL),
-  ('Anthropic', 'expense', 'cpu', '#F59E0B', 4, v_id, FALSE, '0217'),
-  ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, NULL),
-  ('Comisiones bancarias', 'expense', 'landmark', '#F59E0B', 6, v_id, FALSE, NULL);
+  ('Regularización RETA', 'expense', 'shield-alert', '#F59E0B', 2, v_id, FALSE, '0186'),
+  ('Impuestos', 'expense', 'landmark', '#F59E0B', 3, v_id, FALSE, '0206'),
+  ('Anthropic', 'expense', 'cpu', '#F59E0B', 4, v_id, FALSE, '0202'),
+  ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, '0217'),
+  ('Comisiones bancarias', 'expense', 'landmark', '#F59E0B', 6, v_id, FALSE, '0202');
 END $$;
 
 -- ============================================================
@@ -139,12 +141,12 @@ DECLARE
 BEGIN
   SELECT "CategoryID" INTO v_id FROM "Categories" WHERE "Name" = 'Viajes' AND "ParentCategoryID" IS NULL;
 
-  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared") VALUES
-  ('Alojamiento', 'expense', 'bed', '#8B5CF6', 1, v_id, FALSE),
-  ('Transporte', 'expense', 'car', '#EF4444', 2, v_id, FALSE),
-  ('Comida', 'expense', 'utensils', '#F59E0B', 3, v_id, FALSE),
-  ('Restaurante', 'expense', 'chef-hat', '#06B6D4', 4, v_id, FALSE),
-  ('Actividades', 'expense', 'ticket', '#10B981', 5, v_id, FALSE),
-  ('Copas', 'expense', 'wine', '#EC4899', 6, v_id, FALSE),
-  ('Otros', 'expense', 'ellipsis', '#64748B', 7, v_id, FALSE);
+  INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode") VALUES
+  ('Alojamiento', 'expense', 'bed', '#8B5CF6', 1, v_id, FALSE, '0202'),
+  ('Transporte', 'expense', 'car', '#EF4444', 2, v_id, FALSE, '0202'),
+  ('Comida', 'expense', 'utensils', '#F59E0B', 3, v_id, FALSE, '0191'),
+  ('Restaurante', 'expense', 'chef-hat', '#06B6D4', 4, v_id, FALSE, '0191'),
+  ('Actividades', 'expense', 'ticket', '#10B981', 5, v_id, FALSE, NULL),
+  ('Copas', 'expense', 'wine', '#EC4899', 6, v_id, FALSE, NULL),
+  ('Otros', 'expense', 'ellipsis', '#64748B', 7, v_id, FALSE, NULL);
 END $$;

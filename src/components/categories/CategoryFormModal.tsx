@@ -13,7 +13,7 @@ import { ColorPicker } from '@/components/categories/ColorPicker';
 import { IconPicker } from '@/components/categories/IconPicker';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
-import { MODELO_100_CASILLA, TRANSACTION_TYPE } from '@/constants/finance';
+import { MODELO_100_CASILLA_OPTIONS, TRANSACTION_TYPE } from '@/constants/finance';
 import { useCreateCategory, useUpdateCategory } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateCategoryInput, CreateCategorySchema, type UpdateCategoryInput } from '@/schemas/transaction';
@@ -335,21 +335,11 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
               </label>
               <Select id="modelo100CasillaCode" {...register('modelo100CasillaCode')}>
                 <option value="">{t('fiscal.category-defaults.modelo100-none')}</option>
-                <option value={MODELO_100_CASILLA.C0186}>
-                  ({MODELO_100_CASILLA.C0186}) {t('fiscal.modelo100.casilla0186')}
-                </option>
-                <option value={MODELO_100_CASILLA.C0194}>
-                  ({MODELO_100_CASILLA.C0194}) {t('fiscal.modelo100.casilla0194')}
-                </option>
-                <option value={MODELO_100_CASILLA.C0196}>
-                  ({MODELO_100_CASILLA.C0196}) {t('fiscal.modelo100.casilla0196')}
-                </option>
-                <option value={MODELO_100_CASILLA.C0202}>
-                  ({MODELO_100_CASILLA.C0202}) {t('fiscal.modelo100.casilla0202')}
-                </option>
-                <option value={MODELO_100_CASILLA.C0217}>
-                  ({MODELO_100_CASILLA.C0217}) {t('fiscal.modelo100.casilla0217')}
-                </option>
+                {MODELO_100_CASILLA_OPTIONS.map((casilla) => (
+                  <option key={casilla} value={casilla}>
+                    ({casilla}) {t(`fiscal.modelo100.casilla${casilla}`)}
+                  </option>
+                ))}
               </Select>
             </div>
           )}

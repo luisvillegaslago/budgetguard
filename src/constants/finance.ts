@@ -435,14 +435,78 @@ export const IRPF_PROJECTION = {
   MAX_INCOME_EUROS: 100_000_000,
 } as const;
 
-// Modelo 100 — AEAT casilla codes for expense breakdown
+/**
+ * Modelo 100 — every casilla of "Gastos fiscalmente deducibles" for rendimientos de actividades
+ * económicas en estimación directa, verbatim from the official form (ANEXO I, BOE-A-2024-5721).
+ *
+ * The whole official set is listed even though a one-person professional can never use most of
+ * it. A code that is not here cannot be assigned to a category, which is the point: a previous
+ * version offered '0196' for the RETA regularisation and no such box exists — the sum of casilla
+ * 218 runs over [0181]-[0195] + [0198]-[0200] + [0202] + [0203] + [0205] + [0206] + [0208] +
+ * [0227] + [0214]-[0217], and 0196/0197 are outside every one of those ranges. Anything filed
+ * there lands nowhere.
+ *
+ * Numbering is per campaign: it held from 2021 to 2024, but check a filed modelo before assuming
+ * it still holds.
+ */
 export const MODELO_100_CASILLA = {
-  C0186: '0186', // Seguridad Social del titular
-  C0194: '0194', // Suministros (electricidad, agua, gas, telefonía, internet)
-  C0196: '0196', // Regularización cuotas RETA (a ingresar)
-  C0202: '0202', // Otros servicios exteriores (fallback)
-  C0217: '0217', // Otros conceptos fiscalmente deducibles
+  C0181: '0181', // Compra de existencias
+  C0182: '0182', // Variación de existencias (disminución de existencias finales)
+  C0183: '0183', // Otros consumos de explotación
+  C0184: '0184', // Sueldos y salarios
+  C0185: '0185', // Seguridad Social a cargo de la empresa
+  C0186: '0186', // Seguridad Social del titular de la actividad
+  C0187: '0187', // Indemnizaciones
+  C0188: '0188', // Dietas y asignaciones de viajes del personal empleado
+  C0189: '0189', // Aportaciones a sistemas de previsión social imputadas al personal empleado
+  C0190: '0190', // Otros gastos de personal
+  C0191: '0191', // Gastos de manutención del contribuyente (art. 30.2.5ª.c LIRPF)
+  C0192: '0192', // Arrendamientos y cánones
+  C0193: '0193', // Reparaciones y conservación
+  C0194: '0194', // Suministros (electricidad, agua, gas, telefonía e internet)
+  C0195: '0195', // Aportaciones a mutualidades alternativas del titular de la actividad
+  C0198: '0198', // Otros suministros
+  C0199: '0199', // Servicios de profesionales independientes
+  C0200: '0200', // Primas de seguros
+  C0202: '0202', // Otros servicios exteriores
+  C0203: '0203', // Gastos financieros
+  C0205: '0205', // IVA soportado (recargo de equivalencia, compensación agricultura)
+  C0206: '0206', // Otros tributos fiscalmente deducibles
+  C0208: '0208', // Dotaciones del ejercicio para amortización de inmovilizado material
+  C0214: '0214', // Pérdidas por insolvencias de deudores
+  C0215: '0215', // Incentivos al mecenazgo. Convenios de colaboración
+  C0216: '0216', // Incentivos al mecenazgo. Gastos en actividades de interés general
+  C0217: '0217', // Otros conceptos fiscalmente deducibles (excepto provisiones)
+  C0227: '0227', // Dotaciones del ejercicio para amortización del inmovilizado intangible
 } as const;
+
+export type Modelo100Casilla = (typeof MODELO_100_CASILLA)[keyof typeof MODELO_100_CASILLA];
+
+/**
+ * The subset offered when assigning a casilla to a category, in form order.
+ *
+ * Everything left out belongs to a business with employees, stock or patronage agreements — a
+ * picker of 28 boxes where 13 can never apply hides the ones that can. The excluded codes stay
+ * valid in `MODELO_100_CASILLA`, so a category that already carries one keeps working.
+ */
+export const MODELO_100_CASILLA_OPTIONS = [
+  MODELO_100_CASILLA.C0183,
+  MODELO_100_CASILLA.C0186,
+  MODELO_100_CASILLA.C0191,
+  MODELO_100_CASILLA.C0192,
+  MODELO_100_CASILLA.C0193,
+  MODELO_100_CASILLA.C0194,
+  MODELO_100_CASILLA.C0195,
+  MODELO_100_CASILLA.C0198,
+  MODELO_100_CASILLA.C0199,
+  MODELO_100_CASILLA.C0200,
+  MODELO_100_CASILLA.C0202,
+  MODELO_100_CASILLA.C0203,
+  MODELO_100_CASILLA.C0206,
+  MODELO_100_CASILLA.C0208,
+  MODELO_100_CASILLA.C0227,
+  MODELO_100_CASILLA.C0217,
+] as const;
 
 export const MODELO_100_DEFAULT_CASILLA = MODELO_100_CASILLA.C0202;
 
@@ -929,6 +993,7 @@ export const VALIDATION_KEY = {
   NIF_REQUIRED: 'validation.nif-required',
   PREFIX_REQUIRED: 'validation.prefix-required',
   INVALID_COLOR: 'validation.invalid-color',
+  INVALID_MODELO_100_CASILLA: 'validation.invalid-modelo-100-casilla',
   LINE_ITEMS_REQUIRED: 'validation.line-items-required',
   SELECT_PREFIX: 'validation.select-prefix',
   SELECT_CLIENT: 'validation.select-client',

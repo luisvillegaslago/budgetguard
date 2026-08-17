@@ -42,3 +42,6 @@ next-env.d.ts
 
 # MCP config (contains DB credentials)
 .mcp.json
+
+# One-off SQL applied manually to Neon; canonical state lives in database/schema.sql + seed.sql
+/*.sql

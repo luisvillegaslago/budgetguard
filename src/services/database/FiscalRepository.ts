@@ -694,6 +694,10 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
 
   let ingresosCents = 0;
   let gastosDeducCents = 0;
+  // What the fallback absorbed. Without this the breakdown looks complete: every euro shows up
+  // under some casilla, and a category nobody ever mapped is indistinguishable from a deliberate
+  // "otros servicios exteriores".
+  let unmappedCents = 0;
   const casillaMap = new Map<string, number>();
 
   rows.forEach((row) => {
@@ -709,6 +713,7 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     if (row.Type === TRANSACTION_TYPE.EXPENSE && baseDeducibleCents > 0) {
       gastosDeducCents += baseDeducibleCents;
       const casilla = row.Modelo100CasillaCode ?? MODELO_100_DEFAULT_CASILLA;
+      if (row.Modelo100CasillaCode === null) unmappedCents += baseDeducibleCents;
       casillaMap.set(casilla, (casillaMap.get(casilla) ?? 0) + baseDeducibleCents);
     }
   });
@@ -735,5 +740,6 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     casilla0223Cents: casilla0223,
     casilla0224Cents: casilla0224,
     gastosPorCasilla,
+    unmappedCents,
   };
 }
