@@ -10,6 +10,7 @@
 
 import { Calculator, CheckCircle2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { FiscalCrossQuarterInvoices } from '@/components/fiscal/FiscalCrossQuarterInvoices';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDeadlinePanel } from '@/components/fiscal/FiscalDeadlinePanel';
 import { FiscalExpenseTable } from '@/components/fiscal/FiscalExpenseTable';
@@ -174,11 +175,16 @@ export default function FiscalPage() {
             </div>
           </div>
 
-          {/* IRPF provision: what the flat 20% of Modelo 130 leaves for the annual Renta.
-              Keyed by year so switching year drops the card's manual billing override. */}
+          {/* Invoices whose issue and collection dates disagree about this quarter. The models
+              above are already right; this only warns the human reading a bank statement.
+              Renders nothing when devengo and cobro agree, which is the usual case. */}
+          <FiscalCrossQuarterInvoices invoices={report.crossQuarterInvoices} />
+
           {/* Income the models leave out, so a miscategorised invoice cannot vanish unnoticed */}
           <FiscalUncountedIncome income={report.uncountedIncome} />
 
+          {/* IRPF provision: what the flat 20% of Modelo 130 leaves for the annual Renta.
+              Keyed by year so switching year drops the card's manual billing override. */}
           <IrpfProvisionCard key={year} year={year} />
 
           <FiscalInvoiceTable invoices={report.invoices} />

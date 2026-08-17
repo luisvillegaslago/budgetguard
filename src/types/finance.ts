@@ -7,8 +7,10 @@ import type {
   AmortizationCasilla,
   AmortizationGroupNumber,
   CompanyRole,
+  CrossQuarterCase,
   FilingStatus,
   FiscalDocumentType,
+  FiscalQuarter,
   FiscalStatus,
   InvoiceStatus,
   IrpfRegion,
@@ -26,6 +28,7 @@ export type {
   AmortizationCasilla,
   AmortizationGroupNumber,
   CompanyRole,
+  CrossQuarterCase,
   DateRangePreset,
   FilingStatus,
   FiscalDocumentType,
@@ -516,6 +519,15 @@ export interface CategoryHistoryResponse {
 // ============================================================
 
 /**
+ * The year + quarter a date is settled in — the fiscal period, not the calendar one it
+ * happens to sit in. Returned by getFiscalPeriod().
+ */
+export interface FiscalPeriod {
+  year: number;
+  quarter: FiscalQuarter;
+}
+
+/**
  * Computed fiscal fields from computeFiscalFields()
  */
 export interface FiscalComputedFields {
@@ -652,6 +664,12 @@ export interface FiscalReport {
   invoices: FiscalTransaction[];
   /** Income of the quarter that falls outside the professional category, so no model counts it */
   uncountedIncome: FiscalTransaction[];
+  /**
+   * Issued invoices whose devengo and whose cobro disagree about this quarter. Informational:
+   * the figures above are already right, this only names where a bank statement would say
+   * otherwise.
+   */
+  crossQuarterInvoices: CrossQuarterInvoice[];
 }
 
 /**
@@ -919,6 +937,35 @@ export interface InvoiceListItem {
   totalCents: number;
   currency: string;
   status: InvoiceStatus;
+}
+
+/**
+ * An issued invoice whose devengo and whose cobro do not tell the same story about a quarter.
+ *
+ * Purely informational: the figure the models computed is the correct one in every case. This
+ * exists because the person filing reasons from bank movements while the law reasons from the
+ * invoice date, and when the two disagree the human is the one who gets it wrong.
+ *
+ * Carries both periods already resolved so the UI can explain itself without a second query.
+ */
+export interface CrossQuarterInvoice {
+  invoiceId: number;
+  /** Nullable to match the column: an issued invoice always has one, an un-numbered draft never does */
+  invoiceNumber: string | null;
+  clientName: string;
+  /** What the client pays: base + IVA − retención */
+  totalCents: number;
+  /** Fecha de devengo — the date every fiscal model books this invoice on */
+  invoiceDate: string;
+  invoiceYear: number;
+  invoiceQuarter: number;
+  /** Date of the payment transaction; null when no collection is on record */
+  collectionDate: string | null;
+  collectionYear: number | null;
+  collectionQuarter: number | null;
+  crossQuarterCase: CrossQuarterCase;
+  /** The two periods fall in different fiscal years, so they belong to two different Rentas */
+  crossesFiscalYear: boolean;
 }
 
 // ============================================================

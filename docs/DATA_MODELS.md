@@ -1615,6 +1615,26 @@ export interface FiscalReport {
   expenses: FiscalTransaction[];
   invoices: FiscalTransaction[];
   uncountedIncome: FiscalTransaction[];  // Income outside the professional category: no model counts it
+  crossQuarterInvoices: CrossQuarterInvoice[];  // Devengo and cobro disagree about this quarter
+}
+
+// Which of the three disagreements a row represents (CROSS_QUARTER_CASE in @/constants/finance)
+type CrossQuarterCase = 'collected-in-another-period' | 'issued-not-collected' | 'declared-in-earlier-period';
+
+// An issued invoice whose devengo and whose cobro do not tell the same story about a quarter
+export interface CrossQuarterInvoice {
+  invoiceId: number;
+  invoiceNumber: string | null;    // Nullable to match the column
+  clientName: string;
+  totalCents: number;              // base + IVA − retención
+  invoiceDate: string;             // 'YYYY-MM-DD' — fecha de devengo, what every model books on
+  invoiceYear: number;
+  invoiceQuarter: number;
+  collectionDate: string | null;   // Date of the linked payment transaction, null when there is none
+  collectionYear: number | null;
+  collectionQuarter: number | null;
+  crossQuarterCase: CrossQuarterCase;
+  crossesFiscalYear: boolean;      // Two different years, so two different Rentas
 }
 
 export interface AnnualFiscalReport {
@@ -1627,6 +1647,16 @@ export interface AnnualFiscalReport {
 **`uncountedIncome` is a safety net, not a total.** It lists the income of the quarter that no model
 picks up because it sits outside the professional category. It exists so that income miscategorised
 at entry becomes visible instead of silently vanishing from the 130 and the 100.
+
+**`crossQuarterInvoices` is the other safety net, and it corrects nothing.** The summaries beside it
+are already on an accrual basis and are right as they stand; this array only names the invoices
+whose issue and collection dates disagree about the quarter being viewed, so a user reading a bank
+statement does not override a correct figure. It is never summed into a casilla.
+`InvoiceRepository.getCrossQuarterInvoices()` fills it from `"Invoices"` and the payment transaction
+`TransactionID` points at, over `ISSUED_INVOICE_STATUSES` only, resolving both periods with the same
+`EXTRACT` the accrual view uses. An invoice both declared and collected in the quarter is left out.
+The three `crossQuarterCase` values and the reasoning behind them are in
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
 
 **`amortizacionCents` is a breakout, not an extra total.** It is already inside casilla 02, and it
 is the reason a breakdown of that box must read *documentados + amortización + difícil

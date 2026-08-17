@@ -602,6 +602,25 @@ export type InvoiceStatus = (typeof INVOICE_STATUS)[keyof typeof INVOICE_STATUS]
 // (database/schema.sql); fiscal-accrual-view-contract.test.ts fails if they drift apart.
 export const ISSUED_INVOICE_STATUSES = [INVOICE_STATUS.FINALIZED, INVOICE_STATUS.PAID] as const;
 
+/**
+ * Why an issued invoice is worth pointing out while a quarter is being filed.
+ *
+ * None of the three is an error, and no copy built on them may say it is: "vw_FiscalAccrual"
+ * books every invoice on its "InvoiceDate" and each model is right in all three cases. What
+ * they surface is the disagreement between what the bank statement shows and what the quarter
+ * declares — the reasoning that produced the 2T 2026 rectificativa.
+ */
+export const CROSS_QUARTER_CASE = {
+  /** Declared in this quarter, collected in a different one. */
+  COLLECTED_IN_ANOTHER_PERIOD: 'collected-in-another-period',
+  /** Declared in this quarter, no collection on record. IVA is owed on issue, not on payment. */
+  ISSUED_NOT_COLLECTED: 'issued-not-collected',
+  /** Collected in this quarter, already declared in an earlier one. No model of this quarter counts it. */
+  DECLARED_IN_EARLIER_PERIOD: 'declared-in-earlier-period',
+} as const;
+
+export type CrossQuarterCase = (typeof CROSS_QUARTER_CASE)[keyof typeof CROSS_QUARTER_CASE];
+
 // IRPF withholding a Spanish business client must retain from a professional's invoice.
 // REDUCED applies during the year of registration and the two following ones.
 // Never applies to private individuals or to foreign clients.

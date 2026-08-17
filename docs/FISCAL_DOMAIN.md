@@ -77,9 +77,49 @@ fiscal computation queries `vw_FiscalQuarterly` directly, it is wrong even when 
 plausible — they only diverge for invoices whose issue and collection dates cross a quarter
 boundary.
 
-> This is not hypothetical. An invoice issued in June and collected in July forced a *rectificativa*
-> of the 2T 2026 303. The accrual view produces the corrected casilla 120 exactly; the cash view
-> produces the figure that had to be rectified.
+> This is not hypothetical. **CREST-01**, 600,00 €, was issued on **15-mar-2026** (1T) and collected
+> on **27-abr-2026** (2T). The 2T 2026 303 was filed with **26.475,00 €** in casilla 120; the correct
+> figure was **25.875,00 €**, exactly those 600,00 € less. It forced a *rectificativa*. The accrual
+> view produces the corrected figure; the cash view produces the one that had to be rectified.
+
+### The cross-quarter alert: it warns a human, it does not fix a number
+
+The figures were never the problem. `vw_FiscalAccrual` had CREST-01 in 1T from the day it was
+issued, and every modelo read it from there. What failed is upstream of the code: the person filing
+reasoned from the bank statement — *the money came in April, so it goes in 2T* — and overrode a
+figure the app had computed correctly. A rule the code obeys and the user does not is still a wrong
+filing.
+
+So the alert **warns a human rather than correcting a computation**.
+`InvoiceRepository.getCrossQuarterInvoices(year, quarter)` reads `"Invoices"` and the payment
+transaction its `TransactionID` points at, resolves both periods with the same `EXTRACT` over the
+same two dates the accrual view uses, and returns the rows where the two disagree about the quarter
+on screen. It changes no total, fills no casilla, and is an input to nothing. Only `finalized` and
+`paid` invoices are considered — `ISSUED_INVOICE_STATUSES`, the pair the accrual view itself uses,
+because a draft is declared nowhere.
+
+Anyone who reads this section as evidence of a bug in `vw_FiscalAccrual`, in `loadFiscalRows()` or
+in the accrual rule has misread it. There is nothing there to fix.
+
+Three ways the disagreement surfaces, all informational, none an error:
+
+| Case | What it says | Live example |
+|------|--------------|--------------|
+| `collected-in-another-period` | Declared in this quarter, collected in another. `crossesFiscalYear` marks the worse variant, where the two periods belong to two different *Rentas* | CREST-01 seen from 1T 2026 |
+| `issued-not-collected` | Declared in this quarter, no collection on record. The IVA falls due on issue whether or not the money arrived | DW-09, 1.200,00 €, issued 3-ago-2026, never collected — it is declared in the 3T 303/130 due 20 October 2026 |
+| `declared-in-earlier-period` | The money arrived in this quarter, but the invoice was already declared in an earlier one. This is the one that misleads: bank income that no modelo of this quarter counts | CREST-01 seen from 2T 2026 — the same 600,00 € that produced the rectificativa |
+
+The first and the third are one invoice seen from its two ends, and that is the point: which of the
+two misleads depends only on which quarter the user happens to be filing.
+
+Two things about the copy are deliberate. Nothing is worded as a mistake — the text states the rule
+and confirms the app already applies it. And an invoice with no linked payment is described as *sin
+cobro registrado*, never *aún no cobrada*: a `'paid'` invoice whose `TransactionID` was never linked
+lands in the same case, and only the first wording stays true of it.
+
+The same warning appears one step earlier, in the pay flow (`AccrualPeriodNote`), where marking an
+invoice paid is about to create a collection-dated transaction in a quarter that is not the one the
+invoice will be declared in.
 
 ---
 
@@ -548,9 +588,20 @@ Open items from the fiscal audit, in the order they matter:
      stop the schedule and settle the pending value; today the dotación simply keeps accruing.
    - **No historical assets.** Only what has been registered amortises. Anything bought before this
      module existed was deducted in full in its year and is not restated.
-4. **No cross-quarter invoice alert.** An invoice whose issue and collection dates fall in different
-   quarters is handled correctly by the accrual view, but nothing warns the user that the two
-   periods differ — which is the situation that produced the 2T 2026 rectificativa.
+4. **Cross-quarter invoices are flagged, but nothing is chased.** The alert of § Devengo vs. caja
+   surfaces the three disagreements on the fiscal page and in the pay flow. What is still manual:
+   - **It only sees invoices.** The detection reads `"Invoices"`. Professional income typed straight
+     into `Transactions` — every 2023 import, for one — has no issue date at all, so no disagreement
+     can be computed for it. Those rows are only ever booked on their cash date.
+   - **The third case depends on the link surviving.** A `'paid'` invoice whose `TransactionID` was
+     lost has no collection date, so it reports as *sin cobro registrado* and the money that arrived
+     this quarter is never matched back to the quarter that declared it. Nothing detects the broken
+     link.
+   - **Nothing acts on it.** It is a panel on the quarter being viewed: no reminder, no deadline
+     entry, and nothing stops a modelo from being recorded with the bank figure anyway.
+   - **No modificación de base imponible.** An invoice that will definitively not be paid allows the
+     IVA already declared on it to be recovered (art. 80.Cuatro LIVA, with its own deadlines and
+     formalities). The app flags the uncollected invoice and stops there.
 5. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
    `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
 6. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,

@@ -12,6 +12,7 @@ import {
   getModelo303Summary,
   getUncountedIncome,
 } from '@/services/database/FiscalRepository';
+import { getCrossQuarterInvoices } from '@/services/database/InvoiceRepository';
 import type { FiscalReport } from '@/types/finance';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 
@@ -29,12 +30,13 @@ export const GET = withApiHandler(async (request) => {
   const { year, quarter } = validation.data;
 
   // Execute all queries in parallel for minimum latency
-  const [modelo303, modelo130, expenses, invoices, uncountedIncome] = await Promise.all([
+  const [modelo303, modelo130, expenses, invoices, uncountedIncome, crossQuarterInvoices] = await Promise.all([
     getModelo303Summary(year, quarter),
     getModelo130Summary(year, quarter),
     getFiscalExpenses(year, quarter),
     getFiscalInvoices(year, quarter),
     getUncountedIncome(year, quarter),
+    getCrossQuarterInvoices(year, quarter),
   ]);
 
   const report: FiscalReport = {
@@ -45,6 +47,7 @@ export const GET = withApiHandler(async (request) => {
     expenses,
     invoices,
     uncountedIncome,
+    crossQuarterInvoices,
   };
 
   return { data: report };

@@ -1214,6 +1214,29 @@
     "uncounted-income": {
       "summary": "{count} ingresos de este trimestre no computan en los modelos · {total}",
       "hint": "Solo los ingresos de la categoría Facturas entran en el 303, el 130 y el 100. Si alguno de estos debería declararse, cámbialo de categoría."
+    },
+    "cross-quarter": {
+      "title": "Devengo y cobro",
+      "description": "Una factura se declara en el trimestre en que se emitió, se cobre en el trimestre que se cobre. Los modelos de este trimestre ya están calculados así.",
+      "case": {
+        "collected-in-another-period": "Cobrada en el T{collectionQuarter}, pero se declara en este trimestre: el IVA y el IRPF se devengan al emitir, no al cobrar.",
+        "collected-in-another-year": "Cobrada en el T{collectionQuarter} de {collectionYear}, ya de otro ejercicio: se declara en este trimestre y va en la Renta de {invoiceYear}, no en la de {collectionYear}.",
+        "issued-not-collected": "Emitida en este trimestre y sin cobro registrado: el IVA se devenga al emitir, así que se declara ahora aunque el dinero todavía no haya entrado.",
+        "declared-in-earlier-period": "El dinero entró en este trimestre, pero la factura se declaró en el T{invoiceQuarter} de {invoiceYear}: los modelos de este trimestre no la cuentan."
+      },
+      "group": {
+        "collected-in-another-period": "Cobradas en otro trimestre",
+        "issued-not-collected": "Emitidas y sin cobro registrado",
+        "declared-in-earlier-period": "Declaradas en un trimestre anterior"
+      },
+      "columns": {
+        "issue-date": "Fecha de emisión",
+        "collection-date": "Fecha de cobro",
+        "declared-quarter": "Trimestre declarado"
+      },
+      "quarter-label": "T{quarter} {year}",
+      "no-collection": "Sin cobro registrado",
+      "pay-warning": "La fecha de cobro cae en un trimestre distinto al de emisión: la factura se seguirá declarando en el T{invoiceQuarter} de {invoiceYear}, el de su fecha de emisión."
     }
   },
   "auth": {

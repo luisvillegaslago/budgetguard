@@ -5,8 +5,40 @@
  * Same Math.round() in backend and frontend = zero rounding discrepancies
  */
 
-import { GASTOS_DIFICIL } from '@/constants/finance';
-import type { FiscalComputedFields } from '@/types/finance';
+import { FISCAL_QUARTER, type FiscalQuarter, GASTOS_DIFICIL } from '@/constants/finance';
+import type { FiscalComputedFields, FiscalPeriod } from '@/types/finance';
+import { toDateString } from '@/utils/helpers';
+
+/** Calendar month (1-12) → the quarter it is settled in. */
+function quarterOfMonth(month: number): FiscalQuarter {
+  if (month <= 3) return FISCAL_QUARTER.Q1;
+  if (month <= 6) return FISCAL_QUARTER.Q2;
+  if (month <= 9) return FISCAL_QUARTER.Q3;
+  return FISCAL_QUARTER.Q4;
+}
+
+/**
+ * The fiscal period a date falls in.
+ *
+ * Deliberately reads the calendar fields off the date string rather than off a Date built from
+ * it. `new Date('2026-04-01')` is UTC midnight, and `getMonth()` on it returns March west of
+ * Greenwich — which would put a 2T invoice in the 1T. toDateString() normalises both inputs to
+ * 'YYYY-MM-DD' first, so the split below sees the same day the database stores and the same one
+ * `EXTRACT(QUARTER FROM ...)` reads in "vw_FiscalAccrual".
+ *
+ * @returns null when the date cannot be read, so callers that only display information can skip
+ *          it instead of guessing a period.
+ */
+export function getFiscalPeriod(date: Date | string): FiscalPeriod | null {
+  const [year, month] = toDateString(date).split('-').map(Number);
+  if (!year || !month || month < 1 || month > 12) return null;
+  return { year, quarter: quarterOfMonth(month) };
+}
+
+/** Whether two periods are the same year and the same quarter. */
+export function isSameFiscalPeriod(a: FiscalPeriod, b: FiscalPeriod): boolean {
+  return a.year === b.year && a.quarter === b.quarter;
+}
 
 /**
  * Compute fiscal fields from a total amount (IVA-inclusive), VAT rate, and deduction percentage

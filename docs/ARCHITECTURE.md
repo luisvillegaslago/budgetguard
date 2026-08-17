@@ -786,6 +786,9 @@ It also owns the **inmovilizado**: assets whose cost is spread over their useful
 │  │   └── getUncountedIncome                                   │
 │  └── getAmortizationCentsForPeriod()  ← FixedAssetRepository  │
 │      └── into 130 casilla 02, 100 casillas 0208/0227          │
+│                                                               │
+│  getCrossQuarterInvoices()  ← InvoiceRepository               │
+│  └── devengo vs. cobro — warns, feeds no casilla              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -799,7 +802,8 @@ It also owns the **inmovilizado**: assets whose cost is spread over their useful
 - `src/utils/fiscalDeadlines.ts` + `src/utils/workingDays.ts`: AEAT calendar, working-day extension, domiciliación
 - `src/schemas/fixed-asset.ts`: Asset validation, including the tabla × art. 103 LIS rate cap (`coefficientFitsGroup()`, exported so the PUT route can re-run it against the merged row)
 - `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`, `useFixedAssets.ts`
-- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalDeadlinePanel
+- `src/services/database/InvoiceRepository.ts`: `getCrossQuarterInvoices(year, quarter)` — the one fiscal read that does not go through `FiscalRepository`, because it is about invoices rather than about figures. Purely informational
+- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel
 - `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector. `FixedAssetsCard` is mounted once outside both view branches and keyed by year — the dotación belongs to the year, not to the quarter or the selected view
 
 **The dotación is not a transaction, and not a run rate.** Two consequences worth keeping in mind
@@ -808,6 +812,13 @@ and falsify every balance and cash-flow chart), and `getIrpfProjection()` subtra
 `projectAnnualCents()` (extrapolating a calendar figure in January would inflate December's
 roughly thirtyfold). The purchase transaction must be set to `DeductionPercent = 0` by hand;
 nothing enforces it. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
+
+**The cross-quarter alert warns the user, it does not adjust anything.** `crossQuarterInvoices` on
+the quarterly report lists the issued invoices whose devengo and whose cobro disagree about the
+quarter on screen — rendered by `FiscalCrossQuarterInvoices`, and again by `AccrualPeriodNote` in
+the invoice pay flow. It feeds no casilla and no computation: the models are already right, and the
+alert exists because the human reading a bank statement is the one who gets it wrong. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
 
 **SharedDivisor vs DeductionPercent:**
 These two fields serve distinct purposes and are independent:
@@ -819,7 +830,7 @@ These two fields serve distinct purposes and are independent:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/fiscal?year=2025&quarter=1` | Quarterly report (Modelo 303, Modelo 130, expenses, invoices, uncounted income) |
+| GET | `/api/fiscal?year=2025&quarter=1` | Quarterly report (Modelo 303, Modelo 130, expenses, invoices, uncounted income, cross-quarter invoices) |
 | GET | `/api/fiscal/annual?year=2025` | Annual report (Modelo 390, Modelo 100 section) |
 | GET | `/api/fiscal/projection?year=2025` | IRPF provision: the 20% vs. progressive-scale gap |
 | GET / PUT | `/api/fiscal/profile?year=2025` | Per-year fiscal profile (pension contributions, VAT pool opening) |

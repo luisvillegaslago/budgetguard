@@ -1632,6 +1632,22 @@ GET /api/fiscal?year=2025&quarter=1
         "vatPercent": 21,
         "transactionDate": "2025-01-15"
       }
+    ],
+    "crossQuarterInvoices": [
+      {
+        "invoiceId": 9,
+        "invoiceNumber": "CREST-01",
+        "clientName": "Crest Ltd",
+        "totalCents": 60000,
+        "invoiceDate": "2026-03-15",
+        "invoiceYear": 2026,
+        "invoiceQuarter": 1,
+        "collectionDate": "2026-04-27",
+        "collectionYear": 2026,
+        "collectionQuarter": 2,
+        "crossQuarterCase": "collected-in-another-period",
+        "crossesFiscalYear": false
+      }
     ]
   }
 }
@@ -1647,6 +1663,7 @@ GET /api/fiscal?year=2025&quarter=1
 | `modelo130` | object | Income tax summary (gross, deductible, net, taxable base, tax amount in cents) |
 | `expenses` | array | Deductible expense transactions with computed fiscal fields |
 | `invoices` | array | Transactions that have an `invoiceNumber` set |
+| `crossQuarterInvoices` | array | Issued invoices whose issue and collection dates disagree about this quarter — informational, see below |
 
 **Modelo 303 Fields:**
 
@@ -1672,6 +1689,25 @@ GET /api/fiscal?year=2025&quarter=1
 | `casilla5IsEstimated` | boolean | `true` when some previous quarter had no filed amount recorded |
 
 `casilla5Cents` is money already paid, so it is seeded from the amounts of the modelos 130 actually filed (`FiscalDocuments.TaxAmountCents`, positive results only, as the AEAT form words it) and only falls back to recomputing the previous quarters when no amount was recorded. A recomputation that drifts from the filing would propagate for the rest of the year, so the UI labels casilla 05 as estimated whenever it happens.
+
+**`crossQuarterInvoices` Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `invoiceId` | number | `Invoices.InvoiceID` |
+| `invoiceNumber` | string \| null | Nullable to match the column |
+| `clientName` | string | Snapshot taken when the invoice was created |
+| `totalCents` | number | What the client pays: base + IVA − retención |
+| `invoiceDate` | string | `YYYY-MM-DD`. Fecha de devengo — the date every modelo books this invoice on |
+| `invoiceYear` / `invoiceQuarter` | number | Period of `invoiceDate`, extracted in SQL |
+| `collectionDate` | string \| null | `YYYY-MM-DD` of the linked payment transaction; `null` when there is none |
+| `collectionYear` / `collectionQuarter` | number \| null | Period of `collectionDate`; `null` together with it |
+| `crossQuarterCase` | string | `collected-in-another-period` \| `issued-not-collected` \| `declared-in-earlier-period` (`CROSS_QUARTER_CASE`) |
+| `crossesFiscalYear` | boolean | The two periods fall in different years, so they belong to two different Rentas |
+
+Populated by `InvoiceRepository.getCrossQuarterInvoices(year, quarter)` over `finalized` and `paid` invoices (`ISSUED_INVOICE_STATUSES`); drafts are excluded. An invoice both declared and collected in the requested quarter is not returned — there is nothing to say about it.
+
+This array is **informational and changes no figure in the response**. The summaries above are already on an accrual basis and are correct as they stand; `crossQuarterInvoices` only names where a bank statement would tell a different story about the same quarter. Do not aggregate it into any casilla. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
 
 #### `GET /api/fiscal/projection`
 

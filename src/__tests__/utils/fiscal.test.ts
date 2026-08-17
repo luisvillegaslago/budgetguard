@@ -4,10 +4,16 @@
  * and FiscalReportFiltersSchema Zod validation
  */
 
-import { GASTOS_DIFICIL, VAT_RATE } from '@/constants/finance';
+import { FISCAL_QUARTER, GASTOS_DIFICIL, VAT_RATE } from '@/constants/finance';
 import { FiscalReportFiltersSchema } from '@/schemas/fiscal';
 import type { FiscalComputedFields } from '@/types/finance';
-import { calcGastosDificilCents, computeFiscalFields, rollVatPoolCents } from '@/utils/fiscal';
+import {
+  calcGastosDificilCents,
+  computeFiscalFields,
+  getFiscalPeriod,
+  isSameFiscalPeriod,
+  rollVatPoolCents,
+} from '@/utils/fiscal';
 
 // ---------------------------------------------------------------------------
 // computeFiscalFields
@@ -351,5 +357,53 @@ describe('rollVatPoolCents', () => {
     // Pay first and the pool absorbs it; generate first and there is more to absorb with
     expect(rollVatPoolCents(0, [20_000, -50_000])).toBe(50_000);
     expect(rollVatPoolCents(0, [-50_000, 20_000])).toBe(30_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getFiscalPeriod / isSameFiscalPeriod
+// ---------------------------------------------------------------------------
+
+describe('getFiscalPeriod', () => {
+  it('reads the period of the real invoice that forced the 2T 2026 rectificativa', () => {
+    // CREST-01: issued 14-mar-2026 (1T), collected 26-abr-2026 (2T). The invoice is declared
+    // in the quarter of the first date; reasoning from the second is what had to be rectified.
+    expect(getFiscalPeriod('2026-03-14')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q1 });
+    expect(getFiscalPeriod('2026-04-26')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q2 });
+  });
+
+  it('keeps a quarter boundary on the right side of the line in any timezone', () => {
+    // new Date('2026-04-01') is UTC midnight, and getMonth() on it returns March west of
+    // Greenwich — which would file a 2T invoice in the 1T. The date string is read directly.
+    expect(getFiscalPeriod('2026-03-31')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q1 });
+    expect(getFiscalPeriod('2026-04-01')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q2 });
+    expect(getFiscalPeriod('2026-01-01')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q1 });
+    expect(getFiscalPeriod('2026-12-31')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q4 });
+  });
+
+  it('accepts a Date, which is how the collection day reaches it', () => {
+    // Local components, matching the date the payment transaction is booked with
+    expect(getFiscalPeriod(new Date(2026, 7, 3))).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q3 });
+  });
+
+  it('ignores a time component, as PostgreSQL DATE columns arrive with one', () => {
+    expect(getFiscalPeriod('2026-08-03T00:00:00.000Z')).toEqual({ year: 2026, quarter: FISCAL_QUARTER.Q3 });
+  });
+
+  it('returns null rather than guessing a period it cannot read', () => {
+    expect(getFiscalPeriod('')).toBeNull();
+    expect(getFiscalPeriod('not-a-date')).toBeNull();
+    expect(getFiscalPeriod('2026-13-01')).toBeNull();
+  });
+});
+
+describe('isSameFiscalPeriod', () => {
+  it('separates the same quarter of two different years', () => {
+    const q1of2026 = { year: 2026, quarter: FISCAL_QUARTER.Q1 } as const;
+    const q1of2027 = { year: 2027, quarter: FISCAL_QUARTER.Q1 } as const;
+
+    expect(isSameFiscalPeriod(q1of2026, q1of2026)).toBe(true);
+    expect(isSameFiscalPeriod(q1of2026, q1of2027)).toBe(false);
+    expect(isSameFiscalPeriod(q1of2026, { year: 2026, quarter: FISCAL_QUARTER.Q2 })).toBe(false);
   });
 });

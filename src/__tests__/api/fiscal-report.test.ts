@@ -126,6 +126,11 @@ const mockGetFiscalInvoices = jest.fn();
 const mockGetUncountedIncome = jest.fn();
 const mockGetModelo303Summary = jest.fn();
 const mockGetModelo130Summary = jest.fn();
+const mockGetCrossQuarterInvoices = jest.fn();
+
+jest.mock('@/services/database/InvoiceRepository', () => ({
+  getCrossQuarterInvoices: (...args: [number, number]) => mockGetCrossQuarterInvoices(...args),
+}));
 
 jest.mock('@/services/database/FiscalRepository', () => ({
   getFiscalExpenses: (...args: [number, number]) => mockGetFiscalExpenses(...args),
@@ -163,6 +168,7 @@ describe('GET /api/fiscal', () => {
     mockGetFiscalExpenses.mockResolvedValue(mockExpenses);
     mockGetFiscalInvoices.mockResolvedValue(mockInvoices);
     mockGetUncountedIncome.mockResolvedValue([]);
+    mockGetCrossQuarterInvoices.mockResolvedValue([]);
   });
 
   // ── Success ──
@@ -181,9 +187,10 @@ describe('GET /api/fiscal', () => {
     expect(body.data.expenses).toEqual(mockExpenses);
     expect(body.data.invoices).toEqual(mockInvoices);
     expect(body.data.uncountedIncome).toEqual([]);
+    expect(body.data.crossQuarterInvoices).toEqual([]);
   });
 
-  it('should call all 5 repository functions with correct year and quarter params', async () => {
+  it('should call all 6 repository functions with correct year and quarter params', async () => {
     const request = createMockRequest('http://localhost:3000/api/fiscal?year=2025&quarter=3');
     await GET(request as never);
 
@@ -201,6 +208,9 @@ describe('GET /api/fiscal', () => {
 
     expect(mockGetUncountedIncome).toHaveBeenCalledTimes(1);
     expect(mockGetUncountedIncome).toHaveBeenCalledWith(2025, 3);
+
+    expect(mockGetCrossQuarterInvoices).toHaveBeenCalledTimes(1);
+    expect(mockGetCrossQuarterInvoices).toHaveBeenCalledWith(2025, 3);
   });
 
   // ── Validation: missing parameters ──

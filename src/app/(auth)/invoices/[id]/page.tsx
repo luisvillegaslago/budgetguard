@@ -9,6 +9,7 @@ import { ArrowLeft, Download, FolderPlus, Loader2, Pencil, Undo2 } from 'lucide-
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { AccrualPeriodNote } from '@/components/invoices/AccrualPeriodNote';
 import { InvoiceForm } from '@/components/invoices/InvoiceForm';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -527,6 +528,12 @@ export default function InvoiceDetailPage() {
             <h3 id="category-picker-title" className="text-lg font-semibold text-foreground mb-4">
               {t('invoices.actions.select-category')}
             </h3>
+
+            {/* Devengo note. The payment transaction is booked with today's date (the repository
+                calls toDateString(new Date()) when the status becomes paid), so today is the
+                collection date to compare against the invoice's own. Informational only — it
+                never gates the buttons below. */}
+            <AccrualPeriodNote invoiceDate={invoice.invoiceDate} collectionDate={new Date()} className="mb-4" />
 
             <label className="block mb-4">
               <span className="text-sm font-medium text-foreground">{t('invoices.actions.bank-fee-label')}</span>

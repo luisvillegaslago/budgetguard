@@ -7,9 +7,11 @@ import { del } from '@vercel/blob';
 import {
   API_ERROR,
   BANK_FEE_CATEGORY,
+  CROSS_QUARTER_CASE,
   FISCAL_DOCUMENT_TYPE,
   FISCAL_STATUS,
   INVOICE_STATUS,
+  ISSUED_INVOICE_STATUSES,
   TRANSACTION_STATUS,
   TRANSACTION_TYPE,
 } from '@/constants/finance';
@@ -17,6 +19,8 @@ import { getUserIdOrThrow } from '@/libs/auth';
 import type { BillingProfileInput, CreateInvoiceInput, UpdateInvoiceInput } from '@/schemas/invoice';
 import type {
   BillingProfile,
+  CrossQuarterCase,
+  CrossQuarterInvoice,
   Invoice,
   InvoiceLineItem,
   InvoiceListItem,
@@ -1286,4 +1290,116 @@ export async function deleteInvoice(invoiceId: number): Promise<boolean> {
     throw new ValidationError(API_ERROR.INVOICE.NUMBERED_NOT_DELETABLE);
   }
   throw new ValidationError(API_ERROR.INVOICE.ONLY_DRAFT_DELETABLE);
+}
+
+// ============================================================
+// Devengo vs. cobro (informational)
+// ============================================================
+
+interface CrossQuarterRow {
+  InvoiceID: number;
+  InvoiceNumber: string | null;
+  ClientName: string;
+  TotalCents: number;
+  InvoiceDate: Date;
+  InvoiceYear: number;
+  InvoiceQuarter: number;
+  CollectionDate: Date | null;
+  CollectionYear: number | null;
+  CollectionQuarter: number | null;
+}
+
+/**
+ * Which of the three situations a row is, or null when there is nothing to say about it.
+ *
+ * Nothing here judges the accrual booking: an invoice declared and collected in the same
+ * quarter is dropped precisely because the models and the bank statement already agree.
+ */
+function classifyCrossQuarter(row: CrossQuarterRow, year: number, quarter: number): CrossQuarterCase | null {
+  const declaredHere = row.InvoiceYear === year && row.InvoiceQuarter === quarter;
+  // No collection on record. A 'finalized' invoice never has a payment transaction, and a 'paid'
+  // one may still carry a NULL "TransactionID" if it was collected before that link existed —
+  // either way the app cannot know when the money arrived, so it can never prove the collection
+  // fell in another quarter. This is what keeps a NULL out of COLLECTED_IN_ANOTHER_PERIOD.
+  const collected = row.CollectionYear !== null && row.CollectionQuarter !== null;
+
+  if (declaredHere) {
+    if (!collected) return CROSS_QUARTER_CASE.ISSUED_NOT_COLLECTED;
+    const collectedHere = row.CollectionYear === year && row.CollectionQuarter === quarter;
+    return collectedHere ? null : CROSS_QUARTER_CASE.COLLECTED_IN_ANOTHER_PERIOD;
+  }
+
+  // Collected here (the query admits no other reason to reach this branch) but declared in
+  // another period. Only an EARLIER one is reported: an invoice dated after its own collection
+  // is already surfaced from its own quarter as COLLECTED_IN_ANOTHER_PERIOD, so returning null
+  // drops a duplicate rather than hiding anything.
+  const declaredEarlier = row.InvoiceYear < year || (row.InvoiceYear === year && row.InvoiceQuarter < quarter);
+  return declaredEarlier ? CROSS_QUARTER_CASE.DECLARED_IN_EARLIER_PERIOD : null;
+}
+
+function rowToCrossQuarterInvoice(row: CrossQuarterRow, crossQuarterCase: CrossQuarterCase): CrossQuarterInvoice {
+  return {
+    invoiceId: row.InvoiceID,
+    invoiceNumber: row.InvoiceNumber,
+    clientName: row.ClientName,
+    totalCents: Number(row.TotalCents),
+    invoiceDate: toDateString(row.InvoiceDate),
+    invoiceYear: row.InvoiceYear,
+    invoiceQuarter: row.InvoiceQuarter,
+    collectionDate: row.CollectionDate === null ? null : toDateString(row.CollectionDate),
+    collectionYear: row.CollectionYear,
+    collectionQuarter: row.CollectionQuarter,
+    crossQuarterCase,
+    // Two quarters of one year only move money between filings of the same Renta; two years
+    // move it between two different ones, which is the harder disagreement to unwind.
+    crossesFiscalYear: row.CollectionYear !== null && row.CollectionYear !== row.InvoiceYear,
+  };
+}
+
+/**
+ * Issued invoices whose devengo and whose cobro disagree about a quarter (user-scoped).
+ *
+ * The sibling of getUncountedIncome(): both are safety nets that change no figure and correct
+ * no calculation. The models are right — "vw_FiscalAccrual" books an invoice on its own
+ * "InvoiceDate" — and this only names the three ways a bank statement can tell a different
+ * story about the same quarter, so the human reading it does not overwrite a correct figure:
+ *
+ * - COLLECTED_IN_ANOTHER_PERIOD — declared here, the money arrived in another quarter.
+ * - ISSUED_NOT_COLLECTED — declared here, nothing collected yet. The IVA is owed on issue.
+ * - DECLARED_IN_EARLIER_PERIOD — the money arrived here, but the invoice was already declared
+ *   earlier. This is the misleading one: the quarter's bank income that no model of the
+ *   quarter counts.
+ *
+ * The periods are extracted in SQL with EXTRACT over the same two dates the accrual view uses,
+ * so a row can never be classified against a period the models would not agree with.
+ */
+export async function getCrossQuarterInvoices(year: number, quarter: number): Promise<CrossQuarterInvoice[]> {
+  const userId = await getUserIdOrThrow();
+
+  // The LEFT JOIN is what allows an uncollected invoice through; joining on "UserID" as well
+  // keeps a payment transaction of another user from ever dating this one's invoice.
+  const rows = await query<CrossQuarterRow>(
+    `SELECT i."InvoiceID", i."InvoiceNumber", i."ClientName", i."TotalCents", i."InvoiceDate",
+            EXTRACT(YEAR FROM i."InvoiceDate")::INT AS "InvoiceYear",
+            EXTRACT(QUARTER FROM i."InvoiceDate")::INT AS "InvoiceQuarter",
+            t."TransactionDate" AS "CollectionDate",
+            EXTRACT(YEAR FROM t."TransactionDate")::INT AS "CollectionYear",
+            EXTRACT(QUARTER FROM t."TransactionDate")::INT AS "CollectionQuarter"
+     FROM "Invoices" i
+     LEFT JOIN "Transactions" t ON t."TransactionID" = i."TransactionID" AND t."UserID" = i."UserID"
+     WHERE i."UserID" = $1
+       AND i."Status" = ANY($2::VARCHAR[])
+       AND (
+         (EXTRACT(YEAR FROM i."InvoiceDate")::INT = $3 AND EXTRACT(QUARTER FROM i."InvoiceDate")::INT = $4)
+         OR (EXTRACT(YEAR FROM t."TransactionDate")::INT = $3
+             AND EXTRACT(QUARTER FROM t."TransactionDate")::INT = $4)
+       )
+     ORDER BY i."InvoiceDate" ASC, i."InvoiceID" ASC`,
+    [userId, [...ISSUED_INVOICE_STATUSES], year, quarter],
+  );
+
+  return rows.flatMap((row) => {
+    const crossQuarterCase = classifyCrossQuarter(row, year, quarter);
+    return crossQuarterCase === null ? [] : [rowToCrossQuarterInvoice(row, crossQuarterCase)];
+  });
 }

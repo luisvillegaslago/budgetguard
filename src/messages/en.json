@@ -1214,6 +1214,29 @@
     "uncounted-income": {
       "summary": "{count} income entries this quarter are not counted by the models · {total}",
       "hint": "Only income in the Facturas category feeds the 303, 130 and 100. If any of these should be declared, move it to that category."
+    },
+    "cross-quarter": {
+      "title": "Accrual and collection",
+      "description": "An invoice is declared in the quarter it was issued, whichever quarter the money moved in. The models for this quarter are already computed that way.",
+      "case": {
+        "collected-in-another-period": "Collected in Q{collectionQuarter}, but declared in this quarter: VAT and IRPF accrue on issue, not on collection.",
+        "collected-in-another-year": "Collected in Q{collectionQuarter} {collectionYear}, already a different tax year: it is declared in this quarter and goes into the {invoiceYear} annual return, not the {collectionYear} one.",
+        "issued-not-collected": "Issued this quarter with no collection on record: VAT accrues on issue, so it is declared now even though the money has not arrived yet.",
+        "declared-in-earlier-period": "The money arrived this quarter, but the invoice was declared in Q{invoiceQuarter} {invoiceYear}: this quarter's models do not count it."
+      },
+      "group": {
+        "collected-in-another-period": "Collected in another quarter",
+        "issued-not-collected": "Issued, no collection on record",
+        "declared-in-earlier-period": "Declared in an earlier quarter"
+      },
+      "columns": {
+        "issue-date": "Issue date",
+        "collection-date": "Collection date",
+        "declared-quarter": "Declared quarter"
+      },
+      "quarter-label": "Q{quarter} {year}",
+      "no-collection": "No collection on record",
+      "pay-warning": "The collection date falls in a different quarter from the issue date: the invoice will still be declared in Q{invoiceQuarter} {invoiceYear}, the quarter it was issued in."
     }
   },
   "auth": {
