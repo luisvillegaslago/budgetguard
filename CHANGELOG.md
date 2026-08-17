@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.58.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.3...v0.58.0) (2026-08-17)
+
+
+### Features
+
+* **fiscal:** seed a category for the deductible interest of a deferral ([5c97522](https://github.com/luisvillegaslago/budgetguard/commit/5c97522f727f03f7e203994bb2f9fd8971b2423b))
+
 ## [0.57.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.2...v0.57.3) (2026-08-17)
 
 
