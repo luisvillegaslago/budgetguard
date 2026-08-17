@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.58.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.58.0...v0.58.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **fiscal:** restore casilla 0196, which does exist from ejercicio 2025 ([1168832](https://github.com/luisvillegaslago/budgetguard/commit/11688327d7f9b666eedd41fd1c5438dea3667cf8))
+
 ## [0.58.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.3...v0.58.0) (2026-08-17)
 
 
