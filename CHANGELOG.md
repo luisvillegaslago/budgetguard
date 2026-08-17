@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.57.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.2...v0.57.3) (2026-08-17)
+
+
+### Bug Fixes
+
+* **fiscal:** drop the Modelo 100 casilla that does not exist and map the rest ([7861dc5](https://github.com/luisvillegaslago/budgetguard/commit/7861dc5bc7ea2db2ffae27a96ed100adedf1d3a9))
+
 ## [0.57.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.1...v0.57.2) (2026-08-17)
 
 
