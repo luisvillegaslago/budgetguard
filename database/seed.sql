@@ -125,7 +125,7 @@ BEGIN
 
   INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode") VALUES
   ('Seguridad Social', 'expense', 'shield', '#F59E0B', 1, v_id, FALSE, '0186'),
-  ('Regularización RETA', 'expense', 'shield-alert', '#F59E0B', 2, v_id, FALSE, '0186'),
+  ('Regularización RETA', 'expense', 'shield-alert', '#F59E0B', 2, v_id, FALSE, '0196'),
   ('Impuestos', 'expense', 'landmark', '#F59E0B', 3, v_id, FALSE, '0206'),
   ('Anthropic', 'expense', 'cpu', '#F59E0B', 4, v_id, FALSE, '0202'),
   ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, '0217'),

@@ -1,10 +1,16 @@
 /**
  * Unit Tests: Modelo 100 Casilla Constants
  *
- * The codes are checked against the official form (ANEXO I, BOE-A-2024-5721) rather than against
- * each other. An earlier version of this suite asserted a casilla 0196 that does not exist on the
- * form, which is how it survived: a test that only restates the constant cannot catch an invented
- * box. The membership check below is what actually rules one out.
+ * The codes are checked against what AEAT actually sums, not against each other: a test that
+ * restates the constant proves nothing about whether the box exists.
+ *
+ * "What AEAT sums" has two sources, and needing both is the lesson. The ranges below come from
+ * the official form of ejercicio 2023 (ANEXO I, BOE-A-2024-5721). That form has no 0196 — and a
+ * filed Renta of ejercicio 2025 does, as "Regularización cuotas RETA", summed into its casilla
+ * 218. Trusting the older form alone once led to deleting a box that exists.
+ *
+ * So: an older form proves what existed then, never what exists now. When a campaign adds a box,
+ * add it here with the filed declaration as the evidence.
  */
 
 import { MODELO_100_CASILLA, MODELO_100_CASILLA_OPTIONS, MODELO_100_DEFAULT_CASILLA } from '@/constants/finance';
@@ -20,6 +26,7 @@ import es from '@/messages/es.json';
  */
 const CASILLA_218_RANGES: ReadonlyArray<readonly [number, number]> = [
   [181, 195],
+  [196, 196], // Added after the 2023 form; evidenced by the filed Renta 2025
   [198, 200],
   [202, 203],
   [205, 206],
@@ -39,8 +46,7 @@ describe('MODELO_100_CASILLA', () => {
     expect(orphans).toEqual([]);
   });
 
-  it('does not contain 0196 or 0197 — neither exists on the form', () => {
-    expect(codes).not.toContain('0196');
+  it('does not contain 0197 — it is in none of the summed ranges', () => {
     expect(codes).not.toContain('0197');
   });
 
@@ -51,8 +57,9 @@ describe('MODELO_100_CASILLA', () => {
   });
 
   it('covers the boxes the user has filed', () => {
-    // Present in the filed Rentas 2021-2024, so they must never be dropped
-    ['0186', '0193', '0194', '0198', '0199', '0200', '0202', '0208', '0217'].forEach((code) => {
+    // Present in the filed Rentas 2021-2025, so they must never be dropped. 0196 is here
+    // precisely because it was dropped once, on the authority of an older form that predates it.
+    ['0186', '0193', '0194', '0196', '0198', '0199', '0200', '0202', '0208', '0217'].forEach((code) => {
       expect(codes).toContain(code);
     });
   });

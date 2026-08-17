@@ -216,21 +216,26 @@ assigned one of them. `C0202` (*otros servicios exteriores*) is the fallback for
 none, and `Modelo100Section.unmappedCents` reports how much the fallback absorbed — without it, an
 unmapped category and a deliberate 0202 produce an identical row.
 
-**Box numbers are per campaign.** They held from 2021 to 2024, but AEAT renumbers; check a filed
-modelo before assuming. The authority is the form itself (ANEXO I, BOE-A-2024-5721), and the
-invariant that catches an invented box is the definition of casilla 218:
+**Box numbers change between campaigns, and boxes get added.** The invariant that catches an
+invented box is the definition of casilla 218, which on the ejercicio 2023 form reads:
 
 ```
 Suma ([0181] a [0195] + [0198] a [0200] + [0202] + [0203] + [0205] + [0206] + [0208] +
       [0227] + [0214] a [0217])
 ```
 
-A code outside every one of those ranges is not a deductible-expense box at all. An earlier version
-offered **0196** for the RETA regularisation — 0196 and 0197 fall in the gaps between the ranges, so
-anything filed there reaches no total. `modelo100-category-map.test.ts` now checks membership
-against the ranges rather than restating the constant, which is why the old test passed.
+A code outside every summed range is not a deductible-expense box, and
+`modelo100-category-map.test.ts` checks membership rather than restating the constant.
 
-The RETA regularisation belongs in **0186**, the same box as the ordinary quota.
+**But that form is not the whole answer.** It has no 0196, and the filed Renta of **ejercicio 2025
+does** — "Regularización cuotas RETA (si resulta cantidad a ingresar)", 376,44 €, summed into its
+casilla 218 along with the other four boxes to the cent. AEAT added it once the RETA
+regularisations by real income started arriving. Reading the 2023 form as authoritative for 2025
+led to deleting a box that exists and re-filing the RETA regularisation into 0186.
+
+The rule this leaves: **an official form proves what existed in its campaign, never what exists
+now.** The authority for a year being filed is a filed modelo of that year. The test's ranges carry
+a source comment per entry for exactly this reason.
 
 Note that invoice-derived rows carry `CategoryID = 0`. `getModelo100Summary()` joins `Categories`
 with a `LEFT JOIN` for that reason; an `INNER JOIN` makes every invoice disappear.

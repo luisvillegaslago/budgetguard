@@ -354,7 +354,7 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
       parent: 'Trabajo',
       entries: [
         ['Seguridad Social', 'shield', '#F59E0B', 1, false, '0186'],
-        ['Regularización RETA', 'shield-alert', '#F59E0B', 2, false, '0186'],
+        ['Regularización RETA', 'shield-alert', '#F59E0B', 2, false, '0196'],
         ['Impuestos', 'landmark', '#F59E0B', 3, false, '0206'],
         ['Anthropic', 'cpu', '#F59E0B', 4, false, '0202'],
         ['General', 'alert-circle', '#F59E0B', 5, false, '0217'],

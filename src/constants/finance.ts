@@ -437,17 +437,18 @@ export const IRPF_PROJECTION = {
 
 /**
  * Modelo 100 — every casilla of "Gastos fiscalmente deducibles" for rendimientos de actividades
- * económicas en estimación directa, verbatim from the official form (ANEXO I, BOE-A-2024-5721).
+ * económicas en estimación directa. A code that is not here cannot be assigned to a category.
  *
- * The whole official set is listed even though a one-person professional can never use most of
- * it. A code that is not here cannot be assigned to a category, which is the point: a previous
- * version offered '0196' for the RETA regularisation and no such box exists — the sum of casilla
- * 218 runs over [0181]-[0195] + [0198]-[0200] + [0202] + [0203] + [0205] + [0206] + [0208] +
- * [0227] + [0214]-[0217], and 0196/0197 are outside every one of those ranges. Anything filed
- * there lands nowhere.
+ * The whole set is listed even though a one-person professional can never use most of it.
  *
- * Numbering is per campaign: it held from 2021 to 2024, but check a filed modelo before assuming
- * it still holds.
+ * SOURCES, and why there are two. The bulk comes from the official form (ANEXO I,
+ * BOE-A-2024-5721, ejercicio 2023). That form has no 0196 — but the filed Renta of ejercicio
+ * 2025 does, as "Regularización cuotas RETA (si resulta cantidad a ingresar)", and its casilla
+ * 218 sums it. AEAT added the box once the RETA regularisations by real income started arriving.
+ *
+ * So the numbering is not stable across campaigns, and an older form is evidence of what existed
+ * then, never of what exists now. Before removing a box because some form lacks it, check a filed
+ * modelo of the campaign in question — that is the only authority for the year being filed.
  */
 export const MODELO_100_CASILLA = {
   C0181: '0181', // Compra de existencias
@@ -465,6 +466,7 @@ export const MODELO_100_CASILLA = {
   C0193: '0193', // Reparaciones y conservación
   C0194: '0194', // Suministros (electricidad, agua, gas, telefonía e internet)
   C0195: '0195', // Aportaciones a mutualidades alternativas del titular de la actividad
+  C0196: '0196', // Regularización cuotas RETA (si resulta cantidad a ingresar) — desde ejercicio 2025
   C0198: '0198', // Otros suministros
   C0199: '0199', // Servicios de profesionales independientes
   C0200: '0200', // Primas de seguros
@@ -497,6 +499,7 @@ export const MODELO_100_CASILLA_OPTIONS = [
   MODELO_100_CASILLA.C0193,
   MODELO_100_CASILLA.C0194,
   MODELO_100_CASILLA.C0195,
+  MODELO_100_CASILLA.C0196,
   MODELO_100_CASILLA.C0198,
   MODELO_100_CASILLA.C0199,
   MODELO_100_CASILLA.C0200,
