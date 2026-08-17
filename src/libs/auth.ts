@@ -359,6 +359,8 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
         ['Anthropic', 'cpu', '#F59E0B', 4, false, '0202'],
         ['General', 'alert-circle', '#F59E0B', 5, false, '0217'],
         ['Comisiones bancarias', 'landmark', '#F59E0B', 6, false, '0202'],
+        // Solo el interes de demora de un aplazamiento es deducible, como gasto financiero
+        ['Intereses de demora', 'percent', '#F59E0B', 7, false, '0203'],
       ],
     },
     {

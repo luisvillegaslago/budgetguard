@@ -129,7 +129,10 @@ BEGIN
   ('Impuestos', 'expense', 'landmark', '#F59E0B', 3, v_id, FALSE, '0206'),
   ('Anthropic', 'expense', 'cpu', '#F59E0B', 4, v_id, FALSE, '0202'),
   ('General', 'expense', 'alert-circle', '#F59E0B', 5, v_id, FALSE, '0217'),
-  ('Comisiones bancarias', 'expense', 'landmark', '#F59E0B', 6, v_id, FALSE, '0202');
+  ('Comisiones bancarias', 'expense', 'landmark', '#F59E0B', 6, v_id, FALSE, '0202'),
+  -- De un aplazamiento de la AEAT solo el interes de demora es gasto deducible, y como
+  -- gasto financiero: el principal (cuota de IVA o IRPF) no lo es, y el recargo tampoco.
+  ('Intereses de demora', 'expense', 'percent', '#F59E0B', 7, v_id, FALSE, '0203');
 END $$;
 
 -- ============================================================
