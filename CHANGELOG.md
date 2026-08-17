@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.59.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.58.1...v0.59.0) (2026-08-17)
+
+
+### Features
+
+* **fiscal:** amortize fixed assets instead of expensing them in the purchase year ([200ec26](https://github.com/luisvillegaslago/budgetguard/commit/200ec26fd9d20a72f4225caa6199cf31483f93e9))
+
 ## [0.58.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.58.0...v0.58.1) (2026-08-17)
 
 
