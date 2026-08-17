@@ -1051,7 +1051,9 @@
         "due": "Due",
         "overdue": "Overdue",
         "filed": "Filed"
-      }
+      },
+      "domiciliacion": "With direct debit, until {date}",
+      "window-unconfirmed": "dates to be confirmed"
     },
     "settings": {
       "title": "Fiscal Reminders",

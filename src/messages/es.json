@@ -1051,7 +1051,9 @@
         "due": "En plazo",
         "overdue": "Vencido",
         "filed": "Presentado"
-      }
+      },
+      "domiciliacion": "Con domiciliación, hasta el {date}",
+      "window-unconfirmed": "fechas por confirmar"
     },
     "settings": {
       "title": "Recordatorios Fiscales",

@@ -889,7 +889,14 @@ export interface FiscalDeadline {
   fiscalYear: number;
   fiscalQuarter: number | null;
   startDate: string;
+  /** Filing deadline, already moved to the next working day when the rule date was inhábil */
   endDate: string;
+  /** The date the rule states, before any working-day extension */
+  nominalEndDate: string;
+  /** Last day to file with the payment direct-debited; null for models that do not admit it */
+  domiciliacionEndDate: string | null;
+  /** False while the Orden fixing this Renta campaign has not been published */
+  isWindowConfirmed: boolean;
   status: FilingStatus;
   isFiled: boolean;
   daysRemaining: number | null;

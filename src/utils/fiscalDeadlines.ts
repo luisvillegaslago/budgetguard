@@ -6,6 +6,7 @@
 
 import { FILING_STATUS, MODELO_TYPE } from '@/constants/finance';
 import type { FilingStatus, FiscalDeadline, ModeloType } from '@/types/finance';
+import { nextWorkingDay } from '@/utils/workingDays';
 
 /**
  * Format a Date as YYYY-MM-DD using local time (avoids UTC timezone shift)
@@ -22,7 +23,32 @@ interface DeadlineRule {
   fiscalQuarter: number | null;
   getStartDate: (year: number) => Date;
   getEndDate: (year: number) => Date;
+  /** Last day to file with the payment direct-debited, when the model admits it */
+  getDomiciliacionDate?: (year: number) => Date;
 }
+
+/**
+ * Renta filing windows, per campaign. They are set by an Orden ministerial every year and
+ * have moved (2 April in 2025, 8 April in 2026), so a formula would be inventing dates: a
+ * year with no published Orden yet returns nothing rather than a plausible-looking guess.
+ */
+/** The most recent campaign whose Orden is published; later years reuse its window as a guess. */
+const LAST_PUBLISHED_RENTA_CAMPAIGN = 2025;
+
+const RENTA_WINDOWS: Record<number, readonly [start: readonly [number, number], end: readonly [number, number]]> = {
+  2023: [
+    [4, 3],
+    [7, 1],
+  ],
+  2024: [
+    [4, 2],
+    [6, 30],
+  ],
+  2025: [
+    [4, 8],
+    [6, 30],
+  ],
+};
 
 /**
  * AEAT deadline rules (verified):
@@ -40,24 +66,28 @@ const DEADLINE_RULES: DeadlineRule[] = [
     fiscalQuarter: 1,
     getStartDate: (y) => new Date(y, 3, 1),
     getEndDate: (y) => new Date(y, 3, 20),
+    getDomiciliacionDate: (y) => new Date(y, 3, 15),
   },
   {
     modeloType: MODELO_TYPE.M303,
     fiscalQuarter: 2,
     getStartDate: (y) => new Date(y, 6, 1),
     getEndDate: (y) => new Date(y, 6, 20),
+    getDomiciliacionDate: (y) => new Date(y, 6, 15),
   },
   {
     modeloType: MODELO_TYPE.M303,
     fiscalQuarter: 3,
     getStartDate: (y) => new Date(y, 9, 1),
     getEndDate: (y) => new Date(y, 9, 20),
+    getDomiciliacionDate: (y) => new Date(y, 9, 15),
   },
   {
     modeloType: MODELO_TYPE.M303,
     fiscalQuarter: 4,
     getStartDate: (y) => new Date(y + 1, 0, 1),
     getEndDate: (y) => new Date(y + 1, 0, 30),
+    getDomiciliacionDate: (y) => new Date(y + 1, 0, 27),
   },
   // Modelo 130 quarterly
   {
@@ -65,24 +95,28 @@ const DEADLINE_RULES: DeadlineRule[] = [
     fiscalQuarter: 1,
     getStartDate: (y) => new Date(y, 3, 1),
     getEndDate: (y) => new Date(y, 3, 20),
+    getDomiciliacionDate: (y) => new Date(y, 3, 15),
   },
   {
     modeloType: MODELO_TYPE.M130,
     fiscalQuarter: 2,
     getStartDate: (y) => new Date(y, 6, 1),
     getEndDate: (y) => new Date(y, 6, 20),
+    getDomiciliacionDate: (y) => new Date(y, 6, 15),
   },
   {
     modeloType: MODELO_TYPE.M130,
     fiscalQuarter: 3,
     getStartDate: (y) => new Date(y, 9, 1),
     getEndDate: (y) => new Date(y, 9, 20),
+    getDomiciliacionDate: (y) => new Date(y, 9, 15),
   },
   {
     modeloType: MODELO_TYPE.M130,
     fiscalQuarter: 4,
     getStartDate: (y) => new Date(y + 1, 0, 1),
     getEndDate: (y) => new Date(y + 1, 0, 30),
+    getDomiciliacionDate: (y) => new Date(y + 1, 0, 27),
   },
   // Modelo 390 annual (same window as Q4 303/130)
   {
@@ -95,10 +129,24 @@ const DEADLINE_RULES: DeadlineRule[] = [
   {
     modeloType: MODELO_TYPE.M100,
     fiscalQuarter: null,
-    getStartDate: (y) => new Date(y + 1, 3, 8),
-    getEndDate: (y) => new Date(y + 1, 5, 30),
+    getStartDate: (y) => rentaWindowDate(y, 'start'),
+    getEndDate: (y) => rentaWindowDate(y, 'end'),
   },
 ];
+
+/**
+ * Start or end of the Renta window of a campaign. Years with no published Orden fall back to
+ * the last known window so the calendar still has something to show; the caller marks them as
+ * unconfirmed rather than presenting an invented date as a fact.
+ */
+function rentaWindowDate(fiscalYear: number, edge: 'start' | 'end'): Date {
+  const campaign = RENTA_WINDOWS[fiscalYear] ?? RENTA_WINDOWS[LAST_PUBLISHED_RENTA_CAMPAIGN];
+  const [month, day] = campaign![edge === 'start' ? 0 : 1];
+  return new Date(fiscalYear + 1, month - 1, day);
+}
+
+/** True while the Orden that fixes this campaign's Renta window has not been published yet. */
+const isRentaWindowConfirmed = (fiscalYear: number): boolean => fiscalYear in RENTA_WINDOWS;
 
 /**
  * Build a unique key for a filing (used to check filed status)
@@ -159,7 +207,14 @@ export function computeDeadlines(
 ): FiscalDeadline[] {
   return DEADLINE_RULES.map((rule) => {
     const startDate = rule.getStartDate(year);
-    const endDate = rule.getEndDate(year);
+    // A deadline landing on a día inhábil runs to the next working day, and the AEAT extends
+    // the domiciliación one by the same number of days.
+    const nominalEndDate = rule.getEndDate(year);
+    const endDate = nextWorkingDay(nominalEndDate);
+    // The AEAT extends the domiciliación deadline "con carácter general" by the same days as
+    // the filing one, but each year's calendar is what settles it. This keeps the rule date
+    // instead of the extension: filing a day early costs nothing, a day late costs a recargo.
+    const domiciliacionEndDate = rule.getDomiciliacionDate?.(year) ?? null;
     const key = filingKey(rule.modeloType, year, rule.fiscalQuarter);
     const isFiled = filedSet.has(key);
     const status = computeFilingStatus(startDate, endDate, isFiled, now, reminderDaysBefore);
@@ -174,6 +229,11 @@ export function computeDeadlines(
       fiscalQuarter: rule.fiscalQuarter,
       startDate: formatDateLocal(startDate),
       endDate: formatDateLocal(endDate),
+      // Kept apart so the card can say the rule date fell on a weekend, instead of silently
+      // moving it and leaving the user wondering which one is right.
+      nominalEndDate: formatDateLocal(nominalEndDate),
+      domiciliacionEndDate: domiciliacionEndDate ? formatDateLocal(domiciliacionEndDate) : null,
+      isWindowConfirmed: rule.modeloType === MODELO_TYPE.M100 ? isRentaWindowConfirmed(year) : true,
       status,
       isFiled,
       daysRemaining: remaining,

@@ -38,7 +38,11 @@ describe('computeDeadlines', () => {
       const q1_303 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M303 && d.fiscalQuarter === 1);
 
       expect(q1_303?.startDate).toBe('2025-04-01');
-      expect(q1_303?.endDate).toBe('2025-04-20');
+      // 20 April 2025 was a Sunday, and AEAT published the deadline as 21 April
+      expect(q1_303?.nominalEndDate).toBe('2025-04-20');
+      expect(q1_303?.endDate).toBe('2025-04-21');
+      // The direct-debit cut-off keeps its rule date rather than riding the extension
+      expect(q1_303?.domiciliacionEndDate).toBe('2025-04-15');
     });
 
     it('should set Q2 303/130 deadline to July 1-20', () => {
@@ -46,7 +50,45 @@ describe('computeDeadlines', () => {
       const q2_130 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M130 && d.fiscalQuarter === 2);
 
       expect(q2_130?.startDate).toBe('2025-07-01');
-      expect(q2_130?.endDate).toBe('2025-07-20');
+      // 20 July 2025 was a Sunday too: AEAT published 21 July
+      expect(q2_130?.nominalEndDate).toBe('2025-07-20');
+      expect(q2_130?.endDate).toBe('2025-07-21');
+    });
+
+    it('gives the direct-debit cut-off five days before each quarterly deadline', () => {
+      // AEAT's own calendar: 1-15 April/July/October, and 1-27 January for the fourth quarter
+      const deadlines = computeDeadlines(2026, new Set());
+      const q3 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M303 && d.fiscalQuarter === 3);
+      const q4 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M130 && d.fiscalQuarter === 4);
+
+      expect(q3?.domiciliacionEndDate).toBe('2026-10-15');
+      expect(q4?.domiciliacionEndDate).toBe('2027-01-27');
+    });
+
+    it('moves the 4T 2026 deadline off its Saturday, which is when the refund is claimed', () => {
+      const deadlines = computeDeadlines(2026, new Set());
+      const q4 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M303 && d.fiscalQuarter === 4);
+
+      // 30 January 2027 is a Saturday: the real deadline is Monday 1 February
+      expect(q4?.nominalEndDate).toBe('2027-01-30');
+      expect(q4?.endDate).toBe('2027-02-01');
+    });
+
+    it('leaves no direct-debit date on the models that do not admit it', () => {
+      const deadlines = computeDeadlines(2026, new Set());
+      const renta = deadlines.find((d) => d.modeloType === MODELO_TYPE.M100);
+
+      expect(renta?.domiciliacionEndDate).toBeNull();
+    });
+
+    it('flags a Renta campaign whose window has not been published yet', () => {
+      // The window is set by an Orden every year and has moved: 2 April in 2025, 8 in 2026
+      const published = computeDeadlines(2025, new Set()).find((d) => d.modeloType === MODELO_TYPE.M100);
+      const unpublished = computeDeadlines(2030, new Set()).find((d) => d.modeloType === MODELO_TYPE.M100);
+
+      expect(published?.isWindowConfirmed).toBe(true);
+      expect(published?.startDate).toBe('2026-04-08');
+      expect(unpublished?.isWindowConfirmed).toBe(false);
     });
 
     it('should set Q3 303/130 deadline to October 1-20', () => {
@@ -139,11 +181,11 @@ describe('computeDeadlines', () => {
 
   describe('daysRemaining', () => {
     it('should compute days remaining when before deadline', () => {
-      const now = new Date(2025, 3, 15); // April 15 — 5 days before April 20
+      const now = new Date(2025, 3, 15); // April 15 — 6 days before the extended 21 April deadline
       const deadlines = computeDeadlines(2025, new Set(), 7, now);
       const q1_303 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M303 && d.fiscalQuarter === 1);
 
-      expect(q1_303?.daysRemaining).toBe(5);
+      expect(q1_303?.daysRemaining).toBe(6);
     });
 
     it('should return null when past the deadline', () => {

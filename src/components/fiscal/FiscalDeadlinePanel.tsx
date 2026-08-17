@@ -74,7 +74,14 @@ function DeadlineRow({ deadline }: { deadline: FiscalDeadline }) {
           <span className="text-sm font-medium text-foreground">{label}</span>
           <p className="text-xs text-guard-muted whitespace-nowrap">
             {formatDeadlineDate(deadline.startDate)} — {formatDeadlineDate(deadline.endDate)}
+            {!deadline.isWindowConfirmed && ` · ${t('fiscal.deadlines.window-unconfirmed')}`}
           </p>
+          {/* The date that actually matters when the payment is direct-debited, five days earlier */}
+          {deadline.domiciliacionEndDate && deadline.status !== FILING_STATUS.FILED && (
+            <p className="text-xs text-guard-muted whitespace-nowrap">
+              {t('fiscal.deadlines.domiciliacion', { date: formatDeadlineDate(deadline.domiciliacionEndDate) })}
+            </p>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 pl-7 sm:pl-0">
