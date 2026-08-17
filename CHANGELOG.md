@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.57.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.1...v0.57.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* **fiscal:** move deadlines off días inhábiles and surface the direct-debit date ([32abf29](https://github.com/luisvillegaslago/budgetguard/commit/32abf29e4b82dbd4ac08e99b52605d2b55fe4d75))
+
 ## [0.57.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.57.0...v0.57.1) (2026-08-16)
 
 
