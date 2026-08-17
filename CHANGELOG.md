@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.60.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.59.0...v0.60.0) (2026-08-17)
+
+
+### Features
+
+* **fiscal:** flag invoices declared in a quarter other than the one their money moved in ([2175774](https://github.com/luisvillegaslago/budgetguard/commit/217577423bbe990385a2f189ccbb92461a8f9754))
+
 ## [0.59.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.58.1...v0.59.0) (2026-08-17)
 
 
