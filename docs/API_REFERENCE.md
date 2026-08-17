@@ -2907,6 +2907,92 @@ GET /api/fiscal/annual?year=2025
 
 ---
 
+### Vouchers
+
+Prepaid balances. Buying a voucher creates **no** transaction; consumption is recorded as ordinary
+expense transactions referencing `voucherId`. Amounts are sent in euros and stored in cents.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/vouchers` | List vouchers with their live balance (`vw_VoucherBalance`) |
+| POST | `/api/vouchers` | Create a voucher → `201` |
+| GET | `/api/vouchers/:id` | Voucher + consumptions + unlinked skydive candidates |
+| PUT | `/api/vouchers/:id` | Update (all fields optional) |
+| DELETE | `/api/vouchers/:id` | Delete; linked transactions survive, unlinked |
+
+**POST body** (`CreateVoucherSchema`, `src/schemas/voucher.ts`):
+
+```json
+{
+  "categoryId": 12,
+  "description": "Bono 10 saltos",
+  "totalAmount": 250.00,
+  "totalUnits": 10,
+  "unitLabel": "saltos",
+  "purchaseDate": "2026-03-01",
+  "expiryDate": "2026-12-31"
+}
+```
+
+`totalUnits`, `unitLabel` and `expiryDate` are optional and nullable. `PUT` takes the same shape
+with every field optional.
+
+**GET `/api/vouchers/:id` response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "voucher": { "voucherId": 3, "remainingCents": 15000, "consumedUnits": 4, "...": "..." },
+    "consumptions": [ { "transactionId": 981, "...": "..." } ],
+    "unlinkedConsumptions": [ 1042, 1043 ],
+    "reconcileActivityType": "jump"
+  }
+}
+```
+
+`unlinkedConsumptions` lists skydive activity that looks like it belongs to this voucher but carries
+no `VoucherID`, so the UI can offer to reconcile it via `POST /api/skydiving/reconcile-voucher`.
+
+---
+
+### Skydiving
+
+Jump logbook and wind-tunnel sessions. Creating either with `priceCents > 0` also creates the
+matching expense transaction and links it, atomically.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET / POST | `/api/skydiving/jumps` | List (paginated: `?page=&limit=`) / create |
+| GET / PUT / DELETE | `/api/skydiving/jumps/:id` | Single jump |
+| POST | `/api/skydiving/jumps/import` | Bulk CSV import, deduped by `(JumpNumber, UserID)` |
+| GET | `/api/skydiving/jumps/dropzones` | Distinct dropzones (autocomplete) |
+| GET / POST | `/api/skydiving/tunnel` | List (paginated) / create |
+| PUT / DELETE | `/api/skydiving/tunnel/:id` | Single session |
+| POST | `/api/skydiving/tunnel/import` | Bulk CSV import, deduped by date + location + duration |
+| GET | `/api/skydiving/tunnel/locations` | Distinct locations (autocomplete) |
+| GET | `/api/skydiving/stats` | Aggregated stats (`vw_SkydivingStats`, by type, by year) |
+| GET | `/api/skydiving/categories` | Skydiving category + subcategory IDs used for linked expenses |
+| POST | `/api/skydiving/reconcile-voucher` | Link — or create — an activity for a voucher consumption that has none |
+
+Both import endpoints are idempotent: re-running one inserts zero duplicates.
+
+---
+
+### Crypto
+
+Exchange ingestion, normalisation, FIFO accounting and the Modelo 100 crypto boxes. The endpoint
+list, request shapes and pipeline semantics are documented together in
+[CRYPTO_MODULE.md](CRYPTO_MODULE.md) § Endpoints — they are inseparable from the pipeline they drive.
+
+Summary: `/api/crypto/credentials{,/status}` (encrypted, read-only keys), `/api/crypto/sync{,/[jobId]{,/cancel}}`
+(background jobs), `/api/crypto/import/csv` (Binance/Kraken/Coinbase, auto-detected),
+`/api/crypto/normalize`, `/api/crypto/{events,taxable-events,assets,pairs,pairs/[symbol],klines,ticker}`
+(read models), `/api/crypto/fiscal/{modelo100,disposals,export,recompute}`, and the weekly
+`/api/cron/crypto-sync`.
+
+---
+
 ### Database Sync
 
 Development-only endpoints for bidirectional database synchronization. Returns `403 Forbidden` in production.

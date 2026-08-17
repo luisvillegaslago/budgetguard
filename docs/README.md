@@ -11,6 +11,9 @@ Complete documentation for the BudgetGuard family expense tracking system.
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture, data flow, state management | architecture, providers, Zustand, TanStack Query, data flow |
 | [API_REFERENCE.md](./API_REFERENCE.md) | REST API endpoints, request/response formats | API, endpoints, routes, REST, HTTP |
 | [DATA_MODELS.md](./DATA_MODELS.md) | Database schema, TypeScript types, Zod schemas | database, schema, types, interfaces, validation, Zod |
+| [FISCAL_DOMAIN.md](./FISCAL_DOMAIN.md) | The Spanish tax rules the app encodes, and the invariants that must not be broken | fiscal, AEAT, IRPF, IVA, modelo 303/130/390/100, casillas, devengo, deadlines |
+| [CRYPTO_MODULE.md](./CRYPTO_MODULE.md) | Exchange ingestion → normalisation → FIFO → Modelo 100 | crypto, Binance, Kraken, Coinbase, FIFO, disposals, casilla 1804, sync |
+| [DESIGN.md](./DESIGN.md) | Brand colors, design tokens, accessibility, design principles | design, colors, tokens, focus, accessibility |
 | [TESTING_STRATEGY.md](./TESTING_STRATEGY.md) | Testing approach, test structure, guidelines | tests, jest, integration, unit, component |
 | [CHANGELOG.md](../CHANGELOG.md) | Version history and release notes | changelog, releases, versions |
 
@@ -33,6 +36,29 @@ Covers the overall system design:
 - API route handler wrapper (`withApiHandler`) pattern
 - CI/CD pipeline (GitHub Actions)
 - Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving, Companies, Invoicing, Fiscal Documents (with OCR extraction), Fiscal Deadlines
+
+### FISCAL_DOMAIN.md
+
+The domain knowledge behind the fiscal module — required reading before changing it:
+- Devengo vs. caja, and why `vw_FiscalAccrual` is the only view a tax model may read
+- What counts as fiscal, and why income and expenses are filtered asymmetrically
+- Modelo 303/130/390/100 casilla by casilla, with the rules that govern each
+- The IVA a compensar pool, its 4-year expiry and the refund window
+- The IRPF provision: progressive scale, mínimo personal, pension limits (arts. 51-52)
+- Deadlines: working-day extension, domiciliación cut-off, Renta window per campaign
+- A table of invariants and what breaks when each is violated
+- Known gaps and legal references
+
+### CRYPTO_MODULE.md
+
+The crypto pipeline end to end:
+- Ingestion from the Binance API and from Binance/Kraken/Coinbase CSV, behind one importer seam
+- Normalisation into taxable events, and the EUR price-resolution cascade
+- The FIFO matcher: lots, `transfer_in` FMV proxy, incomplete coverage, review flags
+- Fiscal years in Madrid civil time, not UTC
+- Modelo 100 boxes 1804-F/N, 0304, 0033 and the CSV export
+- Credential encryption (AES-256-GCM), read-only enforcement, sync job lifecycle
+- Invariants, and how to add a new exchange
 
 ### API_REFERENCE.md
 

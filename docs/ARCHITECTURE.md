@@ -59,9 +59,11 @@ src/
 │   │   │   │       ├── download/route.ts  # GET download proxy
 │   │   │   │       ├── extract/route.ts   # POST OCR extraction
 │   │   │   │       └── link-transaction/route.ts # POST create + link
-│   │   │   └── deadlines/
-│   │   │       ├── route.ts           # GET deadlines
-│   │   │       └── settings/route.ts  # GET/PUT reminder settings
+│   │   │   ├── deadlines/
+│   │   │   │   ├── route.ts           # GET deadlines
+│   │   │   │   └── settings/route.ts  # GET/PUT reminder settings
+│   │   │   ├── profile/route.ts       # GET/PUT per-year fiscal profile
+│   │   │   └── projection/route.ts    # GET IRPF provision
 │   │   ├── skydiving/
 │   │   │   ├── jumps/
 │   │   │   │   ├── route.ts           # GET/POST jumps (paginated)
@@ -73,6 +75,22 @@ src/
 │   │   │   │   └── import/route.ts    # POST bulk import sessions
 │   │   │   ├── stats/route.ts         # GET aggregated stats
 │   │   │   └── categories/route.ts    # GET Paracaidismo subcategories
+│   │   ├── vouchers/
+│   │   │   ├── route.ts               # GET/POST vouchers (with live balance)
+│   │   │   └── [id]/route.ts          # GET/PUT/DELETE single voucher
+│   │   ├── crypto/                    # See docs/CRYPTO_MODULE.md
+│   │   │   ├── credentials/           # POST/DELETE keys + GET status
+│   │   │   ├── sync/                  # POST start, GET poll, POST cancel
+│   │   │   ├── import/csv/route.ts    # POST exchange CSV upload
+│   │   │   ├── normalize/route.ts     # POST run the normaliser
+│   │   │   ├── fiscal/                # modelo100, disposals, export, recompute
+│   │   │   └── ...                    # events, taxable-events, assets, pairs, klines, ticker
+│   │   ├── companies/                 # GET/POST + [id] GET/PUT/DELETE
+│   │   ├── invoices/                  # CRUD + finalize/pay/cancel/revert
+│   │   ├── billing-profile/route.ts   # GET/PUT issuer data
+│   │   ├── sync/                      # compare/execute (dev only)
+│   │   ├── cron/crypto-sync/route.ts  # Weekly Vercel Cron
+│   │   ├── auth/                      # NextAuth handlers
 │   │   ├── summary/
 │   │   │   ├── route.ts               # GET monthly balance
 │   │   │   └── subcategories/route.ts # GET subcategory drill-down
@@ -83,9 +101,15 @@ src/
 │   │   ├── recurring-expenses/page.tsx # Recurring expenses page
 │   │   ├── trips/page.tsx             # Trips list page
 │   │   ├── trips/[id]/page.tsx        # Trip detail page
-│   │   ├── fiscal/page.tsx             # Fiscal quarterly report page
+│   │   ├── fiscal/page.tsx             # Fiscal report (303/130/390/100 + IRPF provision)
 │   │   ├── skydiving/page.tsx         # Skydiving dashboard (jumps, tunnel, stats)
-│   │   └── settings/page.tsx          # Settings page (DB sync)
+│   │   ├── crypto/page.tsx            # Crypto: sync, movements, positions, Modelo 100
+│   │   ├── movements/page.tsx         # Movement browser (by category / by company)
+│   │   ├── documents/page.tsx         # Fiscal document management
+│   │   ├── invoices/page.tsx          # Invoice list
+│   │   ├── invoices/[id]/page.tsx     # Invoice detail
+│   │   ├── categories/[id]/history/page.tsx # Category transaction history
+│   │   └── settings/page.tsx          # Settings (DB sync, billing, reminders)
 │   ├── layout.tsx                     # Root layout with providers
 │   ├── error.tsx                      # Error boundary
 │   ├── global-error.tsx               # Global error (full HTML)
@@ -120,6 +144,27 @@ src/
 │   │   ├── TripExpenseForm.tsx        # Trip expense create/edit modal
 │   │   ├── TripExpenseRow.tsx         # Individual expense row in trip detail
 │   │   └── CreateTripForm.tsx         # New trip creation form
+│   ├── vouchers/
+│   │   ├── VoucherFormModal.tsx       # Create/Edit voucher
+│   │   └── VoucherDetailModal.tsx     # Balance + consumptions + reconciliation
+│   ├── crypto/
+│   │   ├── CryptoSyncPanel.tsx        # Credentials + sync job progress
+│   │   ├── CryptoCsvUploader.tsx      # Multi-exchange CSV upload
+│   │   ├── CryptoEventsTable.tsx      # Raw / taxable movements
+│   │   ├── CryptoDisposalsTable.tsx   # FIFO disposals with lot breakdown
+│   │   ├── CryptoModelo100Section.tsx # 1804-F/N, 0304, 0033 + needs-review
+│   │   ├── CryptoPriceChart.tsx       # Candlestick chart + position panel
+│   │   └── CryptoAeatGuide.tsx        # How to transcribe into Renta Web
+│   ├── movements/
+│   │   ├── CategoryBrowser.tsx        # Browse movements by category
+│   │   ├── MovementDetail.tsx         # Movement detail panel
+│   │   └── CompanyMovementDetail.tsx  # Company-scoped detail
+│   ├── alerts/
+│   │   └── AlertsSection.tsx          # Dashboard alerts aggregation
+│   ├── invoices/                      # Invoice list, form, PDF preview, prefixes
+│   ├── skydiving/                     # Jump log, tunnel log, stats, CSV import
+│   ├── settings/                      # DB sync, billing profile, reminder settings
+│   ├── navigation/                    # Sidebar and top navigation
 │   ├── fiscal/
 │   │   ├── FiscalReport.tsx           # Fiscal quarterly report display
 │   │   ├── Modelo303Card.tsx          # VAT summary card
@@ -129,10 +174,17 @@ src/
 │   │   ├── FiscalExtractionConfirm.tsx # OCR confirmation modal
 │   │   ├── FiscalBulkUpload.tsx       # Multi-file bulk uploader
 │   │   ├── FiscalFilingStatus.tsx     # Filing status indicators
+│   │   ├── Modelo390Card.tsx          # Annual VAT summary card
+│   │   ├── Modelo100Card.tsx          # Renta economic-activities section
+│   │   ├── IrpfProvisionCard.tsx      # 20% vs progressive scale + pension form
+│   │   ├── FiscalUncountedIncome.tsx  # Income no model counts (safety net)
+│   │   ├── FiscalAmountRow.tsx        # Shared casilla row
 │   │   ├── FiscalDeadlinePanel.tsx    # Deadline display panel
 │   │   └── FiscalDeadlineBanner.tsx   # Dashboard deadline alert
-│   └── ui/
+│   └── ui/                            # ~25 shared primitives
 │       ├── MonthPicker.tsx            # Month navigation
+│       ├── CollapsibleSection.tsx     # Animated collapse
+│       ├── RouteProgressBar.tsx       # Click-driven route progress
 │       ├── LoadingSpinner.tsx         # Loading indicator
 │       └── CategoryIcon.tsx           # Icon renderer
 │
@@ -163,11 +215,20 @@ src/
 │   ├── useTunnelSessions.ts          # Tunnel session CRUD queries/mutations
 │   ├── useSkydiveStats.ts            # Skydiving stats query
 │   ├── useSkydiveCategories.ts       # Paracaidismo subcategories query
+│   ├── useIrpfProjection.ts          # IRPF provision query
+│   ├── useFiscalProfile.ts           # Per-year fiscal profile query/mutation
+│   ├── useVouchers.ts                # Voucher CRUD + balance
+│   ├── useSkydiveVouchers.ts         # Voucher reconciliation for skydive activity
+│   ├── useCryptoSync.ts              # Sync job trigger + polling
+│   ├── useCryptoCredentials.ts       # Exchange key management
+│   ├── useCryptoFiscal.ts            # Modelo 100 boxes, disposals, recompute
+│   ├── useCryptoChart.ts             # Klines + ticker for the price chart
 │   └── useTranslations.ts            # i18n hook
 │
 ├── stores/
 │   ├── useFinanceStore.ts             # UI state (Zustand)
-│   └── localeStore.ts                 # Language preference
+│   ├── localeStore.ts                 # Language preference
+│   └── themeStore.ts                  # Light/dark preference
 │
 ├── services/
 │   ├── database/
@@ -181,7 +242,17 @@ src/
 │   │   ├── InvoiceRepository.ts       # Invoice + prefix + billing profile CRUD
 │   │   ├── CompanyRepository.ts       # Company CRUD + role filtering
 │   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats, tx linking
+│   │   ├── FiscalProfileRepository.ts # Per-year fiscal profile (partial upsert)
+│   │   ├── VoucherRepository.ts       # Voucher CRUD + balance view
+│   │   ├── Crypto*Repository.ts       # Raw events, positions, price cache, sync jobs, credentials
+│   │   ├── TaxableEventsRepository.ts # Normalised legs + FIFO disposals
+│   │   ├── CryptoFiscalRepository.ts  # Modelo 100 boxes, disposal queries
 │   │   └── SyncService.ts            # Bidirectional database sync
+│   ├── exchanges/                     # See docs/CRYPTO_MODULE.md
+│   │   ├── shared/                    # ExchangeCsvImporter contract + registry
+│   │   ├── binance/                   # Client, sync, normaliser, prices, klines, CSV
+│   │   ├── kraken/                    # CSV importer + asset codes
+│   │   └── coinbase/                  # CSV importer
 │   ├── ocr/
 │   │   ├── anthropicVision.ts         # Shared Claude Vision bridge (PDF/image → JSON)
 │   │   ├── DocumentExtractor.ts       # Invoice OCR extraction
@@ -197,11 +268,17 @@ src/
 │   ├── invoice.ts                     # Invoice, prefix, billing profile schemas
 │   ├── company.ts                     # Company schemas
 │   ├── sync.ts                        # Sync execution schemas
+│   ├── voucher.ts                     # Voucher schemas
+│   ├── crypto.ts                      # Crypto query/import schemas
+│   ├── shared.ts                      # Reusable field validators
 │   └── skydive.ts                     # Jump + tunnel session Zod schemas
 │
 ├── types/
 │   ├── finance.ts                     # Financial TypeScript interfaces
-│   └── skydive.ts                     # Skydiving TypeScript interfaces
+│   ├── skydive.ts                     # Skydiving TypeScript interfaces
+│   ├── cryptoChart.ts                 # Chart/series types
+│   ├── sync.ts                        # DB sync types
+│   └── errors.ts                      # Typed error classes
 │
 ├── constants/
 │   └── finance.ts                     # Type constants, query keys, API endpoints
@@ -209,16 +286,20 @@ src/
 ├── providers/
 │   ├── QueryProvider.tsx              # TanStack Query
 │   ├── TranslationProvider.tsx        # i18n context
-│   └── SessionProvider.tsx            # NextAuth (future)
+│   ├── TooltipProvider.tsx            # Tooltip context
+│   └── SessionProvider.tsx            # NextAuth
 │
 ├── utils/
 │   ├── money.ts                       # Currency conversions
 │   ├── helpers.ts                     # Date/utility functions
 │   ├── recurring.ts                   # Occurrence date calculation
-│   ├── fiscal.ts                     # computeFiscalFields utility
+│   ├── fiscal.ts                     # computeFiscalFields, rollVatPoolCents, gastos dificil
+│   ├── irpf.ts                       # Progressive scale, minimo personal, pension reduction
 │   ├── fiscalDeadlines.ts            # AEAT deadline computation
+│   ├── workingDays.ts                # Working-day calendar (weekends, holidays, Semana Santa)
+│   ├── crypto/                       # fifo.ts, fiscalYear.ts, pairPnl.ts
+│   ├── cryptoSecrets.ts              # AES-256-GCM credential encryption
 │   ├── fiscalFileParser.ts           # Auto-detect doc metadata from filename
-│   ├── fiscalDisplayName.ts          # (legacy) Display name helper — DisplayName is now computed via SQL COALESCE in FiscalDocumentRepository.ts
 │   ├── blobFetch.ts                  # Vercel Blob download utility
 │   ├── fetchApi.ts                   # Authenticated fetch wrapper (401 → redirect)
 │   ├── apiHandler.ts                 # API route handler wrapper (withApiHandler)
@@ -226,7 +307,7 @@ src/
 │   ├── invoiceLabels.ts             # Invoice PDF i18n labels
 │   ├── csv.ts                        # Generic CSV tokenizer (quotes, CRLF, BOM)
 │   ├── invoiceCsv.ts                 # Invoice line-item CSV import parser
-│   ├── skydive-csv-parsers.ts        # CSV parsing for jump/tunnel imports
+│   ├── skydiveParsers.ts             # CSV parsing for jump/tunnel imports
 │   └── staticTranslations.ts         # i18n for error boundaries
 │
 └── messages/
@@ -658,7 +739,9 @@ Multi-day, multi-category travel expenses grouped under a named trip entity.
 
 ### 6. Fiscal Module (Spanish Tax Models)
 
-Quarterly fiscal reporting for Spanish tax obligations (Modelo 303 for VAT and Modelo 130 for income tax). Adds fiscal-specific fields to transactions and categories, with a dedicated repository and utility for computing derived values.
+Fiscal reporting for Spanish tax obligations: Modelo 303 (IVA) and Modelo 130 (IRPF pago fraccionado) quarterly, Modelo 390 and the economic-activities section of Modelo 100 annually, plus an IRPF provision that projects the gap between the two IRPF regimes. Adds fiscal-specific fields to transactions and categories, with a dedicated repository and pure utilities for computing derived values.
+
+> **The tax rules themselves — devengo vs. caja, the casillas, the IVA compensation pool, the pension limits, the deadline rules — live in [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md), together with the invariants that must not be broken. Read it before changing anything in this module.**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -670,22 +753,31 @@ Quarterly fiscal reporting for Spanish tax obligations (Modelo 303 for VAT and M
 │                                   ├── VendorName              │
 │                                   └── InvoiceNumber           │
 │                                                               │
-│  computeFiscalFields(transaction) → FiscalComputedFields      │
-│  ├── vatAmountCents                                           │
-│  ├── deductibleAmountCents                                    │
-│  └── netAmountCents                                           │
+│  FiscalProfiles (per year, what no transaction can carry)     │
+│  ├── PensionIndividualCents / PensionEmploymentCents          │
+│  └── VatPoolOpeningCents                                      │
 │                                                               │
-│  FiscalRepository.getQuarterlyReport(year, quarter)           │
-│  └── Uses vw_FiscalAccrual + the Invoices table               │
-│      → FiscalReport (Modelo303, Modelo130, expenses, invoices)│
+│  computeFiscalFields(full, vat%, deduction%)                  │
+│  ├── baseCents            ├── baseDeducibleCents              │
+│  └── ivaCents             └── ivaDeducibleCents               │
+│                                                               │
+│  FiscalRepository — all reads go through loadFiscalRows()     │
+│  └── vw_FiscalAccrual (never vw_FiscalQuarterly)              │
+│      ├── getModelo303Summary / getModelo130Summary            │
+│      ├── getModelo390Summary / getModelo100Summary            │
+│      ├── getIrpfProjection                                    │
+│      └── getUncountedIncome                                   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Key files:**
 - `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalAccrual` through `loadFiscalRows()`. Never reads `vw_FiscalQuarterly` directly — that view books invoice income on the collection date
-- `src/utils/fiscal.ts`: Pure `computeFiscalFields()` function for deriving VAT/deduction amounts from a transaction
-- `src/hooks/useFiscalReport.ts`: TanStack Query hook for fetching fiscal data
-- `src/components/fiscal/`: UI components (FiscalReport, Modelo303Card, Modelo130Card)
+- `src/services/database/FiscalProfileRepository.ts`: Per-year fiscal profile. Partial upsert (`COALESCE` per column) so two cards can edit the same row
+- `src/utils/fiscal.ts`: `computeFiscalFields()`, `rollVatPoolCents()`, `calcGastosDificilCents()` — pure
+- `src/utils/irpf.ts`: Progressive scale, mínimo personal, pension reduction, run-rate projection — pure
+- `src/utils/fiscalDeadlines.ts` + `src/utils/workingDays.ts`: AEAT calendar, working-day extension, domiciliación
+- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`
+- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FiscalUncountedIncome, FiscalDeadlinePanel
 - `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector
 
 **SharedDivisor vs DeductionPercent:**
@@ -698,7 +790,10 @@ These two fields serve distinct purposes and are independent:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/fiscal?year=2025&quarter=1` | Quarterly fiscal report (Modelo 303, Modelo 130, expenses, invoices) |
+| GET | `/api/fiscal?year=2025&quarter=1` | Quarterly report (Modelo 303, Modelo 130, expenses, invoices, uncounted income) |
+| GET | `/api/fiscal/annual?year=2025` | Annual report (Modelo 390, Modelo 100 section) |
+| GET | `/api/fiscal/projection?year=2025` | IRPF provision: the 20% vs. progressive-scale gap |
+| GET / PUT | `/api/fiscal/profile?year=2025` | Per-year fiscal profile (pension contributions, VAT pool opening) |
 
 **Constants:**
 
@@ -885,7 +980,7 @@ Document management for tax filings and invoices stored in Vercel Blob with priv
 - `src/services/database/FiscalDocumentRepository.ts`: CRUD + auto-matching + linking
 - `src/schemas/fiscal-document.ts`: Zod validation schemas (upload, link, extraction, modelo detection)
 - `src/utils/fiscalFileParser.ts`: Filename-based metadata auto-detection (first step of the modelo detection cascade, before falling back to the AI)
-- `src/utils/fiscalDisplayName.ts`: (legacy) Display name helper — DisplayName is now computed via the centralized `DISPLAY_NAME_SQL` constant in `FiscalDocumentRepository.ts` using SQL `COALESCE(Company.Name, VendorName, FileName)`
+- DisplayName is computed in SQL, via the centralized `DISPLAY_NAME_SQL` constant in `FiscalDocumentRepository.ts`: `COALESCE(Company.Name, VendorName, FileName)`. The former `fiscalDisplayName.ts` helper no longer exists
 - `src/utils/blobFetch.ts`: Vercel Blob download utility
 - `src/app/api/fiscal/documents/`: API routes for CRUD, bulk upload, download proxy
 - `src/app/api/fiscal/documents/detect-modelo/`: Modelo detection endpoint (read-only, runs before upload)
@@ -922,12 +1017,72 @@ AEAT (Spanish tax agency) deadline computation for quarterly and annual tax obli
 
 **Key files:**
 - `src/utils/fiscalDeadlines.ts`: AEAT deadline computation logic
+- `src/utils/workingDays.ts`: Working-day calendar — weekends, national holidays, Semana Santa
 - `src/hooks/useFiscalDeadlines.ts`: TanStack Query hook for deadline data
 - `src/components/fiscal/FiscalDeadlineBanner.tsx`: Dashboard deadline alert banner
 - `src/components/fiscal/FiscalDeadlinePanel.tsx`: Detailed deadline panel
 - `src/components/settings/FiscalReminderSettings.tsx`: Reminder window configuration
 
-### 12. API Route Handler Wrapper
+A deadline landing on a día inhábil runs to the next working day, and each quarterly deadline also
+carries the earlier **domiciliación** cut-off. The Renta window is table-driven per campaign and
+flagged as unconfirmed for years whose Orden is unpublished — the rules and their reasoning are in
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Deadlines.
+
+### 12. Vouchers Module (Prepaid Passes / "Bonos")
+
+A prepaid balance bought up front and consumed over time — a block of skydive jumps, a tunnel pass.
+
+**Buying a voucher creates no transaction.** Consumption does: ordinary expense transactions that
+reference `VoucherID` (and optionally `VoucherUnits`). The alternative — booking the whole purchase
+as one expense — would put the entire cost in the month of purchase and show nothing in the months
+it was actually used.
+
+The remaining balance is never stored. `vw_VoucherBalance` computes it live as
+`TotalAmountCents − SUM(paid linked consumptions)`, so editing or deleting a consumption frees the
+balance automatically. The FK is `ON DELETE SET NULL`: deleting a voucher unlinks its consumptions
+rather than destroying the expense history.
+
+**Key files:**
+- `src/services/database/VoucherRepository.ts`
+- `src/hooks/useVouchers.ts`, `src/hooks/useSkydiveVouchers.ts`
+- `src/components/vouchers/VoucherFormModal.tsx`, `VoucherDetailModal.tsx`
+- Selector inside `TransactionForm`; balance widget on the dashboard
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET / POST | `/api/vouchers` | List with live balance / create |
+| GET | `/api/vouchers/:id` | Voucher + its consumptions + unlinked skydive candidates |
+| PUT / DELETE | `/api/vouchers/:id` | Update / delete (consumptions are unlinked, not removed) |
+
+`GET /api/vouchers/:id` also returns `unlinkedConsumptions` — skydive activity that looks like it
+belongs to this voucher but carries no `VoucherID` — so the UI can offer to reconcile it.
+
+### 13. Crypto Module (Exchange Ingestion → FIFO → Modelo 100)
+
+Ingests exchange history (Binance API, plus Binance/Kraken/Coinbase CSV), normalises it into
+taxable events, resolves EUR values, and runs a FIFO matcher to produce the cost basis and
+gain/loss behind the Modelo 100 crypto boxes.
+
+```
+Exchange API / CSV → CryptoRawEvents → TaxableEvents → CryptoDisposals → Modelo 100
+                     (verbatim)        (normalised,     (FIFO cost      (1804-F/N,
+                                        EUR-priced)      basis)          0304, 0033)
+```
+
+Each stage is idempotent, so any of them can be re-run without duplicating data — which is the
+point: raw payloads are kept verbatim precisely so the derived stages can be rebuilt when the
+rules change.
+
+> **The full pipeline, the FIFO rules, the price cascade, the security model and the invariants are
+> documented in [CRYPTO_MODULE.md](CRYPTO_MODULE.md).** Read it before changing anything under
+> `src/services/exchanges/` or `src/utils/crypto/`.
+
+**Key files:** `src/services/exchanges/` (per-exchange clients and CSV importers behind a shared
+registry), `src/utils/crypto/{fifo,fiscalYear,pairPnl}.ts`, `src/utils/cryptoSecrets.ts` (AES-256-GCM),
+`src/services/database/Crypto*Repository.ts`, `src/components/crypto/`, `/api/crypto/*`,
+`/api/cron/crypto-sync` (weekly Vercel Cron).
+
+### 14. API Route Handler Wrapper
 
 All API routes use `withApiHandler()` (`src/utils/apiHandler.ts`) to eliminate boilerplate:
 
@@ -953,7 +1108,7 @@ export const GET = withApiHandler(async (request, { params }) => {
 
 ---
 
-### 13. Route Progress Bar
+### 15. Route Progress Bar
 
 `RouteProgressBar` (`src/components/ui/RouteProgressBar.tsx`) is mounted once in the
 authenticated layout. Clicking a sidebar item swaps its icon for a spinner (via Next's
@@ -1052,6 +1207,14 @@ formatCurrency(41928) // → "419,28 €"
 | `RecurringExpenseOccurrences` | Individual occurrence instances (pending/confirmed/skipped) |
 | `SkydiveJumps` | Jump log with freefall time, canopy, aircraft, exit altitude |
 | `TunnelSessions` | Wind tunnel sessions with duration and optional price |
+| `Vouchers` | Prepaid balances ("bonos"); remaining balance lives in `vw_VoucherBalance` |
+| `Companies` | Clients and providers |
+| `UserBillingProfiles`, `InvoicePrefixes`, `Invoices`, `InvoiceLineItems` | Invoicing |
+| `FiscalDocuments` | Filed modelos and received/issued invoices, with OCR extraction |
+| `FiscalDeadlineSettings` | Reminder preferences |
+| `FiscalProfiles` | Per-year fiscal facts: pension contributions, IVA pool opening |
+| `ExchangeCredentials`, `ExchangeApiCallLog`, `CryptoSyncJobs` | Crypto: keys, call audit, sync jobs |
+| `CryptoRawEvents`, `CryptoPriceCache`, `TaxableEvents`, `CryptoDisposals` | Crypto: ingestion → FIFO pipeline |
 | `Users` | User accounts with locale preference |
 | `Accounts` | OAuth provider accounts (NextAuth) |
 | `Sessions` | User sessions (NextAuth) |
@@ -1499,6 +1662,8 @@ src/__tests__/
 |----------|---------|
 | `docs/API_REFERENCE.md` | API endpoints, request/response formats |
 | `docs/DATA_MODELS.md` | Database schema, TypeScript types, Zod schemas |
+| `docs/FISCAL_DOMAIN.md` | The Spanish tax rules encoded, and the fiscal invariants |
+| `docs/CRYPTO_MODULE.md` | Crypto ingestion → FIFO → Modelo 100 pipeline |
 | `docs/TESTING_STRATEGY.md` | Hybrid testing approach guidelines |
 | `database/schema.sql` | Complete database schema (includes Trips table) |
 | `database/seed.sql` | Initial category data |

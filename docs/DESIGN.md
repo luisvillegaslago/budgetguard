@@ -47,6 +47,28 @@
 - Animations respect `prefers-reduced-motion`
 - Keyboard-accessible with visible focus rings
 
+### The focus ring is defined once, and it is inset
+
+```css
+*:focus-visible {
+  @apply rounded outline-none;
+  box-shadow:
+    inset 0 0 0 2px hsl(var(--background)),
+    inset 0 0 0 4px hsl(var(--ring));
+}
+```
+
+One rule in `src/styles/global.css`, no exceptions. Two bands: the inner one in the page background
+separates the ring from the element's own fill, which is what keeps it visible on brand-coloured
+buttons where an indigo ring on an indigo background would disappear.
+
+**Never add a `focus:ring-*` utility to a component.** A utility beats this rule, restores the
+outward ring, and the ring is then clipped by the nearest `overflow-hidden` ancestor — `.card` has
+one. This clipped ring was reported three times and fixed twice at the wrong level (themed
+ring-offset, then per-component `ring-inset`/`z-10` patches) before the cause turned out to be 46
+per-component utilities overriding the base rule. All 46 were removed. Adding one back reopens the
+bug for every card in the app, not just the component it was added to.
+
 ## Design Principles
 
 1. **Data first, decoration never** — every pixel serves financial data

@@ -708,10 +708,11 @@ The per-year fiscal facts that live nowhere else in the app: figures the user kn
 transaction records. One row per user and fiscal year, created on demand — a missing row reads
 as zeros, never as an error.
 
-Today it holds the pension plan contributions, which reduce the base of the annual Renta and
-**never touch Modelo 130** (the pago fraccionado ignores them). This is the table to extend with
-the other annual facts the fiscal audit flagged as missing — mínimo por descendientes, other
-income — as plain columns rather than new tables.
+It holds the pension plan contributions, which reduce the base of the annual Renta and
+**never touch Modelo 130** (the pago fraccionado ignores them), and the opening balance of the
+IVA a compensar pool. This is the table to extend with the other annual facts the fiscal audit
+flagged as missing — mínimo por descendientes, other income — as plain columns rather than new
+tables.
 
 ```sql
 CREATE TABLE "FiscalProfiles" (
@@ -720,10 +721,12 @@ CREATE TABLE "FiscalProfiles" (
     "FiscalYear" INT NOT NULL,
     "PensionIndividualCents" INT NOT NULL DEFAULT 0,
     "PensionEmploymentCents" INT NOT NULL DEFAULT 0,
+    "VatPoolOpeningCents" INT NOT NULL DEFAULT 0,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "CK_FiscalProfiles_NonNegative" CHECK (
         "PensionIndividualCents" >= 0 AND "PensionEmploymentCents" >= 0
+        AND "VatPoolOpeningCents" >= 0
     ),
     CONSTRAINT "UQ_FiscalProfiles_UserYear" UNIQUE ("UserID", "FiscalYear")
 );
@@ -736,6 +739,17 @@ CREATE TABLE "FiscalProfiles" (
 | `FiscalYear` | INT | Tax year the figures belong to |
 | `PensionIndividualCents` | INT | Plan de pensiones individual, in cents |
 | `PensionEmploymentCents` | INT | Plan de empleo simplificado de trabajadores por cuenta propia, in cents |
+| `VatPoolOpeningCents` | INT | IVA a compensar carried into 1 January of this year — casilla 110 of the year's first 303, in cents |
+
+**Why the VAT pool opening is stored and not computed.** The pool is what the AEAT's own registry
+says it is, and a refund is paid against *their* figure. Recomputing it from the app's transactions
+would silently disagree with the filed models whenever a quarter was filed before its data was
+complete. It is seeded from the filed 303 and only rolled forward from there — see
+`rollVatPoolCents()` and [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § IVA a compensar.
+
+**Partial writes.** Two different cards edit this row (pension contributions, VAT pool). The upsert
+in `FiscalProfileRepository` uses `COALESCE($n, existing)` per column so an omitted field keeps its
+stored value instead of resetting to zero — `FiscalProfileInput` is a `Partial` for that reason.
 
 **Why two columns and not one total.** Each product carries a different ceiling: art. 52.1.b)
 sets a 1.500 €/year general limit on the total whatever the instrument, and 2.º *increases* it by
@@ -747,6 +761,138 @@ implemented in `computePensionReductionCents()` (`src/utils/irpf.ts`).
 
 The unique constraint on `(UserID, FiscalYear)` doubles as the lookup index: every read is by
 both columns.
+
+---
+
+### Skydiving Tables
+
+#### SkydiveJumps
+
+```sql
+CREATE TABLE "SkydiveJumps" (
+    "JumpID" SERIAL PRIMARY KEY,
+    "JumpNumber" INT NOT NULL,
+    "Title" VARCHAR(255) NULL,
+    "JumpDate" DATE NOT NULL,
+    "Dropzone" VARCHAR(150) NULL,
+    "Canopy" VARCHAR(100) NULL,
+    "Wingsuit" VARCHAR(100) NULL,
+    "FreefallTimeSec" INT NULL,
+    "JumpType" VARCHAR(100) NULL,
+    "Aircraft" VARCHAR(150) NULL,
+    "ExitAltitudeFt" INT NULL,
+    "LandingDistanceM" INT NULL,
+    "Comment" TEXT NULL,
+    "PriceCents" INT NULL,
+    "TransactionID" INT NULL,          -- Expense created when PriceCents > 0
+    "UserID" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_SkydiveJumps_Transaction"
+        FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX "UQ_SkydiveJumps_Number_User" ON "SkydiveJumps"("JumpNumber", "UserID");
+```
+
+`UQ_SkydiveJumps_Number_User` is what makes bulk CSV import idempotent: re-importing a log inserts
+nothing new (`ON CONFLICT DO NOTHING`). The jump number is unique **per user**, not globally.
+
+Creating a jump with `PriceCents > 0` also creates the matching expense transaction and links it,
+inside a single `BEGIN/COMMIT` — the subcategory is resolved by `findSkydiveSubcategoryId()`.
+`ON DELETE SET NULL` means deleting the expense leaves the jump in the logbook.
+
+#### TunnelSessions
+
+```sql
+CREATE TABLE "TunnelSessions" (
+    "SessionID" SERIAL PRIMARY KEY,
+    "SessionDate" DATE NOT NULL,
+    "Location" VARCHAR(150) NULL,
+    "SessionType" VARCHAR(100) NULL,
+    "DurationSec" INT NOT NULL,
+    "Notes" TEXT NULL,
+    "PriceCents" INT NULL,
+    "TransactionID" INT NULL,
+    "UserID" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_TunnelSessions_Transaction"
+        FOREIGN KEY ("TransactionID") REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX "UQ_TunnelSessions_Dedup"
+    ON "TunnelSessions"("SessionDate", "Location", "DurationSec", "UserID");
+```
+
+Tunnel sessions have no natural key, so the dedup index is built from the tuple that identifies a
+session in practice: date, location, duration and user.
+
+---
+
+### Vouchers
+
+#### Vouchers
+
+Prepaid balances ("bonos"). **Buying one creates no transaction** — consumption does, as ordinary
+expense transactions carrying `VoucherID` and optionally `VoucherUnits`.
+
+```sql
+CREATE TABLE "Vouchers" (
+    "VoucherID" SERIAL PRIMARY KEY,
+    "CategoryID" INT NOT NULL REFERENCES "Categories"("CategoryID"),
+    "Description" VARCHAR(255) NULL,
+    "TotalAmountCents" INT NOT NULL,
+    "TotalUnits" NUMERIC(10,2) NULL,   -- e.g. 10 jumps, 30 minutes
+    "UnitLabel" VARCHAR(20) NULL,
+    "PurchaseDate" DATE NOT NULL,
+    "ExpiryDate" DATE NULL,
+    "UserID" INT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE "Transactions"
+ADD CONSTRAINT "FK_Transactions_Voucher"
+    FOREIGN KEY ("VoucherID") REFERENCES "Vouchers"("VoucherID") ON DELETE SET NULL;
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `TotalAmountCents` | INT | What was paid up front |
+| `TotalUnits` | NUMERIC(10,2) | Optional unit count (jumps, minutes); `NULL` for pure money vouchers |
+| `UnitLabel` | VARCHAR(20) | What a unit is called in the UI |
+| `ExpiryDate` | DATE | Optional; the UI warns as it approaches |
+
+No `RemainingCents` column exists on purpose — see the view below. `ON DELETE SET NULL` on both
+sides means neither the voucher nor its consumptions can destroy the other.
+
+---
+
+### Crypto Tables
+
+Seven tables forming the ingestion → normalisation → FIFO pipeline. Each is idempotent on a
+documented key so any stage can be re-run. **The pipeline, the FIFO rules, the EUR price cascade and
+the security model are documented in [CRYPTO_MODULE.md](CRYPTO_MODULE.md)** — this is the shape
+only.
+
+| Table | Grain | Idempotency key | Notes |
+|-------|-------|-----------------|-------|
+| `ExchangeCredentials` | 1 per user × exchange | `(UserID, Exchange)` | API key/secret AES-256-GCM encrypted as `<iv>.<authTag>.<cipher>`; `Permissions` caches the read-only check |
+| `ExchangeApiCallLog` | 1 per outgoing call | — (append-only) | Endpoint, status, weight, duration; rate-limit forensics |
+| `CryptoSyncJobs` | 1 per sync run | — | `pending → running → completed \| failed \| cancelled`; `Progress` JSONB drives the progress bar |
+| `CryptoRawEvents` | 1 per upstream event | `(UserID, EventType, ExternalID)` | `RawPayload` is the verbatim JSON; `Source` ∈ binance/kraken/coinbase |
+| `CryptoPriceCache` | 1 per asset × day | `(Asset, DateUtc)` | Immutable once written; `EurPriceMicroCents` keeps sub-cent tokens from quantising to zero |
+| `TaxableEvents` | 1 per fiscal leg | `(RawEventID, Kind, Asset)` | One raw event can yield several legs (a BTC→USDT trade is a disposal **and** an acquisition) |
+| `CryptoDisposals` | 1 per disposal per year | `(TaxableEventID, FiscalYear)` | FIFO output: cost basis, gain/loss, `AcquisitionLotsJson` audit trail |
+
+Two columns deserve a warning:
+
+- **`CryptoDisposals.NeedsReview` / `IncompleteCoverage`** are written by the FIFO pass in
+  TypeScript, not derived in SQL. They default to `false`, so rows created before a recompute
+  under-report until the recompute runs.
+- **`TaxableEvents.Contraprestacion`** (`'F'` fiat / `'N'` crypto) determines which Modelo 100 box a
+  disposal lands in. It is set during normalisation, not at query time.
 
 ---
 
@@ -857,11 +1003,50 @@ GROUP BY
 
 ---
 
+#### vw_VoucherBalance
+
+The remaining balance of a voucher, computed live rather than stored.
+
+```sql
+CREATE VIEW "vw_VoucherBalance" AS
+SELECT
+    v.*,  -- every Vouchers column
+    COALESCE(SUM(t."AmountCents"), 0) AS "ConsumedCents",
+    v."TotalAmountCents" - COALESCE(SUM(t."AmountCents"), 0) AS "RemainingCents",
+    COALESCE(SUM(t."VoucherUnits"), 0) AS "ConsumedUnits",
+    COUNT(t."TransactionID") AS "ConsumptionCount"
+FROM "Vouchers" v
+LEFT JOIN "Transactions" t
+    ON t."VoucherID" = v."VoucherID" AND t."Status" = 'paid'
+GROUP BY v."VoucherID";
+```
+
+Nothing is denormalised, and that is the design: editing or deleting a consumption frees the balance
+with no reconciliation step. Only `paid` consumptions count — a pending one does not reduce the
+balance yet, exactly as in every summary view.
+
+---
+
+#### vw_SkydivingStats / vw_JumpsByType / vw_JumpsByYear
+
+Aggregations over `SkydiveJumps` and `TunnelSessions` for the `/skydiving` summary tab: totals and
+freefall time, a breakdown per jump type, and one row per year. All user-scoped.
+
+---
+
 #### vw_FiscalQuarterly
 
 One row per fiscally relevant transaction, tagged with its year and quarter. It does **not** aggregate: amounts are summed in TypeScript so the backend and the frontend round identically (see `computeFiscalFields()` in `src/utils/fiscal.ts`).
 
-Only paid transactions that carry a fiscal field (`VatPercent`, `DeductionPercent`, or an `InvoiceNumber`) are exposed.
+**Income and expenses enter under different rules, and the asymmetry is deliberate.** All paid
+income enters the view unconditionally; whether it counts as professional activity is a decision
+the models make later (`ParentCategoryName = 'Facturas'`). An expense only enters once someone has
+coded it fiscally — a VAT rate, a deduction share or an invoice number — because everything else is
+private spending.
+
+Inferring the income side from missing VAT data, as an earlier version did, silently erased every
+2023 invoice — 44.954,00 € imported without fiscal coding — from the 130, the 390 and the 100 of
+that year. Do not "simplify" this WHERE clause into a symmetric one.
 
 ```sql
 CREATE VIEW "vw_FiscalQuarterly" AS
@@ -882,7 +1067,10 @@ FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
 WHERE t."Status" = 'paid'
-    AND (t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
+    -- Income always enters; the models decide whether it is professional activity
+    AND (t."Type" = 'income'
+    -- An expense only becomes fiscal once someone codes it
+    OR t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
     OR t."InvoiceNumber" IS NOT NULL);
 ```
 
@@ -1246,56 +1434,157 @@ export interface TransactionGroupUpdateInput {
 
 ### Fiscal Types
 
+Every summary is keyed by AEAT casilla number rather than by a friendly name, so a figure on
+screen can be checked against the filed PDF without a translation step. What each casilla means
+and why it is computed the way it is lives in [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md); the canonical
+definitions are in `src/types/finance.ts`.
+
 ```typescript
-// Transaction with computed fiscal fields (used in fiscal report)
-export interface FiscalTransaction {
-  transactionId: number;
-  categoryId: number;
+// Amounts derived from a gross, IVA-inclusive figure (src/utils/fiscal.ts)
+export interface FiscalComputedFields {
+  baseCents: number;                // fullAmount / (1 + vat/100)
+  ivaCents: number;                 // fullAmount - baseCents
+  baseDeducibleCents: number;       // baseCents * deductionPercent / 100
+  ivaDeducibleCents: number;        // ivaCents * deductionPercent / 100
+}
+
+// One fiscally relevant row of vw_FiscalAccrual, with the amounts above already computed
+export interface FiscalTransaction extends FiscalComputedFields {
+  transactionId: number;            // 0 for rows synthesised from an issued invoice
+  transactionDate: string;
   categoryName: string;
-  amountCents: number;
-  vatPercent: number | null;
-  vatAmountCents: number;           // Computed: amountCents * vatPercent / 100
-  deductionPercent: number | null;
-  deductibleAmountCents: number;    // Computed: amountCents * deductionPercent / 100
+  parentCategoryName: string;       // 'Facturas' is what marks professional income
   vendorName: string | null;
   invoiceNumber: string | null;
-  transactionDate: string;
+  companyTaxId: string | null;
+  description: string | null;
   type: TransactionType;
+  fullAmountCents: number;
+  vatPercent: number;               // 0, never null: the view COALESCEs it
+  deductionPercent: number;
 }
 
-// Modelo 303 (VAT) quarterly summary
+// Modelo 303 — IVA, one quarter
 export interface Modelo303Summary {
-  vatCollected: number;             // Total VAT on income transactions (cents)
-  vatDeductible: number;            // Total deductible VAT on expenses (cents)
-  vatBalance: number;               // vatCollected - vatDeductible (cents)
+  fiscalYear: number;
+  fiscalQuarter: number;
+  casilla07Cents: number;           // Base imponible operaciones interiores
+  casilla09Cents: number;           // Cuota IVA devengado
+  casilla27Cents: number;           // Total IVA devengado
+  casilla28Cents: number;           // Base deducciones
+  casilla29Cents: number;           // Cuota IVA deducible
+  casilla45Cents: number;           // Total IVA deducible
+  casilla120Cents: number;          // No sujetas por reglas de localización (VatPercent = 0)
+  resultCents: number;              // Negative = a compensar
+  vatPoolOpeningCents: number;      // Casilla 110, carried in from earlier periods
+  vatPoolClosingCents: number;      // Casilla 87 — the balance left after filing
+  vatPoolIsStranded: boolean;       // No output VAT this year: the pool can only grow
 }
 
-// Modelo 130 (Income Tax) quarterly summary
+// Modelo 130 — IRPF pago fraccionado. CUMULATIVE from 1 January, not per quarter
 export interface Modelo130Summary {
-  grossIncome: number;              // Total income for quarter (cents)
-  deductibleExpenses: number;       // Total deductible expenses (cents)
-  netIncome: number;                // grossIncome - deductibleExpenses (cents)
-  taxableBase: number;              // Base for tax calculation (cents)
-  taxAmount: number;                // 20% of taxable base (cents)
+  fiscalYear: number;
+  fiscalQuarter: number;
+  casilla1Cents: number;            // Cumulative income
+  casilla2Cents: number;            // Cumulative deductible expenses (documented + 5%)
+  casilla3Cents: number;            // Profit (C01 - C02)
+  casilla4Cents: number;            // 20% of profit
+  casilla5Cents: number;            // Sum of earlier quarters already settled
+  casilla6Cents: number;            // IRPF withheld by clients this year
+  casilla7Cents: number;            // To pay
+  gastosDocumentadosCents: number;
+  gastosDificilCents: number;       // 5%, capped at 2.000 €/year
+  casilla5IsEstimated: boolean;     // An earlier quarter had no filed figure and was recomputed
 }
 
-// Full fiscal report for a quarter
+// Modelo 390 — annual IVA summary
+export interface Modelo390Summary {
+  fiscalYear: number;
+  casilla47Cents: number;           // Total cuotas devengadas (Σ C27)
+  casilla48Cents: number;           // Total bases deducibles (Σ C28)
+  casilla49Cents: number;           // Total cuotas deducibles (Σ C29)
+  casilla605Cents: number;          // Base IVA deducible op. interiores 21%
+  casilla606Cents: number;          // Cuota IVA deducible 21%
+  casilla64Cents: number;           // Total deducciones (= C49)
+  casilla65Cents: number;           // Resultado (C47 - C64)
+  casilla84Cents: number;           // Suma resultados (= C65)
+  casilla86Cents: number;           // Resultado liquidación (= C84)
+  casilla97Cents: number;           // A compensar del ÚLTIMO periodo — what AEAT crosses against the 4T 303
+  casilla662Cents: number;          // A compensar generado en los DEMÁS trimestres
+  casilla110Cents: number;          // No sujetas por localización (Σ C120)
+  casilla108Cents: number;          // Total volumen operaciones (= C110)
+}
+
+// Modelo 100 — economic activities section only (Estimación Directa Simplificada)
+export interface Modelo100Section {
+  fiscalYear: number;
+  casilla0171Cents: number;         // Ingresos de explotación
+  casilla0180Cents: number;         // Total ingresos computables (= C0171)
+  casilla0218Cents: number;         // Suma gastos deducibles (documented)
+  casilla0221Cents: number;         // Diferencia (C0180 - C0218)
+  casilla0222Cents: number;         // Gastos difícil justificación
+  casilla0223Cents: number;         // Total gastos deducibles (C0218 + C0222)
+  casilla0224Cents: number;         // Rendimiento neto (C0180 - C0223)
+  gastosPorCasilla: Modelo100GastoCasilla[];  // { casilla, cents } per AEAT expense box
+}
+
+// Full report for a year + quarter
 export interface FiscalReport {
-  year: number;
-  quarter: number;
+  fiscalYear: number;
+  fiscalQuarter: number;
   modelo303: Modelo303Summary;
   modelo130: Modelo130Summary;
-  expenses: FiscalTransaction[];    // Deductible expense transactions
-  invoices: FiscalTransaction[];    // Transactions with invoiceNumber set
+  expenses: FiscalTransaction[];
+  invoices: FiscalTransaction[];
+  uncountedIncome: FiscalTransaction[];  // Income outside the professional category: no model counts it
 }
 
-// Computed fiscal fields (returned by computeFiscalFields utility)
-export interface FiscalComputedFields {
-  vatAmountCents: number;           // amountCents * vatPercent / 100
-  deductibleAmountCents: number;    // amountCents * deductionPercent / 100
-  netAmountCents: number;           // amountCents - vatAmountCents
+export interface AnnualFiscalReport {
+  fiscalYear: number;
+  modelo390: Modelo390Summary;
+  modelo100: Modelo100Section;
 }
 ```
+
+**`uncountedIncome` is a safety net, not a total.** It lists the income of the quarter that no model
+picks up because it sits outside the professional category. It exists so that income miscategorised
+at entry becomes visible instead of silently vanishing from the 130 and the 100.
+
+### IrpfProjection
+
+The IRPF provision: the gap between the flat 20% that Modelo 130 pays and the progressive scale the
+annual Renta will charge. Computed in `getIrpfProjection()` from `src/utils/irpf.ts` primitives.
+
+```typescript
+export interface IrpfProjection {
+  fiscalYear: number;
+  region: IrpfRegion;               // Only Madrid is implemented today
+  ytdIncomeCents: number;           // Actuals so far, accrual basis
+  ytdExpensesCents: number;
+  projectedIncomeCents: number;     // Caller's override, or a linear run-rate
+  projectedExpensesCents: number;
+  gastosDificilCents: number;
+  projectedNetIncomeCents: number;  // Rendimiento neto
+  pensionIndividualCents: number;   // Declared per bucket — each has its own ceiling
+  pensionEmploymentCents: number;
+  pensionReductionCents: number;    // What actually reduced the base after every cap
+  baseLiquidableCents: number;      // Net income minus the reduction: what the scale taxes
+  modelo130PaidCents: number;       // Filed casilla 7 of the quarters already settled
+  modelo130PaidIsEstimated: boolean;
+  modelo130RemainingCents: number;
+  modelo130TotalCents: number;      // 20% of the projected net income
+  retencionesCents: number;         // Casilla 06; already netted out of modelo130PaidCents
+  estimatedIrpfCents: number;       // Progressive scale, minus the mínimo personal quota
+  provisionGapCents: number;        // estimatedIrpf - modelo130Total — the money to set aside
+  marginalRate: number;             // Factor, e.g. 0.43
+  monthlyProvisionCents: number;
+  effectiveRate: number;
+  isProjectionReliable: boolean;    // False below MIN_PROJECTION_DAYS elapsed
+}
+```
+
+`isProjectionReliable` depends on **elapsed days only**, never on whether the caller supplied an
+income override: the expense side is still extrapolated either way.
 
 ### Company
 
@@ -1488,13 +1777,21 @@ export interface FiscalDeadline {
   fiscalYear: number;
   fiscalQuarter: number | null;        // null for annual modelos
   startDate: string;                   // Filing window start (ISO date)
-  endDate: string;                     // Filing window end (ISO date)
+  endDate: string;                     // Filing deadline, already moved to the next working day
+  nominalEndDate: string;              // The date the rule states, before any extension
+  domiciliacionEndDate: string | null; // Last day to file with the payment direct-debited
+  isWindowConfirmed: boolean;          // False while this Renta campaign's Orden is unpublished
   status: FilingStatus;                // 'not_due' | 'upcoming' | 'due' | 'overdue' | 'filed'
   isFiled: boolean;                    // Whether a document exists for this deadline
   daysRemaining: number | null;        // Days until deadline (null if not applicable)
   needsPostponement: boolean;          // Whether postponement is advisable
 }
 ```
+
+`endDate` and `nominalEndDate` are kept apart on purpose: the card can then explain that a deadline
+moved because the rule date was a Sunday, instead of silently showing a different day than the law
+says. `domiciliacionEndDate` deliberately does **not** ride the working-day extension — see
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Deadlines.
 
 ### FiscalDeadlineSettings
 
@@ -1516,10 +1813,14 @@ export interface FiscalProfile {
   fiscalYear: number;
   pensionIndividualCents: number;   // Plan de pensiones individual
   pensionEmploymentCents: number;   // Plan de empleo simplificado de autónomos
+  vatPoolOpeningCents: number;      // IVA a compensar carried into 1 January
 }
 
-/** Writable half: the year identifies the row, it is not stored data */
-export type FiscalProfileInput = Omit<FiscalProfile, 'fiscalYear'>;
+/**
+ * Writable half: the year identifies the row, it is not stored data.
+ * Partial, not Omit — two cards edit this row and an omitted field must keep its stored value.
+ */
+export type FiscalProfileInput = Partial<Omit<FiscalProfile, 'fiscalYear'>>;
 ```
 
 A year with no stored row resolves to zeros, so the card always has something to render.
@@ -2495,6 +2796,8 @@ export function isValidCents(cents: number): boolean {
 |----------|---------|
 | `docs/API_REFERENCE.md` | API endpoints, request/response formats |
 | `docs/ARCHITECTURE.md` | System architecture, data flow |
+| `docs/FISCAL_DOMAIN.md` | The Spanish tax rules encoded, and the fiscal invariants |
+| `docs/CRYPTO_MODULE.md` | Crypto ingestion → FIFO → Modelo 100 pipeline |
 | `docs/TESTING_STRATEGY.md` | Testing approach and guidelines |
 | `database/schema.sql` | Complete database schema (executable, includes Trips) |
 | `database/seed.sql` | Initial category data |
