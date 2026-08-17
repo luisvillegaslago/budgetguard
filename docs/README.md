@@ -44,6 +44,8 @@ The domain knowledge behind the fiscal module — required reading before changi
 - What counts as fiscal, and why income and expenses are filtered asymmetrically
 - Modelo 303/130/390/100 casilla by casilla, with the rules that govern each
 - The IVA a compensar pool, its 4-year expiry and the refund window
+- Amortization: the 300 € threshold, the tabla simplificada, the ×2 of art. 103 LIS, and why an
+  asset's purchase is expense for IVA but not for IRPF
 - The IRPF provision: progressive scale, mínimo personal, pension limits (arts. 51-52)
 - Deadlines: working-day extension, domiciliación cut-off, Renta window per campaign
 - A table of invariants and what breaks when each is violated

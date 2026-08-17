@@ -326,6 +326,14 @@ invoice date. Two rules:
   as the *difference of two accrued totals* rather than prorated on its own. That is what makes the
   schedule sum to the base exactly: no year can inherit the rounding drift of the year before it.
 
+**The year is always 365 days, leap years included.** A 366-day year therefore accrues `366/365` of
+the nominal coefficient — 0,27% above the tabla's maximum for that one year. It is a deliberate
+simplification, not an oversight, and it cannot over-deduct: the accrual is capped at the base, so
+whatever a leap year takes early is simply missing from the final year. The total is always the
+base. Making each year conform strictly to its own coefficient would be a design change, not a bug
+fix, and `amortization.test.ts` asserts the current behaviour literally so it cannot drift by
+accident.
+
 The golden case, which is also the regression test:
 
 ```
