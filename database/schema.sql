@@ -28,6 +28,7 @@ DROP TRIGGER IF EXISTS "TR_Companies_PropagateNameChange" ON "Companies";
 DROP TRIGGER IF EXISTS "TR_FiscalDocuments_UpdatedAt" ON "FiscalDocuments";
 DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineSettings";
 DROP TRIGGER IF EXISTS "TR_FiscalProfiles_UpdatedAt" ON "FiscalProfiles";
+DROP TRIGGER IF EXISTS "TR_FixedAssets_UpdatedAt" ON "FixedAssets";
 DROP TRIGGER IF EXISTS "TR_ExchangeCredentials_UpdatedAt" ON "ExchangeCredentials";
 DROP TRIGGER IF EXISTS "TR_CryptoSyncJobs_UpdatedAt" ON "CryptoSyncJobs";
 DROP TRIGGER IF EXISTS "TR_TaxableEvents_UpdatedAt" ON "TaxableEvents";
@@ -62,6 +63,7 @@ DROP TABLE IF EXISTS "BinanceRawEvents";
 DROP TABLE IF EXISTS "CryptoSyncJobs";
 DROP TABLE IF EXISTS "ExchangeApiCallLog";
 DROP TABLE IF EXISTS "ExchangeCredentials";
+DROP TABLE IF EXISTS "FixedAssets";
 DROP TABLE IF EXISTS "FiscalProfiles";
 DROP TABLE IF EXISTS "FiscalDeadlineSettings";
 DROP TABLE IF EXISTS "FiscalDocuments";
@@ -1061,6 +1063,63 @@ CREATE TABLE "FiscalProfiles" (
 
 CREATE TRIGGER "TR_FiscalProfiles_UpdatedAt"
     BEFORE UPDATE ON "FiscalProfiles"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Fixed assets (inmovilizado) whose cost is spread over their useful life.
+--
+-- An asset is not consumed in the year it is bought: art. 30.2 RIRPF and the tabla de
+-- amortizacion simplificada (Orden de 27 de marzo de 1998) spread its cost, and only the
+-- yearly dotacion is deductible. That dotacion feeds Modelo 100 casilla 0208 (inmovilizado
+-- material) or 0227 (intangible), which stayed empty while purchases were deducted in full.
+--
+-- WHY THIS IS NOT A "Transactions" ROW. A transaction is a movement of money, and a dotacion
+-- is not one: no euro leaves the account when the year's share of a laptop is deducted. Booking
+-- it as a transaction would deduct the same purchase twice (once as the payment, once as the
+-- dotacion) and would falsify every balance, summary view and cash-flow chart, all of which sum
+-- "Transactions" without asking what a row means. The payment keeps its own transaction, this
+-- table only says how that cost is spread, and "TransactionID" links the two.
+--
+-- CoefficientPercent is the rate actually applied, not the group's. The tabla gives a MAXIMUM,
+-- amortising slower is legal, the art. 103 LIS acceleration for empresas de reducida dimension
+-- doubles it for elementos nuevos del inmovilizado material only, and a rate re-derived at read
+-- time would silently rewrite the dotacion of years that have already been filed.
+-- AmortizationGroup is therefore nullable: a custom rate belongs to no group.
+CREATE TABLE "FixedAssets" (
+    "AssetID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    -- Deleting the purchase must not destroy the asset: the amortization schedule of a filed
+    -- year survives the movement being re-imported, merged or corrected.
+    "TransactionID" INT NULL REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
+    "Description" VARCHAR(255) NOT NULL,
+    -- The day the asset entered service, not the invoice date: amortization accrues from here
+    "InServiceDate" DATE NOT NULL,
+    -- Amortizable base in cents: acquisition cost net of any deductible VAT
+    "BaseCents" INT NOT NULL,
+    -- Annual straight-line rate, e.g. 26.00 from the tabla or 52.00 with the ERD doubling
+    "CoefficientPercent" NUMERIC(5,2) NOT NULL,
+    -- Grupo 1-10 of the tabla simplificada; NULL when the rate does not come from it
+    "AmortizationGroup" INT NULL,
+    "Modelo100CasillaCode" VARCHAR(4) NOT NULL,
+    "Notes" TEXT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- An asset with no base amortizes nothing; a zero or negative rate never exhausts it
+    CONSTRAINT "CK_FixedAssets_BaseCents" CHECK ("BaseCents" > 0),
+    CONSTRAINT "CK_FixedAssets_Coefficient" CHECK (
+        "CoefficientPercent" > 0 AND "CoefficientPercent" <= 100
+    ),
+    CONSTRAINT "CK_FixedAssets_Group" CHECK (
+        "AmortizationGroup" IS NULL OR "AmortizationGroup" BETWEEN 1 AND 10
+    ),
+    -- Only the two amortization boxes of Modelo 100 can receive a dotacion
+    CONSTRAINT "CK_FixedAssets_Casilla" CHECK ("Modelo100CasillaCode" IN ('0208', '0227'))
+);
+
+-- Every read is "the assets of this user, ordered by / filtered on the in-service date"
+CREATE INDEX "IX_FixedAssets_UserInService" ON "FixedAssets"("UserID", "InServiceDate");
+
+CREATE TRIGGER "TR_FixedAssets_UpdatedAt"
+    BEFORE UPDATE ON "FixedAssets"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================

@@ -59,6 +59,7 @@ const BASE_PROJECTION: IrpfProjection = {
   ytdExpensesCents: 800_000,
   projectedIncomeCents: 9_000_000,
   projectedExpensesCents: 1_600_000,
+  amortizacionCents: 0,
   gastosDificilCents: 200_000,
   projectedNetIncomeCents: 7_200_000,
   pensionIndividualCents: 0,
@@ -191,6 +192,20 @@ describe('IrpfProvisionCard', () => {
     renderCard({ retencionesCents: 0 });
 
     expect(screen.queryByText(translate('fiscal.irpf-projection.retenciones'))).not.toBeInTheDocument();
+  });
+
+  it('renders the amortization row so the breakdown adds up to the net income above it', () => {
+    // The dotación is subtracted from the net income but lives outside projectedExpensesCents:
+    // without a row of its own the reader cannot see where the missing 373,45 € went
+    renderCard({ amortizacionCents: 37_345 });
+
+    expect(amountFor(translate('fiscal.irpf-projection.amortizacion'))).toBe('373,45€');
+  });
+
+  it('omits the amortization row when no asset is being amortized', () => {
+    renderCard({ amortizacionCents: 0 });
+
+    expect(screen.queryByText(translate('fiscal.irpf-projection.amortizacion'))).not.toBeInTheDocument();
   });
 
   // ── Pension contributions ──

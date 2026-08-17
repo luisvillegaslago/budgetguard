@@ -36,6 +36,7 @@ const mockModelo130: Modelo130Summary = {
   casilla6Cents: 0,
   casilla7Cents: 333552,
   gastosDocumentadosCents: 191973,
+  amortizacionCents: 0,
   gastosDificilCents: 97881,
   casilla5IsEstimated: false,
 };

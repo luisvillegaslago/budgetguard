@@ -362,6 +362,11 @@ function ProvisionBreakdown({ data }: { data: IrpfProjection }) {
           indent
           muted
         />
+        {/* Outside projected-expenses on purpose: the schedule of an asset already covers the whole
+            year, so it is the one figure the run-rate must not extrapolate */}
+        {data.amortizacionCents > 0 && (
+          <AmountRow label={t('fiscal.irpf-projection.amortizacion')} cents={data.amortizacionCents} indent muted />
+        )}
         <AmountRow label={t('fiscal.irpf-projection.gastos-dificil')} cents={data.gastosDificilCents} indent muted />
         <AmountRow label={t('fiscal.irpf-projection.net-income')} cents={data.projectedNetIncomeCents} />
         {/* Only the Renta leg sees the reduction: Modelo 130 still charges 20% of the net income */}

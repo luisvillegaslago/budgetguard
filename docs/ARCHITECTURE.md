@@ -51,6 +51,9 @@ src/
 │   │   ├── fiscal/
 │   │   │   ├── route.ts               # GET fiscal quarterly report
 │   │   │   ├── annual/route.ts        # GET annual report (Modelo 390 + 100)
+│   │   │   ├── assets/
+│   │   │   │   ├── route.ts           # GET/POST fixed assets (inmovilizado)
+│   │   │   │   └── [id]/route.ts      # GET (asset + schedule) / PUT / DELETE
 │   │   │   ├── documents/
 │   │   │   │   ├── route.ts           # GET/POST fiscal documents
 │   │   │   │   ├── bulk/route.ts      # POST bulk upload
@@ -177,6 +180,7 @@ src/
 │   │   ├── Modelo390Card.tsx          # Annual VAT summary card
 │   │   ├── Modelo100Card.tsx          # Renta economic-activities section
 │   │   ├── IrpfProvisionCard.tsx      # 20% vs progressive scale + pension form
+│   │   ├── FixedAssetsCard.tsx        # Inmovilizado + per-asset amortization schedule
 │   │   ├── FiscalUncountedIncome.tsx  # Income no model counts (safety net)
 │   │   ├── FiscalAmountRow.tsx        # Shared casilla row
 │   │   ├── FiscalDeadlinePanel.tsx    # Deadline display panel
@@ -217,6 +221,7 @@ src/
 │   ├── useSkydiveCategories.ts       # Paracaidismo subcategories query
 │   ├── useIrpfProjection.ts          # IRPF provision query
 │   ├── useFiscalProfile.ts           # Per-year fiscal profile query/mutation
+│   ├── useFixedAssets.ts             # Inmovilizado CRUD (invalidates the fiscal queries too)
 │   ├── useVouchers.ts                # Voucher CRUD + balance
 │   ├── useSkydiveVouchers.ts         # Voucher reconciliation for skydive activity
 │   ├── useCryptoSync.ts              # Sync job trigger + polling
@@ -243,6 +248,7 @@ src/
 │   │   ├── CompanyRepository.ts       # Company CRUD + role filtering
 │   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats, tx linking
 │   │   ├── FiscalProfileRepository.ts # Per-year fiscal profile (partial upsert)
+│   │   ├── FixedAssetRepository.ts    # Inmovilizado CRUD + amortization fold for the models
 │   │   ├── VoucherRepository.ts       # Voucher CRUD + balance view
 │   │   ├── Crypto*Repository.ts       # Raw events, positions, price cache, sync jobs, credentials
 │   │   ├── TaxableEventsRepository.ts # Normalised legs + FIFO disposals
@@ -265,6 +271,7 @@ src/
 │   ├── trip.ts                        # Trip and trip expense Zod schemas
 │   ├── fiscal.ts                      # Fiscal query validation
 │   ├── fiscal-document.ts            # Fiscal document + OCR + link schemas
+│   ├── fixed-asset.ts                 # Inmovilizado schemas + the tabla x ERD rate cap
 │   ├── invoice.ts                     # Invoice, prefix, billing profile schemas
 │   ├── company.ts                     # Company schemas
 │   ├── sync.ts                        # Sync execution schemas
@@ -295,6 +302,7 @@ src/
 │   ├── recurring.ts                   # Occurrence date calculation
 │   ├── fiscal.ts                     # computeFiscalFields, rollVatPoolCents, gastos dificil
 │   ├── irpf.ts                       # Progressive scale, minimo personal, pension reduction
+│   ├── amortization.ts               # Day-based dotacion + year-by-year schedule (pure)
 │   ├── fiscalDeadlines.ts            # AEAT deadline computation
 │   ├── workingDays.ts                # Working-day calendar (weekends, holidays, Semana Santa)
 │   ├── crypto/                       # fifo.ts, fiscalYear.ts, pairPnl.ts
@@ -741,6 +749,8 @@ Multi-day, multi-category travel expenses grouped under a named trip entity.
 
 Fiscal reporting for Spanish tax obligations: Modelo 303 (IVA) and Modelo 130 (IRPF pago fraccionado) quarterly, Modelo 390 and the economic-activities section of Modelo 100 annually, plus an IRPF provision that projects the gap between the two IRPF regimes. Adds fiscal-specific fields to transactions and categories, with a dedicated repository and pure utilities for computing derived values.
 
+It also owns the **inmovilizado**: assets whose cost is spread over their useful life instead of being deducted in full in the year of purchase. Their yearly dotación is a deductible expense that no transaction can carry, because no money moves when an asset amortizes — it is the second source of deductible expense in the module, and the only one that does not come from a view row.
+
 > **The tax rules themselves — devengo vs. caja, the casillas, the IVA compensation pool, the pension limits, the deadline rules — live in [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md), together with the invariants that must not be broken. Read it before changing anything in this module.**
 
 ```
@@ -757,28 +767,47 @@ Fiscal reporting for Spanish tax obligations: Modelo 303 (IVA) and Modelo 130 (I
 │  ├── PensionIndividualCents / PensionEmploymentCents          │
 │  └── VatPoolOpeningCents                                      │
 │                                                               │
+│  FixedAssets (inmovilizado — a cost, not a movement)          │
+│  ├── BaseCents + InServiceDate + CoefficientPercent           │
+│  └── Modelo100CasillaCode: 0208 material | 0227 intangible    │
+│                                                               │
 │  computeFiscalFields(full, vat%, deduction%)                  │
 │  ├── baseCents            ├── baseDeducibleCents              │
 │  └── ivaCents             └── ivaDeducibleCents               │
 │                                                               │
+│  amortizationCentsBetween(asset, from, to)  ← pure, by days   │
+│  └── computeAmortizationSchedule(asset)  Σ cents === base     │
+│                                                               │
 │  FiscalRepository — all reads go through loadFiscalRows()     │
-│  └── vw_FiscalAccrual (never vw_FiscalQuarterly)              │
-│      ├── getModelo303Summary / getModelo130Summary            │
-│      ├── getModelo390Summary / getModelo100Summary            │
-│      ├── getIrpfProjection                                    │
-│      └── getUncountedIncome                                   │
+│  ├── vw_FiscalAccrual (never vw_FiscalQuarterly)              │
+│  │   ├── getModelo303Summary / getModelo130Summary            │
+│  │   ├── getModelo390Summary / getModelo100Summary            │
+│  │   ├── getIrpfProjection                                    │
+│  │   └── getUncountedIncome                                   │
+│  └── getAmortizationCentsForPeriod()  ← FixedAssetRepository  │
+│      └── into 130 casilla 02, 100 casillas 0208/0227          │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Key files:**
 - `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalAccrual` through `loadFiscalRows()`. Never reads `vw_FiscalQuarterly` directly — that view books invoice income on the collection date
 - `src/services/database/FiscalProfileRepository.ts`: Per-year fiscal profile. Partial upsert (`COALESCE` per column) so two cards can edit the same row
+- `src/services/database/FixedAssetRepository.ts`: Inmovilizado CRUD, plus `getAmortizationCentsForPeriod()` — the fold over a date range that `FiscalRepository` consumes. It takes an explicit `userId` and never calls `getUserIdOrThrow()`, like the other repository functions the fiscal models call internally
 - `src/utils/fiscal.ts`: `computeFiscalFields()`, `rollVatPoolCents()`, `calcGastosDificilCents()` — pure
+- `src/utils/amortization.ts`: `amortizationCentsBetween()`, `computeAmortizationSchedule()` — pure, day-based, UTC. The schedule always sums to the base because each year is the difference of two capped accruals
 - `src/utils/irpf.ts`: Progressive scale, mínimo personal, pension reduction, run-rate projection — pure
 - `src/utils/fiscalDeadlines.ts` + `src/utils/workingDays.ts`: AEAT calendar, working-day extension, domiciliación
-- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`
-- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FiscalUncountedIncome, FiscalDeadlinePanel
-- `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector
+- `src/schemas/fixed-asset.ts`: Asset validation, including the tabla × art. 103 LIS rate cap (`coefficientFitsGroup()`, exported so the PUT route can re-run it against the merged row)
+- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`, `useFixedAssets.ts`
+- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalDeadlinePanel
+- `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector. `FixedAssetsCard` is mounted once outside both view branches and keyed by year — the dotación belongs to the year, not to the quarter or the selected view
+
+**The dotación is not a transaction, and not a run rate.** Two consequences worth keeping in mind
+before touching this: it is never written to `Transactions` (that would deduct the purchase twice
+and falsify every balance and cash-flow chart), and `getIrpfProjection()` subtracts it *outside*
+`projectAnnualCents()` (extrapolating a calendar figure in January would inflate December's
+roughly thirtyfold). The purchase transaction must be set to `DeductionPercent = 0` by hand;
+nothing enforces it. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
 
 **SharedDivisor vs DeductionPercent:**
 These two fields serve distinct purposes and are independent:
@@ -794,6 +823,9 @@ These two fields serve distinct purposes and are independent:
 | GET | `/api/fiscal/annual?year=2025` | Annual report (Modelo 390, Modelo 100 section) |
 | GET | `/api/fiscal/projection?year=2025` | IRPF provision: the 20% vs. progressive-scale gap |
 | GET / PUT | `/api/fiscal/profile?year=2025` | Per-year fiscal profile (pension contributions, VAT pool opening) |
+| GET / POST | `/api/fiscal/assets?year=2026` | Fixed assets with a dotación that year / register one |
+| GET | `/api/fiscal/assets/:id` | The asset plus its full year-by-year amortization schedule |
+| PUT / DELETE | `/api/fiscal/assets/:id` | Update / delete (the purchase transaction is left untouched) |
 
 **Constants:**
 
@@ -801,12 +833,20 @@ These two fields serve distinct purposes and are independent:
 export const QUERY_KEY = {
   // ... existing keys
   FISCAL: 'fiscal',
+  FIXED_ASSETS: 'fixed-assets',
 } as const;
 
 export const API_ENDPOINT = {
   // ... existing endpoints
   FISCAL: '/api/fiscal',
+  FIXED_ASSETS: '/api/fiscal/assets',
 } as const;
+
+// The tabla de amortización simplificada, keyed by the grupo number the AEAT uses,
+// plus the ×2 of art. 103 LIS (empresas de reducida dimensión)
+export const AMORTIZATION_GROUP = { 1: { group: 1, coefficientPercent: 3, maxYears: 68 }, /* ... */ } as const;
+export const AMORTIZATION = { ERD_MULTIPLIER: 2 } as const;
+export const AMORTIZATION_CASILLA_OPTIONS = ['0208', '0227'] as const;
 ```
 
 ### 7. Skydiving Module (Jump Log & Tunnel Sessions)
@@ -1213,6 +1253,7 @@ formatCurrency(41928) // → "419,28 €"
 | `FiscalDocuments` | Filed modelos and received/issued invoices, with OCR extraction |
 | `FiscalDeadlineSettings` | Reminder preferences |
 | `FiscalProfiles` | Per-year fiscal facts: pension contributions, IVA pool opening |
+| `FixedAssets` | Inmovilizado: base, in-service date and rate. The yearly dotación is derived, never stored |
 | `ExchangeCredentials`, `ExchangeApiCallLog`, `CryptoSyncJobs` | Crypto: keys, call audit, sync jobs |
 | `CryptoRawEvents`, `CryptoPriceCache`, `TaxableEvents`, `CryptoDisposals` | Crypto: ingestion → FIFO pipeline |
 | `Users` | User accounts with locale preference |

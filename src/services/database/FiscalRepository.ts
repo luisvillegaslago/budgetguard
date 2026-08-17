@@ -9,6 +9,11 @@
  * Reads vw_FiscalAccrual for raw rows (invoice income booked on the invoice date) and
  * derives every figure with computeFiscalFields().
  * All calculations happen in TypeScript (not SQL) for consistent rounding with the frontend.
+ *
+ * Deductible expense has a second source that is not a transaction: the amortization of the
+ * inmovilizado (art. 30.2 RIRPF). No money moves when an asset amortizes, so no row of the view
+ * can carry it — it enters each model through getAmortizationCentsForPeriod(), which folds the
+ * "FixedAssets" of the user over the period the model declares.
  */
 
 import {
@@ -25,6 +30,7 @@ import {
 import { getUserIdOrThrow } from '@/libs/auth';
 import { getFiledModeloAmounts } from '@/services/database/FiscalDocumentRepository';
 import { getFiscalProfileForUser } from '@/services/database/FiscalProfileRepository';
+import { getAmortizationCentsForPeriod, getAssetTransactionIds } from '@/services/database/FixedAssetRepository';
 import type {
   FiscalTransaction,
   IrpfProjection,
@@ -155,6 +161,31 @@ async function loadFiscalRows(userId: number, year: number, scope?: PeriodScope)
      WHERE v."FiscalYear" = $1 AND v."UserID" = $2${periodFilter(scope, params.length)}`,
     params,
   );
+}
+
+/** Last calendar day of each quarter, 'MM-DD'. A quarter is a fixed span; no date maths needed. */
+const QUARTER_END_DAY = ['03-31', '06-30', '09-30', '12-31'] as const;
+
+/**
+ * Amortization accrued from 1 January to the end of each quarter 1..upToQuarter, in cents.
+ *
+ * Cumulative rather than per quarter because that is exactly what the models declare: Modelo 130
+ * restates the year to date at every filing, and the annual models want the last entry. The
+ * quarterly slice is the difference between two consecutive entries, and nothing needs it.
+ *
+ * Each entry is a separate fold over the same handful of assets, which keeps the "how much falls
+ * in this period" rule in amortizationCentsBetween() alone — splitting a year into four prorated
+ * chunks here would be a second implementation of it, free to drift by a cent.
+ */
+async function loadCumulativeAmortization(userId: number, year: number, upToQuarter: number): Promise<number[]> {
+  const totals = await Promise.all(
+    // The quarter is validated as 1-4 before it reaches any of the callers.
+    Array.from({ length: upToQuarter }, (_, index) =>
+      getAmortizationCentsForPeriod(userId, `${year}-01-01`, `${year}-${QUARTER_END_DAY[index]!}`),
+    ),
+  );
+
+  return totals.map((total) => total.totalCents);
 }
 
 interface IssuedInvoiceRow {
@@ -350,10 +381,17 @@ interface QuarterTotals {
   retenciones: number;
 }
 
-/** Income, documented expenses and withholdings of a single quarter. */
-function quarterTotals(rows: FiscalViewRow[], quarter: number): QuarterTotals {
+/**
+ * Income, documented expenses and withholdings of a single quarter.
+ *
+ * `assetTransactionIds` are the purchases that became inmovilizado. They are skipped here because
+ * their cost reaches this model through the amortization instead; counting the purchase as well
+ * would deduct the same asset twice. They are NOT skipped in Modelo 303 or 390 — the input VAT of
+ * an asset is deducted in full in the quarter of purchase and is never amortized.
+ */
+function quarterTotals(rows: FiscalViewRow[], quarter: number, assetTransactionIds: Set<number>): QuarterTotals {
   return rows
-    .filter((row) => row.FiscalQuarter === quarter)
+    .filter((row) => row.FiscalQuarter === quarter && !assetTransactionIds.has(row.TransactionID))
     .reduce<QuarterTotals>(
       (totals, row) => {
         const { baseCents, baseDeducibleCents } = computeFiscalFields(
@@ -390,27 +428,36 @@ function quarterTotals(rows: FiscalViewRow[], quarter: number): QuarterTotals {
  * Casilla 05 is seeded from what was actually filed and only falls back to the recomputation
  * for quarters with no recorded amount: the AEAT box means money already paid, and a
  * recomputation that drifts from the filing propagates for the rest of the year.
+ *
+ * `cumulativeAmortizationCents` arrives already accumulated from 1 January (one entry per
+ * quarter), so it is read rather than summed: the dotación of a quarter is a span of the
+ * calendar, not the sum of what the earlier quarters happened to hold.
  */
 function computeModelo130Series(
   rows: FiscalViewRow[],
   year: number,
   upToQuarter: number,
-  filedAmounts: FiledModeloAmounts = new Map(),
+  filedAmounts: FiledModeloAmounts,
+  cumulativeAmortizationCents: number[],
+  assetTransactionIds: Set<number>,
 ): Modelo130Summary[] {
   const quarters = Array.from({ length: upToQuarter }, (_, index) => index + 1);
   const summaries: Modelo130Summary[] = [];
 
   quarters.reduce<Modelo130Accumulator>(
     (acc, quarter) => {
-      const totals = quarterTotals(rows, quarter);
+      const totals = quarterTotals(rows, quarter, assetTransactionIds);
 
       const ingresosAcum = acc.ingresosAcum + totals.ingresos;
       const gastosDocAcum = acc.gastosDocAcum + totals.gastosDoc;
       const retencionesAcum = acc.retencionesAcum + totals.retenciones;
+      const amortizacionAcum = cumulativeAmortizationCents[quarter - 1] ?? 0;
 
-      const rendimientoPre = ingresosAcum - gastosDocAcum;
+      // The 5% of art. 30 RIRPF falls on the rendimiento, so the dotación lowers its base too:
+      // it is a deductible expense of the year like any other, only one that moved no money.
+      const rendimientoPre = ingresosAcum - gastosDocAcum - amortizacionAcum;
       const gastosDificil = calcGastosDificilCents(rendimientoPre);
-      const gastosTotal = gastosDocAcum + gastosDificil;
+      const gastosTotal = gastosDocAcum + amortizacionAcum + gastosDificil;
 
       const beneficio = ingresosAcum - gastosTotal;
       const cuota20 = Math.max(0, Math.round((beneficio * IRPF_RATE) / 100));
@@ -428,6 +475,7 @@ function computeModelo130Series(
         casilla6Cents: retencionesAcum,
         casilla7Cents: aIngresar,
         gastosDocumentadosCents: gastosDocAcum,
+        amortizacionCents: amortizacionAcum,
         gastosDificilCents: gastosDificil,
         casilla5IsEstimated: acc.anyQuarterEstimated,
       });
@@ -453,13 +501,17 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
   const userId = await getUserIdOrThrow();
 
   // Modelo 130 is cumulative — needs all quarters up to current
-  const [rows, filedAmounts] = await Promise.all([
+  const [rows, filedAmounts, cumulativeAmortization, assetTransactionIds] = await Promise.all([
     loadFiscalRows(userId, year, { quarter, cumulative: true }),
     getFiledModeloAmounts(userId, MODELO_TYPE.M130, year),
+    loadCumulativeAmortization(userId, year, quarter),
+    getAssetTransactionIds(userId),
   ]);
 
   // The series always covers quarters 1..quarter, which the route already validated as 1-4.
-  return computeModelo130Series(rows, year, quarter, filedAmounts)[quarter - 1]!;
+  return computeModelo130Series(rows, year, quarter, filedAmounts, cumulativeAmortization, assetTransactionIds)[
+    quarter - 1
+  ]!;
 }
 
 const ALL_QUARTERS = 4;
@@ -491,6 +543,9 @@ function settledM130Quarters(year: number, now: Date = new Date()): number[] {
  * The pension contributions of the annual fiscal profile lower the base the scale taxes, but
  * only there: Modelo 130 is left untouched, which is exactly why the gap shrinks.
  *
+ * The dotación of the inmovilizado lowers the net income of both sides, and it is the one figure
+ * here that is never projected — see amortizacionCents below.
+ *
  * @param year - Fiscal year
  * @param options.projectedIncomeCents - Manual override for the annual billing (cents)
  * @param options.now - Current date (injectable for testing; defaults to the real clock)
@@ -501,10 +556,12 @@ export async function getIrpfProjection(
 ): Promise<IrpfProjection> {
   const userId = await getUserIdOrThrow();
 
-  const [rows, filedAmounts, profile] = await Promise.all([
+  const [rows, filedAmounts, profile, cumulativeAmortization, assetTransactionIds] = await Promise.all([
     loadFiscalRows(userId, year),
     getFiledModeloAmounts(userId, MODELO_TYPE.M130, year),
     getFiscalProfileForUser(userId, year),
+    loadCumulativeAmortization(userId, year, ALL_QUARTERS),
+    getAssetTransactionIds(userId),
   ]);
 
   // Same criteria as Modelo 130: professional income only, expenses at their deductible share.
@@ -514,8 +571,9 @@ export async function getIrpfProjection(
       (sum, row) => sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent).baseCents,
       0,
     );
+  // An asset's purchase is excluded: it reaches the projection as amortization, below.
   const ytdExpensesCents = rows
-    .filter((row) => row.Type === TRANSACTION_TYPE.EXPENSE)
+    .filter((row) => row.Type === TRANSACTION_TYPE.EXPENSE && !assetTransactionIds.has(row.TransactionID))
     .reduce(
       (sum, row) =>
         sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent).baseDeducibleCents,
@@ -527,7 +585,14 @@ export async function getIrpfProjection(
     options.projectedIncomeCents ?? projectAnnualCents(ytdIncomeCents, elapsedDays, totalDaysInYear);
   const projectedExpensesCents = projectAnnualCents(ytdExpensesCents, elapsedDays, totalDaysInYear);
 
-  const rendimientoPre = projectedIncomeCents - projectedExpensesCents;
+  // The whole year's dotación, taken as it stands and NOT extrapolated: the run-rate multiplies a
+  // year-to-date figure by the elapsed-days factor, and the schedule of an asset already covers
+  // every day of the year. Projecting it would invent expense no asset backs — in January it would
+  // inflate the December figure roughly thirtyfold. Amortization is a calendar, not a run rate.
+  // It stays out of ytd/projectedExpensesCents for the same reason: those two are the run-rate pair.
+  const amortizacionCents = cumulativeAmortization.at(-1) ?? 0;
+
+  const rendimientoPre = projectedIncomeCents - projectedExpensesCents - amortizacionCents;
   const gastosDificilCents = calcGastosDificilCents(rendimientoPre);
   const projectedNetIncomeCents = rendimientoPre - gastosDificilCents;
 
@@ -544,7 +609,14 @@ export async function getIrpfProjection(
   // a loss-making year keeps its negative figure, which the scale already treats as zero.
   const baseLiquidableCents = projectedNetIncomeCents - pensionReductionCents;
 
-  const series = computeModelo130Series(rows, year, ALL_QUARTERS, filedAmounts);
+  const series = computeModelo130Series(
+    rows,
+    year,
+    ALL_QUARTERS,
+    filedAmounts,
+    cumulativeAmortization,
+    assetTransactionIds,
+  );
 
   // What the closed quarters actually settled: the filed casilla 7 when it is known.
   const settled = settledM130Quarters(year, options.now);
@@ -572,6 +644,7 @@ export async function getIrpfProjection(
     ytdExpensesCents,
     projectedIncomeCents,
     projectedExpensesCents,
+    amortizacionCents,
     gastosDificilCents,
     projectedNetIncomeCents,
     pensionIndividualCents: profile.pensionIndividualCents,
@@ -680,8 +753,9 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
   type Modelo100Row = FiscalViewRow & { Modelo100CasillaCode: string | null };
 
   // LEFT JOIN, not INNER: invoice rows carry no category, and an inner join would drop them.
-  const rows = await query<Modelo100Row>(
-    `SELECT v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
+  const [rows, amortization, assetTransactionIds] = await Promise.all([
+    query<Modelo100Row>(
+      `SELECT v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
             v."CategoryName", v."ParentCategoryName", v."TransactionDate",
             v."VendorName", v."InvoiceNumber", v."Description",
             v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."RetentionCents",
@@ -689,8 +763,11 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
      FROM "vw_FiscalAccrual" v
      LEFT JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID"
      WHERE v."FiscalYear" = $1 AND v."UserID" = $2`,
-    [year, userId],
-  );
+      [year, userId],
+    ),
+    getAmortizationCentsForPeriod(userId, `${year}-01-01`, `${year}-12-31`),
+    getAssetTransactionIds(userId),
+  ]);
 
   let ingresosCents = 0;
   let gastosDeducCents = 0;
@@ -710,12 +787,27 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     if (isProfessionalIncome(row)) {
       ingresosCents += baseCents;
     }
+    // The purchase of an asset is not an expense of the year: it enters below as amortization.
+    // Skipped here rather than zeroed on the transaction, because DeductionPercent also drives the
+    // deductible VAT, which an asset keeps in full in the quarter it was bought.
+    if (assetTransactionIds.has(row.TransactionID)) return;
+
     if (row.Type === TRANSACTION_TYPE.EXPENSE && baseDeducibleCents > 0) {
       gastosDeducCents += baseDeducibleCents;
       const casilla = row.Modelo100CasillaCode ?? MODELO_100_DEFAULT_CASILLA;
       if (row.Modelo100CasillaCode === null) unmappedCents += baseDeducibleCents;
       casillaMap.set(casilla, (casillaMap.get(casilla) ?? 0) + baseDeducibleCents);
     }
+  });
+
+  // The dotación of the year is deductible expense like any of the rows above, but no row can
+  // carry it: nothing was paid this year, the money left when the asset was bought. It arrives
+  // already split by its own box — 0208 inmovilizado material, 0227 intangible — so it lands as
+  // its own line of the breakdown instead of hiding inside a category's casilla. `unmappedCents`
+  // is untouched on purpose: an asset always declares its casilla, it never falls back.
+  gastosDeducCents += amortization.totalCents;
+  amortization.byCasilla.forEach((cents, casilla) => {
+    casillaMap.set(casilla, (casillaMap.get(casilla) ?? 0) + cents);
   });
 
   const casilla0171 = ingresosCents;

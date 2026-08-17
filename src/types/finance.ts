@@ -4,6 +4,8 @@
  */
 
 import type {
+  AmortizationCasilla,
+  AmortizationGroupNumber,
   CompanyRole,
   FilingStatus,
   FiscalDocumentType,
@@ -17,9 +19,12 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '@/constants/finance';
+import type { AmortizationYear } from '@/utils/amortization';
 
 // Re-export from constants (single source of truth)
 export type {
+  AmortizationCasilla,
+  AmortizationGroupNumber,
   CompanyRole,
   DateRangePreset,
   FilingStatus,
@@ -40,6 +45,9 @@ export type {
   VisionFailureReason,
   VoucherStatus,
 } from '@/constants/finance';
+
+// Re-export the amortization primitives so a consumer of FixedAssetSchedule needs one import
+export type { AmortizableAsset, AmortizationYear } from '@/utils/amortization';
 
 /**
  * Company/Provider for normalized vendor data and fiscal billing details
@@ -574,6 +582,12 @@ export interface Modelo130Summary {
   casilla6Cents: number; // IRPF withheld by clients this year (reduces the amount to pay)
   casilla7Cents: number; // Amount to pay
   gastosDocumentadosCents: number; // Documented expenses subtotal
+  /**
+   * Amortization of the inmovilizado accrued from 1 January to the end of the quarter, already
+   * inside casilla 02. Broken out because casilla 02 = documentados + amortización + difícil
+   * justificación, and a breakdown that omitted it would not add up to the box above it.
+   */
+  amortizacionCents: number;
   gastosDificilCents: number; // 5% difficult-to-justify expenses (capped at 2000€/year)
   /** True when a previous quarter had no filed amount and casilla 05 fell back to a recomputation */
   casilla5IsEstimated: boolean;
@@ -670,6 +684,12 @@ export interface IrpfProjection {
   /** Full-year figures: the caller's override, or a linear run-rate projection */
   projectedIncomeCents: number;
   projectedExpensesCents: number;
+  /**
+   * Dotación of the whole year (art. 30.2 RIRPF), already subtracted from projectedNetIncomeCents
+   * and deliberately outside projectedExpensesCents: the schedule of an asset already spans every
+   * day of the year, so this is the one figure the linear run-rate must never extrapolate.
+   */
+  amortizacionCents: number;
   gastosDificilCents: number; // 5% difícil justificación, capped
   projectedNetIncomeCents: number; // Rendimiento neto
   /** Pension contributions declared for the year, per bucket: each has its own legal ceiling */
@@ -715,6 +735,75 @@ export interface FiscalProfile {
  * this row (pension contributions, IVA pool) and neither may wipe the other's figure.
  */
 export type FiscalProfileInput = Partial<Omit<FiscalProfile, 'fiscalYear'>>;
+
+// ============================================================
+// FIXED ASSETS (INMOVILIZADO)
+// ============================================================
+
+/**
+ * A fixed asset whose cost is spread over its useful life instead of being deducted in full in
+ * the year of purchase (art. 30.2 RIRPF + tabla de amortización simplificada, Orden de 27 de
+ * marzo de 1998). Only the yearly dotación is deductible, and it feeds Modelo 100 casilla 0208
+ * (material) or 0227 (intangible).
+ *
+ * The purchase itself stays where it belongs — a "Transactions" row for the money that actually
+ * left the account. This record only says how that cost is spread; the dotación is never a
+ * transaction (see the "FixedAssets" comment in database/schema.sql).
+ */
+export interface FixedAsset {
+  assetId: number;
+  description: string;
+  /** Calendar day the asset entered service, 'YYYY-MM-DD'. Amortization accrues from here */
+  inServiceDate: string;
+  /** Amortizable base in cents: the acquisition cost net of any deductible VAT */
+  baseCents: number;
+  /**
+   * The annual straight-line rate actually applied, stored rather than derived from the group.
+   *
+   * Three independent reasons, any one of which would be enough:
+   * 1. The tabla gives a **maximum**. Amortising below it is legal and sometimes deliberate, so
+   *    the rate is a taxpayer decision, not a function of the group.
+   * 2. The ERD doubling of art. 103 LIS (AMORTIZATION.ERD_MULTIPLIER) only applies to elementos
+   *    nuevos del inmovilizado material, which the group alone cannot tell.
+   * 3. It must be frozen. The tabla is fixed by Orden and can change; a rate recomputed at read
+   *    time would silently rewrite the dotación of years that have already been filed.
+   */
+  coefficientPercent: number;
+  /**
+   * Grupo of the tabla simplificada, or null when the rate does not come from it — a custom
+   * coefficient (or libertad de amortización, art. 102 LIS) belongs to no group.
+   */
+  amortizationGroup: AmortizationGroupNumber | null;
+  /** Modelo 100 box the dotación lands in: '0208' material, '0227' intangible */
+  modelo100CasillaCode: AmortizationCasilla;
+  /** The purchase transaction, when it is recorded. Null keeps an asset bought before BudgetGuard */
+  transactionId: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Writable half of a fixed asset, in cents — what the repository stores.
+ * The route edge converts the euros that arrive on the wire (see src/schemas/fixed-asset.ts).
+ */
+export type FixedAssetInput = Omit<FixedAsset, 'assetId' | 'createdAt' | 'updatedAt'>;
+
+/** Same, for a PATCH: an omitted field keeps its stored value. */
+export type FixedAssetUpdateInput = Partial<FixedAssetInput>;
+
+/**
+ * An asset with its year-by-year table, as the schedule view renders it.
+ * `years` comes from computeAmortizationSchedule() and its cents always sum to baseCents.
+ */
+export interface FixedAssetSchedule {
+  asset: FixedAsset;
+  years: AmortizationYear[];
+}
+
+// No per-year aggregate lives here on purpose: the dotación of a year is derived, never stored.
+// The card folds its assets with computeAmortizationSchedule() and the fiscal models fold them with
+// getAmortizationCentsForPeriod(); a third shape saying the same thing could only drift from them.
 
 // ============================================================
 // INVOICING TYPES

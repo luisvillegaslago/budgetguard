@@ -836,6 +836,7 @@
       "casilla7": "To pay",
       "cumulative-note": "Cumulative from January",
       "gastos-documentados": "Documented expenses",
+      "amortizacion": "Fixed asset depreciation",
       "gastos-dificil": "5% difficult-to-justify (max €2,000/year)"
     },
     "irpf-projection": {
@@ -845,6 +846,7 @@
       "gap": "Gap to set aside for the annual return",
       "projected-income": "Projected income",
       "projected-expenses": "Projected deductible expenses",
+      "amortizacion": "Fixed asset depreciation",
       "gastos-dificil": "5% difficult-to-justify (max €2,000/year)",
       "net-income": "Net income",
       "pension-reduction": "Pension plan reduction applied",
@@ -992,6 +994,76 @@
       "deduction-percent": "Default deduction (%)",
       "modelo100-casilla": "Modelo 100 casilla",
       "modelo100-none": "Not assigned"
+    },
+    "fixed-assets": {
+      "title": "Fixed assets and depreciation",
+      "subtitle": "An asset is not deducted in the year it is bought: its cost is spread over its useful life (art. 30.2 RIRPF)",
+      "dotacion-note": "The yearly charge is not a movement of money: nothing leaves the bank account. It only goes into the Modelo 100 box as a deductible expense for the year.",
+      "year-total": "Charge for tax year {year}",
+      "add": "Add asset",
+      "delete": "Remove asset",
+      "delete-confirm": "Remove this asset? Its depreciation schedule will be deleted and its yearly charges will stop counting in the Modelo 100 of every tax year.",
+      "empty": "No assets registered yet",
+      "empty-hint": "Register a computer, a vehicle or a software licence to start depreciating it year by year",
+      "saved": "Asset saved",
+      "deleted": "Asset removed",
+      "columns": {
+        "description": "Description",
+        "in-service-date": "In service since",
+        "base": "Depreciable base",
+        "coefficient": "Rate",
+        "casilla": "Box",
+        "year-amount": "Charge for the year",
+        "remaining": "Left to depreciate",
+        "actions": "Actions"
+      },
+      "fields": {
+        "description": "Description",
+        "description-placeholder": "e.g. Lenovo Yoga Slim 7 laptop",
+        "in-service-date": "In-service date",
+        "in-service-date-hint": "Depreciation starts accruing on this date, by calendar days",
+        "gross-amount": "Amount paid, VAT included (€)",
+        "gross-amount-hint": "Only used to derive the base: the VAT is subtracted, since it is already deducted through Modelo 303",
+        "base-amount": "Depreciable base (€)",
+        "base-amount-hint": "Purchase price excluding deductible VAT",
+        "group": "Group in the simplified table",
+        "group-none": "Custom rate (no group)",
+        "group-none-hint": "For free depreciation (art. 102 LIS) or any rate that does not come from the table",
+        "coefficient": "Rate applied (%)",
+        "coefficient-hint": "You may depreciate slower than the group maximum, never faster",
+        "accelerated": "Accelerated depreciation (small enterprises)",
+        "accelerated-hint": "Doubles the group maximum rate, from {base}% to {doubled}% (art. 103 LIS). New tangible fixed assets only.",
+        "casilla": "Modelo 100 box",
+        "notes": "Notes"
+      },
+      "groups": {
+        "1": "Buildings and other constructions",
+        "2": "Installations, furniture, fixtures and other tangible fixed assets",
+        "3": "Machinery",
+        "4": "Transport equipment",
+        "5": "Data processing equipment and computer systems and software",
+        "6": "Tools and implements",
+        "7": "Cattle, pigs, sheep and goats",
+        "8": "Horses and non-citrus fruit trees",
+        "9": "Citrus fruit trees and vineyards",
+        "10": "Olive groves"
+      },
+      "group-option": "Group {group} — {name} (max. {percent}%)",
+      "casillas": {
+        "0208": "0208 — Tangible fixed assets",
+        "0227": "0227 — Intangible fixed assets"
+      },
+      "schedule": {
+        "title": "Depreciation schedule",
+        "year": "Tax year",
+        "amount": "Charge",
+        "remaining": "Remaining",
+        "total": "Total depreciated",
+        "fully-amortized": "Fully depreciated"
+      },
+      "errors": {
+        "load-failed": "Could not load the assets"
+      }
     },
     "documents": {
       "title": "Documents",
@@ -2055,6 +2127,8 @@
     "prefix-required": "Prefix is required",
     "invalid-color": "Invalid hex color",
     "invalid-modelo-100-casilla": "Invalid Modelo 100 box",
+    "invalid-amortization-group": "Invalid depreciation group",
+    "invalid-amortization-coefficient": "Invalid depreciation rate",
     "line-items-required": "At least one line item is required",
     "select-prefix": "Select a prefix",
     "select-client": "Select a client",
@@ -2098,7 +2172,8 @@
       "document-blob": "Document file not found",
       "billing-profile": "Billing profile not found",
       "crypto-credentials": "No exchange credentials connected",
-      "crypto-sync-job": "Sync job not found"
+      "crypto-sync-job": "Sync job not found",
+      "fixed-asset": "Fixed asset not found"
     },
     "conflict": {
       "has-transactions": "This category has linked transactions",
@@ -2169,6 +2244,7 @@
         "tunnel-session": "Error creating tunnel session",
         "voucher": "Error creating voucher",
         "group": "Error creating transaction group",
+        "fixed-asset": "Error registering fixed asset",
         "crypto-credentials": "Error saving Binance credentials"
       },
       "update": {
@@ -2186,7 +2262,8 @@
         "voucher": "Error updating voucher",
         "fiscal-status": "Error updating document status",
         "fiscal-settings": "Error updating fiscal settings",
-        "fiscal-profile": "Error saving the annual fiscal profile"
+        "fiscal-profile": "Error saving the annual fiscal profile",
+        "fixed-asset": "Error updating fixed asset"
       },
       "delete": {
         "transaction": "Error deleting transaction",
@@ -2201,6 +2278,7 @@
         "tunnel-session": "Error deleting tunnel session",
         "voucher": "Error deleting voucher",
         "fiscal-document": "Error deleting document",
+        "fixed-asset": "Error deleting fixed asset",
         "crypto-credentials": "Error disconnecting Binance"
       },
       "import": {
@@ -2225,7 +2303,8 @@
     "load": {
       "categories": "Failed to load categories",
       "category-history": "Failed to load category history",
-      "vouchers": "Failed to load vouchers"
+      "vouchers": "Failed to load vouchers",
+      "fixed-assets": "Failed to load fixed assets"
     }
   },
   "pages": {

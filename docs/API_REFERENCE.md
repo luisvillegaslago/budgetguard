@@ -2907,6 +2907,135 @@ GET /api/fiscal/annual?year=2025
 
 ---
 
+### Fixed Assets (Inmovilizado)
+
+Assets whose cost is spread over their useful life instead of being deducted in full in the year of
+purchase (art. 30.2 RIRPF + tabla de amortización simplificada). The yearly *dotación* is what
+Modelo 130 casilla 02 and Modelo 100 casillas 0208/0227 consume — see
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
+
+**No dotación is ever stored.** Every yearly figure is derived from `baseCents` + `inServiceDate` +
+`coefficientPercent` by the pure functions in `src/utils/amortization.ts`, so the schedule this API
+returns cannot contradict the figures in the fiscal reports.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal/assets` | List assets (supports `?year=`) |
+| POST | `/api/fiscal/assets` | Register an asset → `201` |
+| GET | `/api/fiscal/assets/:id` | The asset **plus its full year-by-year schedule** |
+| PUT | `/api/fiscal/assets/:id` | Update (all fields optional) |
+| DELETE | `/api/fiscal/assets/:id` | Delete; the purchase transaction is left untouched |
+
+#### `GET /api/fiscal/assets`
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | No | all | Only assets with a **dotación** in that fiscal year (2000-2100) |
+
+`year` filters on the amortization, not on the purchase: an asset bought in 2025 and still
+amortising in 2027 is returned for all three years, and one whose base is already exhausted is not.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "assetId": 1,
+      "description": "Lenovo Yoga Slim 7 Gen 9",
+      "inServiceDate": "2025-11-28",
+      "baseCents": 71818,
+      "coefficientPercent": 52,
+      "amortizationGroup": 5,
+      "modelo100CasillaCode": "0208",
+      "transactionId": 3489,
+      "notes": null,
+      "createdAt": "2026-08-17T10:00:00.000Z",
+      "updatedAt": "2026-08-17T10:00:00.000Z"
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+#### `POST /api/fiscal/assets`
+
+**Request Body** (`CreateFixedAssetSchema`, `src/schemas/fixed-asset.ts`):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string | Yes | 1-255 chars |
+| `inServiceDate` | string (date) | Yes | Day the asset entered service — **not** the invoice date |
+| `baseAmount` | number | Yes | Amortizable base in **EUROS**, net of any deductible VAT |
+| `coefficientPercent` | number | Yes | The rate actually applied (0-100) |
+| `amortizationGroup` | 1-10 \| null | No | Grupo of the tabla simplificada; `null` = custom rate |
+| `modelo100CasillaCode` | `"0208"` \| `"0227"` | Yes | Material or intangible |
+| `transactionId` | number \| null | No | The purchase movement, when it is recorded |
+| `notes` | string \| null | No | Max 2000 chars |
+
+```json
+{
+  "description": "Lenovo Yoga Slim 7 Gen 9",
+  "inServiceDate": "2025-11-28",
+  "baseAmount": 718.18,
+  "coefficientPercent": 52,
+  "amortizationGroup": 5,
+  "modelo100CasillaCode": "0208",
+  "transactionId": 3489
+}
+```
+
+**Validation.** With a group declared, the rate is capped at the group's coeficiente lineal máximo
+**doubled** by the amortización acelerada of art. 103 LIS: on grupo 5 (26%), 52% passes and 60%
+returns `400` with `{ "coefficientPercent": ["validation.invalid-amortization-coefficient"] }`.
+A rate that does not come from the tabla (libertad de amortización, art. 102 LIS) is recorded with
+`amortizationGroup: null` and is not capped.
+
+**Registering an asset does not touch its transaction.** The purchase keeps its `Transactions` row —
+the money did leave the account — but its `DeductionPercent` must be set to `0` separately, or the
+cost is deducted twice: once as a purchase, once as the dotación.
+
+#### `GET /api/fiscal/assets/:id`
+
+Returns the asset together with its full schedule. The `cents` of `years` always sum to `baseCents`;
+the first year is prorated by days from `inServiceDate` and the last takes the remainder.
+
+```json
+{
+  "success": true,
+  "data": {
+    "asset": { "assetId": 1, "baseCents": 71818, "...": "..." },
+    "years": [
+      { "fiscalYear": 2025, "cents": 3479, "remainingCents": 68339 },
+      { "fiscalYear": 2026, "cents": 37345, "remainingCents": 30994 },
+      { "fiscalYear": 2027, "cents": 30994, "remainingCents": 0 }
+    ]
+  }
+}
+```
+
+`404` with `api-error.not-found.fixed-asset` when the id belongs to no asset of the current user.
+
+#### `PUT /api/fiscal/assets/:id`
+
+Same body as `POST`, every field optional; an omitted field keeps its stored value. The group/rate
+cap is re-checked against the **merged** row, not just the payload — raising `coefficientPercent`
+alone on a stored grupo 5 asset is rejected exactly as if the group had been sent with it. Sending
+`amortizationGroup: null` is an explicit clear (custom rate, uncapped).
+
+#### `DELETE /api/fiscal/assets/:id`
+
+Deletes the asset. The linked purchase transaction survives untouched — including its
+`DeductionPercent`, which is the user's to restore if the asset was registered by mistake.
+
+```json
+{ "success": true, "data": { "deleted": true } }
+```
+
+---
+
 ### Vouchers
 
 Prepaid balances. Buying a voucher creates **no** transaction; consumption is recorded as ordinary
@@ -3137,6 +3266,15 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 | `ExtractedInvoiceRawSchema` | OCR output validation with euro→cents conversion via `.transform()` |
 | `DetectedModeloRawSchema` | Modelo detection output (modeloType, fiscalYear, fiscalQuarter, result amount euro→cents); forces `fiscalQuarter: null` for 390/100 and allows negative amounts (refunds) |
 | `LinkTransactionSchema` | Transaction creation + document linking request (categoryId, amountCents, transactionDate, type, fiscal fields) |
+
+#### Fixed Asset Schemas (`src/schemas/fixed-asset.ts`)
+
+| Schema | Purpose |
+|--------|---------|
+| `CreateFixedAssetSchema` | Asset registration (description, inServiceDate, baseAmount in euros, coefficientPercent, amortizationGroup, modelo100CasillaCode, transactionId, notes) |
+| `UpdateFixedAssetSchema` | The same, every field optional |
+| `FixedAssetFiltersSchema` | List filter (`year`: only assets with a dotación that year) |
+| `coefficientFitsGroup()` | Not a schema: the exported cross-field rule (rate ≤ tabla × art. 103 LIS multiplier), re-run by `PUT` against the merged row because the schema only ever sees the payload |
 
 #### Sync Schemas (`src/schemas/sync.ts`)
 

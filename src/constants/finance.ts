@@ -137,6 +137,7 @@ export const QUERY_KEY = {
   FISCAL_DEADLINES: 'fiscal-deadlines',
   FISCAL_DEADLINE_SETTINGS: 'fiscal-deadline-settings',
   FISCAL_PROFILE: 'fiscal-profile',
+  FIXED_ASSETS: 'fixed-assets',
   CRYPTO_CREDENTIALS: 'crypto-credentials',
   CRYPTO_SYNC_STATUS: 'crypto-sync-status',
   CRYPTO_EVENTS: 'crypto-events',
@@ -201,6 +202,7 @@ export const API_ENDPOINT = {
   FISCAL_DEADLINES: '/api/fiscal/deadlines',
   FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
   FISCAL_PROFILE: '/api/fiscal/profile',
+  FIXED_ASSETS: '/api/fiscal/assets',
   CRYPTO_CREDENTIALS: '/api/crypto/credentials',
   CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
   CRYPTO_SYNC: '/api/crypto/sync',
@@ -512,6 +514,78 @@ export const MODELO_100_CASILLA_OPTIONS = [
 ] as const;
 
 export const MODELO_100_DEFAULT_CASILLA = MODELO_100_CASILLA.C0202;
+
+// ============================================================
+// FIXED ASSETS (INMOVILIZADO) & AMORTIZATION
+// ============================================================
+
+/**
+ * Tabla de amortización simplificada (Orden de 27 de marzo de 1998), the table that applies in
+ * estimación directa simplificada (art. 30.2 RIRPF). An asset is not consumed in the year it is
+ * bought: its cost is spread over its useful life, and only the yearly dotación is deductible.
+ *
+ * Keyed by the grupo number the AEAT itself uses, so the value stored in
+ * "FixedAssets"."AmortizationGroup" indexes this map directly, and a picker can render
+ * `Object.values(AMORTIZATION_GROUP)` already in tabla order (integer keys iterate ascending).
+ * The user-facing label of each group is an i18n key resolved in the UI — the Spanish text below
+ * is the verbatim legal wording of the Orden, kept as a citation, not as display copy.
+ *
+ * `coefficientPercent` is the *maximum* linear rate. Amortising slower is legal, which is why the
+ * rate actually applied lives on the asset (see FixedAsset.coefficientPercent) and is never
+ * re-derived from the group at read time.
+ */
+export const AMORTIZATION_GROUP = {
+  // Edificios y otras construcciones
+  1: { group: 1, coefficientPercent: 3, maxYears: 68 },
+  // Instalaciones, mobiliario, enseres y resto del inmovilizado material
+  2: { group: 2, coefficientPercent: 10, maxYears: 20 },
+  // Maquinaria
+  3: { group: 3, coefficientPercent: 12, maxYears: 18 },
+  // Elementos de transporte
+  4: { group: 4, coefficientPercent: 16, maxYears: 14 },
+  // Equipos para tratamiento de la información y sistemas y programas informáticos
+  5: { group: 5, coefficientPercent: 26, maxYears: 10 },
+  // Útiles y herramientas
+  6: { group: 6, coefficientPercent: 30, maxYears: 8 },
+  // Ganado vacuno, porcino, ovino y caprino
+  7: { group: 7, coefficientPercent: 16, maxYears: 14 },
+  // Ganado equino y frutales no cítricos
+  8: { group: 8, coefficientPercent: 8, maxYears: 25 },
+  // Frutales cítricos y viñedos
+  9: { group: 9, coefficientPercent: 4, maxYears: 50 },
+  // Olivar
+  10: { group: 10, coefficientPercent: 2, maxYears: 100 },
+} as const;
+
+export type AmortizationGroupDefinition = (typeof AMORTIZATION_GROUP)[keyof typeof AMORTIZATION_GROUP];
+
+/** The grupo number itself (1-10) — what the DB stores and what indexes AMORTIZATION_GROUP. */
+export type AmortizationGroupNumber = AmortizationGroupDefinition['group'];
+
+/** The ten groups in tabla order, for the picker and for validating an incoming group number. */
+export const AMORTIZATION_GROUP_OPTIONS: readonly AmortizationGroupDefinition[] = Object.values(AMORTIZATION_GROUP);
+
+/**
+ * Amortización acelerada for empresas de reducida dimensión (art. 103 LIS). It reaches IRPF
+ * through art. 30.2 LIRPF, so it applies in estimación directa in **both** modalidades, normal
+ * and simplificada, and it doubles the maximum linear coefficient of the tabla.
+ *
+ * It only covers **elementos NUEVOS del inmovilizado material** (and inversiones inmobiliarias):
+ * second-hand items and the inmovilizado intangible of casilla 0227 do not qualify, so the
+ * doubling is a per-asset decision the user makes, never an automatic transformation.
+ */
+export const AMORTIZATION = {
+  ERD_MULTIPLIER: 2,
+} as const;
+
+/**
+ * The two Modelo 100 boxes a dotación can land in: inmovilizado material (0208) and intangible
+ * (0227). Every other casilla is a real cash expense of the year and can never receive an
+ * amortization figure.
+ */
+export const AMORTIZATION_CASILLA_OPTIONS = [MODELO_100_CASILLA.C0208, MODELO_100_CASILLA.C0227] as const;
+
+export type AmortizationCasilla = (typeof AMORTIZATION_CASILLA_OPTIONS)[number];
 
 // Invoice Statuses
 export const INVOICE_STATUS = {
@@ -825,6 +899,7 @@ export const API_ERROR = {
     CATEGORIES: 'api-error.load.categories',
     CATEGORY_HISTORY: 'api-error.load.category-history',
     VOUCHERS: 'api-error.load.vouchers',
+    FIXED_ASSETS: 'api-error.load.fixed-assets',
   },
   NOT_FOUND: {
     TRANSACTION: 'api-error.not-found.transaction',
@@ -843,6 +918,7 @@ export const API_ERROR = {
     DOCUMENT: 'api-error.not-found.document',
     DOCUMENT_BLOB: 'api-error.not-found.document-blob',
     BILLING_PROFILE: 'api-error.not-found.billing-profile',
+    FIXED_ASSET: 'api-error.not-found.fixed-asset',
     CRYPTO_CREDENTIALS: 'api-error.not-found.crypto-credentials',
     CRYPTO_SYNC_JOB: 'api-error.not-found.crypto-sync-job',
   },
@@ -914,6 +990,7 @@ export const API_ERROR = {
       TUNNEL_SESSION: 'api-error.mutation.create.tunnel-session',
       VOUCHER: 'api-error.mutation.create.voucher',
       GROUP: 'api-error.mutation.create.group',
+      FIXED_ASSET: 'api-error.mutation.create.fixed-asset',
       CRYPTO_CREDENTIALS: 'api-error.mutation.create.crypto-credentials',
     },
     UPDATE: {
@@ -932,6 +1009,7 @@ export const API_ERROR = {
       FISCAL_STATUS: 'api-error.mutation.update.fiscal-status',
       FISCAL_SETTINGS: 'api-error.mutation.update.fiscal-settings',
       FISCAL_PROFILE: 'api-error.mutation.update.fiscal-profile',
+      FIXED_ASSET: 'api-error.mutation.update.fixed-asset',
     },
     DELETE: {
       TRANSACTION: 'api-error.mutation.delete.transaction',
@@ -946,6 +1024,7 @@ export const API_ERROR = {
       TUNNEL_SESSION: 'api-error.mutation.delete.tunnel-session',
       VOUCHER: 'api-error.mutation.delete.voucher',
       FISCAL_DOCUMENT: 'api-error.mutation.delete.fiscal-document',
+      FIXED_ASSET: 'api-error.mutation.delete.fixed-asset',
       CRYPTO_CREDENTIALS: 'api-error.mutation.delete.crypto-credentials',
     },
     IMPORT: {
@@ -997,6 +1076,8 @@ export const VALIDATION_KEY = {
   PREFIX_REQUIRED: 'validation.prefix-required',
   INVALID_COLOR: 'validation.invalid-color',
   INVALID_MODELO_100_CASILLA: 'validation.invalid-modelo-100-casilla',
+  INVALID_AMORTIZATION_GROUP: 'validation.invalid-amortization-group',
+  INVALID_AMORTIZATION_COEFFICIENT: 'validation.invalid-amortization-coefficient',
   LINE_ITEMS_REQUIRED: 'validation.line-items-required',
   SELECT_PREFIX: 'validation.select-prefix',
   SELECT_CLIENT: 'validation.select-client',

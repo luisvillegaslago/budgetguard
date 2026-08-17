@@ -836,6 +836,7 @@
       "casilla7": "A ingresar",
       "cumulative-note": "Acumulado desde enero",
       "gastos-documentados": "Gastos documentados",
+      "amortizacion": "Amortización del inmovilizado",
       "gastos-dificil": "5% difícil justificación (máx. 2.000€/año)"
     },
     "irpf-projection": {
@@ -845,6 +846,7 @@
       "gap": "Desfase a provisionar para la Renta",
       "projected-income": "Ingresos proyectados",
       "projected-expenses": "Gastos deducibles proyectados",
+      "amortizacion": "Amortización del inmovilizado",
       "gastos-dificil": "5% difícil justificación (máx. 2.000€/año)",
       "net-income": "Rendimiento neto",
       "pension-reduction": "Reducción por planes de pensiones aplicada",
@@ -992,6 +994,76 @@
       "deduction-percent": "Deducción por defecto (%)",
       "modelo100-casilla": "Casilla Modelo 100",
       "modelo100-none": "Sin asignar"
+    },
+    "fixed-assets": {
+      "title": "Inmovilizado y amortizaciones",
+      "subtitle": "El coste de un activo no se deduce el año de la compra: se reparte a lo largo de su vida útil (art. 30.2 RIRPF)",
+      "dotacion-note": "La dotación anual no es un movimiento de dinero: no sale nada de la cuenta. Solo se lleva a la casilla del Modelo 100 como gasto deducible del ejercicio.",
+      "year-total": "Dotación del ejercicio {year}",
+      "add": "Dar de alta un activo",
+      "delete": "Dar de baja",
+      "delete-confirm": "¿Dar de baja este activo? Se borrará su cuadro de amortización y sus dotaciones dejarán de computar en el Modelo 100 de todos los ejercicios.",
+      "empty": "Todavía no hay activos dados de alta",
+      "empty-hint": "Da de alta un equipo informático, un vehículo o un programa para empezar a amortizarlo por años",
+      "saved": "Activo guardado",
+      "deleted": "Activo dado de baja",
+      "columns": {
+        "description": "Descripción",
+        "in-service-date": "Puesta en servicio",
+        "base": "Base amortizable",
+        "coefficient": "Coeficiente",
+        "casilla": "Casilla",
+        "year-amount": "Amortización del ejercicio",
+        "remaining": "Pendiente de amortizar",
+        "actions": "Acciones"
+      },
+      "fields": {
+        "description": "Descripción",
+        "description-placeholder": "Ej: Portátil Lenovo Yoga Slim 7",
+        "in-service-date": "Fecha de puesta en servicio",
+        "in-service-date-hint": "Desde esta fecha empieza a computar la amortización, por días naturales",
+        "gross-amount": "Importe pagado, IVA incluido (€)",
+        "gross-amount-hint": "Solo sirve para calcular la base: se le descuenta el IVA, que ya te deduces por el Modelo 303",
+        "base-amount": "Base amortizable (€)",
+        "base-amount-hint": "Precio de adquisición sin el IVA deducible",
+        "group": "Grupo de la tabla simplificada",
+        "group-none": "Coeficiente libre (sin grupo)",
+        "group-none-hint": "Para libertad de amortización (art. 102 LIS) o cualquier coeficiente que no salga de la tabla",
+        "coefficient": "Coeficiente aplicado (%)",
+        "coefficient-hint": "Puedes amortizar más despacio que el máximo del grupo, nunca más deprisa",
+        "accelerated": "Amortización acelerada (empresas de reducida dimensión)",
+        "accelerated-hint": "Duplica el coeficiente máximo del grupo, del {base} % al {doubled} % (art. 103 LIS). Solo para elementos nuevos del inmovilizado material.",
+        "casilla": "Casilla del Modelo 100",
+        "notes": "Notas"
+      },
+      "groups": {
+        "1": "Edificios y otras construcciones",
+        "2": "Instalaciones, mobiliario, enseres y resto del inmovilizado material",
+        "3": "Maquinaria",
+        "4": "Elementos de transporte",
+        "5": "Equipos para tratamiento de la información y sistemas y programas informáticos",
+        "6": "Útiles y herramientas",
+        "7": "Ganado vacuno, porcino, ovino y caprino",
+        "8": "Ganado equino y frutales no cítricos",
+        "9": "Frutales cítricos y viñedos",
+        "10": "Olivar"
+      },
+      "group-option": "Grupo {group} — {name} (máx. {percent} %)",
+      "casillas": {
+        "0208": "0208 — Inmovilizado material",
+        "0227": "0227 — Inmovilizado intangible"
+      },
+      "schedule": {
+        "title": "Cuadro de amortización",
+        "year": "Ejercicio",
+        "amount": "Dotación",
+        "remaining": "Pendiente",
+        "total": "Total amortizado",
+        "fully-amortized": "Totalmente amortizado"
+      },
+      "errors": {
+        "load-failed": "No se pudieron cargar los activos"
+      }
     },
     "documents": {
       "title": "Documentos",
@@ -2055,6 +2127,8 @@
     "prefix-required": "El prefijo es requerido",
     "invalid-color": "Color hex inválido",
     "invalid-modelo-100-casilla": "Casilla del Modelo 100 no válida",
+    "invalid-amortization-group": "Grupo de amortización no válido",
+    "invalid-amortization-coefficient": "Coeficiente de amortización no válido",
     "line-items-required": "Se requiere al menos un concepto",
     "select-prefix": "Selecciona una serie",
     "select-client": "Selecciona un cliente",
@@ -2098,7 +2172,8 @@
       "document-blob": "Archivo del documento no encontrado",
       "billing-profile": "Perfil de facturación no encontrado",
       "crypto-credentials": "No hay credenciales de exchange conectadas",
-      "crypto-sync-job": "Sincronización no encontrada"
+      "crypto-sync-job": "Sincronización no encontrada",
+      "fixed-asset": "Activo no encontrado"
     },
     "conflict": {
       "has-transactions": "Esta categoría tiene transacciones vinculadas",
@@ -2169,6 +2244,7 @@
         "tunnel-session": "Error al crear la sesión de túnel",
         "voucher": "Error al crear el bono",
         "group": "Error al crear el grupo de transacciones",
+        "fixed-asset": "Error al dar de alta el activo",
         "crypto-credentials": "Error al guardar las credenciales de Binance"
       },
       "update": {
@@ -2186,7 +2262,8 @@
         "voucher": "Error al actualizar el bono",
         "fiscal-status": "Error al actualizar el estado del documento",
         "fiscal-settings": "Error al actualizar los ajustes fiscales",
-        "fiscal-profile": "Error al guardar los datos fiscales del año"
+        "fiscal-profile": "Error al guardar los datos fiscales del año",
+        "fixed-asset": "Error al actualizar el activo"
       },
       "delete": {
         "transaction": "Error al eliminar la transacción",
@@ -2201,6 +2278,7 @@
         "tunnel-session": "Error al eliminar la sesión de túnel",
         "voucher": "Error al eliminar el bono",
         "fiscal-document": "Error al eliminar el documento",
+        "fixed-asset": "Error al dar de baja el activo",
         "crypto-credentials": "Error al desconectar Binance"
       },
       "import": {
@@ -2225,7 +2303,8 @@
     "load": {
       "categories": "Error al cargar las categorías",
       "category-history": "Error al cargar el historial de la categoría",
-      "vouchers": "Error al cargar los bonos"
+      "vouchers": "Error al cargar los bonos",
+      "fixed-assets": "Error al cargar los activos"
     }
   },
   "pages": {

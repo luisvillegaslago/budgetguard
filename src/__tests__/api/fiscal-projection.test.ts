@@ -16,6 +16,7 @@ const mockProjection: IrpfProjection = {
   ytdExpensesCents: 604_800,
   projectedIncomeCents: 7_723_700,
   projectedExpensesCents: 604_800,
+  amortizacionCents: 0,
   gastosDificilCents: 200_000,
   projectedNetIncomeCents: 6_918_900,
   pensionIndividualCents: 0,

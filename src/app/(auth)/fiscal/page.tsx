@@ -17,6 +17,7 @@ import { FiscalFilingStatus } from '@/components/fiscal/FiscalFilingStatus';
 import { FiscalInvoiceTable } from '@/components/fiscal/FiscalInvoiceTable';
 import { FiscalQuarterSelector } from '@/components/fiscal/FiscalQuarterSelector';
 import { FiscalUncountedIncome } from '@/components/fiscal/FiscalUncountedIncome';
+import { FixedAssetsCard } from '@/components/fiscal/FixedAssetsCard';
 import { IrpfProvisionCard } from '@/components/fiscal/IrpfProvisionCard';
 import { Modelo100Card } from '@/components/fiscal/Modelo100Card';
 import { Modelo130Card } from '@/components/fiscal/Modelo130Card';
@@ -201,6 +202,15 @@ export default function FiscalPage() {
           </div>
 
           <FiscalDeadlinePanel year={year} />
+        </div>
+      )}
+
+      {/* Inmovilizado: the dotación of the year feeds both models (Modelo 130 and casillas
+          0208/0227 of Modelo 100), so it hangs off the year and not off the quarter or the view.
+          Keyed by year so switching year drops the expanded schedule and the open form. */}
+      {!isCurrentLoading && (
+        <div className="mt-8">
+          <FixedAssetsCard key={year} year={year} />
         </div>
       )}
 

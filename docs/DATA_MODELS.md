@@ -764,6 +764,78 @@ both columns.
 
 ---
 
+#### FixedAssets
+
+An asset whose cost is spread over its useful life instead of being deducted in full in the year of
+purchase (art. 30.2 RIRPF + tabla de amortización simplificada). Only the yearly *dotación* is
+deductible, and it feeds Modelo 100 casilla **0208** (inmovilizado material) or **0227**
+(intangible) — boxes that stayed empty for as long as purchases were expensed whole. The rules and
+the worked example live in [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
+
+```sql
+CREATE TABLE "FixedAssets" (
+    "AssetID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "TransactionID" INT NULL REFERENCES "Transactions"("TransactionID") ON DELETE SET NULL,
+    "Description" VARCHAR(255) NOT NULL,
+    "InServiceDate" DATE NOT NULL,
+    "BaseCents" INT NOT NULL,
+    "CoefficientPercent" NUMERIC(5,2) NOT NULL,
+    "AmortizationGroup" INT NULL,
+    "Modelo100CasillaCode" VARCHAR(4) NOT NULL,
+    "Notes" TEXT NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CK_FixedAssets_BaseCents" CHECK ("BaseCents" > 0),
+    CONSTRAINT "CK_FixedAssets_Coefficient" CHECK (
+        "CoefficientPercent" > 0 AND "CoefficientPercent" <= 100
+    ),
+    CONSTRAINT "CK_FixedAssets_Group" CHECK (
+        "AmortizationGroup" IS NULL OR "AmortizationGroup" BETWEEN 1 AND 10
+    ),
+    CONSTRAINT "CK_FixedAssets_Casilla" CHECK ("Modelo100CasillaCode" IN ('0208', '0227'))
+);
+
+CREATE INDEX "IX_FixedAssets_UserInService" ON "FixedAssets"("UserID", "InServiceDate");
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `AssetID` | SERIAL | Auto-increment primary key |
+| `UserID` | INT | FK to Users (CASCADE) |
+| `TransactionID` | INT NULL | The purchase movement, when it is recorded (SET NULL) |
+| `Description` | VARCHAR(255) | What the asset is |
+| `InServiceDate` | DATE | Day it entered service — **not** the invoice date. Amortization accrues from here |
+| `BaseCents` | INT | Amortizable base: acquisition cost net of any deductible VAT, in cents |
+| `CoefficientPercent` | NUMERIC(5,2) | The annual straight-line rate **actually applied** (26,00 from the tabla; 52,00 with the ERD doubling) |
+| `AmortizationGroup` | INT NULL | Grupo 1-10 of the tabla simplificada; NULL when the rate does not come from it |
+| `Modelo100CasillaCode` | VARCHAR(4) | `'0208'` material or `'0227'` intangible — the only two boxes a dotación can land in |
+| `Notes` | TEXT NULL | Free text |
+
+**Why this is not a `Transactions` row.** A transaction is a movement of money and a dotación is
+not one: no euro leaves the account when the year's share of a laptop is deducted. Booking it as a
+transaction would deduct the same purchase twice — once as the payment, once as the dotación — and
+would falsify every balance, summary view and cash-flow chart, all of which sum `Transactions`
+without asking what a row means. The payment keeps its own transaction (with `DeductionPercent`
+set to 0, or the cost is counted twice anyway) and `TransactionID` links the two.
+
+**Why the rate is stored and not derived from the group.** The tabla gives a *maximum* and
+amortising below it is legal; the art. 103 LIS doubling only applies to elementos nuevos del
+inmovilizado material, which the group alone cannot tell; and a rate re-derived at read time would
+silently rewrite the dotación of years that have already been filed. `AmortizationGroup` is
+nullable for the same reason — a custom rate, or libertad de amortización (art. 102 LIS), belongs
+to no group.
+
+**No dotación is stored, ever.** The yearly figures are derived from base + in-service date + rate
+by the pure functions in `src/utils/amortization.ts`, so the schedule on screen, the dotación in
+Modelo 130 and the casilla 0208 of Modelo 100 cannot contradict each other. The index is on
+`(UserID, InServiceDate)` because every read is "this user's assets, ordered by or filtered on the
+in-service date"; the `?year=` filter of the API is applied in TypeScript afterwards, since
+encoding "days to exhaust the base at this rate" in SQL would be a second, drift-prone copy of the
+amortization rules.
+
+---
+
 ### Skydiving Tables
 
 #### SkydiveJumps
@@ -1205,7 +1277,11 @@ Users
 ├── Invoices.UserID → Users.UserID
 ├── FiscalDocuments.UserID → Users.UserID
 ├── FiscalDeadlineSettings.UserID → Users.UserID (UNIQUE)
-└── FiscalProfiles.UserID → Users.UserID (CASCADE, UNIQUE per FiscalYear)
+├── FiscalProfiles.UserID → Users.UserID (CASCADE, UNIQUE per FiscalYear)
+└── FixedAssets.UserID → Users.UserID (CASCADE)
+
+FixedAssets
+└── TransactionID → Transactions.TransactionID (SET NULL)
 
 Invoices
 ├── PrefixID → InvoicePrefixes.PrefixID
@@ -1493,6 +1569,7 @@ export interface Modelo130Summary {
   casilla6Cents: number;            // IRPF withheld by clients this year
   casilla7Cents: number;            // To pay
   gastosDocumentadosCents: number;
+  amortizacionCents: number;        // Dotación 1-Jan → end of quarter, ALREADY inside casilla 02
   gastosDificilCents: number;       // 5%, capped at 2.000 €/year
   casilla5IsEstimated: boolean;     // An earlier quarter had no filed figure and was recomputed
 }
@@ -1551,6 +1628,12 @@ export interface AnnualFiscalReport {
 picks up because it sits outside the professional category. It exists so that income miscategorised
 at entry becomes visible instead of silently vanishing from the 130 and the 100.
 
+**`amortizacionCents` is a breakout, not an extra total.** It is already inside casilla 02, and it
+is the reason a breakdown of that box must read *documentados + amortización + difícil
+justificación* — the two figures it sits between do not add up to it on their own. The dotación
+reaches `Modelo100Section` the same way, as its own `gastosPorCasilla` row for `0208` or `0227`
+(never through `unmappedCents`: an asset always declares its casilla).
+
 ### IrpfProjection
 
 The IRPF provision: the gap between the flat 20% that Modelo 130 pays and the progressive scale the
@@ -1564,6 +1647,7 @@ export interface IrpfProjection {
   ytdExpensesCents: number;
   projectedIncomeCents: number;     // Caller's override, or a linear run-rate
   projectedExpensesCents: number;
+  amortizacionCents: number;        // Full-year dotación: inside projectedNetIncome, OUTSIDE projectedExpenses
   gastosDificilCents: number;
   projectedNetIncomeCents: number;  // Rendimiento neto
   pensionIndividualCents: number;   // Declared per bucket — each has its own ceiling
@@ -1586,6 +1670,63 @@ export interface IrpfProjection {
 
 `isProjectionReliable` depends on **elapsed days only**, never on whether the caller supplied an
 income override: the expense side is still extrapolated either way.
+
+`amortizacionCents` sits deliberately outside the run-rate pair (`ytdExpensesCents` /
+`projectedExpensesCents`): it is a calendar figure, and extrapolating it in January would inflate
+the December dotación roughly thirtyfold. It is subtracted from the rendimiento directly.
+
+### FixedAsset
+
+The inmovilizado and its amortization schedule. Cents in the domain types; the wire carries euros
+and the route converts at the edge. No yearly figure is ever stored — `years` is derived on read.
+
+```typescript
+export interface FixedAsset {
+  assetId: number;
+  description: string;
+  inServiceDate: string;            // 'YYYY-MM-DD' calendar day; amortization accrues from here
+  baseCents: number;                // Acquisition cost net of any deductible VAT
+  coefficientPercent: number;       // The rate ACTUALLY applied — stored, never re-derived
+  amortizationGroup: AmortizationGroupNumber | null;  // 1-10 of the tabla, or null for a custom rate
+  modelo100CasillaCode: AmortizationCasilla;          // '0208' material | '0227' intangible
+  transactionId: number | null;     // The purchase movement, when it is recorded
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Cents in, what the repository writes. The route converts the euros that arrive on the wire
+export type FixedAssetInput = Omit<FixedAsset, 'assetId' | 'createdAt' | 'updatedAt'>;
+export type FixedAssetUpdateInput = Partial<FixedAssetInput>;
+
+// One year of the schedule (src/utils/amortization.ts)
+export interface AmortizationYear {
+  fiscalYear: number;
+  cents: number;
+  remainingCents: number;           // Base left after this year; zero in the last one
+}
+
+// What GET /api/fiscal/assets/:id returns: the cents of `years` always sum to baseCents
+export interface FixedAssetSchedule {
+  asset: FixedAsset;
+  years: AmortizationYear[];
+}
+```
+
+There is no per-year aggregate type here. The dotación of a year is not a shape the domain stores or
+returns: the card folds the assets it already has with `computeAmortizationSchedule()`, and the
+fiscal models fold them with `getAmortizationCentsForPeriod()` (below). A summary interface would be
+a third statement of the same figure, free to disagree with the other two.
+
+`AmortizationGroupNumber` (`1 | 2 | … | 10`) and `AmortizationCasilla` (`'0208' | '0227'`) come from
+`src/constants/finance.ts`, alongside `AMORTIZATION_GROUP` — the tabla simplificada keyed by the
+grupo number the AEAT itself uses, so a stored `AmortizationGroup` indexes it directly — and
+`AMORTIZATION.ERD_MULTIPLIER` (the ×2 of art. 103 LIS).
+
+The repository exposes one more shape for the fiscal models, `AmortizationPeriodTotals`
+(`{ totalCents, byCasilla: Map<AmortizationCasilla, number> }`), returned by
+`getAmortizationCentsForPeriod()`. It is keyed by `AmortizationCasilla` rather than `string` so a
+caller cannot invent a third box.
 
 ### Company
 
@@ -2529,6 +2670,44 @@ export const LinkTransactionSchema = z.object({
 
 export type LinkTransactionInput = z.infer<typeof LinkTransactionSchema>;
 ```
+
+---
+
+### Fixed Asset Schemas
+
+`src/schemas/fixed-asset.ts`. Amounts travel in **euros** and are converted with `eurosToCents()`
+at the route edge, like every other module.
+
+```typescript
+export const CreateFixedAssetSchema = z.object({
+  description: z.string().trim().min(1).max(255),
+  inServiceDate: z.coerce.date(),              // Not the invoice date
+  baseAmount: requiredPositiveNumber(...).max(10_000_000),   // EUROS, net of deductible VAT
+  coefficientPercent: z.number().positive().max(100),
+  amortizationGroup: z.custom<AmortizationGroupNumber>(...).optional().nullable(),
+  modelo100CasillaCode: z.enum(AMORTIZATION_CASILLA_OPTIONS),  // '0208' | '0227', REQUIRED
+  transactionId: z.number().int().positive().optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+}).refine(coefficientFitsGroup, { path: ['coefficientPercent'] });
+
+export const UpdateFixedAssetSchema = /* the same object, .partial() */;
+export const FixedAssetFiltersSchema = z.object({ year: z.coerce.number().int().min(2000).max(2100).optional() });
+```
+
+Three deliberate differences from the neighbouring schemas:
+
+- **The casilla is required and restricted.** `modelo100CasillaField()` in `shared.ts` accepts the
+  whole official set and is optional, because a category may legitimately carry none. An asset that
+  is neither material (0208) nor intangible (0227) has no box to be deducted in at all.
+- **The group is `z.custom<AmortizationGroupNumber>()`, not `z.number().refine()`.** A refine leaves
+  the schema's *input* a plain number and `validateRequest()` infers `T` from both sides, so the
+  narrowing evaporated at the route and every caller had to cast the value back into the union.
+- **`coefficientFitsGroup()` is exported.** With a group declared the rate must be
+  `≤ grupo.coefficientPercent × AMORTIZATION.ERD_MULTIPLIER` — 52% on a grupo 5 laptop passes, 60%
+  does not. A partial update escapes the schema's version of the check (`{ coefficientPercent: 60 }`
+  carries no group to check against), so the PUT route re-runs the same function against the merged
+  row. Libertad de amortización is expressed as a custom rate with `amortizationGroup: null`, which
+  this net deliberately does not catch.
 
 ---
 

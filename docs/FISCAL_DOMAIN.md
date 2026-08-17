@@ -30,6 +30,7 @@ overwrite it.
 - [Modelo 130 — IRPF pago fraccionado](#modelo-130--irpf-pago-fraccionado)
 - [Modelo 390 — annual IVA](#modelo-390--annual-iva)
 - [Modelo 100 — Renta](#modelo-100--renta)
+- [Amortización del inmovilizado](#amortización-del-inmovilizado)
 - [The IRPF provision](#the-irpf-provision)
 - [Pension contributions](#pension-contributions)
 - [Deadlines](#deadlines)
@@ -242,6 +243,158 @@ with a `LEFT JOIN` for that reason; an `INNER JOIN` makes every invoice disappea
 
 ---
 
+## Amortización del inmovilizado
+
+**An asset is not consumed in the year it is bought.** A laptop bought in November is not a
+November expense: it is a cost that the activity consumes over several years, and only the share
+that corresponds to each year is deductible in that year (art. 30.2 RIRPF, which sends estimación
+directa simplificada to the *tabla de amortización simplificada* of the Orden de 27 de marzo de
+1998). The purchase itself is a movement of money; the deduction is a calendar.
+
+Until this module existed BudgetGuard deducted the whole purchase in the purchase year, which is
+why casillas 0208 and 0227 of Modelo 100 could never be filled — nothing in the app could produce
+a dotación. **It cost money.** A Lenovo Yoga Slim 7 bought on 28-Nov-2025 for 869,00 € IVA
+incluida (base 718,18 €) was deducted in full in 2025 instead of the 34,79 € the 34 days of that
+year actually earn, and the Renta had to be rectified on 17-Aug-2026.
+
+### The 300 € escape hatch — when an asset *is* a period expense
+
+Art. 12.3.e) LIS allows elementos **nuevos** del inmovilizado **material** whose unit value does
+not exceed **300 €** to be freely amortised — that is, expensed in full in the year of purchase —
+up to a ceiling of **25.000 €** per tax period. This applies to IRPF in estimación directa through
+art. 30.2.1.ª LIRPF.
+
+So a 180 € monitor does not need a `FixedAssets` row: leaving it as an ordinary deductible expense
+is the legally correct treatment, not a shortcut. Registering an asset is what you do **above** that
+threshold. Three details the exemption does not survive:
+
+- **Unit value, not invoice total.** Ten 180 € monitors on one 1.800 € invoice are ten units of
+  180 €, all exempt — until the 25.000 € annual ceiling is reached.
+- **New, and material.** Second-hand items and the inmovilizado intangible of casilla 0227 are out.
+- **The app does not check any of this.** Nothing warns that a 250 € purchase was registered as an
+  asset, or that a 4.000 € one was not. It is a user decision the module records, not enforces.
+
+### The tabla de amortización simplificada
+
+The coefficient is the **maximum**, not a fixed rate: amortising more slowly is legal, amortising
+faster is not. Verbatim from the Orden de 27 de marzo de 1998, and encoded in
+`AMORTIZATION_GROUP` (`src/constants/finance.ts`), keyed by the grupo number the AEAT itself uses:
+
+| Grupo | Elementos patrimoniales | Coef. lineal máx. | Período máx. (años) |
+|-------|-------------------------|-------------------|---------------------|
+| 1 | Edificios y otras construcciones | 3% | 68 |
+| 2 | Instalaciones, mobiliario, enseres y resto del inmovilizado material | 10% | 20 |
+| 3 | Maquinaria | 12% | 18 |
+| 4 | Elementos de transporte | 16% | 14 |
+| 5 | Equipos para tratamiento de la información y sistemas y programas informáticos | 26% | 10 |
+| 6 | Útiles y herramientas | 30% | 8 |
+| 7 | Ganado vacuno, porcino, ovino y caprino | 16% | 14 |
+| 8 | Ganado equino y frutales no cítricos | 8% | 25 |
+| 9 | Frutales cítricos y viñedos | 4% | 50 |
+| 10 | Olivar | 2% | 100 |
+
+**The rate is stored on the asset, never re-derived from the group.** Three independent reasons,
+any one of which would be enough: the tabla gives a maximum and the taxpayer may choose less; the
+ERD doubling below depends on facts the group cannot express; and a rate recomputed at read time
+would silently rewrite the dotación of a year that has already been filed. `AmortizationGroup` is
+therefore nullable — a custom rate, or libertad de amortización (art. 102 LIS), belongs to no group.
+
+### Amortización acelerada — the ×2 of art. 103 LIS
+
+An *empresa de reducida dimensión* may amortise **elementos nuevos del inmovilizado material** at
+up to **twice** the tabla coefficient (art. 103 LIS, `AMORTIZATION.ERD_MULTIPLIER`). It reaches IRPF
+through art. 30.2 LIRPF and applies in estimación directa, both modalidades — verified against
+AEAT before being encoded, because "simplificada" reads as if it excluded the LIS incentives.
+
+It is **a per-asset decision, never an automatic transformation**: second-hand items and the
+intangible of casilla 0227 do not qualify, and the group alone cannot tell new from used. The
+validation that follows is the only place the multiplier appears as a rule: with a group declared,
+the rate must be `≤ grupo.coefficientPercent × 2`. On a grupo 5 laptop, 52% passes and 60% does not.
+`coefficientFitsGroup()` (`src/schemas/fixed-asset.ts`) is exported precisely so the PUT route can
+re-run it against the **merged** row — the schema only ever sees the payload, so `{ coefficientPercent: 60 }`
+on a stored grupo 5 asset would otherwise slip through with no group to check against.
+
+### How the dotación accrues: days, then the remainder
+
+`src/utils/amortization.ts` is pure and works in calendar days from the **in-service date**, not the
+invoice date. Two rules:
+
+- **The first year is prorated by days.** `base × rate × días / (100 × 365)`, inclusive of both
+  ends. An asset in service on 28 November earns 34 days of its first year, not a twelfth, not a
+  full year.
+- **The last year takes the remainder.** Accrual is capped at the base, and each year is computed
+  as the *difference of two accrued totals* rather than prorated on its own. That is what makes the
+  schedule sum to the base exactly: no year can inherit the rounding drift of the year before it.
+
+The golden case, which is also the regression test:
+
+```
+Lenovo Yoga Slim 7 Gen 9 — 869,00 € con IVA 21% → base 718,18 € (71818 cents)
+grupo 5 (26%) × 2 (art. 103 LIS) = 52%, en servicio 28-nov-2025
+
+2025 →  34,79 €   (34 días)        restante 683,39 €
+2026 → 373,45 €                    restante 309,94 €
+2027 → 309,94 €   (el resto)       restante   0,00 €
+                 ────────────
+                   718,18 €
+```
+
+> The 34,79 € of 2025 is the figure filed in casilla 0208 of the rectificativa — that one is
+> settled with the Treasury, and 2027 is only ever the remainder. The 2026 figure is the one a
+> rounding convention can move: `71818 × 0,52 = 37345,36`, so 373,45 € here, while rounding the
+> yearly quota up first gives 373,46 € and leaves 309,93 € for 2027. `amortization.test.ts` pins
+> the first reading. Nothing downstream hardcodes it — every model calls
+> `amortizationCentsBetween()`, so the convention lives in one file and the models follow it.
+
+### Where the dotación enters the models
+
+It is a deductible expense that **no transaction can carry**, because no money moves.
+`getAmortizationCentsForPeriod()` (`FixedAssetRepository`) folds the user's assets over a date range
+and returns the total plus the split per casilla; `FiscalRepository` is the only caller.
+
+| Model | Where it lands |
+|-------|----------------|
+| **Modelo 130** | Inside casilla 02, cumulative from 1 January to the end of the quarter. It also lowers the base the 5% of gastos de difícil justificación is computed on — it is an expense of the year, only one that moved no money |
+| **Modelo 100** | Its own row of `gastosPorCasilla`: **0208** inmovilizado material, **0227** intangible. From there into 0218 → 0221 → 0222 → 0223 → 0224 |
+| **IRPF provision** | Subtracted straight from the projected rendimiento, **never** run-rated |
+| **Modelo 303 / 390** | Nowhere. A dotación carries no IVA; the input VAT was already deducted on the purchase |
+
+`unmappedCents` is deliberately untouched by this: an asset always declares its casilla, so it can
+never fall back to 0202.
+
+**Amortization is a calendar, not a run rate.** The IRPF projection extrapolates the year-to-date
+figures by elapsed days, and applying that to a dotación would be nonsense — twenty days into
+January it would inflate the December figure roughly thirtyfold. `getIrpfProjection()` therefore
+keeps `amortizacionCents` out of `ytdExpensesCents` and `projectedExpensesCents` and subtracts the
+full-year figure directly.
+
+### The purchase is expense for IVA but not for IRPF
+
+The purchase keeps its own `Transactions` row untouched — the money did leave the account, and the
+balance, the summaries and the cash-flow charts are all right about that. What changes is that the
+**IRPF** models stop counting it: `getAssetTransactionIds()` returns the `TransactionID` of every
+registered asset, and Modelo 130, Modelo 100 and the projection skip those rows. Their cost arrives
+as the dotación instead; counting the purchase as well would deduct the same laptop twice.
+
+**Modelo 303 and Modelo 390 do not skip it**, and that asymmetry is the whole point. The input VAT
+of an asset is deducted **in full in the quarter of purchase** and is never amortized — amortization
+is an IRPF concept, not an IVA one.
+
+This is why the exclusion happens at read time instead of by zeroing the transaction's
+`DeductionPercent`, which is the obvious shortcut and is wrong: that single column drives the
+deductible VAT as well (see `computeFiscalFields`), so zeroing it silently erases the purchase's
+input VAT from the 303 and the 390. On the real Lenovo that would have removed 150,82 € of the
+158,74 € in casilla 29 of an already filed 4T 2025 — a 95% hole in a quarter that cannot be
+rectified without cost. The audit finding that one `DeductionPercent` drives two legally distinct
+percentages is exactly what makes the shortcut unsafe.
+
+`FixedAssets.TransactionID` is therefore load-bearing, not decorative. The FK is `ON DELETE SET NULL`
+so that re-importing or correcting the movement never destroys the schedule of a year already filed —
+but note that a schedule whose link is lost stops excluding anything, and the purchase silently
+becomes deductible again.
+
+---
+
 ## The IRPF provision
 
 Modelo 130 pays a flat 20% of the net income. The Renta charges a progressive scale. The difference
@@ -356,6 +509,11 @@ fact. **Add the new window here every year.**
 | `FiscalProfileInput` writes are partial | `COALESCE` in the repository upsert | One card wipes the other's figure |
 | Deadlines and working days are computed in local time | `formatDateLocal()`, `workingDays.ts` | Deadlines shift a day |
 | Amounts are summed in TypeScript, not SQL | Views expose rows | Backend and frontend round differently |
+| An amortization schedule sums to the base, to the cent | Each year is the difference of two capped accruals in `amortizationCentsBetween()` | A cent of the asset is deducted twice, or never — and the last year no longer closes at zero |
+| Amortization is a calendar, never a run-rate projection | `getIrpfProjection()` subtracts it outside `projectAnnualCents()` | In January the provision projects a dotación ~30× the real one |
+| An asset's purchase is skipped by the IRPF models only | `getAssetTransactionIds()`, applied in Modelo 130/100 and the projection | Skipped nowhere: the asset is deducted twice. Skipped everywhere: its input VAT vanishes from an already filed 303 |
+| A dotación is never a `Transactions` row | `FixedAssets` is its own table | The purchase is double-counted and every balance, summary view and cash-flow chart is falsified |
+| With a group declared, rate ≤ tabla × 2 | `coefficientFitsGroup()`, re-run by PUT against the merged row | An over-fast rate over-deducts — the exact error this module exists to prevent |
 
 ---
 
@@ -370,8 +528,18 @@ Open items from the fiscal audit, in the order they matter:
    deductible expense is now assigned; the rest are personal categories left unmapped on purpose. A
    new one falls through to `C0202` and is reported in `unmappedCents`, so the gap is visible rather
    than silent.
-3. **No amortizaciones.** Fixed assets are expensed in full in the year of purchase; there is no
-   amortisation table.
+3. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
+   two Modelo 100 boxes are implemented (§ Amortización del inmovilizado). What is still manual:
+   - **The link to the purchase is what prevents the double deduction.** Registering an asset
+     without setting `TransactionID` leaves its purchase deductible on the IRPF side as well.
+     Nothing warns about it.
+   - **The 300 € threshold is not suggested either way.** Nothing flags a 250 € purchase registered
+     as an asset, nor a 4.000 € one left as a period expense, nor the 25.000 €/year ceiling of
+     art. 12.3.e) LIS.
+   - **No bajas.** Selling, scrapping or dis-affecting an asset before its base is exhausted should
+     stop the schedule and settle the pending value; today the dotación simply keeps accruing.
+   - **No historical assets.** Only what has been registered amortises. Anything bought before this
+     module existed was deducted in full in its year and is not restated.
 4. **No cross-quarter invoice alert.** An invoice whose issue and collection dates fall in different
    quarters is handled correctly by the accrual view, but nothing warns the user that the two
    periods differ — which is the situation that produced the 2T 2026 rectificativa.
@@ -388,6 +556,10 @@ Open items from the fiscal audit, in the order they matter:
 | Topic | Source |
 |-------|--------|
 | Estimación directa simplificada, gastos de difícil justificación | Art. 30 RIRPF (RD 439/2007) |
+| Amortización en estimación directa simplificada; tabla de coeficientes | Art. 30.2 RIRPF; Orden de 27 de marzo de 1998 |
+| Elementos nuevos ≤ 300 €/unidad, hasta 25.000 €/año, libremente amortizables | Art. 12.3.e) Ley 27/2014 (LIS), vía art. 30.2.1.ª Ley 35/2006 |
+| Libertad de amortización (creación de empleo, I+D, ...) | Art. 102 Ley 27/2014 (LIS) |
+| Amortización acelerada ×2, empresas de reducida dimensión | Art. 103 Ley 27/2014 (LIS) |
 | Pagos fraccionados ignore pension reductions | Art. 110 RIRPF |
 | Pension plan reduction, limits | Arts. 51-52 Ley 35/2006 (IRPF), as worded by Ley 31/2022 |
 | Base cannot turn negative through reductions | Art. 50.1 Ley 35/2006 |
