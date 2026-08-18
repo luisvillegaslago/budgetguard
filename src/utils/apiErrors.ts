@@ -33,3 +33,18 @@ export class ValidationError extends ApiError {
     this.name = 'ValidationError';
   }
 }
+
+/**
+ * The request collides with something already stored → 409.
+ *
+ * Typically a UNIQUE breach caught in a repository: importing the same AEAT resolution twice, for
+ * instance. It carries its own i18n key, so `withApiHandler` can answer without the route having to
+ * know which constraint was hit. (InvoiceRepository still exports an older, keyless ConflictError
+ * of its own that its routes translate by hand; new code should use this one.)
+ */
+export class ConflictError extends ApiError {
+  constructor(errorKey: string, detail?: string) {
+    super(errorKey, detail);
+    this.name = 'ConflictError';
+  }
+}

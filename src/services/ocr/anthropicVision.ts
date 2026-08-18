@@ -15,6 +15,13 @@ import { ValidationError } from '@/utils/apiErrors';
 export const VISION_MODEL = 'claude-sonnet-4-6';
 
 /**
+ * Token budget for a call that returns a handful of fields (an invoice, a modelo header).
+ * A caller that transcribes a *table* must raise it: the answer grows with the number of rows,
+ * and a truncated response is not a partial read but invalid JSON.
+ */
+const DEFAULT_MAX_TOKENS = 1024;
+
+/**
  * Failure attributable to the vision provider (credits, rate limit, outage) or
  * to an unusable model response. Routes map this to a 502; anything else that
  * escapes is a server fault and reaches withApiHandler's 500 path.
@@ -133,8 +140,16 @@ function toVisionApiError(error: unknown): VisionApiError {
  * Throws ValidationError for unsupported file types (400), VisionApiError for
  * provider failures and unusable responses (502), and a plain Error only when
  * the server is misconfigured (500).
+ *
+ * `maxTokens` sizes the answer, not the document: raise it when the response is a table whose
+ * length the caller cannot bound in advance.
  */
-export async function callVisionJson(fileBuffer: Buffer, contentType: string, prompt: string): Promise<unknown> {
+export async function callVisionJson(
+  fileBuffer: Buffer,
+  contentType: string,
+  prompt: string,
+  maxTokens: number = DEFAULT_MAX_TOKENS,
+): Promise<unknown> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY environment variable is not set');
@@ -165,11 +180,17 @@ export async function callVisionJson(fileBuffer: Buffer, contentType: string, pr
   try {
     response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       messages: [{ role: 'user', content }],
     });
   } catch (error) {
     throw toVisionApiError(error);
+  }
+
+  // A table read that hits the ceiling comes back as a JSON object cut mid-row. Saying so beats
+  // letting JSON.parse report an unexpected end of input on a response that was never complete.
+  if (response.stop_reason === 'max_tokens') {
+    throw new VisionApiError(VISION_FAILURE.INVALID_RESPONSE, `Model response was truncated at ${maxTokens} tokens`);
   }
 
   const textBlock = response.content.find((block) => block.type === 'text');

@@ -751,6 +751,8 @@ Fiscal reporting for Spanish tax obligations: Modelo 303 (IVA) and Modelo 130 (I
 
 It also owns the **inmovilizado**: assets whose cost is spread over their useful life instead of being deducted in full in the year of purchase. Their yearly dotación is a deductible expense that no transaction can carry, because no money moves when an asset amortizes — it is the second source of deductible expense in the module, and the only one that does not come from a view row.
 
+It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccionamiento is imported as a `Deferrals` row plus one pending movement per legally distinct part of each fracción, because an instalment is three different things paid together and only the intereses de demora are deductible — and as a *financial* expense, casilla 0203. Booking the instalment whole is what this replaces.
+
 > **The tax rules themselves — devengo vs. caja, the casillas, the IVA compensation pool, the pension limits, the deadline rules — live in [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md), together with the invariants that must not be broken. Read it before changing anything in this module.**
 
 ```
@@ -778,6 +780,15 @@ It also owns the **inmovilizado**: assets whose cost is spread over their useful
 │  amortizationCentsBetween(asset, from, to)  ← pure, by days   │
 │  └── computeAmortizationSchedule(asset)  Σ cents === base     │
 │                                                               │
+│  Deferrals (aplazamiento AEAT — a calendar, not a figure)     │
+│  ├── header: Principal / Surcharge / Interest + tipo + fecha  │
+│  └── ANEXO I lives on "Transactions", one row per NON-ZERO    │
+│      part: DeferralID + FraccionNumber + DeferralPart         │
+│      principal 0% · recargo 0% · interés 100% → casilla 0203  │
+│                                                               │
+│  verifyDeferral(letter) → DeferralVerdict  ← pure             │
+│  └── checks the letter against ITSELF; never derives a split  │
+│                                                               │
 │  FiscalRepository — all reads go through loadFiscalRows()     │
 │  ├── vw_FiscalAccrual (never vw_FiscalQuarterly)              │
 │  │   ├── getModelo303Summary / getModelo130Summary            │
@@ -798,12 +809,17 @@ It also owns the **inmovilizado**: assets whose cost is spread over their useful
 - `src/services/database/FixedAssetRepository.ts`: Inmovilizado CRUD, plus `getAmortizationCentsForPeriod()` — the fold over a date range that `FiscalRepository` consumes. It takes an explicit `userId` and never calls `getUserIdOrThrow()`, like the other repository functions the fiscal models call internally
 - `src/utils/fiscal.ts`: `computeFiscalFields()`, `rollVatPoolCents()`, `calcGastosDificilCents()` — pure
 - `src/utils/amortization.ts`: `amortizationCentsBetween()`, `computeAmortizationSchedule()` — pure, day-based, UTC. The schedule always sums to the base because each year is the difference of two capped accruals
+- `src/services/database/DeferralRepository.ts`: Resolutions + the movements they book, in one transaction. `getDeferralFracciones()` rebuilds ANEXO I from those movements (`SUM(...) FILTER`) rather than storing it twice
+- `src/services/DeferralImportService.ts`: The fiscal policy of a deferral — which parts exist, what each is worth, which category and which deduction. The repository decides none of it
+- `src/services/ocr/DeferralExtractor.ts`: Reads the resolución with Claude Vision (the rendered page, not the PDF text layer) and derives the deferred period from the *Fecha de Intereses*
+- `src/utils/deferral.ts`: `verifyDeferral()`, `accruedInterestCents()`, `interestAccrualEndDate()` — pure. Checks the letter against itself; the one recomputation (art. 53 RGR) carries a tolerance derived from the printed tipo's truncation
 - `src/utils/irpf.ts`: Progressive scale, mínimo personal, pension reduction, run-rate projection — pure
 - `src/utils/fiscalDeadlines.ts` + `src/utils/workingDays.ts`: AEAT calendar, working-day extension, domiciliación
 - `src/schemas/fixed-asset.ts`: Asset validation, including the tabla × art. 103 LIS rate cap (`coefficientFitsGroup()`, exported so the PUT route can re-run it against the merged row)
-- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`, `useFixedAssets.ts`
+- `src/schemas/deferral.ts`: The arithmetic gate. Amounts in **cents**, never coerced; three refinements that check the letter against its own totals row and never recompute a split
+- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`, `useFixedAssets.ts`, `useDeferrals.ts`
 - `src/services/database/InvoiceRepository.ts`: `getCrossQuarterInvoices(year, quarter)` — the one fiscal read that does not go through `FiscalRepository`, because it is about invoices rather than about figures. Purely informational
-- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel
+- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel, DeferralImportWizard (+ DeferralFraccionesTable, DeferralVerdictPanel, DeferralPartsLegend, `deferralDraft.ts`)
 - `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector. `FixedAssetsCard` is mounted once outside both view branches and keyed by year — the dotación belongs to the year, not to the quarter or the selected view
 
 **The dotación is not a transaction, and not a run rate.** Two consequences worth keeping in mind
@@ -819,6 +835,16 @@ quarter on screen — rendered by `FiscalCrossQuarterInvoices`, and again by `Ac
 the invoice pay flow. It feeds no casilla and no computation: the models are already right, and the
 alert exists because the human reading a bank statement is the one who gets it wrong. See
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
+
+**A deferral is a calendar, not a figure.** Importing a resolución writes the letter and one
+**pending** movement per non-zero part of each fracción, in a single transaction. Nothing reaches a
+casilla until an instalment is marked paid — every fiscal view filters `Status = 'paid'` — and when
+one is, only its **interés** is deductible: `Trabajo › Intereses de demora` at 100 % (casilla 0203),
+while the principal and the recargo sit in `Trabajo › Impuestos` at 0 % and enter no box at all.
+Two things must not be "simplified": the per-fracción split is read from ANEXO I and never derived
+(AEAT loads the rounding remainder onto the last one), and the tipo reaches `verifyDeferral()` as
+printed, because its tolerance is built on that figure being a truncation. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Aplazamientos y fraccionamientos.
 
 **SharedDivisor vs DeductionPercent:**
 These two fields serve distinct purposes and are independent:
@@ -837,6 +863,9 @@ These two fields serve distinct purposes and are independent:
 | GET / POST | `/api/fiscal/assets?year=2026` | Fixed assets with a dotación that year / register one |
 | GET | `/api/fiscal/assets/:id` | The asset plus its full year-by-year amortization schedule |
 | PUT / DELETE | `/api/fiscal/assets/:id` | Update / delete (the purchase transaction is left untouched) |
+| GET / POST | `/api/fiscal/deferrals?year=2026&modeloType=130` | Stored resolutions / import a confirmed one (letter + instalments, one transaction) |
+| GET | `/api/fiscal/deferrals/:id` | The resolution, its ANEXO I rebuilt from the movements, and the verdict |
+| PUT / DELETE | `/api/fiscal/deferrals/:id` | Update the header / delete it and its **still-pending** instalments |
 
 **Constants:**
 
@@ -845,12 +874,15 @@ export const QUERY_KEY = {
   // ... existing keys
   FISCAL: 'fiscal',
   FIXED_ASSETS: 'fixed-assets',
+  DEFERRALS: 'deferrals',
 } as const;
 
 export const API_ENDPOINT = {
   // ... existing endpoints
   FISCAL: '/api/fiscal',
   FIXED_ASSETS: '/api/fiscal/assets',
+  DEFERRALS: '/api/fiscal/deferrals',
+  DEFERRALS_EXTRACT: '/api/fiscal/deferrals/extract',
 } as const;
 
 // The tabla de amortización simplificada, keyed by the grupo number the AEAT uses,
@@ -858,6 +890,15 @@ export const API_ENDPOINT = {
 export const AMORTIZATION_GROUP = { 1: { group: 1, coefficientPercent: 3, maxYears: 68 }, /* ... */ } as const;
 export const AMORTIZATION = { ERD_MULTIPLIER: 2 } as const;
 export const AMORTIZATION_CASILLA_OPTIONS = ['0208', '0227'] as const;
+
+// The three parts of a fracción — the literals of the "Transactions"."DeferralPart" CHECK —
+// and their deductible share. Not a preference: two are non-deductible by article
+export const DEFERRAL_PART = { PRINCIPAL: 'principal', SURCHARGE: 'recargo', INTEREST: 'interes' } as const;
+export const DEFERRAL_PART_DEDUCTION_PERCENT = { principal: 0, recargo: 0, interes: 100 } as const;
+export const DEFERRAL_INTEREST_CASILLA = MODELO_100_CASILLA.C0203;  // gasto financiero, not 0206
+export const DEFERRAL_CATEGORY = { PARENT_NAME: 'Trabajo', INTEREST_SUBCATEGORY_NAME: 'Intereses de demora', TAX_SUBCATEGORY_NAME: 'Impuestos' } as const;
+export const DEFERRAL_CHECK = { PRINCIPAL_TOTAL: 'principal-total', /* ... */ INTEREST_ACCRUAL: 'interest-accrual' } as const;
+export const DEFERRAL_MAX_FRACCIONES = 120;
 ```
 
 ### 7. Skydiving Module (Jump Log & Tunnel Sessions)
@@ -1265,6 +1306,7 @@ formatCurrency(41928) // → "419,28 €"
 | `FiscalDeadlineSettings` | Reminder preferences |
 | `FiscalProfiles` | Per-year fiscal facts: pension contributions, IVA pool opening |
 | `FixedAssets` | Inmovilizado: base, in-service date and rate. The yearly dotación is derived, never stored |
+| `Deferrals` | AEAT aplazamientos: the resolución's header and its three totals. ANEXO I is not stored — the fracciones are `Transactions` rows |
 | `ExchangeCredentials`, `ExchangeApiCallLog`, `CryptoSyncJobs` | Crypto: keys, call audit, sync jobs |
 | `CryptoRawEvents`, `CryptoPriceCache`, `TaxableEvents`, `CryptoDisposals` | Crypto: ingestion → FIFO pipeline |
 | `Users` | User accounts with locale preference |
@@ -1298,6 +1340,12 @@ SkydiveJumps
 
 TunnelSessions
   └── TransactionID → Transactions (SET NULL on delete)
+
+Deferrals
+  ├── FiscalDocumentID → FiscalDocuments (SET NULL on delete)
+  └── ← Transactions.DeferralID (SET NULL) + DeferralFraccionNumber + DeferralPart
+      one movement per non-zero part of each fracción; a different axis from
+      TransactionGroupID, which groups the parts of ONE fracción
 ```
 
 ### Pre-calculated Views

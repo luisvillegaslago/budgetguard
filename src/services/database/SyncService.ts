@@ -143,6 +143,36 @@ export const SYNCABLE_TABLES: TableConfig[] = [
     ],
   },
   {
+    // Before "Transactions", which points here through "DeferralID".
+    //
+    // "FiscalDocumentID" is deliberately NOT backed up: "Transactions" -> "Deferrals" ->
+    // "FiscalDocuments" -> "Transactions" is a cycle, and no linear order satisfies all three
+    // (schema.sql breaks the same cycle with its only CASCADE drop). The link to the archived PDF
+    // is the cheapest of the three to lose — it is a pointer to a document the backup already
+    // holds, while dropping "DeferralID" would orphan every instalment of every resolution.
+    // Declared in INTENTIONALLY_EXCLUDED of sync-config-columns.test.ts.
+    table: 'Deferrals',
+    pk: 'DeferralID',
+    descriptionColumn: 'ExpedienteNumber',
+    hasUpdatedAt: true,
+    columns: [
+      'DeferralID',
+      'UserID',
+      'ExpedienteNumber',
+      'ModeloType',
+      'FiscalYear',
+      'FiscalQuarter',
+      'LiquidacionNumber',
+      'InterestStartDate',
+      'InterestRatePercent',
+      'PrincipalCents',
+      'SurchargeCents',
+      'InterestCents',
+      'CreatedAt',
+      'UpdatedAt',
+    ],
+  },
+  {
     table: 'Transactions',
     pk: 'TransactionID',
     descriptionColumn: 'Description',
@@ -167,6 +197,9 @@ export const SYNCABLE_TABLES: TableConfig[] = [
       'CompanyID',
       'VoucherID',
       'VoucherUnits',
+      'DeferralID',
+      'DeferralFraccionNumber',
+      'DeferralPart',
       'UserID',
       'CreatedAt',
       'UpdatedAt',

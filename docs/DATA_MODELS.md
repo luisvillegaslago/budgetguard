@@ -836,6 +836,121 @@ amortization rules.
 
 ---
 
+#### Deferrals
+
+An AEAT **RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO**: the letter's header and its three totals.
+The instalments are not stored here — they are `Transactions` rows pointing back at this one, split
+into the three legally distinct parts of a fracción. Only the intereses de demora are deductible,
+and as a *financial* expense (casilla 0203). The rules live in
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Aplazamientos y fraccionamientos.
+
+```sql
+CREATE TABLE "Deferrals" (
+    "DeferralID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    "ExpedienteNumber" VARCHAR(30) NOT NULL,
+    "ModeloType" VARCHAR(10) NOT NULL CHECK ("ModeloType" IN ('303', '130', '390', '100')),
+    "FiscalYear" INT NOT NULL,
+    "FiscalQuarter" INT NULL CHECK ("FiscalQuarter" BETWEEN 1 AND 4),
+    "LiquidacionNumber" VARCHAR(30) NULL,
+    "InterestStartDate" DATE NOT NULL,
+    "InterestRatePercent" NUMERIC(6,3) NOT NULL,
+    "PrincipalCents" INT NOT NULL,
+    "SurchargeCents" INT NOT NULL DEFAULT 0,
+    "InterestCents" INT NOT NULL,
+    "FiscalDocumentID" INT NULL REFERENCES "FiscalDocuments"("DocumentID") ON DELETE SET NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CK_Deferrals_Amounts" CHECK (
+        "PrincipalCents" > 0 AND "SurchargeCents" >= 0 AND "InterestCents" >= 0
+    ),
+    CONSTRAINT "CK_Deferrals_Rate" CHECK (
+        "InterestRatePercent" > 0 AND "InterestRatePercent" <= 100
+    ),
+    CONSTRAINT "CK_Deferrals_Quarter" CHECK (
+        ("ModeloType" IN ('390', '100') AND "FiscalQuarter" IS NULL)
+        OR ("ModeloType" IN ('303', '130') AND "FiscalQuarter" IS NOT NULL)
+    ),
+    CONSTRAINT "UQ_Deferrals_UserExpediente" UNIQUE ("UserID", "ExpedienteNumber")
+);
+
+CREATE INDEX "IX_Deferrals_UserYear" ON "Deferrals"("UserID", "FiscalYear");
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `DeferralID` | SERIAL | Auto-increment primary key |
+| `UserID` | INT | FK to Users (CASCADE) |
+| `ExpedienteNumber` | VARCHAR(30) | AEAT's identifier for the resolution, e.g. `'282640560363H'`. Unique per user |
+| `ModeloType` | VARCHAR(10) | The modelo being deferred — **not** the letter's own date |
+| `FiscalYear` | INT | Year of the deferred period |
+| `FiscalQuarter` | INT NULL | 1-4 for 303/130; NULL for the annual 390/100 |
+| `LiquidacionNumber` | VARCHAR(30) NULL | Número de liquidación of the deuda, when the letter states one |
+| `InterestStartDate` | DATE | "Fecha de Intereses": the last day of the periodo voluntario. **Interest runs from the day after** |
+| `InterestRatePercent` | NUMERIC(6,3) | Interés de demora as printed, e.g. `4.062` — stored, never re-derived from the year |
+| `PrincipalCents` | INT | Totals row of ANEXO I: the tax being deferred. No expense at all |
+| `SurchargeCents` | INT | Recargo de apremio. Its own figure, non-deductible (art. 15.c LIS) |
+| `InterestCents` | INT | Intereses de demora — the only deductible part (casilla 0203) |
+| `FiscalDocumentID` | INT NULL | The archived letter in `FiscalDocuments` (SET NULL) |
+
+**`TotalDeudaCents` is deliberately absent.** It is `Principal + Surcharge + Interest`, and a stored
+copy could only drift from its own three parts. Note that the letter's own
+`Importe total deuda (1+2)` column is principal **+ recargo**, not the principal — reading it as the
+principal is how 416,24 € of non-deductible recargo once hid inside a figure treated as tax paid.
+
+**The header totals are not the source of the split.** AEAT loads the rounding remainder onto the
+last fracción (781,66 ×5, then 781,69), so the per-fracción amounts are read from ANEXO I and stored
+on the transactions. These three columns exist to be *checked against* the sum of those rows.
+
+##### The link: three columns on `"Transactions"`, not a join table
+
+```sql
+    "DeferralID" INT NULL,
+    "DeferralFraccionNumber" SMALLINT NULL,
+    "DeferralPart" VARCHAR(10) NULL
+        CHECK ("DeferralPart" IN ('principal', 'recargo', 'interes')),
+    CONSTRAINT "CK_Transactions_Deferral" CHECK (
+        "DeferralID" IS NULL
+        OR ("DeferralFraccionNumber" IS NOT NULL AND "DeferralPart" IS NOT NULL)
+    )
+
+ALTER TABLE "Transactions"
+ADD CONSTRAINT "FK_Transactions_Deferral"
+    FOREIGN KEY ("DeferralID") REFERENCES "Deferrals"("DeferralID") ON DELETE SET NULL;
+
+CREATE INDEX "IX_Transactions_Deferral" ON "Transactions"("DeferralID", "DeferralFraccionNumber")
+    WHERE "DeferralID" IS NOT NULL;
+```
+
+The relation is one-to-many: a fracción belongs to exactly one resolution and could never belong to
+two. A join table would permit that meaningless state and then need a UNIQUE constraint to forbid it
+again — a column with extra steps, plus a join on every read. `VoucherID`, `TripID` and
+`RecurringExpenseID` are the same shape and are all plain columns.
+
+`DeferralPart` exists because the principal and the recargo are coded **identically** (both 0 %
+deduction, both the "Impuestos" subcategory), so nothing else in the row tells them apart — and the
+verification has to be able to sum the interés rows on their own.
+
+**This is not `TransactionGroupID`.** That column groups the parts of *one* fracción, which are paid
+together; `DeferralID` groups the fracciones with each other. The group answers "what did this
+instalment cost me", the deferral answers "what is left of this resolution".
+
+`CK_Transactions_Deferral` is stated one-way on purpose. `ON DELETE SET NULL` means deleting a
+resolution nulls `DeferralID` on rows that are otherwise perfectly valid, and a symmetric
+all-three-or-none check would reject them. What survives is the useful half: the row still records
+that it was the interés of fracción 3, it just no longer names the letter.
+
+**There is no fracciones table.** ANEXO I is rebuilt on read by folding the movements back up
+(`SUM("AmountCents") FILTER (WHERE "DeferralPart" = …)`), which is what makes verifying a stored
+deferral a real check rather than a tautology.
+
+**The drop is `DROP TABLE IF EXISTS "Deferrals" CASCADE`** — the only CASCADE in that block of
+`schema.sql`. `Transactions → Deferrals → FiscalDocuments → Transactions` is a three-table cycle no
+linear drop order satisfies; the CASCADE only removes a FK constraint from a table the same script
+recreates a few lines below, so it can never reach data.
+
+---
+
 ### Skydiving Tables
 
 #### SkydiveJumps
@@ -1278,10 +1393,18 @@ Users
 ├── FiscalDocuments.UserID → Users.UserID
 ├── FiscalDeadlineSettings.UserID → Users.UserID (UNIQUE)
 ├── FiscalProfiles.UserID → Users.UserID (CASCADE, UNIQUE per FiscalYear)
-└── FixedAssets.UserID → Users.UserID (CASCADE)
+├── FixedAssets.UserID → Users.UserID (CASCADE)
+└── Deferrals.UserID → Users.UserID (CASCADE, UNIQUE per ExpedienteNumber)
 
 FixedAssets
 └── TransactionID → Transactions.TransactionID (SET NULL)
+
+Deferrals
+├── FiscalDocumentID → FiscalDocuments.DocumentID (SET NULL)
+└── ← Transactions.DeferralID (SET NULL)
+    └── + DeferralFraccionNumber + DeferralPart ('principal' | 'recargo' | 'interes')
+        Transactions → Deferrals → FiscalDocuments → Transactions is a cycle;
+        schema.sql breaks it with its only CASCADE drop
 
 Invoices
 ├── PrefixID → InvoicePrefixes.PrefixID
@@ -1757,6 +1880,122 @@ The repository exposes one more shape for the fiscal models, `AmortizationPeriod
 (`{ totalCents, byCasilla: Map<AmortizationCasilla, number> }`), returned by
 `getAmortizationCentsForPeriod()`. It is keyed by `AmortizationCasilla` rather than `string` so a
 caller cannot invent a third box.
+
+### Deferral
+
+An AEAT resolución de aplazamiento/fraccionamiento. **Amounts travel in cents all the way to the
+wire here**, unlike every other module: this payload is a machine reading a printed table, not a
+human typing euros, so there is no euro edge to convert — and inventing a float round-trip would
+destroy the very cents the module is about (the remainder AEAT loads onto the last fracción).
+
+```typescript
+export interface Deferral {
+  deferralId: number;
+  expedienteNumber: string;         // AEAT's own id, e.g. '282640560363H'
+  modeloType: ModeloType;           // The modelo being deferred, not the letter's date
+  fiscalYear: number;
+  fiscalQuarter: FiscalQuarter | null;   // null only for the annual modelos (390, 100)
+  liquidacionNumber: string | null;
+  interestStartDate: string;        // "Fecha de Intereses" — interest runs from the day AFTER
+  interestRatePercent: number;      // As printed, e.g. 4.062 (a truncation of 4,0625 %)
+  principalCents: number;           // The tax itself. Not an expense
+  surchargeCents: number;           // Recargo de apremio. NOT deductible (art. 15.c LIS)
+  interestCents: number;            // The only deductible part, as a financial expense (0203)
+  fiscalDocumentId: number | null;  // The archived letter, once uploaded
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeferralInput = Omit<Deferral, 'deferralId' | 'createdAt' | 'updatedAt'>;
+export type DeferralUpdateInput = Partial<DeferralInput>;
+```
+
+There is no `totalDeudaCents`: it is the sum of the three parts and a stored copy could only drift
+from them.
+
+```typescript
+// One row of ANEXO I. READ from the letter, never derived — AEAT loads the rounding
+// remainder onto the last fracción (781,66 ×5 then 781,69; 489,17 ×3 then 489,20)
+export interface DeferralFraccion {
+  fraccionNumber: number;           // 1..N, in printed order
+  principalCents: number;
+  surchargeCents: number;
+  interestCents: number;
+  totalCents: number;               // "Total del plazo" as printed — kept to be checked
+  dueDate: string;                  // "Fecha de vencimiento", 'YYYY-MM-DD'
+}
+
+// The three parts plus their sum. The shape of both a header and a column total
+export interface DeferralTotals {
+  principalCents: number;
+  surchargeCents: number;
+  interestCents: number;
+  totalCents: number;               // Always derived, never stored
+}
+```
+
+`totalCents` on a fracción is redundant with its three parts **on purpose**: requiring it turns a
+single misread digit into a rejected payload instead of a silently absorbed one. It is checked,
+never filled in.
+
+#### ExtractedDeferralData
+
+What Claude Vision returns for one letter. Every header field is nullable because a page can be
+unreadable in one corner and perfect in the rest, and a null is something the confirm screen can act
+on.
+
+```typescript
+export interface ExtractedDeferralData {
+  expedienteNumber: string | null;
+  modeloType: ModeloType | null;
+  fiscalYear: number | null;        // Derived in code from the fecha de intereses, not asked of the model
+  fiscalQuarter: FiscalQuarter | null;
+  liquidacionNumber: string | null;
+  interestStartDate: string | null;
+  interestRatePercent: number | null;
+  principalCents: number | null;    // The TOTALS row of ANEXO I, transcribed
+  surchargeCents: number | null;
+  interestCents: number | null;
+  fracciones: DeferralFraccion[];   // Empty when the table could not be read at all
+  confidence: number;               // 0..1
+}
+```
+
+**The period is derived, never read.** No letter prints an ejercicio or a periodo; what it prints is
+the *Fecha de Intereses*, the close of the voluntary period of the modelo being deferred.
+`deriveDeferralPeriod()` maps its month (Apr→1T, Jul→2T, Oct→3T, Jan→4T of year−1; annual modelos →
+year−1, no quarter) and returns `null/null` rather than guessing on any other month. The prompt
+forbids the model returning either field.
+
+#### DeferralVerdict
+
+The letter checked against itself — a list of findings, never a boolean.
+
+```typescript
+export interface DeferralVerificationIssue {
+  check: DeferralCheck;             // 'principal-total' | 'fraccion-total' | 'interest-accrual' | …
+  fraccionNumber: number | null;    // null when the finding is about the resolution as a whole
+  expected: number;                 // What the letter states
+  actual: number;                   // What its own rows add up to
+  difference: number;               // actual − expected. Signed: which way it leans names the misread
+}
+
+export interface DeferralVerdict {
+  isValid: boolean;                 // True when `issues` is empty
+  declaredTotals: DeferralTotals;   // The totals row of ANEXO I as printed
+  computedTotals: DeferralTotals;   // The same, obtained by adding the fracciones
+  issues: DeferralVerificationIssue[];
+}
+```
+
+`Transaction` gained `deferralId?`, `deferralFraccionNumber?` and `deferralPart?: DeferralPart | null`.
+They are **optional**, not nullable-required: absent means "not selected by this query", an explicit
+`null` means "not part of a deferral".
+
+`DeferralPart` (`'principal' | 'recargo' | 'interes'` — the DB CHECK literals) and `DeferralCheck`
+come from `src/constants/finance.ts`, alongside `DEFERRAL_PART_DEDUCTION_PERCENT` (0 / 0 / 100),
+`DEFERRAL_INTEREST_CASILLA` (= `MODELO_100_CASILLA.C0203`), `DEFERRAL_CATEGORY` and
+`DEFERRAL_MAX_FRACCIONES`.
 
 ### Company
 
@@ -2738,6 +2977,55 @@ Three deliberate differences from the neighbouring schemas:
   carries no group to check against), so the PUT route re-runs the same function against the merged
   row. Libertad de amortización is expressed as a custom rate with `amortizationGroup: null`, which
   this net deliberately does not catch.
+
+---
+
+### Deferral Schemas
+
+`src/schemas/deferral.ts`. **Amounts arrive in cents, not euros** — the one module where they do.
+Everywhere else a form is filled by a human typing euros and the route edge converts; this payload
+is a machine reading a printed table, already whole cents by the time it is proposed. Converting
+through a float would invent a rounding step the document does not have, and the cents of these
+letters are the entire point.
+
+```typescript
+export const DeferralModeloSchema = z.enum(['303', '130', '390', '100']);
+
+export const DeferralFraccionSchema = z.object({
+  fraccionNumber: requiredPositiveInt(...),
+  principalCents: centsField(...),             // Read from this row, never divided out of the total
+  surchargeCents: centsField(...).default(0),  // Recargo de apremio — its own column
+  interestCents: centsField(...),
+  totalCents: centsField(...),                 // "Total del plazo" as printed
+  dueDate: z.coerce.date(),
+}).refine(fraccionAddsUp, { path: ['totalCents'] });
+
+export const CreateDeferralSchema = DeferralHeaderObjectSchema
+  .extend({ fracciones: z.array(DeferralFraccionSchema).min(1).max(DEFERRAL_MAX_FRACCIONES) })
+  .refine(quarterMatchesModelo, { path: ['fiscalQuarter'] })
+  .refine(fraccionesAreSequential, { path: ['fracciones'] })
+  .refine(totalsReconcile, { path: ['fracciones'] });
+
+export const UpdateDeferralSchema = DeferralHeaderObjectSchema.partial().refine(/* quarter rule */);
+export const DeferralFiltersSchema = z.object({ year: …, modeloType: DeferralModeloSchema.optional() });
+```
+
+Four things are deliberate:
+
+- **`z.number().int()`, never `z.coerce`.** A `"781,66"` arriving here is the extractor having
+  emitted euros, and coercion would turn it into 781 cents without a word. It must fail.
+- **The three refinements check the letter against itself and never recompute a split.** Per row,
+  `principal + recargo + interés === totalCents`; the fracciones numbered 1..N without gaps; and
+  each column summing to its header total. A split that reconciles to the printed totals is the
+  document's own — that is what licenses storing it as read. Verified against the live letters:
+  781,66 ×5 + 781,69 = 4.689,99 and 489,17 ×3 + 489,20 = 1.956,71.
+- **`quarterMatchesModelo()` is exported**, because the PUT route must re-apply it to the *merged*
+  row — `{ fiscalQuarter: 2 }` on a stored Modelo 390 passes the partial schema and would meet
+  `CK_Deferrals_Quarter` as a 500 instead of a field error. Same reason as `coefficientFitsGroup()`.
+- **`ExtractedDeferralRawSchema` checks shapes, never sums.** It deliberately omits the refinements
+  above: a letter that does not reconcile must still reach the confirm screen, where the
+  `DeferralVerdict` can name the fracción and the cents. A rejected extraction shows the user nothing
+  to correct. `CreateDeferralSchema` is the arithmetic gate, at the point of storage.
 
 ---
 

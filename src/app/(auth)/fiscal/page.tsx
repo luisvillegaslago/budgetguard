@@ -8,8 +8,9 @@
  * Filing status badges with contextual upload (pre-filled modelo metadata).
  */
 
-import { Calculator, CheckCircle2 } from 'lucide-react';
+import { Calculator, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { DeferralImportWizard } from '@/components/fiscal/DeferralImportWizard';
 import { FiscalCrossQuarterInvoices } from '@/components/fiscal/FiscalCrossQuarterInvoices';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDeadlinePanel } from '@/components/fiscal/FiscalDeadlinePanel';
@@ -56,6 +57,7 @@ export default function FiscalPage() {
   const { t } = useTranslate();
   const { searchParams, updateParams } = useUrlParams('/fiscal');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isDeferralOpen, setIsDeferralOpen] = useState(false);
 
   // Read filters from URL (defaults: current year, current quarter, quarterly view)
   const year = Number(searchParams.get('year')) || new Date().getFullYear();
@@ -110,6 +112,21 @@ export default function FiscalPage() {
           >
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {t('fiscal.modelo-upload.cta')}
+          </button>
+          {/* The other half of a filed modelo: the resolution AEAT sends back when the payment is
+              deferred. Secondary, because filing comes first and deferring is the exception. */}
+          <button
+            type="button"
+            onClick={() => setIsDeferralOpen(true)}
+            title={t('fiscal.deferrals.cta-hint')}
+            className={cn(
+              'inline-flex items-center gap-2 px-5 py-2.5',
+              'bg-card border border-border text-foreground font-semibold rounded-lg hover:bg-muted',
+              'transition-all duration-200 ease-out-quart active:scale-[0.98]',
+            )}
+          >
+            <CalendarClock className="h-4 w-4 text-guard-primary" aria-hidden="true" />
+            {t('fiscal.deferrals.cta')}
           </button>
         </div>
 
@@ -228,6 +245,10 @@ export default function FiscalPage() {
           onClose={() => setIsUploadOpen(false)}
         />
       )}
+
+      {/* Deferral wizard — reads the AEAT resolution and books each fracción split into
+          principal / recargo / intereses, of which only the last is a deductible expense */}
+      {isDeferralOpen && <DeferralImportWizard defaultYear={year} onClose={() => setIsDeferralOpen(false)} />}
     </div>
   );
 }

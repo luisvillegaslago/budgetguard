@@ -1133,6 +1133,127 @@
       "description": "Remember to submit the tax debt deferral request at the Agencia Tributaria electronic office.",
       "open-link": "Go to Sede Electrónica (RB01)"
     },
+    "deferrals": {
+      "title": "Deferrals and instalment plans",
+      "subtitle": "An instalment is paid in one go, but it is three different items and only one of them is deductible.",
+      "cta": "I received a deferral resolution",
+      "cta-hint": "Upload the letter and the instalments are created already split",
+      "empty": "No deferrals recorded yet",
+      "empty-hint": "Upload the resolution AEAT sent you when it granted the deferral",
+      "upload": {
+        "title": "Upload the AEAT resolution",
+        "description": "It is the letter titled \"RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO\" that lands in your Sede Electrónica inbox when AEAT grants the deferral: it carries the instalment table with its due dates and interest.",
+        "accepted-formats": "PDF or image (JPG, PNG, GIF or WEBP), up to 10 MB.",
+        "drag-drop": "Drag and drop the resolution here",
+        "browse": "Browse files",
+        "submit": "Read the resolution",
+        "analyzing": "Reading the resolution...",
+        "analyzing-hint": "Extracting the instalment table: principal, surcharge, interest and due dates"
+      },
+      "confirm": {
+        "title": "Check what we read",
+        "description": "Compare it against the letter before creating anything. Amounts are taken exactly as printed: AEAT loads the rounding remainder onto the last instalment, so the split is never recomputed.",
+        "header-title": "Resolution details",
+        "fracciones-title": "Granted instalments (ANEXO I)",
+        "totals-row": "Totals",
+        "period": "Q{quarter} {year}",
+        "confidence": "Reading confidence",
+        "low-confidence": "Low-confidence reading: check it figure by figure before continuing.",
+        "edit-hint": "Fix any amount that does not match the letter.",
+        "back": "Upload another resolution",
+        "submit": "Continue"
+      },
+      "fields": {
+        "expediente-number": "Case number",
+        "concept": "Concept",
+        "modelo-type": "Deferred modelo",
+        "fiscal-year": "Tax year",
+        "fiscal-quarter": "Period",
+        "liquidacion-number": "Assessment number",
+        "interest-start-date": "Interest start date",
+        "interest-start-date-hint": "End of the voluntary period: interest runs from the following day",
+        "interest-rate": "Late-payment interest rate",
+        "interest-rate-hint": "The one printed in ANEXO II of the resolution",
+        "principal": "Principal amount",
+        "surcharge": "Enforcement surcharge",
+        "interest": "Late-payment interest",
+        "total": "Total debt"
+      },
+      "columns": {
+        "fraccion": "Instalment",
+        "principal": "Principal",
+        "surcharge": "Surcharge",
+        "interest": "Interest",
+        "total": "Instalment total",
+        "due-date": "Due date"
+      },
+      "verification": {
+        "title": "Resolution check",
+        "description": "The instalments are added up and compared against the totals the letter declares itself. A split is never recomputed from the interest rate.",
+        "valid": "Everything adds up: the instalments match the resolution's totals exactly.",
+        "invalid": "There are {count} discrepancies between the instalments and the resolution's totals. Check them against the letter before continuing.",
+        "expected": "Per the resolution",
+        "actual": "Sum of the instalments",
+        "recomputed": "Recomputed (art. 53 RGR)",
+        "difference": "Difference",
+        "fraccion-label": "Instalment {number}",
+        "header-label": "Resolution totals",
+        "checks": {
+          "principal-total": "The instalment principals do not add up to the resolution's total principal.",
+          "surcharge-total": "The instalment surcharges do not add up to the resolution's total surcharge.",
+          "interest-total": "The instalment interest does not add up to the resolution's total interest.",
+          "fraccion-total": "The instalment total does not match its own principal, surcharge and interest.",
+          "fraccion-sequence": "The instalments are not numbered 1 to N: one is missing, extra or repeated.",
+          "due-date-order": "The due dates do not run forward, or one falls before the interest start date.",
+          "interest-accrual": "This instalment's interest does not match the days it accrues over: base \u00d7 rate \u00d7 days / 365 (art. 53 RGR)."
+        }
+      },
+      "parts": {
+        "title": "Why each instalment is split in three",
+        "description": "You pay a single charge, but for tax purposes it is three items with different treatment. That is why each instalment creates one movement per item instead of a single one for the total.",
+        "deductible": "{percent}% deductible",
+        "principal": {
+          "label": "Principal",
+          "description": "It is the VAT or income tax you already owed. Paying a tax is not an expense, so none of it is deductible.",
+          "deduction": "Not an expense"
+        },
+        "recargo": {
+          "label": "Enforcement surcharge",
+          "description": "Never deductible: enforcement-period surcharges are excluded by art. 15.c LIS.",
+          "deduction": "Not deductible"
+        },
+        "interes": {
+          "label": "Late-payment interest",
+          "description": "The only deductible part, and as a financial expense: it goes to box 0203 of Modelo 100 (DGT V4080-15 and STS 150/2021).",
+          "deduction": "100% deductible"
+        }
+      },
+      "outcome": {
+        "title": "What will be created",
+        "description": "One pending movement per item with an amount, dated on its instalment's due date.",
+        "movements": "{count} pending movements across {fracciones} instalments",
+        "no-surcharge-note": "Instalments without a surcharge create no surcharge movement: it only appears if the letter prints one.",
+        "pending-note": "They are created as pending, on the due date the letter states.",
+        "models-note": "Each movement enters the models the day you mark it as paid: until then it counts in neither Modelo 130 nor Modelo 100.",
+        "interest-note": "Interest is created at 100% deduction and box 0203; principal and surcharge at 0%.",
+        "create": "Create {count} movements",
+        "creating": "Creating movements...",
+        "back": "Back to review"
+      },
+      "success": {
+        "title": "Deferral recorded",
+        "description": "{count} pending movements were created. You will find them in Movements, each on its own due date.",
+        "view-movements": "View the movements",
+        "close": "Close"
+      },
+      "errors": {
+        "file-required": "Select the resolution you want to upload.",
+        "not-a-deferral": "This document is not an AEAT deferral or instalment resolution. Upload the letter titled \"RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO\".",
+        "unreadable": "The instalment table could not be read. If the PDF is scanned or skewed, try a sharp capture of the ANEXO I page.",
+        "already-imported": "Case {expediente} is already recorded: its movements were created on {date}.",
+        "already-imported-generic": "This case is already recorded."
+      }
+    },
     "deadlines": {
       "panel-title": "AEAT Deadlines",
       "panel-title-year": "AEAT Deadlines {year}",
@@ -2171,7 +2292,16 @@
     "api-key-length": "The API key must be 50–80 characters long",
     "api-key-format": "The API key may only contain letters and numbers",
     "api-secret-length": "The API secret must be 50–80 characters long",
-    "api-secret-format": "The API secret may only contain letters and numbers"
+    "api-secret-format": "The API secret may only contain letters and numbers",
+    "expediente-required": "Case number is required",
+    "expediente-too-long": "Case number is too long",
+    "liquidacion-too-long": "Assessment number is too long",
+    "invalid-interest-rate": "Invalid late-payment interest rate",
+    "fracciones-required": "The resolution must have at least one instalment",
+    "too-many-fracciones": "Too many instalments",
+    "fraccion-sequence-invalid": "Instalments must be numbered 1 to N with no gaps",
+    "fraccion-total-mismatch": "The instalment total does not match principal + surcharge + interest",
+    "deferral-totals-mismatch": "The instalments do not add up to the resolution's totals"
   },
   "api-error": {
     "unauthorized": "You need to sign in to access this resource",
@@ -2196,14 +2326,16 @@
       "billing-profile": "Billing profile not found",
       "crypto-credentials": "No exchange credentials connected",
       "crypto-sync-job": "Sync job not found",
-      "fixed-asset": "Fixed asset not found"
+      "fixed-asset": "Fixed asset not found",
+      "deferral": "Deferral not found"
     },
     "conflict": {
       "has-transactions": "This category has linked transactions",
       "has-subcategories": "This category has subcategories",
       "prefix-in-use": "This prefix has invoices and cannot be deleted",
       "prefix-exists": "A series with this prefix already exists",
-      "future-occurrence": "Cannot process a future occurrence"
+      "future-occurrence": "Cannot process a future occurrence",
+      "deferral-expediente-exists": "A deferral with that case number already exists"
     },
     "invoice": {
       "category-required-for-paid": "An income category is required to mark as paid",
@@ -2222,7 +2354,9 @@
       "metadata-required": "Document metadata is required",
       "extraction-failed": "Could not analyze the document",
       "detection-failed": "Could not analyse the document",
-      "download-failed": "Could not download the document"
+      "download-failed": "Could not download the document",
+      "deferral-extraction-failed": "Could not read the deferral resolution",
+      "deferral-totals-mismatch": "The instalments do not add up to the resolution's totals"
     },
     "skydive": {
       "not-voucher-consumption": "This transaction is not a voucher consumption",
@@ -2268,7 +2402,8 @@
         "voucher": "Error creating voucher",
         "group": "Error creating transaction group",
         "fixed-asset": "Error registering fixed asset",
-        "crypto-credentials": "Error saving Binance credentials"
+        "crypto-credentials": "Error saving Binance credentials",
+        "deferral": "Error creating the deferral"
       },
       "update": {
         "transaction": "Error updating transaction",
@@ -2286,7 +2421,8 @@
         "fiscal-status": "Error updating document status",
         "fiscal-settings": "Error updating fiscal settings",
         "fiscal-profile": "Error saving the annual fiscal profile",
-        "fixed-asset": "Error updating fixed asset"
+        "fixed-asset": "Error updating fixed asset",
+        "deferral": "Error updating the deferral"
       },
       "delete": {
         "transaction": "Error deleting transaction",
@@ -2302,7 +2438,8 @@
         "voucher": "Error deleting voucher",
         "fiscal-document": "Error deleting document",
         "fixed-asset": "Error deleting fixed asset",
-        "crypto-credentials": "Error disconnecting Binance"
+        "crypto-credentials": "Error disconnecting Binance",
+        "deferral": "Error deleting the deferral"
       },
       "import": {
         "jumps": "Error importing jumps",
@@ -2327,7 +2464,8 @@
       "categories": "Failed to load categories",
       "category-history": "Failed to load category history",
       "vouchers": "Failed to load vouchers",
-      "fixed-assets": "Failed to load fixed assets"
+      "fixed-assets": "Failed to load fixed assets",
+      "deferrals": "Could not load deferrals"
     }
   },
   "pages": {

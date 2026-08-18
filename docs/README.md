@@ -11,7 +11,7 @@ Complete documentation for the BudgetGuard family expense tracking system.
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture, data flow, state management | architecture, providers, Zustand, TanStack Query, data flow |
 | [API_REFERENCE.md](./API_REFERENCE.md) | REST API endpoints, request/response formats | API, endpoints, routes, REST, HTTP |
 | [DATA_MODELS.md](./DATA_MODELS.md) | Database schema, TypeScript types, Zod schemas | database, schema, types, interfaces, validation, Zod |
-| [FISCAL_DOMAIN.md](./FISCAL_DOMAIN.md) | The Spanish tax rules the app encodes, and the invariants that must not be broken | fiscal, AEAT, IRPF, IVA, modelo 303/130/390/100, casillas, devengo, deadlines |
+| [FISCAL_DOMAIN.md](./FISCAL_DOMAIN.md) | The Spanish tax rules the app encodes, and the invariants that must not be broken | fiscal, AEAT, IRPF, IVA, modelo 303/130/390/100, casillas, devengo, deadlines, amortización, aplazamientos |
 | [CRYPTO_MODULE.md](./CRYPTO_MODULE.md) | Exchange ingestion → normalisation → FIFO → Modelo 100 | crypto, Binance, Kraken, Coinbase, FIFO, disposals, casilla 1804, sync |
 | [DESIGN.md](./DESIGN.md) | Brand colors, design tokens, accessibility, design principles | design, colors, tokens, focus, accessibility |
 | [TESTING_STRATEGY.md](./TESTING_STRATEGY.md) | Testing approach, test structure, guidelines | tests, jest, integration, unit, component |
@@ -35,7 +35,7 @@ Covers the overall system design:
 - Performance optimizations
 - API route handler wrapper (`withApiHandler`) pattern
 - CI/CD pipeline (GitHub Actions)
-- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal, Skydiving, Companies, Invoicing, Fiscal Documents (with OCR extraction), Fiscal Deadlines
+- Feature modules: Hierarchical Categories, Shared Expenses, Recurring Expenses, Transaction Groups, Trips, Fiscal (incl. inmovilizado and AEAT aplazamientos), Skydiving, Companies, Invoicing, Fiscal Documents (with OCR extraction), Fiscal Deadlines, Vouchers, Crypto
 
 ### FISCAL_DOMAIN.md
 
@@ -46,6 +46,9 @@ The domain knowledge behind the fiscal module — required reading before changi
 - The IVA a compensar pool, its 4-year expiry and the refund window
 - Amortization: the 300 € threshold, the tabla simplificada, the ×2 of art. 103 LIS, and why an
   asset's purchase is expense for IVA but not for IRPF
+- Aplazamientos: why an AEAT instalment is three legally different things and only the intereses de
+  demora are deductible — as a financial expense, casilla 0203 — and why the split is read from the
+  letter and never derived
 - The IRPF provision: progressive scale, mínimo personal, pension limits (arts. 51-52)
 - Deadlines: working-day extension, domiciliación cut-off, Renta window per campaign
 - A table of invariants and what breaks when each is violated
@@ -83,6 +86,7 @@ Complete API documentation:
   - `POST /api/fiscal/documents/:id/extract` + `POST /api/fiscal/documents/:id/link-transaction`
   - `POST /api/fiscal/documents/bulk` + `GET /api/fiscal/documents/:id/download`
   - `GET /api/fiscal/deadlines` + `GET/PUT /api/fiscal/deadlines/settings`
+  - `GET/POST /api/fiscal/deferrals` + `GET/PUT/DELETE /api/fiscal/deferrals/:id`
   - `GET/POST /api/skydiving/jumps` + `GET/PUT/DELETE /:id` + `POST /import`
   - `GET/POST /api/skydiving/tunnel` + `PUT/DELETE /:id` + `POST /import`
   - `GET /api/skydiving/stats` + `GET /api/skydiving/categories`
@@ -102,6 +106,7 @@ Database and type definitions:
   - Trips (multi-day travel expense tracking)
   - RecurringExpenses + RecurringExpenseOccurrences
   - SkydiveJumps + TunnelSessions (skydiving module)
+  - FixedAssets (inmovilizado) + Deferrals (AEAT aplazamientos; the fracciones live on Transactions)
   - Users, Accounts, Sessions, VerificationTokens (NextAuth)
 - Database views (vw_MonthlySummary, vw_MonthlyBalance, vw_SubcategorySummary)
 - Indexes and triggers
@@ -237,6 +242,7 @@ When asked about BudgetGuard, read the appropriate documentation:
 | "Companies?" | ARCHITECTURE.md + API_REFERENCE.md |
 | "Fiscal documents?" | ARCHITECTURE.md + API_REFERENCE.md |
 | "Fiscal deadlines?" | ARCHITECTURE.md + API_REFERENCE.md |
+| "Aplazamientos / deferrals?" | FISCAL_DOMAIN.md + API_REFERENCE.md |
 | "API handler wrapper?" | ARCHITECTURE.md (withApiHandler section) |
 
 ---
@@ -257,6 +263,9 @@ When asked about BudgetGuard, read the appropriate documentation:
 | `src/schemas/company.ts` | Zod schemas for companies |
 | `src/schemas/invoice.ts` | Zod schemas for invoices |
 | `src/schemas/fiscal-document.ts` | Zod schemas for fiscal documents |
+| `src/schemas/deferral.ts` | Zod schemas for AEAT deferrals (amounts in **cents**, not euros) |
+| `src/utils/deferral.ts` | `verifyDeferral()` — checks a resolución against itself, never derives a split |
+| `src/services/DeferralImportService.ts` | Deferral import: which parts exist, what each is worth, which casilla |
 | `src/utils/invoicePdf.ts` | Invoice PDF generation utilities |
 | `src/services/InvoiceFinalizeService.ts` | Invoice finalize orchestration (validate→PDF→blob→FiscalDocument) |
 | `src/services/ocr/DocumentExtractor.ts` | Claude Vision OCR extraction service |

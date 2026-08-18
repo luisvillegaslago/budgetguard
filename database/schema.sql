@@ -29,6 +29,7 @@ DROP TRIGGER IF EXISTS "TR_FiscalDocuments_UpdatedAt" ON "FiscalDocuments";
 DROP TRIGGER IF EXISTS "TR_FiscalDeadlineSettings_UpdatedAt" ON "FiscalDeadlineSettings";
 DROP TRIGGER IF EXISTS "TR_FiscalProfiles_UpdatedAt" ON "FiscalProfiles";
 DROP TRIGGER IF EXISTS "TR_FixedAssets_UpdatedAt" ON "FixedAssets";
+DROP TRIGGER IF EXISTS "TR_Deferrals_UpdatedAt" ON "Deferrals";
 DROP TRIGGER IF EXISTS "TR_ExchangeCredentials_UpdatedAt" ON "ExchangeCredentials";
 DROP TRIGGER IF EXISTS "TR_CryptoSyncJobs_UpdatedAt" ON "CryptoSyncJobs";
 DROP TRIGGER IF EXISTS "TR_TaxableEvents_UpdatedAt" ON "TaxableEvents";
@@ -64,6 +65,12 @@ DROP TABLE IF EXISTS "CryptoSyncJobs";
 DROP TABLE IF EXISTS "ExchangeApiCallLog";
 DROP TABLE IF EXISTS "ExchangeCredentials";
 DROP TABLE IF EXISTS "FixedAssets";
+-- CASCADE, unlike every other drop in this block. "Transactions" references "Deferrals",
+-- "Deferrals" references "FiscalDocuments", and "FiscalDocuments" references "Transactions":
+-- a three-table cycle that no linear drop order can satisfy. The CASCADE drops only the
+-- dependent FK constraint, on a "Transactions" table this same script drops and recreates
+-- a few lines below — it can never reach data.
+DROP TABLE IF EXISTS "Deferrals" CASCADE;
 DROP TABLE IF EXISTS "FiscalProfiles";
 DROP TABLE IF EXISTS "FiscalDeadlineSettings";
 DROP TABLE IF EXISTS "FiscalDocuments";
@@ -188,6 +195,18 @@ CREATE TABLE "Transactions" (
         CHECK ("Status" IN ('paid', 'pending', 'cancelled')),
     "VoucherID" INT NULL,
     "VoucherUnits" NUMERIC(10,2) NULL,
+    -- The aplazamiento/fraccionamiento this row is one piece of. FK added after "Deferrals"
+    -- exists, like "VoucherID". See the "Deferrals" comment for why these are three columns
+    -- here and not a join table.
+    "DeferralID" INT NULL,
+    -- Which fracción of the resolution (1..N of ANEXO I), so a row can be matched back to the
+    -- letter's own line without inferring it from the due date
+    "DeferralFraccionNumber" SMALLINT NULL,
+    -- Which of the three legally distinct parts of that fracción this row carries. Principal and
+    -- recargo are both non-deductible and are coded identically, so nothing else in the row tells
+    -- them apart, and only this column lets the interest rows be summed on their own.
+    "DeferralPart" VARCHAR(10) NULL
+        CHECK ("DeferralPart" IN ('principal', 'recargo', 'interes')),
     "CompanyID" INT NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -197,7 +216,19 @@ CREATE TABLE "Transactions" (
     CONSTRAINT "FK_Transactions_Trip"
         FOREIGN KEY ("TripID") REFERENCES "Trips"("TripID"),
     CONSTRAINT "FK_Transactions_Company"
-        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL
+        FOREIGN KEY ("CompanyID") REFERENCES "Companies"("CompanyID") ON DELETE SET NULL,
+    -- A linked row must say which fracción and which part it is: a "DeferralID" with no part
+    -- would be an instalment whose tax treatment is unknown, which is the state this module
+    -- exists to eliminate.
+    --
+    -- Stated one-way, not as all-three-or-none, because "FK_Transactions_Deferral" is
+    -- ON DELETE SET NULL: deleting the resolution nulls "DeferralID" and would break a symmetric
+    -- check on rows that are perfectly valid. What survives is the useful half — the row still
+    -- records that it was the interés of fracción 3, it just no longer names the letter.
+    CONSTRAINT "CK_Transactions_Deferral" CHECK (
+        "DeferralID" IS NULL
+        OR ("DeferralFraccionNumber" IS NOT NULL AND "DeferralPart" IS NOT NULL)
+    )
 );
 
 -- Indexes for efficient querying
@@ -217,6 +248,9 @@ CREATE INDEX "IX_Transactions_UserID" ON "Transactions"("UserID");
 CREATE INDEX "IX_Transactions_CompanyID" ON "Transactions"("CompanyID");
 CREATE INDEX "IX_Transactions_Status" ON "Transactions"("Status");
 CREATE INDEX "IX_Transactions_VoucherID" ON "Transactions"("VoucherID");
+-- Every read is "the fracciones of this resolution, in order"
+CREATE INDEX "IX_Transactions_Deferral" ON "Transactions"("DeferralID", "DeferralFraccionNumber")
+    WHERE "DeferralID" IS NOT NULL;
 
 -- ============================================================
 -- RECURRING EXPENSES
@@ -1120,6 +1154,103 @@ CREATE INDEX "IX_FixedAssets_UserInService" ON "FixedAssets"("UserID", "InServic
 
 CREATE TRIGGER "TR_FixedAssets_UpdatedAt"
     BEFORE UPDATE ON "FixedAssets"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Aplazamientos / fraccionamientos: one row per AEAT "RESOLUCION DE APLAZAMIENTO/
+-- FRACCIONAMIENTO", the letter that splits a filed modelo into dated instalments.
+--
+-- WHY THE FRACCIONES ARE "Transactions" AND THIS IS NOT. A fracción is money that leaves the
+-- account on a date, so it is a movement and belongs in "Transactions" like any other — it is
+-- what the balance, the summaries and the cash-flow charts have to see. The resolution itself
+-- moves no money: it is the document that says how one debt was split and what it costs. Booking
+-- it as a transaction would double every instalment. So this table holds only the letter's own
+-- header, and each fracción is one or more "Transactions" rows pointing back at it.
+--
+-- WHY THE THREE TOTALS ARE SEPARATE COLUMNS, AND WHY A FRACCION IS SEVERAL ROWS. Of a deferral
+-- only the intereses de demora are a deductible expense, and a financial one — Modelo 100
+-- casilla 0203 (DGT V4080-15, STS 150/2021). The principal is the IVA or IRPF payment itself and
+-- is no expense at all. The recargo de apremio is expressly non-deductible (art. 15.c LIS). The
+-- three therefore carry three different fiscal codings and cannot share a transaction: booking a
+-- fracción whole is what left 95 EUR of deductible interest invisible for two years. The recargo
+-- is its own column, never folded into the principal: it is zero on the three letters read so
+-- far and was 1.346,57 EUR on an earlier one.
+--
+-- The totals below are the letter's, transcribed. They are not the source of the split: AEAT
+-- loads the rounding remainder onto the LAST fracción (781,66 x5 then 781,69), so the per-fracción
+-- amounts are read from ANEXO I and stored on the transactions. These header figures exist to be
+-- checked against the sum of those rows, not to derive them.
+--
+-- "Total deuda" is not stored: it is PrincipalCents + SurchargeCents + InterestCents, and a
+-- stored copy could only drift from its own parts.
+--
+-- WHY A COLUMN ON "Transactions" AND NOT A JOIN TABLE. The relation is one-to-many, not
+-- many-to-many: a fracción belongs to exactly one resolution and could never belong to two. A
+-- join table would allow that meaningless state and need a UNIQUE constraint to forbid it again
+-- — a column with extra steps, plus a join on every read. "VoucherID", "TripID" and
+-- "RecurringExpenseID" are the same shape and are all plain columns.
+--
+-- NOTE THIS IS NOT "TransactionGroupID". That column groups the parts of ONE fracción (its
+-- principal, its recargo and its interés, which are paid together). "DeferralID" groups the
+-- fracciones with each other. Two different axes, both needed: the group answers "what did this
+-- instalment cost me", the deferral answers "what is left of this resolution".
+CREATE TABLE "Deferrals" (
+    "DeferralID" SERIAL PRIMARY KEY,
+    "UserID" INT NOT NULL REFERENCES "Users"("UserID") ON DELETE CASCADE,
+    -- Expediente number printed in the header, e.g. '282640560363H'. AEAT's own identity for
+    -- the resolution, and the natural key that stops the same letter being loaded twice
+    "ExpedienteNumber" VARCHAR(30) NOT NULL,
+    -- The modelo and period being deferred, NOT the date the letter was issued
+    "ModeloType" VARCHAR(10) NOT NULL CHECK ("ModeloType" IN ('303', '130', '390', '100')),
+    "FiscalYear" INT NOT NULL,
+    "FiscalQuarter" INT NULL CHECK ("FiscalQuarter" BETWEEN 1 AND 4),
+    -- Número de liquidación of the deuda being deferred, when the letter states it
+    "LiquidacionNumber" VARCHAR(30) NULL,
+    -- "Fecha de Intereses": the last day of the periodo voluntario. Interest runs from the DAY
+    -- AFTER this date, which is why it is stored as printed and never used as a start date
+    "InterestStartDate" DATE NOT NULL,
+    -- Interés de demora applied by the resolution, e.g. 4.062. Stored, never re-derived from the
+    -- year: the rate is fixed by the Ley de Presupuestos and a recomputation would rewrite the
+    -- interest of a letter already accepted
+    "InterestRatePercent" NUMERIC(6,3) NOT NULL,
+    -- The three parts of the deuda, as totalled by ANEXO I (cents convention)
+    "PrincipalCents" INT NOT NULL,
+    -- Recargo de apremio. Non-deductible (art. 15.c LIS) and usually zero, never merged into
+    -- the principal: the two are only equal by accident
+    "SurchargeCents" INT NOT NULL DEFAULT 0,
+    -- Intereses de demora. The only deductible part, as a gasto financiero (casilla 0203)
+    "InterestCents" INT NOT NULL,
+    -- The archived letter itself. SET NULL so re-uploading the PDF never destroys the deferral
+    "FiscalDocumentID" INT NULL REFERENCES "FiscalDocuments"("DocumentID") ON DELETE SET NULL,
+    "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- A deferral with no principal defers nothing; recargo and interés may legitimately be zero
+    CONSTRAINT "CK_Deferrals_Amounts" CHECK (
+        "PrincipalCents" > 0 AND "SurchargeCents" >= 0 AND "InterestCents" >= 0
+    ),
+    CONSTRAINT "CK_Deferrals_Rate" CHECK (
+        "InterestRatePercent" > 0 AND "InterestRatePercent" <= 100
+    ),
+    -- Same rule as "FiscalDocuments": annual modelos (390, 100) carry no quarter
+    CONSTRAINT "CK_Deferrals_Quarter" CHECK (
+        ("ModeloType" IN ('390', '100') AND "FiscalQuarter" IS NULL)
+        OR ("ModeloType" IN ('303', '130') AND "FiscalQuarter" IS NOT NULL)
+    ),
+    -- One resolution, one row. Per user, because the expediente is AEAT's number, not ours
+    CONSTRAINT "UQ_Deferrals_UserExpediente" UNIQUE ("UserID", "ExpedienteNumber")
+);
+
+-- Every read is "the resolutions of this user for a fiscal year"
+CREATE INDEX "IX_Deferrals_UserYear" ON "Deferrals"("UserID", "FiscalYear");
+
+-- Link Transactions → Deferrals (added after "Deferrals" exists, like "FK_Transactions_Voucher").
+-- SET NULL rather than CASCADE: deleting the resolution must not delete instalments that were
+-- really paid, it must only forget which letter they came from.
+ALTER TABLE "Transactions"
+ADD CONSTRAINT "FK_Transactions_Deferral"
+    FOREIGN KEY ("DeferralID") REFERENCES "Deferrals"("DeferralID") ON DELETE SET NULL;
+
+CREATE TRIGGER "TR_Deferrals_UpdatedAt"
+    BEFORE UPDATE ON "Deferrals"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================

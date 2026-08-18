@@ -138,6 +138,7 @@ export const QUERY_KEY = {
   FISCAL_DEADLINE_SETTINGS: 'fiscal-deadline-settings',
   FISCAL_PROFILE: 'fiscal-profile',
   FIXED_ASSETS: 'fixed-assets',
+  DEFERRALS: 'deferrals',
   CRYPTO_CREDENTIALS: 'crypto-credentials',
   CRYPTO_SYNC_STATUS: 'crypto-sync-status',
   CRYPTO_EVENTS: 'crypto-events',
@@ -203,6 +204,8 @@ export const API_ENDPOINT = {
   FISCAL_DEADLINE_SETTINGS: '/api/fiscal/deadlines/settings',
   FISCAL_PROFILE: '/api/fiscal/profile',
   FIXED_ASSETS: '/api/fiscal/assets',
+  DEFERRALS: '/api/fiscal/deferrals',
+  DEFERRALS_EXTRACT: '/api/fiscal/deferrals/extract',
   CRYPTO_CREDENTIALS: '/api/crypto/credentials',
   CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
   CRYPTO_SYNC: '/api/crypto/sync',
@@ -587,6 +590,108 @@ export const AMORTIZATION_CASILLA_OPTIONS = [MODELO_100_CASILLA.C0208, MODELO_10
 
 export type AmortizationCasilla = (typeof AMORTIZATION_CASILLA_OPTIONS)[number];
 
+// ============================================================
+// APLAZAMIENTOS / FRACCIONAMIENTOS (AEAT deferrals)
+// ============================================================
+
+/**
+ * The three legally distinct parts of one fracción of an aplazamiento. They are paid together
+ * and are three different things, so each is booked as its own transaction:
+ *
+ * - **principal** — the IVA or IRPF being paid. Not an expense at all: it is the tax itself.
+ * - **recargo** — recargo de apremio. Expressly NOT deductible (art. 15.c LIS).
+ * - **interes** — intereses de demora. The only deductible part, and deductible as a *financial*
+ *   expense (DGT V4080-15, STS 150/2021), so it lands in casilla 0203 and nowhere else.
+ *
+ * These are the literals of the "Transactions"."DeferralPart" CHECK constraint in
+ * database/schema.sql; they must not drift apart.
+ */
+export const DEFERRAL_PART = {
+  PRINCIPAL: 'principal',
+  SURCHARGE: 'recargo',
+  INTEREST: 'interes',
+} as const;
+
+export type DeferralPart = (typeof DEFERRAL_PART)[keyof typeof DEFERRAL_PART];
+
+/** The three parts in the order ANEXO I prints its columns. */
+export const DEFERRAL_PART_OPTIONS = [
+  DEFERRAL_PART.PRINCIPAL,
+  DEFERRAL_PART.SURCHARGE,
+  DEFERRAL_PART.INTEREST,
+] as const;
+
+/**
+ * The deductible share of each part, as a `DeductionPercent`. Not a preference: two of the three
+ * are non-deductible by article, and the third is fully deductible. Booking a fracción whole is
+ * what once left 95 EUR of interest undeducted and let a whole instalment be marked 100%
+ * deductible by a stray click.
+ */
+export const DEFERRAL_PART_DEDUCTION_PERCENT = {
+  [DEFERRAL_PART.PRINCIPAL]: 0,
+  [DEFERRAL_PART.SURCHARGE]: 0,
+  [DEFERRAL_PART.INTEREST]: 100,
+} as const;
+
+/**
+ * Intereses de demora are *gastos financieros*, not "otros tributos": Modelo 100 casilla 0203.
+ * The distinction is the whole point of the module — see DGT V4080-15 and STS 150/2021.
+ */
+export const DEFERRAL_INTEREST_CASILLA = MODELO_100_CASILLA.C0203;
+
+/**
+ * The well-known subcategories (under "Trabajo") the parts of a fracción are booked into, seeded
+ * for every user by seedCategoriesForUser() and by database/seed.sql.
+ *
+ * The interés goes to the one carrying casilla 0203 ({@link DEFERRAL_INTEREST_CASILLA}) — the
+ * whole reason the parts are split. The principal and the recargo go to "Impuestos", where the
+ * user already books what is paid to the AEAT; its own casilla (0206) is never reached, because
+ * both parts are stored at 0 % deduction and a row with nothing deductible enters no box.
+ */
+export const DEFERRAL_CATEGORY = {
+  PARENT_NAME: 'Trabajo',
+  INTEREST_SUBCATEGORY_NAME: 'Intereses de demora',
+  TAX_SUBCATEGORY_NAME: 'Impuestos',
+} as const;
+
+/**
+ * What a verification of an extracted resolution can disagree about.
+ *
+ * All but one compare the letter against **itself**: the sum of its ANEXO I rows against its own
+ * totals row. None of them recomputes a *split* — AEAT loads the rounding remainder onto the last
+ * fracción (781,66 x5 then 781,69), so a recomputed split is wrong by up to a few cents per
+ * instalment and may never be treated as the source.
+ *
+ * `INTEREST_ACCRUAL` is the exception and the only one that recomputes anything: it re-derives
+ * each fracción's interest from art. 53 RGR. It is also the only one with a tolerance, because
+ * the letter prints its own rate truncated (4,062 for a real 4,0625 %).
+ */
+export const DEFERRAL_CHECK = {
+  /** Sum of the fracciones' principal != the header's principal */
+  PRINCIPAL_TOTAL: 'principal-total',
+  /** Sum of the fracciones' recargo != the header's recargo */
+  SURCHARGE_TOTAL: 'surcharge-total',
+  /** Sum of the fracciones' intereses != the header's intereses */
+  INTEREST_TOTAL: 'interest-total',
+  /** A row's "total del plazo" != its own principal + recargo + interés */
+  FRACCION_TOTAL: 'fraccion-total',
+  /** No fracción was read at all, or their numbering is not 1..N without gaps */
+  FRACCION_SEQUENCE: 'fraccion-sequence',
+  /** The vencimientos do not run forward, or one falls on/before the fecha de intereses */
+  DUE_DATE_ORDER: 'due-date-order',
+  /** A row's interés does not match base x tipo x días / (100 x 365) — art. 53 RGR */
+  INTEREST_ACCRUAL: 'interest-accrual',
+} as const;
+
+export type DeferralCheck = (typeof DEFERRAL_CHECK)[keyof typeof DEFERRAL_CHECK];
+
+/**
+ * Ceiling on the number of fracciones a single resolution may carry. AEAT grants far fewer (the
+ * live letters have four and six), so this only stops a misread table from creating hundreds of
+ * pending movements.
+ */
+export const DEFERRAL_MAX_FRACCIONES = 120;
+
 // Invoice Statuses
 export const INVOICE_STATUS = {
   DRAFT: 'draft',
@@ -919,6 +1024,7 @@ export const API_ERROR = {
     CATEGORY_HISTORY: 'api-error.load.category-history',
     VOUCHERS: 'api-error.load.vouchers',
     FIXED_ASSETS: 'api-error.load.fixed-assets',
+    DEFERRALS: 'api-error.load.deferrals',
   },
   NOT_FOUND: {
     TRANSACTION: 'api-error.not-found.transaction',
@@ -938,6 +1044,7 @@ export const API_ERROR = {
     DOCUMENT_BLOB: 'api-error.not-found.document-blob',
     BILLING_PROFILE: 'api-error.not-found.billing-profile',
     FIXED_ASSET: 'api-error.not-found.fixed-asset',
+    DEFERRAL: 'api-error.not-found.deferral',
     CRYPTO_CREDENTIALS: 'api-error.not-found.crypto-credentials',
     CRYPTO_SYNC_JOB: 'api-error.not-found.crypto-sync-job',
   },
@@ -947,6 +1054,7 @@ export const API_ERROR = {
     PREFIX_IN_USE: 'api-error.conflict.prefix-in-use',
     PREFIX_EXISTS: 'api-error.conflict.prefix-exists',
     FUTURE_OCCURRENCE: 'api-error.conflict.future-occurrence',
+    DEFERRAL_EXPEDIENTE_EXISTS: 'api-error.conflict.deferral-expediente-exists',
   },
   INVOICE: {
     CATEGORY_REQUIRED_FOR_PAID: 'api-error.invoice.category-required-for-paid',
@@ -966,6 +1074,8 @@ export const API_ERROR = {
     EXTRACTION_FAILED: 'api-error.fiscal.extraction-failed',
     DETECTION_FAILED: 'api-error.fiscal.detection-failed',
     DOWNLOAD_FAILED: 'api-error.fiscal.download-failed',
+    DEFERRAL_EXTRACTION_FAILED: 'api-error.fiscal.deferral-extraction-failed',
+    DEFERRAL_TOTALS_MISMATCH: 'api-error.fiscal.deferral-totals-mismatch',
   },
   SKYDIVE: {
     NOT_VOUCHER_CONSUMPTION: 'api-error.skydive.not-voucher-consumption',
@@ -1010,6 +1120,7 @@ export const API_ERROR = {
       VOUCHER: 'api-error.mutation.create.voucher',
       GROUP: 'api-error.mutation.create.group',
       FIXED_ASSET: 'api-error.mutation.create.fixed-asset',
+      DEFERRAL: 'api-error.mutation.create.deferral',
       CRYPTO_CREDENTIALS: 'api-error.mutation.create.crypto-credentials',
     },
     UPDATE: {
@@ -1029,6 +1140,7 @@ export const API_ERROR = {
       FISCAL_SETTINGS: 'api-error.mutation.update.fiscal-settings',
       FISCAL_PROFILE: 'api-error.mutation.update.fiscal-profile',
       FIXED_ASSET: 'api-error.mutation.update.fixed-asset',
+      DEFERRAL: 'api-error.mutation.update.deferral',
     },
     DELETE: {
       TRANSACTION: 'api-error.mutation.delete.transaction',
@@ -1044,6 +1156,7 @@ export const API_ERROR = {
       VOUCHER: 'api-error.mutation.delete.voucher',
       FISCAL_DOCUMENT: 'api-error.mutation.delete.fiscal-document',
       FIXED_ASSET: 'api-error.mutation.delete.fixed-asset',
+      DEFERRAL: 'api-error.mutation.delete.deferral',
       CRYPTO_CREDENTIALS: 'api-error.mutation.delete.crypto-credentials',
     },
     IMPORT: {
@@ -1117,4 +1230,13 @@ export const VALIDATION_KEY = {
   API_KEY_FORMAT: 'validation.api-key-format',
   API_SECRET_LENGTH: 'validation.api-secret-length',
   API_SECRET_FORMAT: 'validation.api-secret-format',
+  EXPEDIENTE_REQUIRED: 'validation.expediente-required',
+  EXPEDIENTE_TOO_LONG: 'validation.expediente-too-long',
+  LIQUIDACION_TOO_LONG: 'validation.liquidacion-too-long',
+  INVALID_INTEREST_RATE: 'validation.invalid-interest-rate',
+  FRACCIONES_REQUIRED: 'validation.fracciones-required',
+  TOO_MANY_FRACCIONES: 'validation.too-many-fracciones',
+  FRACCION_SEQUENCE_INVALID: 'validation.fraccion-sequence-invalid',
+  FRACCION_TOTAL_MISMATCH: 'validation.fraccion-total-mismatch',
+  DEFERRAL_TOTALS_MISMATCH: 'validation.deferral-totals-mismatch',
 } as const;

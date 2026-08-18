@@ -4,7 +4,8 @@ The tax rules BudgetGuard encodes, and why the code looks the way it does.
 
 The other documents describe *what* the fiscal module is: its tables, its types, its endpoints.
 This one describes the *domain* those things model. Read it before changing anything under
-`src/utils/fiscal*.ts`, `src/utils/irpf.ts`, `src/services/database/FiscalRepository.ts` or the
+`src/utils/fiscal*.ts`, `src/utils/irpf.ts`, `src/utils/deferral.ts`,
+`src/services/database/FiscalRepository.ts` or the
 `vw_Fiscal*` views — every rule below was reached by reconciling the app against real filed
 modelos, and most of them have already been broken once.
 
@@ -31,6 +32,7 @@ overwrite it.
 - [Modelo 390 — annual IVA](#modelo-390--annual-iva)
 - [Modelo 100 — Renta](#modelo-100--renta)
 - [Amortización del inmovilizado](#amortización-del-inmovilizado)
+- [Aplazamientos y fraccionamientos](#aplazamientos-y-fraccionamientos)
 - [The IRPF provision](#the-irpf-provision)
 - [Pension contributions](#pension-contributions)
 - [Deadlines](#deadlines)
@@ -443,6 +445,194 @@ becomes deductible again.
 
 ---
 
+## Aplazamientos y fraccionamientos
+
+When AEAT grants a deferral it sends a **RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO**: a header, an
+**ANEXO I** with one row per fracción, and an **ANEXO II** with the liquidación de intereses behind
+those rows. What later leaves the bank account is one charge per fracción — and that charge is
+three legally different things paid together.
+
+Until this module existed the instalments were typed into Movimientos by hand, **whole**, as
+pending expenses. That is the failure this section is about.
+
+### One instalment, three fates
+
+| Part | What it is | Deductible | Where it lands |
+|------|------------|------------|----------------|
+| **Principal** | The IVA or the IRPF being deferred | **Not an expense at all** — it is the tax | Nowhere |
+| **Recargo de apremio** | Surcharge of the período ejecutivo | **No**, expressly (art. 15.c LIS) | Nowhere |
+| **Intereses de demora** | The price of paying late | **Yes, in full** | Modelo 100 **casilla 0203** |
+
+The interés is a **gasto financiero**, not "otros tributos" (0206), and that distinction is the
+whole point of the module. DGT **V4080-15** classifies intereses de demora tributarios as financial
+expenses; STS **150/2021** settled that they are deductible at all, against the earlier reading that
+a cost arising from the taxpayer's own default could not be. `DEFERRAL_INTEREST_CASILLA` names that
+box and nothing else may point at it.
+
+**Booking the instalment whole has already cost money, in both directions.** The interest is never
+deducted — 95 € of it sat invisible for two years — and one instalment ended up marked 100 %
+deductible by a stray click, which is the same error with the sign reversed: the tax itself deducted
+as an expense.
+
+### How AEAT builds the calendar (art. 53 RGR)
+
+The principal is split into N fracciones falling due on the **5th or the 20th** of a month (art.
+45.2 RGR). Interest is then liquidated **per fracción**, on that fracción's principal, from the day
+after the **fecha de intereses** — the close of the periodo voluntario, printed in the header — up to
+its own vencimiento:
+
+```
+interés = base × tipo × días / (100 × 365)
+```
+
+Three consequences, all of them visible in the letters:
+
+- **The instalments increase.** The principal is flat; every fracción accrues over a longer span
+  than the one before it, on the same base. A calendar whose instalments are equal is not a
+  fraccionamiento of AEAT.
+- **The base is the principal alone.** The recargo de apremio is *not* in it — the letter says so
+  verbatim ("la base para el cálculo de intereses no incluirá el recargo del período ejecutivo").
+- **The tipo is fixed by the Ley de Presupuestos**, interés legal × 1,25 (art. 26.6 LGT). It is
+  stored as printed and never re-derived from the year: recomputing it would rewrite the interest of
+  a letter already accepted.
+
+> Expediente **282640560363H** — Modelo 130 2T 2026, tipo 4,062 %, fecha de intereses 20-07-2026,
+> so interest runs from the 21st:
+>
+> ```
+>   #   principal    interés   total del plazo   vencimiento   días
+>   1     781,66       5,39         787,05       21-09-2026     62
+>   2     781,66       8,00         789,66       20-10-2026     92
+>   3     781,66      10,70         792,36       20-11-2026    123
+>   4     781,66      13,31         794,97       21-12-2026    153
+>   5     781,66      16,01         797,67       20-01-2027    184
+>   6     781,69      18,71         800,40       22-02-2027    215
+>       ─────────   ────────      ─────────
+>        4.689,99      72,12       4.762,11
+> ```
+
+### The remainder lands on the LAST fracción — so the split is read, never derived
+
+AEAT does **not** keep the principal constant. It divides, rounds, and loads the leftover cents onto
+the final row:
+
+| Letter | Principal | Split |
+|--------|-----------|-------|
+| 282640560363H | 4.689,99 € | 781,66 ×5, then **781,69** |
+| 282640432002C | 1.956,71 € | 489,17 ×3, then **489,20** |
+
+Dividing the total by N is off by up to three cents per instalment, and this project already made
+that mistake by hand. **ANEXO I is the source of the split.** Everything downstream — the schema,
+the extractor prompt, the verification — is built so that a derived split can never become the
+stored one. The header totals exist to be *checked against* the rows, not to generate them.
+
+The same rule governs the interest column: the last fracción absorbs its rounding too
+(282640560363H #6 works out to 18,70 on its own and is printed as 18,71, so the column adds to
+72,12).
+
+### Two columns that get conflated — both have already been misread
+
+**1. `Importe total deuda (1+2)` is not the principal.** It is principal + recargo. On expediente
+**282540627253E**, requested in período ejecutivo:
+
+```
+principal 2.081,21 €   recargo de apremio 416,24 €   total deuda 2.497,45 €   intereses 42,08 €
+```
+
+Reading 2.497,45 as the principal buries **416,24 € of non-deductible recargo** inside a figure
+treated as tax paid — exactly the state art. 15.c LIS forbids and this module exists to prevent. The
+same letter proves the base rule above: its whole recargo sits on a **sixth fracción of 0,01 € of
+principal**, which therefore accrues **0,00 € of interest over 272 días**.
+
+**2. The vencimiento in ANEXO I is already moved off a día inhábil; ANEXO II accrues to the day it
+was moved from.** Fracción 1 above falls due **21-09-2026** but is liquidated over **62 días**,
+ending 20-09. Using the printed vencimiento as the accrual end breaks the day count on five of the
+sixteen real rows. `interestAccrualEndDate()` rolls a vencimiento back to the 5th or the 20th when
+it sits within four days of one, and takes it at face value otherwise.
+
+> `workingDays.ts` is deliberately **not** used for that rollback. `nextWorkingDay()` is not
+> invertible — 19, 20 and 21-09-2026 all map to 21-09 — and it does not know regional holidays, so
+> it would manufacture findings rather than catch them.
+
+### What the verification checks, and what it refuses to do
+
+`verifyDeferral()` (`src/utils/deferral.ts`) returns a `DeferralVerdict`: a list of findings, never
+a boolean. Six of the seven checks compare the letter **against itself**; none of them recomputes a
+split.
+
+| Check (`DEFERRAL_CHECK`) | What it catches |
+|--------------------------|-----------------|
+| `fraccion-sequence` | No rows read at all, or a numbering that is not 1..N without gaps |
+| `fraccion-total` | A row whose printed *total del plazo* ≠ its own principal + recargo + interés |
+| `principal-total` / `surcharge-total` / `interest-total` | A column that does not add up to the totals row |
+| `due-date-order` | Vencimientos out of order, or one on/before the fecha de intereses |
+| `interest-accrual` | An interés that cannot belong to its own number of días (art. 53 RGR) |
+
+`totalCents` is required on every row precisely because it is redundant: it is the cheapest way to
+turn a single misread digit into a rejected payload instead of an absorbed one. It is checked, never
+filled in.
+
+**`interest-accrual` is the only check that derives a figure, and the only one with a tolerance.**
+The letter prints its tipo truncated — **4,062 is really 4,0625 %** — and recomputing with the
+printed value lands exactly one cent low on three of the sixteen real rows. The band is therefore
+derived rather than picked: one ulp of the printed rate plus AEAT's half-up cent,
+`ceil(base × 10⁻³ × días / 36500) + 1`. It scales with the base, so a 10.000 € deferral does not
+false-positive and an 800 € one keeps no blind spot. A three-cent disagreement is still reported —
+widening a tolerance until a finding disappears defeats the feature.
+
+The tipo must reach the verification **as printed**. "Correcting" 4,062 to 4,0625 upstream removes
+the reason the band exists.
+
+### How a resolution enters the books
+
+`DeferralImportService.importDeferral()` writes, in one transaction:
+
+- one **`Deferrals`** row — the letter's header and its three totals;
+- one **`Transactions`** row per **non-zero** part of each fracción, `Status = pending`, dated on the
+  vencimiento, `DeferralID` / `DeferralFraccionNumber` / `DeferralPart` set;
+- one **`TransactionGroups`** row per fracción that books two or more parts, so the instalment reads
+  as the single payment it is.
+
+The categories are not a preference: the interés goes to `Trabajo › Intereses de demora` at **100 %**
+deduction, the principal and the recargo to `Trabajo › Impuestos` at **0 %** (`DEFERRAL_CATEGORY`,
+`DEFERRAL_PART_DEDUCTION_PERCENT`). The 0 % is what keeps them out of every box — `getModelo100Summary()`
+only maps rows with `baseDeducibleCents > 0`, so the "Impuestos" casilla 0206 is never reached. If
+either subcategory has been deleted or renamed the import fails with a 404 and writes nothing,
+rather than booking a financial expense into the wrong box.
+
+**A zero part books nothing.** A 0,00 € recargo is a real reading — the totals row proves it was
+read — but a 0,00 € expense is noise in every list and export. The zero survives where it belongs:
+in `Deferrals.SurchargeCents`, and in the rebuilt ANEXO I, which adds up either way.
+
+**There is no fracciones table.** A fracción *is* its movements: `getDeferralFracciones()` rebuilds
+ANEXO I with `SUM(...) FILTER (WHERE "DeferralPart" = …)`. That is what makes the verdict on a
+stored deferral a real check instead of a tautology — an edited movement makes its own fracción stop
+reconciling with the header the letter printed.
+
+`DeferralPart` exists because principal and recargo are coded **identically** (both 0 %, both
+"Impuestos"), so nothing else in the row tells them apart, and the interest rows have to be
+summable on their own. It is a different axis from `TransactionGroupID`: the group answers *what did
+this instalment cost me*, `DeferralID` answers *what is left of this resolution*.
+
+### What the models actually see
+
+A fracción is booked **pending**, and every fiscal view filters `Status = 'paid'`. So a freshly
+imported resolution changes no casilla at all: it is a calendar of what is owed. Marking an
+instalment paid — which already works, and is not part of this module — is what lets its interés
+into the models, and only its interés.
+
+| Model | What of a deferral reaches it |
+|-------|-------------------------------|
+| **Modelo 130** | The paid **interés** only, inside casilla 02, in the quarter its movement is dated |
+| **Modelo 100** | The paid **interés** only, in `gastosPorCasilla` under **0203** → 0218 → 0224 |
+| **Modelo 303 / 390** | Nothing. No part of a deferral carries IVA — the principal *is* the IVA, already declared in the quarter it accrued |
+| **IRPF provision** | Through the 130 figures, like any other deductible expense |
+
+The principal and the recargo reach nothing, ever. They are movements of money the balance and the
+cash-flow charts are right about, and expenses that no tax model may count.
+
+---
+
 ## The IRPF provision
 
 Modelo 130 pays a flat 20% of the net income. The Renta charges a progressive scale. The difference
@@ -562,6 +752,11 @@ fact. **Add the new window here every year.**
 | An asset's purchase is skipped by the IRPF models only | `getAssetTransactionIds()`, applied in Modelo 130/100 and the projection | Skipped nowhere: the asset is deducted twice. Skipped everywhere: its input VAT vanishes from an already filed 303 |
 | A dotación is never a `Transactions` row | `FixedAssets` is its own table | The purchase is double-counted and every balance, summary view and cash-flow chart is falsified |
 | With a group declared, rate ≤ tabla × 2 | `coefficientFitsGroup()`, re-run by PUT against the merged row | An over-fast rate over-deducts — the exact error this module exists to prevent |
+| A fracción's split is read from ANEXO I, never divided out of the total | `CreateDeferralSchema` stores the rows as read and only checks them against the totals row | The remainder AEAT loads onto the last fracción is lost: every instalment off by up to three cents |
+| The three parts of a fracción are three rows, never one | `DeferralPart` + one movement per non-zero part | The interés is never deducted, or the principal is deducted as if it were an expense |
+| Only the interés is deductible, at 100 %, into casilla 0203 | `DEFERRAL_PART_DEDUCTION_PERCENT`, `DEFERRAL_INTEREST_CASILLA` | A non-deductible recargo (art. 15.c LIS) or the tax itself enters the base |
+| `Importe total deuda (1+2)` is never stored as the principal | `PrincipalCents` and `SurchargeCents` are separate columns; `TotalDeudaCents` is not stored at all | Recargo de apremio disappears into a figure treated as tax paid — 416,24 € on one real letter |
+| The tipo reaches the verification as printed (4,062, not 4,0625) | `accrualToleranceCents()` is derived from the printed rate's ulp | Either false findings on every long fracción, or a tolerance wide enough to hide a real one |
 
 ---
 
@@ -624,9 +819,23 @@ Open items from the fiscal audit, in the order they matter:
    - **No modificación de base imponible.** An invoice that will definitively not be paid allows the
      IVA already declared on it to be recovered (art. 80.Cuatro LIVA, with its own deadlines and
      formalities). The app flags the uncollected invoice and stops there.
-6. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
+6. **Deferrals are booked, but the calendar is not policed.** The resolution, the three-way split and
+   the verification are implemented (§ Aplazamientos y fraccionamientos). What is still manual:
+   - **Each fracción's interés is booked whole on its vencimiento**, not spread over the days it
+     accrues. A fracción due in January 2027 accrues from July 2026, so a strict devengo reading
+     would split its interés across two Rentas. The letter's own calendar is what the app follows,
+     and the amounts involved are a few euros.
+   - **No matching back to the bank.** Nothing links a real charge to the fracción it paid; the
+     instalment is marked paid by hand like any other pending movement.
+   - **No early cancellation and no recalculation.** Paying the deferral off early, or missing an
+     instalment — which sends the remaining deuda to apremio and voids the calendar — leaves the
+     booked movements as they were. The letter is a snapshot of what was granted, not a live plan.
+   - **One deferred modelo per resolution.** A letter deferring several liquidaciones is transcribed
+     in full but comes back with `liquidacionNumber: null` and a capped confidence, for a human to
+     sort out.
+7. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
    `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
-7. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
+8. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
    `MINIMO_PERSONAL_CENTS` and `PENSION_PLAN` hold the 2025-2026 figures. They are not versioned by
    year: projecting an older year applies today's scale.
 
@@ -649,6 +858,11 @@ Open items from the fiscal audit, in the order they matter:
 | Deduction of input VAT, affectation | Art. 95 Ley 37/1992; consulta V2554-23; TEAC 6654/2022 |
 | Compensation quotas expire after four years | Art. 99.5 Ley 37/1992 |
 | A deadline on a día inhábil runs to the next working day | Art. 30.5 Ley 39/2015 |
+| Recargo de apremio is not a deductible expense | Art. 15.c Ley 27/2014 (LIS) |
+| Intereses de demora tributarios are a **financial** expense, and deductible | DGT V4080-15; STS 150/2021, de 8 de febrero |
+| Interés de demora: tipo = interés legal × 1,25, fixed by the Ley de Presupuestos | Art. 26.6 Ley 58/2003 (LGT) |
+| Cálculo de intereses de un fraccionamiento, fracción by fracción | Art. 53 RD 939/2005 (RGR) |
+| Vencimientos of a fraccionamiento fall on the 5th or the 20th | Art. 45.2 RD 939/2005 (RGR) |
 
 ---
 

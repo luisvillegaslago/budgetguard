@@ -26,16 +26,25 @@ interface SumValue {
   cents: number;
 }
 
+type TriggerSize = 'sm' | 'md';
+
 interface AmountSumPopoverProps {
   // Called with the computed total (in euros) when the user applies the sum
   onApply: (totalEuros: number) => void;
   disabled?: boolean;
+  // Trigger height: 'sm' for compact rows, 'md' to stretch next to a full-size input
+  size?: TriggerSize;
 }
 
 const POPOVER_WIDTH = 240;
 const POPOVER_HEIGHT = 300;
 
-export function AmountSumPopover({ onApply, disabled }: AmountSumPopoverProps) {
+const TRIGGER_SIZE_CLASS: Record<TriggerSize, string> = {
+  sm: 'h-[34px] w-9',
+  md: 'h-full w-11',
+};
+
+export function AmountSumPopover({ onApply, disabled, size = 'sm' }: AmountSumPopoverProps) {
   const { t } = useTranslate();
   const [isOpen, setIsOpen] = useState(false);
   const [values, setValues] = useState<SumValue[]>([]);
@@ -114,7 +123,7 @@ export function AmountSumPopover({ onApply, disabled }: AmountSumPopoverProps) {
   };
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div ref={containerRef} className={cn('relative shrink-0', size === 'md' && 'self-stretch')}>
       {/* Trigger */}
       <button
         type="button"
@@ -124,7 +133,8 @@ export function AmountSumPopover({ onApply, disabled }: AmountSumPopoverProps) {
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         className={cn(
-          'flex items-center justify-center h-[34px] w-9 rounded-lg border transition-colors duration-200 ease-out-quart',
+          'flex items-center justify-center rounded-lg border transition-colors duration-200 ease-out-quart',
+          TRIGGER_SIZE_CLASS[size],
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-guard-primary/50 hover:text-guard-primary',
           isOpen
             ? 'border-guard-primary text-guard-primary ring-2 ring-guard-primary'

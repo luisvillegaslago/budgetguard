@@ -1133,6 +1133,127 @@
       "description": "Recuerda solicitar el aplazamiento de deuda tributaria en la Sede Electrónica de la Agencia Tributaria.",
       "open-link": "Ir a Sede Electrónica (RB01)"
     },
+    "deferrals": {
+      "title": "Aplazamientos y fraccionamientos",
+      "subtitle": "Un plazo se paga de una vez, pero son tres conceptos distintos y solo uno se deduce.",
+      "cta": "He recibido una resolución de aplazamiento",
+      "cta-hint": "Sube la carta y los plazos se crean ya repartidos",
+      "empty": "Todavía no hay aplazamientos registrados",
+      "empty-hint": "Sube la resolución que te envió la AEAT al concederte el aplazamiento",
+      "upload": {
+        "title": "Sube la resolución de la AEAT",
+        "description": "Es la carta titulada «RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO» que llega a tu buzón de la Sede Electrónica cuando la AEAT concede el aplazamiento: trae el cuadro de plazos con sus vencimientos e intereses.",
+        "accepted-formats": "PDF o imagen (JPG, PNG, GIF o WEBP), hasta 10 MB.",
+        "drag-drop": "Arrastra y suelta aquí la resolución",
+        "browse": "Explorar archivos",
+        "submit": "Leer la resolución",
+        "analyzing": "Leyendo la resolución...",
+        "analyzing-hint": "Extrayendo el cuadro de plazos: principal, recargo, intereses y vencimientos"
+      },
+      "confirm": {
+        "title": "Revisa lo que hemos leído",
+        "description": "Compáralo con la carta antes de crear nada. Los importes se toman tal como vienen impresos: la AEAT carga el redondeo sobre la última fracción, así que el reparto no se recalcula.",
+        "header-title": "Datos de la resolución",
+        "fracciones-title": "Plazos concedidos (ANEXO I)",
+        "totals-row": "Totales",
+        "period": "T{quarter} {year}",
+        "confidence": "Confianza de la lectura",
+        "low-confidence": "Lectura con baja confianza: repasa cifra a cifra antes de continuar.",
+        "edit-hint": "Corrige cualquier importe que no coincida con la carta.",
+        "back": "Subir otra resolución",
+        "submit": "Continuar"
+      },
+      "fields": {
+        "expediente-number": "Nº de expediente",
+        "concept": "Concepto",
+        "modelo-type": "Modelo aplazado",
+        "fiscal-year": "Ejercicio",
+        "fiscal-quarter": "Periodo",
+        "liquidacion-number": "Nº de liquidación",
+        "interest-start-date": "Fecha de intereses",
+        "interest-start-date-hint": "Fin del periodo voluntario: los intereses corren desde el día siguiente",
+        "interest-rate": "Tipo de interés de demora",
+        "interest-rate-hint": "El que figura en el ANEXO II de la resolución",
+        "principal": "Importe principal",
+        "surcharge": "Recargo de apremio",
+        "interest": "Intereses de demora",
+        "total": "Total deuda"
+      },
+      "columns": {
+        "fraccion": "Fracción",
+        "principal": "Principal",
+        "surcharge": "Recargo",
+        "interest": "Intereses",
+        "total": "Total del plazo",
+        "due-date": "Vencimiento"
+      },
+      "verification": {
+        "title": "Comprobación de la resolución",
+        "description": "Se suman las fracciones y se comparan con los totales que declara la propia carta. Nunca se recalcula un reparto a partir del tipo de interés.",
+        "valid": "Todo cuadra: las fracciones suman exactamente los totales de la resolución.",
+        "invalid": "Hay {count} discrepancias entre las fracciones y los totales de la resolución. Repásalas contra la carta antes de continuar.",
+        "expected": "Según la resolución",
+        "actual": "Suma de las fracciones",
+        "recomputed": "Recalculado (art. 53 RGR)",
+        "difference": "Diferencia",
+        "fraccion-label": "Fracción {number}",
+        "header-label": "Totales de la resolución",
+        "checks": {
+          "principal-total": "La suma de los principales no coincide con el principal total de la resolución.",
+          "surcharge-total": "La suma de los recargos no coincide con el recargo total de la resolución.",
+          "interest-total": "La suma de los intereses no coincide con los intereses totales de la resolución.",
+          "fraccion-total": "El total del plazo no coincide con la suma de su principal, su recargo y sus intereses.",
+          "fraccion-sequence": "Las fracciones no van numeradas de 1 a N: falta alguna, sobra alguna o está repetida.",
+          "due-date-order": "Los vencimientos no van en orden creciente, o alguno cae antes de la fecha de intereses.",
+          "interest-accrual": "Los intereses de esta fracci\u00f3n no cuadran con los d\u00edas que devengan: base \u00d7 tipo \u00d7 d\u00edas / 365 (art. 53 RGR)."
+        }
+      },
+      "parts": {
+        "title": "Por qué cada plazo se parte en tres",
+        "description": "Pagas un solo recibo, pero fiscalmente son tres conceptos con tratamiento distinto. Por eso cada fracción genera un movimiento por concepto y no uno solo por el total.",
+        "deductible": "Deducible al {percent} %",
+        "principal": {
+          "label": "Principal",
+          "description": "Es el IVA o el IRPF que ya debías. Pagar un impuesto no es un gasto, así que no se deduce nada.",
+          "deduction": "No es gasto"
+        },
+        "recargo": {
+          "label": "Recargo de apremio",
+          "description": "No es deducible en ningún caso: los recargos del periodo ejecutivo están excluidos por el art. 15.c LIS.",
+          "deduction": "No deducible"
+        },
+        "interes": {
+          "label": "Intereses de demora",
+          "description": "La única parte deducible, y como gasto financiero: van a la casilla 0203 del Modelo 100 (DGT V4080-15 y STS 150/2021).",
+          "deduction": "100 % deducible"
+        }
+      },
+      "outcome": {
+        "title": "Qué se va a crear",
+        "description": "Un movimiento pendiente por cada concepto con importe, fechado en el vencimiento de su fracción.",
+        "movements": "{count} movimientos pendientes repartidos en {fracciones} fracciones",
+        "no-surcharge-note": "Los plazos sin recargo no generan movimiento de recargo: aquí solo lo hay si la carta lo imprime.",
+        "pending-note": "Se crean como pendientes, con la fecha de vencimiento que marca la carta.",
+        "models-note": "Cada movimiento entra en los modelos el día que lo marcas como pagado: hasta entonces no cuenta ni en el 130 ni en el 100.",
+        "interest-note": "Los intereses se crean al 100 % de deducción y con la casilla 0203; el principal y el recargo, al 0 %.",
+        "create": "Crear {count} movimientos",
+        "creating": "Creando movimientos...",
+        "back": "Volver a revisar"
+      },
+      "success": {
+        "title": "Aplazamiento registrado",
+        "description": "Se han creado {count} movimientos pendientes. Los verás en Movimientos, cada uno en la fecha de su vencimiento.",
+        "view-movements": "Ver los movimientos",
+        "close": "Cerrar"
+      },
+      "errors": {
+        "file-required": "Selecciona la resolución que quieres subir.",
+        "not-a-deferral": "Este documento no es una resolución de aplazamiento o fraccionamiento de la AEAT. Sube la carta titulada «RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO».",
+        "unreadable": "No se ha podido leer el cuadro de plazos. Si el PDF viene escaneado o torcido, prueba con una captura nítida de la página del ANEXO I.",
+        "already-imported": "El expediente {expediente} ya está registrado: sus movimientos se crearon el {date}.",
+        "already-imported-generic": "Este expediente ya está registrado."
+      }
+    },
     "deadlines": {
       "panel-title": "Plazos AEAT",
       "panel-title-year": "Plazos AEAT {year}",
@@ -2171,7 +2292,16 @@
     "api-key-length": "La clave API debe tener entre 50 y 80 caracteres",
     "api-key-format": "La clave API solo puede contener letras y números",
     "api-secret-length": "El secreto API debe tener entre 50 y 80 caracteres",
-    "api-secret-format": "El secreto API solo puede contener letras y números"
+    "api-secret-format": "El secreto API solo puede contener letras y números",
+    "expediente-required": "El número de expediente es obligatorio",
+    "expediente-too-long": "El número de expediente es demasiado largo",
+    "liquidacion-too-long": "El número de liquidación es demasiado largo",
+    "invalid-interest-rate": "Tipo de interés de demora no válido",
+    "fracciones-required": "La resolución debe tener al menos una fracción",
+    "too-many-fracciones": "Demasiadas fracciones",
+    "fraccion-sequence-invalid": "Las fracciones deben ir numeradas de 1 a N, sin saltos",
+    "fraccion-total-mismatch": "El total del plazo no coincide con principal + recargo + intereses",
+    "deferral-totals-mismatch": "La suma de las fracciones no coincide con los totales de la resolución"
   },
   "api-error": {
     "unauthorized": "Necesitas iniciar sesión para acceder a este recurso",
@@ -2196,14 +2326,16 @@
       "billing-profile": "Perfil de facturación no encontrado",
       "crypto-credentials": "No hay credenciales de exchange conectadas",
       "crypto-sync-job": "Sincronización no encontrada",
-      "fixed-asset": "Activo no encontrado"
+      "fixed-asset": "Activo no encontrado",
+      "deferral": "Aplazamiento no encontrado"
     },
     "conflict": {
       "has-transactions": "Esta categoría tiene transacciones vinculadas",
       "has-subcategories": "Esta categoría tiene subcategorías",
       "prefix-in-use": "Este prefijo tiene facturas y no se puede eliminar",
       "prefix-exists": "Ya existe una serie con este prefijo",
-      "future-occurrence": "No se puede procesar una ocurrencia futura"
+      "future-occurrence": "No se puede procesar una ocurrencia futura",
+      "deferral-expediente-exists": "Ya existe un aplazamiento con ese número de expediente"
     },
     "invoice": {
       "category-required-for-paid": "Se requiere una categoría de ingreso para marcar como pagada",
@@ -2222,7 +2354,9 @@
       "metadata-required": "Se requieren los metadatos del documento",
       "extraction-failed": "No se pudo analizar el documento",
       "detection-failed": "No se ha podido analizar el documento",
-      "download-failed": "No se pudo descargar el documento"
+      "download-failed": "No se pudo descargar el documento",
+      "deferral-extraction-failed": "No se ha podido leer la resolución de aplazamiento",
+      "deferral-totals-mismatch": "Las fracciones no cuadran con los totales de la resolución"
     },
     "skydive": {
       "not-voucher-consumption": "Esta transacción no es un consumo de bono",
@@ -2268,7 +2402,8 @@
         "voucher": "Error al crear el bono",
         "group": "Error al crear el grupo de transacciones",
         "fixed-asset": "Error al dar de alta el activo",
-        "crypto-credentials": "Error al guardar las credenciales de Binance"
+        "crypto-credentials": "Error al guardar las credenciales de Binance",
+        "deferral": "Error al crear el aplazamiento"
       },
       "update": {
         "transaction": "Error al actualizar la transacción",
@@ -2286,7 +2421,8 @@
         "fiscal-status": "Error al actualizar el estado del documento",
         "fiscal-settings": "Error al actualizar los ajustes fiscales",
         "fiscal-profile": "Error al guardar los datos fiscales del año",
-        "fixed-asset": "Error al actualizar el activo"
+        "fixed-asset": "Error al actualizar el activo",
+        "deferral": "Error al actualizar el aplazamiento"
       },
       "delete": {
         "transaction": "Error al eliminar la transacción",
@@ -2302,7 +2438,8 @@
         "voucher": "Error al eliminar el bono",
         "fiscal-document": "Error al eliminar el documento",
         "fixed-asset": "Error al dar de baja el activo",
-        "crypto-credentials": "Error al desconectar Binance"
+        "crypto-credentials": "Error al desconectar Binance",
+        "deferral": "Error al eliminar el aplazamiento"
       },
       "import": {
         "jumps": "Error al importar saltos",
@@ -2327,7 +2464,8 @@
       "categories": "Error al cargar las categorías",
       "category-history": "Error al cargar el historial de la categoría",
       "vouchers": "Error al cargar los bonos",
-      "fixed-assets": "Error al cargar los activos"
+      "fixed-assets": "Error al cargar los activos",
+      "deferrals": "Error al cargar los aplazamientos"
     }
   },
   "pages": {

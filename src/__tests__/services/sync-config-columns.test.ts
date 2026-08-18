@@ -24,7 +24,13 @@ import { SYNCABLE_TABLES } from '@/services/database/SyncService';
 
 // Columns deliberately NOT synced, keyed by table. Adding here is a conscious
 // decision (e.g. transient/regenerable data) and keeps this test green.
-const INTENTIONALLY_EXCLUDED: Record<string, string[]> = {};
+const INTENTIONALLY_EXCLUDED: Record<string, string[]> = {
+  // "Transactions" -> "Deferrals" -> "FiscalDocuments" -> "Transactions" is a FK cycle, so no
+  // table order can satisfy all three. "Deferrals" is synced before "Transactions" (which points
+  // at it from every instalment) and its own pointer to the archived resolution PDF is the link
+  // that gives way — the document itself is still backed up, only the reference to it is not.
+  Deferrals: ['FiscalDocumentID'],
+};
 
 function parseSchemaColumns(sql: string): Map<string, Set<string>> {
   const tables = new Map<string, Set<string>>();

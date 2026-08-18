@@ -8,6 +8,8 @@ import type {
   AmortizationGroupNumber,
   CompanyRole,
   CrossQuarterCase,
+  DeferralCheck,
+  DeferralPart,
   FilingStatus,
   FiscalDocumentType,
   FiscalQuarter,
@@ -30,6 +32,8 @@ export type {
   CompanyRole,
   CrossQuarterCase,
   DateRangePreset,
+  DeferralCheck,
+  DeferralPart,
   FilingStatus,
   FiscalDocumentType,
   FiscalQuarter,
@@ -119,6 +123,17 @@ export interface Transaction {
   fiscalDocumentId: number | null;
   voucherId: number | null;
   voucherUnits: number | null;
+  /**
+   * The aplazamiento this row is one piece of; null for every ordinary movement.
+   *
+   * Optional, like `category`: the general transaction reads do not select the deferral columns,
+   * so an absent field means "not asked for" and an explicit null means "not part of a deferral".
+   */
+  deferralId?: number | null;
+  /** Which fracción of that resolution (1..N of ANEXO I) */
+  deferralFraccionNumber?: number | null;
+  /** Which of the three parts of the fracción: only the interés is deductible */
+  deferralPart?: DeferralPart | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1052,4 +1067,138 @@ export interface FiscalDeadlineSettings {
   reminderDaysBefore: number;
   postponementReminder: boolean;
   isActive: boolean;
+}
+
+// ============================================================
+// APLAZAMIENTOS / FRACCIONAMIENTOS (AEAT deferrals)
+// ============================================================
+
+/**
+ * An AEAT "RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO": the header of the letter that splits a
+ * filed modelo into dated instalments.
+ *
+ * The instalments themselves are `Transaction` rows pointing back here (see `deferralId`) — this
+ * is only the document. `totalDeudaCents` is deliberately absent: it is the sum of the three
+ * parts and a stored copy could only drift from them.
+ */
+export interface Deferral {
+  deferralId: number;
+  /** AEAT's own identifier for the resolution, e.g. '282640560363H' */
+  expedienteNumber: string;
+  /** The modelo being deferred — all three letters read so far are Modelo 130 */
+  modeloType: ModeloType;
+  fiscalYear: number;
+  /** Null only for the annual modelos (390, 100), which carry no quarter */
+  fiscalQuarter: FiscalQuarter | null;
+  liquidacionNumber: string | null;
+  /**
+   * "Fecha de Intereses": the last day of the periodo voluntario, as printed.
+   * Interest runs from the DAY AFTER it, which is why this is not called a start date.
+   */
+  interestStartDate: string;
+  /** Interés de demora of the resolution, e.g. 4.062 */
+  interestRatePercent: number;
+  /** The tax being deferred. Not an expense: it is the IVA or the IRPF itself */
+  principalCents: number;
+  /** Recargo de apremio — its own figure, never folded into the principal. NOT deductible */
+  surchargeCents: number;
+  /** Intereses de demora — the only deductible part, as a gasto financiero (casilla 0203) */
+  interestCents: number;
+  /** The archived letter in `FiscalDocuments`; null while it has not been uploaded */
+  fiscalDocumentId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Writable half of a deferral — what the repository stores. Amounts already in cents. */
+export type DeferralInput = Omit<Deferral, 'deferralId' | 'createdAt' | 'updatedAt'>;
+
+/** Same, for a partial update: an omitted field keeps its stored value. */
+export type DeferralUpdateInput = Partial<DeferralInput>;
+
+/**
+ * One row of ANEXO I: what a single fracción costs and when it falls due.
+ *
+ * **Read from the letter, never derived.** AEAT does not keep the principal constant across the
+ * fracciones: it loads the rounding remainder onto the last one (781,66 ×5 then 781,69; 489,17 ×3
+ * then 489,20). Splitting the total evenly is off by up to three cents per instalment, which is
+ * exactly the error this module exists to stop.
+ */
+export interface DeferralFraccion {
+  /** 1..N, in the order ANEXO I prints them */
+  fraccionNumber: number;
+  principalCents: number;
+  /** Recargo de apremio of this fracción. Zero on all three sample letters, 1.346,57 € on an earlier one */
+  surchargeCents: number;
+  interestCents: number;
+  /** "Total del plazo" as printed: principal + recargo + interés. Kept to be checked, not to be trusted blindly */
+  totalCents: number;
+  /** "Fecha de vencimiento", 'YYYY-MM-DD' */
+  dueDate: string;
+}
+
+/** The three parts of a deferral plus their sum — the shape of both a header and a column total. */
+export interface DeferralTotals {
+  principalCents: number;
+  surchargeCents: number;
+  interestCents: number;
+  /** principal + recargo + interés. Always derived, never stored */
+  totalCents: number;
+}
+
+/**
+ * What Claude Vision returns for one resolution letter.
+ *
+ * Every field is nullable because a document can be unreadable in one corner and perfect in the
+ * rest, and a null is information the confirm screen can act on. The reader works from the
+ * RENDERED page: a PDF text layer prints each AEAT label two lines away from its own value, and
+ * that mangling has already produced a misreading in this project.
+ */
+export interface ExtractedDeferralData {
+  expedienteNumber: string | null;
+  modeloType: ModeloType | null;
+  fiscalYear: number | null;
+  fiscalQuarter: FiscalQuarter | null;
+  liquidacionNumber: string | null;
+  /** "Fecha de Intereses" exactly as printed, 'YYYY-MM-DD' */
+  interestStartDate: string | null;
+  interestRatePercent: number | null;
+  /** Totals row of ANEXO I, as printed */
+  principalCents: number | null;
+  surchargeCents: number | null;
+  interestCents: number | null;
+  /** One entry per fracción, in printed order. Empty when the table could not be read at all */
+  fracciones: DeferralFraccion[];
+  /** 0..1, the extractor's own confidence — compare against LOW/HIGH_CONFIDENCE_THRESHOLD */
+  confidence: number;
+}
+
+/** A single disagreement found while checking a letter against itself. */
+export interface DeferralVerificationIssue {
+  check: DeferralCheck;
+  /** The fracción the issue belongs to; null when it is about the resolution as a whole */
+  fraccionNumber: number | null;
+  /** Figure the letter states. Cents for the money checks, a count or a day index otherwise */
+  expected: number;
+  /** Figure its own rows add up to */
+  actual: number;
+  /** actual − expected. Signed on purpose: which way it is off says which figure was misread */
+  difference: number;
+}
+
+/**
+ * The verdict on an extracted resolution: does the letter agree with itself?
+ *
+ * Nothing here recomputes an amount from the interest rate. The whole check is
+ * `sum(ANEXO I rows) === totals row`, which is the one comparison the document itself
+ * guarantees — and the one that catches an OCR misread of a single digit.
+ */
+export interface DeferralVerdict {
+  /** True when `issues` is empty: every total reconciles and the fracciones are well formed */
+  isValid: boolean;
+  /** The totals row of ANEXO I, as printed */
+  declaredTotals: DeferralTotals;
+  /** The same totals obtained by adding the fracciones one by one */
+  computedTotals: DeferralTotals;
+  issues: DeferralVerificationIssue[];
 }

@@ -11,6 +11,7 @@ import { Download, FileText, Ticket, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
+import { AmountSumPopover } from '@/components/ui/AmountSumPopover';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
@@ -292,21 +293,24 @@ export function TransactionForm({
               <label htmlFor="amount" className="block text-sm font-medium text-foreground mb-1.5">
                 {t('transactions.form.fields.amount')}
               </label>
-              <input
-                id="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                autoComplete="off"
-                placeholder={t('transactions.form.fields.amount-placeholder')}
-                {...register('amount', { valueAsNumber: true })}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={cn(
-                  'w-full px-4 py-2.5 rounded-lg border bg-background text-foreground',
-                  'transition-colors duration-200 ease-out-quart',
-                  errors.amount ? 'border-guard-danger' : 'border-input',
-                )}
-              />
+              <div className="flex items-stretch gap-2">
+                <input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  autoComplete="off"
+                  placeholder={t('transactions.form.fields.amount-placeholder')}
+                  {...register('amount', { valueAsNumber: true })}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={cn(
+                    'flex-1 min-w-0 px-4 py-2.5 rounded-lg border bg-background text-foreground',
+                    'transition-colors duration-200 ease-out-quart',
+                    errors.amount ? 'border-guard-danger' : 'border-input',
+                  )}
+                />
+                <AmountSumPopover size="md" onApply={(total) => setValue('amount', total, { shouldValidate: true })} />
+              </div>
               {errors.amount && (
                 <p role="alert" className="mt-1 text-sm text-guard-danger">
                   {t(errors.amount.message ?? '')}

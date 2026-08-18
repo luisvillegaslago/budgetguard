@@ -54,6 +54,11 @@ All monetary values follow a **euros-in, cents-stored, cents-out** convention:
 
 To convert output back to euros: `amountCents / 100`. See [Money Handling](#money-handling) for details.
 
+**One exception:** `/api/fiscal/deferrals` takes **cents on input too**. That payload is a machine
+reading a printed AEAT table rather than a human typing euros, so there is no euro edge to convert,
+and a float round-trip would destroy the very cents the module exists for. A decimal or a string
+arriving on that endpoint is rejected, never coerced.
+
 ### Shared Expense Convention
 
 Transactions and recurring expenses support **shared expenses** (split between two people). When `isShared` is `true`:
@@ -3069,6 +3074,225 @@ Deletes the asset. The linked purchase transaction survives untouched — includ
 ```json
 { "success": true, "data": { "deleted": true } }
 ```
+
+---
+
+### Deferrals (Aplazamientos AEAT)
+
+An AEAT *resolución de aplazamiento/fraccionamiento*, and the instalments it books. A fracción is
+three legally different things paid together, and only one of them is deductible: the **intereses de
+demora**, as a financial expense in Modelo 100 **casilla 0203**. The principal is the tax itself and
+the **recargo de apremio** is expressly non-deductible (art. 15.c LIS). See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Aplazamientos y fraccionamientos.
+
+> **Amounts travel in CENTS on this endpoint**, unlike every other module. The payload is a machine
+> reading a printed table, not a human typing euros, so there is no euro edge to convert — and a
+> float round-trip would destroy the cents the module exists for. A string (`"781,66"`) or a decimal
+> (`781.66`) is rejected, never coerced.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal/deferrals` | List resolutions (`?year=&modeloType=`) |
+| POST | `/api/fiscal/deferrals` | Import a confirmed resolution → `201`, letter + instalments in one transaction |
+| GET | `/api/fiscal/deferrals/:id` | The resolution, its ANEXO I **rebuilt from the movements**, and the verdict |
+| PUT | `/api/fiscal/deferrals/:id` | Update the header (all fields optional) |
+| DELETE | `/api/fiscal/deferrals/:id` | Delete the resolution and its **still-pending** instalments |
+
+#### `GET /api/fiscal/deferrals`
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `year` | number | No | all | Fiscal year of the **deferred period**, not of the letter (2019-2100) |
+| `modeloType` | `"303"` \| `"130"` \| `"390"` \| `"100"` | No | all | The modelo being deferred |
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "deferralId": 1,
+      "expedienteNumber": "282640560363H",
+      "modeloType": "130",
+      "fiscalYear": 2026,
+      "fiscalQuarter": 2,
+      "liquidacionNumber": "A2861626530123900",
+      "interestStartDate": "2026-07-20",
+      "interestRatePercent": 4.062,
+      "principalCents": 468999,
+      "surchargeCents": 0,
+      "interestCents": 7212,
+      "fiscalDocumentId": null,
+      "createdAt": "2026-08-18T09:00:00.000Z",
+      "updatedAt": "2026-08-18T09:00:00.000Z"
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+`principalCents + surchargeCents + interestCents` is the total deuda; it is not returned as a field
+because a stored copy could only drift from its own parts.
+
+#### `POST /api/fiscal/deferrals`
+
+**Request Body** (`CreateDeferralSchema`, `src/schemas/deferral.ts`):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `expedienteNumber` | string | Yes | 1-30 chars. Unique per user |
+| `modeloType` | `"303"`\|`"130"`\|`"390"`\|`"100"` | Yes | The modelo being deferred |
+| `fiscalYear` | number | Yes | 2019-2100 |
+| `fiscalQuarter` | 1-4 \| null | Conditional | Required for 303/130, must be `null` for 390/100 |
+| `liquidacionNumber` | string \| null | No | Max 30 chars |
+| `interestStartDate` | string (date) | Yes | "Fecha de Intereses". Interest runs from the **day after** |
+| `interestRatePercent` | number | Yes | As printed, e.g. `4.062`. 0 < rate ≤ 100 |
+| `principalCents` | integer | Yes | Totals row of ANEXO I. > 0 |
+| `surchargeCents` | integer | No (0) | Recargo de apremio |
+| `interestCents` | integer | Yes | Intereses de demora |
+| `fiscalDocumentId` | number \| null | No | The archived letter |
+| `fracciones[]` | array | Yes | 1..`DEFERRAL_MAX_FRACCIONES` (120) rows of ANEXO I |
+| `fracciones[].fraccionNumber` | integer | Yes | 1..N, no gaps, in printed order |
+| `fracciones[].principalCents` | integer | Yes | **As printed** — never divided out of the total |
+| `fracciones[].surchargeCents` | integer | No (0) | |
+| `fracciones[].interestCents` | integer | Yes | |
+| `fracciones[].totalCents` | integer | Yes | "Total del plazo" as printed — checked, never filled in |
+| `fracciones[].dueDate` | string (date) | Yes | "Fecha de vencimiento" |
+
+```json
+{
+  "expedienteNumber": "282640560363H",
+  "modeloType": "130",
+  "fiscalYear": 2026,
+  "fiscalQuarter": 2,
+  "liquidacionNumber": "A2861626530123900",
+  "interestStartDate": "2026-07-20",
+  "interestRatePercent": 4.062,
+  "principalCents": 468999,
+  "surchargeCents": 0,
+  "interestCents": 7212,
+  "fracciones": [
+    { "fraccionNumber": 1, "principalCents": 78166, "surchargeCents": 0, "interestCents": 539,  "totalCents": 78705, "dueDate": "2026-09-21" },
+    { "fraccionNumber": 2, "principalCents": 78166, "surchargeCents": 0, "interestCents": 800,  "totalCents": 78966, "dueDate": "2026-10-20" },
+    { "fraccionNumber": 3, "principalCents": 78166, "surchargeCents": 0, "interestCents": 1070, "totalCents": 79236, "dueDate": "2026-11-20" },
+    { "fraccionNumber": 4, "principalCents": 78166, "surchargeCents": 0, "interestCents": 1331, "totalCents": 79497, "dueDate": "2026-12-21" },
+    { "fraccionNumber": 5, "principalCents": 78166, "surchargeCents": 0, "interestCents": 1601, "totalCents": 79767, "dueDate": "2027-01-20" },
+    { "fraccionNumber": 6, "principalCents": 78169, "surchargeCents": 0, "interestCents": 1871, "totalCents": 80040, "dueDate": "2027-02-22" }
+  ]
+}
+```
+
+Note the sixth fracción: **781,69 €, not 781,66 €.** AEAT loads the rounding remainder onto the last
+row, and the schema requires the split to reconcile to the header rather than deriving it.
+
+**Validation is the arithmetic gate.** `400` when a row's `totalCents` ≠ its own three parts
+(`validation.fraccion-total-mismatch`), when the fracciones are not numbered 1..N
+(`validation.fraccion-sequence-invalid`), or when a column does not add up to its header total
+(`validation.deferral-totals-mismatch`). None of it is repaired — a misread digit is rejected, not
+absorbed.
+
+**What the import writes**, all in one database transaction:
+
+- one `Deferrals` row;
+- one **pending** `Transactions` row per **non-zero** part of each fracción, dated on the vencimiento,
+  carrying `DeferralID` / `DeferralFraccionNumber` / `DeferralPart`. The interés goes to
+  `Trabajo › Intereses de demora` at `DeductionPercent = 100`, the principal and the recargo to
+  `Trabajo › Impuestos` at `0`;
+- one `TransactionGroups` row per fracción that books two or more parts.
+
+A 0,00 € recargo books nothing — the zero survives in `surchargeCents` and in the rebuilt ANEXO I.
+So `movementCount` is usually fewer than `3 × fracciones`: the letter above produces **12**.
+
+**Response** (`201`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "deferral": { "deferralId": 1, "expedienteNumber": "282640560363H", "...": "..." },
+    "fracciones": [ { "fraccionNumber": 1, "principalCents": 78166, "...": "..." } ],
+    "verdict": {
+      "isValid": true,
+      "declaredTotals": { "principalCents": 468999, "surchargeCents": 0, "interestCents": 7212, "totalCents": 476211 },
+      "computedTotals": { "principalCents": 468999, "surchargeCents": 0, "interestCents": 7212, "totalCents": 476211 },
+      "issues": []
+    },
+    "movementCount": 12
+  }
+}
+```
+
+**The verdict does not veto.** Every arithmetic identity was already enforced by the schema; what
+`verifyDeferral()` can still report at this point is an interés that does not match its own number
+of días (art. 53 RGR) or vencimientos out of order — worth showing a human, not worth throwing away
+a resolution the user has already confirmed on screen.
+
+**Idempotency is the constraint's, not a pre-check's.** Re-importing the same expediente violates
+`UQ_Deferrals_UserExpediente` inside the transaction and returns `409`
+`api-error.conflict.deferral-expediente-exists`, with **nothing** written. A SELECT-then-INSERT
+would lose the race.
+
+`404` `api-error.not-found.category` when the `Trabajo › Intereses de demora` or `Trabajo › Impuestos`
+subcategory has been deleted or renamed — nothing is written rather than booking a financial expense
+into the wrong casilla.
+
+#### `GET /api/fiscal/deferrals/:id`
+
+Returns the header, ANEXO I and the verdict on whether they still agree.
+
+```json
+{
+  "success": true,
+  "data": {
+    "deferral": { "deferralId": 1, "...": "..." },
+    "fracciones": [ { "fraccionNumber": 1, "principalCents": 78166, "surchargeCents": 0, "interestCents": 539, "totalCents": 78705, "dueDate": "2026-09-21" } ],
+    "verdict": { "isValid": true, "issues": [], "...": "..." }
+  }
+}
+```
+
+**ANEXO I is not stored twice.** It is rebuilt by folding the fracción's movements back up
+(`SUM("AmountCents") FILTER (WHERE "DeferralPart" = …)`), including paid and cancelled ones — this is
+what the letter says, not what is left to pay. That is what makes the verdict a real check: editing a
+movement makes its own fracción stop reconciling with the stored header. `dueDate` is the `MIN` of
+the parts' dates, which are identical at import.
+
+`404` `api-error.not-found.deferral` when the id belongs to no deferral of the current user.
+
+#### `PUT /api/fiscal/deferrals/:id`
+
+Same header fields as `POST`, every one optional; an omitted field keeps its stored value. **The
+fracciones are not editable here** — they *are* the transactions, and a paid instalment is corrected
+on its own movement, never by rewriting the letter it came from.
+
+The quarter/modelo rule is re-checked against the **merged** row: sending `{ "fiscalQuarter": 2 }`
+alone on a stored Modelo 390 returns `400` with
+`{ "fiscalQuarter": ["validation.quarterly-mismatch"] }` instead of hitting `CK_Deferrals_Quarter` as
+a 500. Renaming onto an expediente another resolution already holds returns `409`.
+
+#### `DELETE /api/fiscal/deferrals/:id`
+
+```json
+{ "success": true, "data": { "deleted": true, "removedMovements": 12 } }
+```
+
+**Only the pending instalments go with it.** A movement already marked `paid` is money that really
+left the account, and a wrong import does not undo a payment — those rows survive with `DeferralID`
+nulled by the FK, keeping their fracción number and their part. `cancelled` rows are kept for the
+same reason. Groups left empty are cleaned up; a group still holding a paid part is not.
+
+#### `POST /api/fiscal/deferrals/extract`
+
+**Not implemented yet.** `API_ENDPOINT.DEFERRALS_EXTRACT` is declared and the import wizard already
+calls it with a `FormData` field named `file`, matching `POST /api/fiscal/documents/detect-modelo`.
+The service behind it exists (`extractDeferral()` in `src/services/ocr/DeferralExtractor.ts`) and
+returns `ExtractedDeferralData`; only the route is missing. Until it lands, the request falls through
+to `/api/fiscal/deferrals/[id]` with `id: "extract"` and gets a `400`.
+
+The reader works from the **rendered** page, not the PDF text layer: these letters do have a real
+text layer, but it prints each AEAT label two lines away from its own value, and that mangling has
+already produced a misreading in this project.
 
 ---
 
