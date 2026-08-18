@@ -572,11 +572,33 @@ Open items from the fiscal audit, in the order they matter:
 1. **036 affectation not declared.** Deducting home-office supplies (art. 30.2.5.ª b LIRPF, 30% of
    the affected share) requires the affectation to be declared in the censo. Until the 036 is filed
    and the real m² share known, those deductions are exposed on inspection.
-2. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
+2. **One `DeductionPercent` drives two legally different percentages.** A transaction carries a
+   single deduction share, and `computeFiscalFields()` applies it to both the IRPF base and the
+   deductible VAT. The law does not treat them as the same number:
+   - **IRPF** allows 30% of the affected proportion of a home's supplies (art. 30.2.5.ª b LIRPF).
+   - **IVA** is far stricter: art. 95 LIVA requires exclusive affectation for anything that is not
+     a bien de inversión, and AEAT's position on the supplies of a partially affected dwelling —
+     consulta V2554-23, TEAC 6654/2022 — is that none of that input VAT is deductible.
+
+   So a single figure is wrong in both directions at once. The live data has the supplies at 10%:
+   under-deducting the IRPF the article would allow, while deducting **46,31 €** of input VAT
+   across Internet, Luz and Calefacción that a comprobación would most likely disallow entirely.
+
+   The amount is small and the defect is not: no value of that one field expresses the correct
+   treatment, so this cannot be fixed by re-coding transactions. It needs two columns — or one
+   column plus a rule per casilla — and it is the reason the amortization module excludes an
+   asset's purchase at read time instead of zeroing its `DeductionPercent`
+   (§ Amortización del inmovilizado), which would have erased 150,82 € of VAT from an already
+   filed 4T 2025.
+
+   **Blocked with gap 1.** The right percentages are only knowable once the 036 declares the
+   affectation and the real m² share is known, so both should be closed in one go.
+
+3. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
    deductible expense is now assigned; the rest are personal categories left unmapped on purpose. A
    new one falls through to `C0202` and is reported in `unmappedCents`, so the gap is visible rather
    than silent.
-3. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
+4. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
    two Modelo 100 boxes are implemented (§ Amortización del inmovilizado). What is still manual:
    - **The link to the purchase is what prevents the double deduction.** Registering an asset
      without setting `TransactionID` leaves its purchase deductible on the IRPF side as well.
@@ -588,7 +610,7 @@ Open items from the fiscal audit, in the order they matter:
      stop the schedule and settle the pending value; today the dotación simply keeps accruing.
    - **No historical assets.** Only what has been registered amortises. Anything bought before this
      module existed was deducted in full in its year and is not restated.
-4. **Cross-quarter invoices are flagged, but nothing is chased.** The alert of § Devengo vs. caja
+5. **Cross-quarter invoices are flagged, but nothing is chased.** The alert of § Devengo vs. caja
    surfaces the three disagreements on the fiscal page and in the pay flow. What is still manual:
    - **It only sees invoices.** The detection reads `"Invoices"`. Professional income typed straight
      into `Transactions` — every 2023 import, for one — has no issue date at all, so no disagreement
@@ -602,9 +624,9 @@ Open items from the fiscal audit, in the order they matter:
    - **No modificación de base imponible.** An invoice that will definitively not be paid allows the
      IVA already declared on it to be recovered (art. 80.Cuatro LIVA, with its own deadlines and
      formalities). The app flags the uncollected invoice and stops there.
-5. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
+6. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
    `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
-6. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
+7. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
    `MINIMO_PERSONAL_CENTS` and `PENSION_PLAN` hold the 2025-2026 figures. They are not versioned by
    year: projecting an older year applies today's scale.
 
