@@ -11,6 +11,7 @@
 import { Calculator, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { DeferralImportWizard } from '@/components/fiscal/DeferralImportWizard';
+import { DeferralList } from '@/components/fiscal/DeferralList';
 import { FiscalCrossQuarterInvoices } from '@/components/fiscal/FiscalCrossQuarterInvoices';
 import { FiscalDeadlineBanner } from '@/components/fiscal/FiscalDeadlineBanner';
 import { FiscalDeadlinePanel } from '@/components/fiscal/FiscalDeadlinePanel';
@@ -225,6 +226,16 @@ export default function FiscalPage() {
           </div>
 
           <FiscalDeadlinePanel year={year} />
+        </div>
+      )}
+
+      {/* The resolutions imported for this year, and the only action they need: cancelling one when
+          it is paid off early or revoked, so its remaining fracciones stop sitting in Movimientos.
+          Hangs off the year and not off the quarter or the view, like the inmovilizado below: a
+          resolution defers the liquidación of one period but its instalments run across several. */}
+      {!isCurrentLoading && (
+        <div className="mt-8">
+          <DeferralList key={year} year={year} />
         </div>
       )}
 

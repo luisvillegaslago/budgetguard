@@ -85,6 +85,14 @@ function resolvesToString(messages: Record<string, unknown>, key: string): boole
   return typeof leaf === 'string';
 }
 
+/** Every dot path in a dictionary that lands on a string leaf, so two shapes can be compared. */
+function flattenKeys(messages: Record<string, unknown>, prefix = ''): string[] {
+  return Object.entries(messages).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    return value && typeof value === 'object' ? flattenKeys(value as Record<string, unknown>, path) : [path];
+  });
+}
+
 function formatViolations(violations: Violation[]): string {
   const byFile = new Map<string, string[]>();
 
@@ -117,6 +125,17 @@ describe('UI translation key integrity', () => {
     });
 
     expect(formatViolations(violations)).toBe('');
+  });
+
+  it('keeps es.json and en.json on the same set of keys', () => {
+    // The check above only sees keys the UI already calls. A key added to one dictionary and not
+    // the other stays invisible to it until something renders that key — by which time an English
+    // user is looking at a raw dot path. Comparing the two shapes catches it at the commit.
+    const esKeys = flattenKeys(es as unknown as Record<string, unknown>);
+    const enKeys = flattenKeys(en as unknown as Record<string, unknown>);
+
+    expect(esKeys.filter((key) => !enKeys.includes(key))).toEqual([]);
+    expect(enKeys.filter((key) => !esKeys.includes(key))).toEqual([]);
   });
 
   it('counts a key pointing at an object node as unresolved', () => {

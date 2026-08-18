@@ -141,6 +141,9 @@ const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
       InvoiceNumber: row.InvoiceNumber,
       ClientName: row.ClientName,
       TotalCents: row.TotalCents,
+      // Projected because the classification needs it: without "Status" a paid invoice that lost
+      // its movement is indistinguishable from one nobody has paid
+      Status: row.Status,
       InvoiceDate: row.InvoiceDate,
       InvoiceYear: yearOf(row.InvoiceDate),
       InvoiceQuarter: quarterOf(row.InvoiceDate),
@@ -307,9 +310,48 @@ describe('what never reaches the warning at all', () => {
     const orphan = reported.find((invoice) => invoice.invoiceId === PAID_WITHOUT_LINK.InvoiceID);
 
     // A missing link is missing knowledge, not evidence of a crossing: with no "TransactionID"
-    // there is no date to compare, so it can only be reported as having no collection on record.
-    expect(orphan?.crossQuarterCase).toBe(CROSS_QUARTER_CASE.ISSUED_NOT_COLLECTED);
+    // there is no date to compare, so it can never be presented as collected in another quarter.
+    expect(orphan?.crossQuarterCase).not.toBe(CROSS_QUARTER_CASE.COLLECTED_IN_ANOTHER_PERIOD);
     expect(orphan?.crossesFiscalYear).toBe(false);
     expect(orphan?.collectionDate).toBeNull();
+  });
+});
+
+describe('CREST-00 — marked paid with the link to its movement lost', () => {
+  it('should report it as a lost link and not as an invoice waiting to be paid', async () => {
+    const reported = await getCrossQuarterInvoices(2026, 1);
+    const orphan = reported.find((invoice) => invoice.invoiceId === PAID_WITHOUT_LINK.InvoiceID);
+
+    // The distinction this case exists for: the money DID arrive — the invoice is 'paid' — and
+    // only the pointer to the movement is gone. Reporting it as *sin cobro registrado*, the way
+    // DW-09 is reported, would read as *aún no cobrada* and put a fiscal alarm on a broken record.
+    expect(orphan?.crossQuarterCase).toBe(CROSS_QUARTER_CASE.PAID_WITHOUT_LINKED_MOVEMENT);
+    expect(orphan?.crossQuarterCase).not.toBe(CROSS_QUARTER_CASE.ISSUED_NOT_COLLECTED);
+  });
+
+  it('should keep DW-09 on the fiscal case, so the two never share one label', async () => {
+    const reported = await getCrossQuarterInvoices(2026, 3);
+    const dw09 = reported.find((invoice) => invoice.invoiceId === DW_09.InvoiceID);
+
+    // Same shape in the row — no collection date — and a different verdict, because 'finalized'
+    // means nobody has paid and the IVA is owed on issue anyway.
+    expect(dw09?.crossQuarterCase).toBe(CROSS_QUARTER_CASE.ISSUED_NOT_COLLECTED);
+  });
+
+  it('should never surface it from the quarter money may actually have arrived in', async () => {
+    // The cost of the lost link, pinned: with no collection date the WHERE only ever admits the
+    // invoice from its own quarter, so case (c) — money landing here for an invoice declared
+    // earlier — cannot be computed for it at all. Nothing may imply 2T's list is complete.
+    expect(await idsOf(2026, 2)).not.toContain(PAID_WITHOUT_LINK.InvoiceID);
+    expect(await idsOf(2026, 3)).not.toContain(PAID_WITHOUT_LINK.InvoiceID);
+  });
+
+  it('should read the status from the row rather than infer it from the missing link', async () => {
+    await getCrossQuarterInvoices(2026, 1);
+    const [sql] = mockQuery.mock.calls[0] as [string, unknown[]];
+
+    // If the projection ever drops "Status" the classification silently collapses back into one
+    // case, and every test above would still pass on undefined — hence pinning the SELECT itself.
+    expect(sql).toContain('i."Status"');
   });
 });

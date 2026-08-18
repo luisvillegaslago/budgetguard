@@ -19,7 +19,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINT, API_ERROR, CACHE_TIME, QUERY_KEY } from '@/constants/finance';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type { CreateDeferralInput, DeferralFiltersInput, DeferralFraccionInput } from '@/schemas/deferral';
-import type { ApiResponse, Deferral, DeferralFraccion, DeferralVerdict, ExtractedDeferralData } from '@/types/finance';
+import type {
+  ApiResponse,
+  Deferral,
+  DeferralCancellationPreview,
+  DeferralCancellationResult,
+  DeferralFraccion,
+  DeferralVerdict,
+  ExtractedDeferralData,
+} from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
 import { fetchApi } from '@/utils/fetchApi';
 import { invalidateQueryKeys } from '@/utils/queryInvalidation';
@@ -155,6 +163,83 @@ export function useCreateDeferral() {
 
   return useApiMutation({
     mutationFn: createDeferralRequest,
+    onSuccess: () => invalidateQueryKeys(queryClient, AFFECTED_QUERY_KEYS),
+  });
+}
+
+// ============================================================
+// Cancellation
+// ============================================================
+
+/**
+ * The preview and the write share a URL because they are two halves of one action: the GET answers
+ * "what would go and what would stay", the POST answers "what went and what stayed". Keeping them
+ * on the same path is what stops the confirmation and the write drifting apart.
+ */
+function cancelUrl(deferralId: number): string {
+  return `${API_ENDPOINT.DEFERRALS}/${deferralId}/cancel`;
+}
+
+async function fetchCancellationPreview(deferralId: number): Promise<DeferralCancellationPreview> {
+  const response = await fetchApi(cancelUrl(deferralId));
+
+  if (!response.ok) {
+    const errorData: ApiResponse<never> = await response.json();
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.LOAD.DEFERRAL_CANCELLATION));
+  }
+
+  const data: ApiResponse<DeferralCancellationPreview> = await response.json();
+  if (!data.success || !data.data) throw new Error(data.error ?? API_ERROR.LOAD.DEFERRAL_CANCELLATION);
+
+  return data.data;
+}
+
+async function cancelDeferralRequest(deferralId: number): Promise<DeferralCancellationResult> {
+  // No body: cancelling takes no options. Which movements are touched is decided by their own
+  // status, so there is nothing to send and nothing to validate.
+  const response = await fetchApi(cancelUrl(deferralId), { method: 'POST' });
+
+  if (!response.ok) {
+    const errorData: ApiResponse<never> = await response.json();
+    throw new Error(extractApiErrorKey(errorData, API_ERROR.MUTATION.CANCEL.DEFERRAL));
+  }
+
+  const data: ApiResponse<DeferralCancellationResult> = await response.json();
+  if (!data.success || !data.data) throw new Error(data.error ?? API_ERROR.MUTATION.CANCEL.DEFERRAL);
+
+  return data.data;
+}
+
+/**
+ * What cancelling a resolution would do, fetched only while the confirmation is on screen.
+ *
+ * `enabled` rather than an eager load: the figures are what the user is about to approve, so they
+ * have to be read when the dialog opens and not from whatever was cached when the page did. It is
+ * a snapshot and not a lock — an instalment marked paid between this read and the confirmation is
+ * simply not cancelled, because the write matches only rows still pending.
+ */
+export function useDeferralCancellationPreview(deferralId: number | null) {
+  return useQuery({
+    queryKey: [QUERY_KEY.DEFERRALS, deferralId, 'cancel-preview'],
+    queryFn: () => fetchCancellationPreview(deferralId as number),
+    enabled: deferralId !== null,
+    // The preview is a decision aid, not a cached view: it must be re-read every time it is opened
+    staleTime: CACHE_TIME.NO_CACHE,
+  });
+}
+
+/**
+ * Cancel a resolution: every fracción movement still pending becomes cancelled.
+ *
+ * The same keys the import invalidates, and for the same reason — the pending movements the import
+ * created are the ones this removes from the lists. The fiscal reports are again absent: a pending
+ * movement never counted in a modelo, so cancelling it moves no figure in the 130 or the 100.
+ */
+export function useCancelDeferral() {
+  const queryClient = useQueryClient();
+
+  return useApiMutation({
+    mutationFn: cancelDeferralRequest,
     onSuccess: () => invalidateQueryKeys(queryClient, AFFECTED_QUERY_KEYS),
   });
 }

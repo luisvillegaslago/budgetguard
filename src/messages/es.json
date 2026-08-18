@@ -1140,6 +1140,10 @@
       "cta-hint": "Sube la carta y los plazos se crean ya repartidos",
       "empty": "Todavía no hay aplazamientos registrados",
       "empty-hint": "Sube la resolución que te envió la AEAT al concederte el aplazamiento",
+      "list": {
+        "modelo-quarter": "Modelo {modelo} · T{quarter} {year}",
+        "modelo-annual": "Modelo {modelo} · ejercicio {year}"
+      },
       "upload": {
         "title": "Sube la resolución de la AEAT",
         "description": "Es la carta titulada «RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO» que llega a tu buzón de la Sede Electrónica cuando la AEAT concede el aplazamiento: trae el cuadro de plazos con sus vencimientos e intereses.",
@@ -1251,7 +1255,43 @@
         "not-a-deferral": "Este documento no es una resolución de aplazamiento o fraccionamiento de la AEAT. Sube la carta titulada «RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO».",
         "unreadable": "No se ha podido leer el cuadro de plazos. Si el PDF viene escaneado o torcido, prueba con una captura nítida de la página del ANEXO I.",
         "already-imported": "El expediente {expediente} ya está registrado: sus movimientos se crearon el {date}.",
-        "already-imported-generic": "Este expediente ya está registrado."
+        "already-imported-generic": "Este expediente ya está registrado.",
+        "nothing-to-cancel": "Este aplazamiento no tiene ningún plazo pendiente, así que no hay nada que cancelar.",
+        "cancel-failed": "No se han podido cancelar los plazos pendientes. No se ha cambiado nada: vuelve a intentarlo."
+      },
+      "status": {
+        "active": "En curso",
+        "settled": "Pagado por completo",
+        "cancelled": "Cancelado"
+      },
+      "cancel": {
+        "action": "Cancelar el aplazamiento",
+        "action-hint": "Cancela los plazos que todavía no has pagado",
+        "title": "¿Cancelar el aplazamiento {expediente}?",
+        "description": "El aplazamiento se corta por donde vas. Los plazos que aún no has pagado se cancelan; los que ya pagaste se quedan exactamente como están, porque ese dinero salió de tu cuenta de verdad y sus intereses siguen siendo gasto deducible del año en que los pagaste.",
+        "to-cancel-title": "Se cancelan los plazos pendientes",
+        "to-cancel-count": "Plazos que se cancelan: {count}",
+        "to-cancel-hint": "Sus movimientos pasan a «Cancelado» y desaparecen de los pendientes. Ninguna cifra del Modelo 130 ni del Modelo 100 se mueve: un plazo pendiente tampoco contaba, porque solo cuenta lo que se ha pagado de verdad.",
+        "to-cancel-empty": "No queda ningún plazo pendiente, así que no hay nada que cancelar.",
+        "to-keep-title": "Se conserva lo ya pagado",
+        "to-keep-count": "Plazos que se conservan: {count}",
+        "to-keep-hint": "No se toca ni un importe ni una fecha: siguen contando en los modelos del ejercicio en que los pagaste.",
+        "to-keep-empty": "Todavía no has pagado ningún plazo, así que no hay nada que conservar.",
+        "totals-to-cancel": "Total que se cancela",
+        "totals-to-keep": "Total ya pagado",
+        "movements-count": "{count} movimientos",
+        "fraccion-label": "Fracción {number} · vence el {date}",
+        "confirm": "Cancelar los plazos pendientes",
+        "cancelling": "Cancelando los plazos...",
+        "back": "Dejarlo como está",
+        "history-note": "Los movimientos cancelados no se borran: se quedan en el histórico con ese estado. Para revivir un plazo hay que volver a marcarlo pendiente a mano.",
+        "aeat-note": "Esto solo cambia lo que ves aquí. Si el aplazamiento también se ha cancelado en la AEAT, la deuda sigue viva allí con sus propios plazos y recargos.",
+        "success": {
+          "title": "Aplazamiento cancelado",
+          "description": "Se han cancelado {movements} movimientos de {fracciones} plazos, por un total de {total}. Los {kept} movimientos ya pagados siguen intactos.",
+          "description-nothing-kept": "Se han cancelado {movements} movimientos de {fracciones} plazos, por un total de {total}. No había ningún plazo pagado que conservar.",
+          "close": "Cerrar"
+        }
       }
     },
     "deadlines": {
@@ -1271,7 +1311,15 @@
         "filed": "Presentado"
       },
       "domiciliacion": "Con domiciliación, hasta el {date}",
-      "window-unconfirmed": "fechas por confirmar"
+      "window-unconfirmed": "fechas por confirmar",
+      "cross-quarter": {
+        "summary": "Facturas con desfase entre emisión y cobro en este trimestre: {count} · {total}",
+        "summary-one": "Una factura con desfase entre emisión y cobro en este trimestre: {total}",
+        "hint": "Al presentar, recuerda que cada factura va en el trimestre en que se emitió, no en el que entró el dinero. Los importes de este modelo ya están calculados así.",
+        "data-integrity": "De ellas, {count} constan cobradas pero sin el movimiento enlazado: falta la fecha del cobro. El importe a declarar no cambia.",
+        "data-integrity-one": "Hay una que consta cobrada pero sin el movimiento enlazado: falta la fecha del cobro. El importe a declarar no cambia.",
+        "link": "Ver el detalle del T{quarter} {year}"
+      }
     },
     "settings": {
       "title": "Recordatorios Fiscales",
@@ -1343,11 +1391,13 @@
         "collected-in-another-period": "Cobrada en el T{collectionQuarter}, pero se declara en este trimestre: el IVA y el IRPF se devengan al emitir, no al cobrar.",
         "collected-in-another-year": "Cobrada en el T{collectionQuarter} de {collectionYear}, ya de otro ejercicio: se declara en este trimestre y va en la Renta de {invoiceYear}, no en la de {collectionYear}.",
         "issued-not-collected": "Emitida en este trimestre y sin cobro registrado: el IVA se devenga al emitir, así que se declara ahora aunque el dinero todavía no haya entrado.",
-        "declared-in-earlier-period": "El dinero entró en este trimestre, pero la factura se declaró en el T{invoiceQuarter} de {invoiceYear}: los modelos de este trimestre no la cuentan."
+        "declared-in-earlier-period": "El dinero entró en este trimestre, pero la factura se declaró en el T{invoiceQuarter} de {invoiceYear}: los modelos de este trimestre no la cuentan.",
+        "paid-without-linked-movement": "Esta factura está cobrada. Lo que falta es el enlace con el movimiento del banco, algo habitual en las facturas más antiguas. Sin ese enlace no consta la fecha en que entró el dinero, así que la aplicación no puede decir en qué trimestre se cobró. Las cifras no cambian —se declara en el trimestre en que se emitió—, pero mientras falte el enlace tampoco se puede comprobar si el cobro cayó en un trimestre posterior al que la declaró. Enlaza el movimiento y la fecha vuelve."
       },
       "group": {
         "collected-in-another-period": "Cobradas en otro trimestre",
         "issued-not-collected": "Emitidas y sin cobro registrado",
+        "paid-without-linked-movement": "Cobradas, sin el movimiento enlazado",
         "declared-in-earlier-period": "Declaradas en un trimestre anterior"
       },
       "columns": {
@@ -1357,7 +1407,161 @@
       },
       "quarter-label": "T{quarter} {year}",
       "no-collection": "Sin cobro registrado",
+      "link-missing": "Cobrada, sin enlace",
+      "link-missing-hint": "Lo que falta es el enlace con el movimiento del banco, no el cobro.",
+      "data-integrity-note": "Esto no es un aviso fiscal: ninguna cifra de los modelos cambia por esto. Es un dato que le falta a la aplicación, no algo que debas a Hacienda.",
+      "data-integrity-fix": "Para arreglarlo: abre la factura y enlázala con el movimiento del banco en el que entró el dinero.",
       "pay-warning": "La fecha de cobro cae en un trimestre distinto al de emisión: la factura se seguirá declarando en el T{invoiceQuarter} de {invoiceYear}, el de su fecha de emisión."
+    },
+    "bad-debt": {
+      "title": "IVA de facturas impagadas",
+      "subtitle": "Art. 80.Cuatro de la Ley del IVA",
+      "as-of": "Fechas calculadas a {date}",
+      "what-it-is": "El IVA de una factura se ingresa en el 303 del trimestre en que la emitiste, la hayas cobrado o no. Si el cliente acaba no pagándote, la ley te deja recuperar ese IVA que adelantaste de tu bolsillo: se llama modificación de la base imponible, y se hace emitiendo una factura rectificativa y comunicándoselo a Hacienda. No es automático ni está disponible siempre: hay que esperar un plazo, rectificar dentro de una ventana de seis meses y avisar en el mes siguiente. Si la ventana se cierra, el derecho se pierde y no se recupera.",
+      "how": {
+        "title": "Los tres pasos, con sus plazos",
+        "wait-title": "1. Esperar a que el crédito sea incobrable",
+        "wait-description": "Desde el devengo tienen que pasar seis meses o un año sin haber cobrado. El plazo corto es una opción para pymes —lo tienes disponible si el año natural anterior facturaste 6.010.121,04 € o menos— y la ley te deja elegir entre los dos.",
+        "rectify-title": "2. Emitir la factura rectificativa",
+        "rectify-description": "Cumplido el plazo de espera se abre una ventana de seis meses para emitirla y hacérsela llegar al cliente. Es un plazo de caducidad: el último día es el último, no hay prórroga ni subsanación.",
+        "notify-title": "3. Comunicárselo a la AEAT",
+        "notify-description": "Dentro del mes siguiente a la fecha de la rectificativa se presenta el modelo 952 por la sede electrónica, después de haber aportado la documentación por el registro electrónico."
+      },
+      "summary": {
+        "tracked": "Facturas con el plazo en marcha: {count}",
+        "recoverable": "IVA que está en juego: {total}",
+        "excluded": "Facturas descartadas: {count}"
+      },
+      "attention": {
+        "badge": "Corre el plazo",
+        "hint": "La ventana para rectificar está abierta o se abre en menos de {days} días."
+      },
+      "columns": {
+        "invoice": "Factura",
+        "client": "Cliente",
+        "accrual-date": "Fecha de la factura",
+        "base": "Base imponible",
+        "vat": "IVA repercutido",
+        "total": "Total",
+        "recoverable": "IVA que puedes recuperar",
+        "window": "Plazo para rectificar",
+        "stage": "Situación",
+        "reason": "Por qué se queda fuera"
+      },
+      "stage": {
+        "waiting": "En espera",
+        "in-window": "Plazo abierto",
+        "window-expired": "Plazo caducado",
+        "out-of-scope": "Fuera del artículo"
+      },
+      "stage-hint": {
+        "waiting": "Todavía no ha pasado el tiempo que la ley exige esperar, así que aún no puedes emitir la rectificativa. Lo que sí puedes ir haciendo es reclamar el cobro y guardar la prueba: ese paso tiene que estar dado antes.",
+        "in-window": "Puedes emitir ya la factura rectificativa. Cuando la ventana se cierre, el IVA de esta factura deja de ser recuperable.",
+        "window-expired": "La ventana se cerró sin rectificar: por este plazo, el IVA de esta factura ya no se puede recuperar. Se queda a la vista para que conste, no para actuar.",
+        "out-of-scope": "El artículo 80.Cuatro no llega a esta factura, así que no hay ningún plazo corriendo."
+      },
+      "term": {
+        "pyme-six-months": "Plazo corto: seis meses (opción pyme)",
+        "general-one-year": "Plazo general: un año"
+      },
+      "term-choice": "La ley te deja elegir entre esperar seis meses o un año, y la aplicación no sabe cuál elegiste: por eso te enseña los dos calendarios.",
+      "term-unconfirmed": "Que dejar pasar la ventana de los seis meses te permita seguir usando la del año no lo confirma ninguna consulta de Hacienda que hayamos podido comprobar. Cuenta con el plazo que elegiste desde el principio y no tomes el segundo como red de seguridad.",
+      "pyme-threshold": "El plazo de seis meses está disponible si tu volumen de operaciones del año natural anterior fue de 6.010.121,04 € o menos.",
+      "window": {
+        "opens": "Se puede rectificar desde el {date}",
+        "closes": "Último día para rectificar: {date}",
+        "range": "Del {start} al {end}",
+        "days-until": "Faltan {days} días para que se abra",
+        "days-until-one": "Se abre mañana",
+        "days-remaining": "Quedan {days} días",
+        "days-remaining-one": "Queda un día",
+        "last-day": "Hoy es el último día",
+        "expired": "Caducó el {date}"
+      },
+      "accrual-note": "Los plazos se cuentan aquí desde la fecha de la factura. La ley los cuenta desde el devengo, que en los servicios es el día en que se prestan: si emitiste la factura al terminar el trabajo coinciden, y si no, estas fechas pueden ir unos días adelantadas o atrasadas. Compruébalo antes de apurar el último día.",
+      "checklist": {
+        "title": "Qué hay que hacer, y en este orden",
+        "description": "No son formalismos: los tribunales tratan estos requisitos como parte del fondo del derecho, de modo que saltarse uno cuesta el IVA entero.",
+        "legal-basis": "Base legal: {basis}",
+        "step": {
+          "claim-payment": {
+            "title": "Reclamar el cobro y guardar la prueba",
+            "description": "Vale una reclamación judicial, un requerimiento notarial o cualquier otro medio que acredite de forma fehaciente que reclamaste: desde 2023 se admite el burofax, porque deja constancia de qué enviaste, a quién y cuándo se entregó. Una llamada o un correo suelto no sirven. Guarda el justificante, porque hay que aportarlo. Si quien te debe es una administración, lo que hace falta es su certificado reconociendo la deuda."
+          },
+          "book-in-registers": {
+            "title": "Tener la factura y el impago anotados",
+            "description": "La operación tiene que estar facturada y anotada en tiempo y forma en el libro registro de facturas expedidas, y el impago reflejado en tu contabilidad."
+          },
+          "issue-rectificativa": {
+            "title": "Emitir la factura rectificativa dentro de la ventana",
+            "description": "Rectifica la factura original y su cuota, con su propia serie. No anula la factura ni cambia su estado: la operación existió y sigue existiendo."
+          },
+          "send-rectificativa": {
+            "title": "Enviársela al cliente y poder demostrarlo",
+            "description": "La rebaja de la base está condicionada a que la rectificativa se remita al destinatario. No te obligan a un medio concreto, pero sí a poder probar el envío si te lo piden."
+          },
+          "upload-evidence": {
+            "title": "Aportar la documentación por el registro electrónico",
+            "description": "Copia de la rectificativa, con la fecha de la factura que rectifica; la prueba de la reclamación; y, si quien debe es un ente público, su certificado. El registro te devuelve un código: guárdalo, porque se consigna en el 952."
+          },
+          "file-modelo-952": {
+            "title": "Presentar el modelo 952 en el plazo de un mes",
+            "description": "Un mes desde la fecha de la rectificativa, por vía electrónica. En él declaras que el crédito no está garantizado, afianzado ni asegurado, que no es entre partes vinculadas y que el cliente está establecido en España."
+          },
+          "adjust-303": {
+            "title": "Llevar la minoración al 303",
+            "description": "El IVA recuperado se refleja en la declaración del periodo que corresponda. Tu cliente, por su parte, tiene que minorar el IVA que se dedujo; que no lo haga no te bloquea a ti."
+          }
+        }
+      },
+      "upward-revision": {
+        "title": "Si después llegas a cobrar",
+        "description": "Una vez rectificada, la base no vuelve a subir aunque acabes cobrando. Pero si desistes de la reclamación judicial o pactas el cobro con el cliente, tienes un mes desde ese momento para emitir otra rectificativa, esta vez al alza. Es un segundo reloj, y corre igual de rápido."
+      },
+      "aeat": {
+        "form": "Modelo 952 — Comunicación de la modificación de la base imponible en supuestos de concurso y por crédito incobrable",
+        "deadline": "Se presenta en el plazo de un mes desde la fecha de la factura rectificativa.",
+        "deadline-note": "La ficha del procedimiento en la sede de la AEAT dice «plazo: no tiene». Manda el reglamento del IVA: un mes.",
+        "procedure-link": "Ver el procedimiento en la sede de la AEAT"
+      },
+      "empty": {
+        "title": "Ninguna factura con el plazo en marcha",
+        "description": "Aquí aparecerán tus facturas impagadas cuyo IVA todavía puedes recuperar. Que no haya ninguna no significa que falte algo: si tus facturas no llevan IVA español, o son de clientes de fuera de España, el artículo no las alcanza. Abajo tienes cada factura descartada con su motivo."
+      },
+      "no-invoices": {
+        "title": "No hay facturas pendientes de cobro",
+        "description": "Todas tus facturas emitidas están cobradas. Este apartado solo se llena cuando alguna se queda sin cobrar."
+      },
+      "excluded": {
+        "title": "Facturas descartadas, y por qué",
+        "description": "Están emitidas y sin cobrar, pero el artículo 80.Cuatro no llega a ellas: no hay ningún plazo corriendo ni ningún derecho que puedas perder por no hacer nada.",
+        "show": "Ver las facturas descartadas ({count})",
+        "hide": "Ocultar las facturas descartadas",
+        "reason-label": "Motivo"
+      },
+      "exclusion": {
+        "no-output-vat": {
+          "label": "Sin IVA repercutido",
+          "description": "Esta factura no lleva IVA español, así que no adelantaste ninguna cuota y no hay nada que recuperar. El artículo 80.Cuatro solo rebaja la base de las operaciones gravadas: una rectificativa aquí movería 0,00 € en tu 303. No hay ningún plazo que se te pueda pasar ni ningún derecho que puedas perder."
+        },
+        "recipient-not-established": {
+          "label": "Cliente no establecido en España",
+          "description": "Tu cliente no está establecido en España, ni en Canarias, Ceuta o Melilla. La ley excluye expresamente esos créditos, y en el modelo 952 tienes que declarar por escrito que la factura no es de un cliente no establecido: presentarlo por esta sería declarar algo falso. No es cuestión de plazos, es que esta vía no está abierta para ella."
+        },
+        "recipient-establishment-unknown": {
+          "label": "País del cliente sin registrar",
+          "description": "La factura no guarda el país del cliente, y de ese dato depende que el artículo se pueda aplicar. Ante la duda se queda fuera: es preferible eso a empujarte a presentar un 952 que no toca. Rellena el país en los datos del cliente y volverá a valorarse."
+        },
+        "not-issued": {
+          "label": "Sin emitir o anulada",
+          "description": "Un borrador o una factura anulada no ha declarado ni ha repercutido nada, así que no hay IVA adelantado que recuperar."
+        },
+        "collected": {
+          "label": "Cobrada",
+          "description": "Esta factura consta cobrada, así que no hay impagado. Si el cobro se apuntó por error o el dinero se devolvió, corrige antes el cobro y volverá a valorarse."
+        }
+      },
+      "disclaimer": "Esto es un calendario y una lista de comprobación, no un trámite: la aplicación no emite la rectificativa, no presenta el modelo 952 y no toca el estado de la factura. Esos pasos los das tú, y si la cifra es seria, con tu asesor."
     }
   },
   "auth": {
@@ -2335,7 +2539,8 @@
       "prefix-in-use": "Este prefijo tiene facturas y no se puede eliminar",
       "prefix-exists": "Ya existe una serie con este prefijo",
       "future-occurrence": "No se puede procesar una ocurrencia futura",
-      "deferral-expediente-exists": "Ya existe un aplazamiento con ese número de expediente"
+      "deferral-expediente-exists": "Ya existe un aplazamiento con ese número de expediente",
+      "deferral-nothing-to-cancel": "Este aplazamiento no tiene fracciones pendientes, así que no queda nada que cancelar."
     },
     "invoice": {
       "category-required-for-paid": "Se requiere una categoría de ingreso para marcar como pagada",
@@ -2441,6 +2646,9 @@
         "crypto-credentials": "Error al desconectar Binance",
         "deferral": "Error al eliminar el aplazamiento"
       },
+      "cancel": {
+        "deferral": "Error al cancelar el aplazamiento"
+      },
       "import": {
         "jumps": "Error al importar saltos",
         "tunnel-sessions": "Error al importar sesiones de túnel",
@@ -2465,7 +2673,9 @@
       "category-history": "Error al cargar el historial de la categoría",
       "vouchers": "Error al cargar los bonos",
       "fixed-assets": "Error al cargar los activos",
-      "deferrals": "Error al cargar los aplazamientos"
+      "deferrals": "Error al cargar los aplazamientos",
+      "bad-debt": "Error al cargar las facturas impagadas",
+      "deferral-cancellation": "Error al calcular qué se cancelaría"
     }
   },
   "pages": {

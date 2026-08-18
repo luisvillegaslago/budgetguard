@@ -4,8 +4,8 @@ The tax rules BudgetGuard encodes, and why the code looks the way it does.
 
 The other documents describe *what* the fiscal module is: its tables, its types, its endpoints.
 This one describes the *domain* those things model. Read it before changing anything under
-`src/utils/fiscal*.ts`, `src/utils/irpf.ts`, `src/utils/deferral.ts`,
-`src/services/database/FiscalRepository.ts` or the
+`src/utils/fiscal*.ts`, `src/utils/irpf.ts`, `src/utils/deferral.ts`, `src/utils/badDebt.ts`,
+`src/utils/crossQuarterDeadlineNotes.ts`, `src/services/database/FiscalRepository.ts` or the
 `vw_Fiscal*` views — every rule below was reached by reconciling the app against real filed
 modelos, and most of them have already been broken once.
 
@@ -28,6 +28,7 @@ overwrite it.
 - [What counts as fiscal](#what-counts-as-fiscal)
 - [Modelo 303 — IVA](#modelo-303--iva)
 - [IVA a compensar: the pool](#iva-a-compensar-the-pool)
+- [Créditos incobrables (art. 80.Cuatro LIVA)](#créditos-incobrables-art-80cuatro-liva)
 - [Modelo 130 — IRPF pago fraccionado](#modelo-130--irpf-pago-fraccionado)
 - [Modelo 390 — annual IVA](#modelo-390--annual-iva)
 - [Modelo 100 — Renta](#modelo-100--renta)
@@ -103,25 +104,67 @@ because a draft is declared nowhere.
 Anyone who reads this section as evidence of a bug in `vw_FiscalAccrual`, in `loadFiscalRows()` or
 in the accrual rule has misread it. There is nothing there to fix.
 
-Three ways the disagreement surfaces, all informational, none an error:
+Four ways the disagreement surfaces. Three are informational and none of them is an error; the
+fourth is not about tax at all.
 
 | Case | What it says | Live example |
 |------|--------------|--------------|
 | `collected-in-another-period` | Declared in this quarter, collected in another. `crossesFiscalYear` marks the worse variant, where the two periods belong to two different *Rentas* | CREST-01 seen from 1T 2026 |
-| `issued-not-collected` | Declared in this quarter, no collection on record. The IVA falls due on issue whether or not the money arrived | DW-09, 1.200,00 €, issued 3-ago-2026, never collected — it is declared in the 3T 303/130 due 20 October 2026 |
+| `issued-not-collected` | Declared in this quarter, no collection on record **and the invoice is still `'finalized'`**. The IVA falls due on issue whether or not the money arrived | DW-09, 1.200,00 €, issued 3-ago-2026, never collected — it is declared in the 3T 303/130 due 20 October 2026 |
 | `declared-in-earlier-period` | The money arrived in this quarter, but the invoice was already declared in an earlier one. This is the one that misleads: bank income that no modelo of this quarter counts | CREST-01 seen from 2T 2026 — the same 600,00 € that produced the rectificativa |
+| `paid-without-linked-movement` | Declared in this quarter, marked `'paid'`, **no movement linked**. A broken record, not a timing disagreement | An invoice collected before the link existed, or one whose `TransactionID` was lost |
 
 The first and the third are one invoice seen from its two ends, and that is the point: which of the
 two misleads depends only on which quarter the user happens to be filing.
 
-Two things about the copy are deliberate. Nothing is worded as a mistake — the text states the rule
-and confirms the app already applies it. And an invoice with no linked payment is described as *sin
-cobro registrado*, never *aún no cobrada*: a `'paid'` invoice whose `TransactionID` was never linked
-lands in the same case, and only the first wording stays true of it.
+**`paid-without-linked-movement` is a data-integrity finding, and the copy has to say so.** It is
+decided on `"Invoices"."Status"`: a `'finalized'` invoice with no linked transaction genuinely has
+not been paid, while a `'paid'` one with a NULL `TransactionID` *was* collected — only the link to
+the movement is gone. Reporting the second as *sin cobro registrado* reads as *aún no cobrada*,
+which raises a fiscal alarm over a bookkeeping defect. So the two are separate cases, the paid one
+says *cobrada, sin el movimiento enlazado*, and it states plainly that no figure changes: the
+invoice is declared in the quarter it was issued in either way.
+
+What is genuinely lost with the link is **case (c)**. With no collection date the invoice can only
+ever surface from its own quarter, so *money that arrived this quarter for an invoice declared in an
+earlier one* cannot be computed for it **at all**. Nothing in the UI may imply the
+`declared-in-earlier-period` list is complete while one of these exists — that is the whole reason
+the case carries its own wording instead of being folded into the count.
+
+Two things about the copy of the other three are deliberate. Nothing is worded as a mistake — the
+text states the rule and confirms the app already applies it. And *sin cobro registrado* is reserved
+for the invoice that really has no collection on record, now that the paid-but-unlinked one has its
+own sentence.
 
 The same warning appears one step earlier, in the pay flow (`AccrualPeriodNote`), where marking an
 invoice paid is about to create a collection-dated transaction in a quarter that is not the one the
 invoice will be declared in.
+
+#### The findings ride the deadline that is already due
+
+A panel on the quarter being *looked at* never reaches the person about to file, who is reading the
+deadline surface. So the findings of a quarter are attached to that quarter's **existing** deadline
+entry as a `crossQuarter` qualifier (`CrossQuarterDeadlineNote`): how many invoices disagree, for
+how much, and how many of them are the broken-link case.
+
+**No deadline is invented.** Nothing new falls due because an invoice was collected in another
+quarter; `computeDeadlines()` remains the only source of what is owed and when, and the filing-status
+machine keeps reading a calendar nobody has added rows to. The qualifier is attached afterwards, by
+`withCrossQuarterNotes()` in `src/utils/crossQuarterDeadlineNotes.ts`, and it is narrowed three ways:
+
+- **only the 303 and the 130** (`CROSS_QUARTER_DEADLINE_MODELOS`). The annual 390 and 100 span every
+  quarter of the year, so a quarter boundary inside one year moves nothing for them;
+- **only `upcoming` and `due`** (`CROSS_QUARTER_DEADLINE_FILING_STATUSES`). `not_due` is noise months
+  ahead and `filed` is too late to inform. `overdue` is left out on purpose: that deadline already
+  shouts on its own, and this note exists to reach the user while the figure is still being decided;
+- **only when the quarter has findings.** `buildCrossQuarterNote()` returns `null` for an empty
+  quarter rather than a zeroed note — a qualifier that is always on screen is one nobody reads.
+
+The note is drawn by a single component (`DeadlineCrossQuarterNote`) so its wording cannot drift
+between the dashboard banner and the fiscal page's deadline list, and it links to the detail panel
+through `CROSS_QUARTER_PANEL_ANCHOR`: a note that states a count and an amount owes the user the
+list behind them. It is deliberately quiet — no warning colour, no alarm icon. The figures about to
+be filed are right; what the note guards is the human step afterwards.
 
 ---
 
@@ -191,6 +234,182 @@ the whole year, so the pool can only grow. The UI prompts for the refund when it
 > Verified against real filings: the amounts that vanished from this user's 2025-2026 pool match
 > the 2021-2022 quarterly results one for one, five out of five. 139,15 € had already expired
 > unnoticed.
+
+---
+
+## Créditos incobrables: art. 80.Cuatro LIVA
+
+An invoice that will not be paid lets the **IVA repercutido already declared on it** be recovered:
+the base imponible is reduced by issuing a *factura rectificativa* and notifying AEAT. The right
+runs on hard deadlines, and letting them pass loses it permanently.
+
+The app implements a **clock and a checklist, and nothing else**. It issues no rectificativa, files
+no modelo 952, and never touches an invoice's `Status`. It answers two questions: does the article
+reach this invoice at all, and if so, between which two dates may the right be exercised.
+
+> **Vigencia verified on 18-ago-2026** against the BOE consolidated texts. Art. 80 LIVA is in the
+> version in force since **1-1-2023** (art. 77 Ley 31/2022, BOE-A-2022-22128) — no later norm
+> reaches it; the 2024-2026 amendments to the LIVA touch arts. 19 and 91.Dos, the anexo and the
+> DT 13.ª. Art. 24 RIVA is in force since **1-1-2024** (art. 1.4 RD 1171/2023, BOE-A-2023-26454).
+> Re-verify before changing any term below.
+
+### It does not apply to an invoice with no Spanish output VAT — which is nearly all of them here
+
+**Read this before "fixing" the detection into offering the module for the invoices on file.** This
+taxpayer's invoices are services to businesses established **outside the TAI**: not subject by the
+localisation rules (art. 69.Uno.1.º LIVA), no cuota repercutida, declared in **casilla 120** of the
+303. Art. 80.Cuatro does not reach them, on **two independent grounds**:
+
+1. **There is no cuota to recover.** The article reduces the base *«cuando los créditos
+   correspondientes a las cuotas repercutidas por las **operaciones gravadas** sean total o
+   parcialmente incobrables»*. An operación no sujeta is not an operación gravada and repercutió
+   nothing: a rectificativa would reduce a base carrying 0,00 € of IVA and the 303 would not move by
+   a cent. **No right lapses by letting the window close.**
+2. **Even with a cuota, it is excluded.** Art. 80.**Cinco.2.ª**: *«Tampoco procederá la modificación
+   de la base imponible cuando el destinatario de las operaciones no esté establecido en el
+   territorio de aplicación del Impuesto, ni en Canarias, Ceuta o Melilla.»* The only carve-out —
+   insolvency declared by a court of another Member State under Reglamento (UE) 2015/848 — routes the
+   case through **art. 80.Tres** (concurso), not through the Cuatro, and is outside this module.
+   Art. **24.2.a).2.º RIVA** turns it into an express declaration by the acreedor: filing a modelo
+   952 for a foreign client is declaring something false.
+
+So the gate is **fail-closed**. An invoice enters the clock only when **both** hold — a cuota
+repercutida **> 0** (`VatPercent > 0`), and a recipient **established** in TAI, Canarias, Ceuta or
+Melilla — and a missing datum keeps it out rather than letting it in
+(`RECIPIENT_ESTABLISHMENT_UNKNOWN`). With the current portfolio the tracked list is **empty, and
+that is the correct answer**. It is why excluded invoices are returned in `outOfScope` *carrying
+their reason* instead of vanishing: a module that shows nothing and explains nothing reads as a bug,
+and the next reader "fixes" it.
+
+> **Live case — DW-09**, 1.200,00 €, `finalized` on 3-ago-2026, never collected, client established
+> in Australia, `VatPercent = 0`, casilla 120. **It is out of the window, now and for ever**, on
+> `NO_OUTPUT_VAT` and, independently, on `RECIPIENT_NOT_ESTABLISHED`. That is the finding, not a
+> failure of the detection.
+
+### The terms
+
+| Term | Value | Source |
+|------|-------|--------|
+| Waiting term, general rule | **1 year** from the devengo without having obtained payment | art. 80.Cuatro.A).1.ª párr. 1 |
+| Waiting term, PYME option | *«podrá ser, de seis meses o un año»* — **6 months** | art. 80.Cuatro.A).1.ª párr. 3 |
+| PYME threshold | previous calendar year's volumen de operaciones ≤ **6.010.121,04 €** (computed per art. 121 LIVA) | art. 80.Cuatro.A).1.ª párr. 3; AEAT, Manual práctico IVA 2025 |
+| Window to issue the rectificativa | **6 months** from the end of the waiting term. Caducidad | art. 80.Cuatro.B) |
+| Notice to AEAT | **1 month** from the date the rectificativa was issued («expedida»), electronically, **modelo 952** | art. 24.2.a).2.º RIVA; AEAT procedimiento G416 |
+| Minimum base, recipient not an empresario/profesional | > **50 €** (was 300 € until 31-12-2022) | art. 80.Cuatro.A).3.ª |
+| Modification back **upwards** | **1 month** from desisting of the reclamación judicial or agreeing a settlement | art. 80.Cuatro.C) |
+
+The user is a PYME by turnover trivially, so **both terms are available to them** — which is exactly
+why the app must not choose one.
+
+```
+windowStartDate = devengo + 6 or 12 months     [art. 80.Cuatro.A).1.ª]
+windowEndDate   = windowStartDate + 6 months   [art. 80.Cuatro.B)]
+```
+
+Both ends are **inclusive**: the waiting term is «un año desde el devengo sin haber obtenido el
+cobro», so on the anniversary the year has elapsed and the rectificativa may already be issued; and
+the closing day is the last day of a plazo de caducidad, not the first day after it. Months are
+added *de fecha a fecha*, falling back to the last day of the target month when it has no equivalent
+day (art. 5.1 CC): 31-ago-2026 + 6 months is **28-feb-2027**, not 3-mar-2027. Overshooting would
+hand the user a deadline later than the one the law gives them.
+
+**Both windows are always computed and shown as labelled alternatives.** Nothing in the data model
+records which term the taxpayer chose, and choosing for them would be inventing a fact.
+
+> ⚠ **NOT CONFIRMED, and deliberately not encoded as certainty.** The two windows are contiguous by
+> construction, which would mean a PYME who lets the six-month one lapse still has the one-year one
+> (outer limit devengo + 18 months). The law's *«podrá ser, de seis meses o un año»* reads as a
+> genuine option, and no DGT ruling settling the point was found. Never collapse the two into one
+> outer deadline on the strength of the arithmetic alone.
+
+### `InvoiceDate` stands in for the devengo, and that is an approximation
+
+Services accrue when they are rendered (art. 75.Uno.2.º LIVA), or with the anticipated payments of
+art. 75.Dos. The app stores no service date, so the clock runs on `"Invoices"."InvoiceDate"`. For an
+invoice issued the day the work ended the two coincide; otherwise the clock can be a few days early
+or late. **The UI must say so, and no other feature may lean on this as if it were the devengo** —
+art. 75 has not been researched to the depth art. 80 has.
+
+### Stages, exclusions and the checklist
+
+`BAD_DEBT_STAGE` is `waiting` → `in-window` → `window-expired`, plus `out-of-scope` for a closed
+gate. An invoice whose windows have all lapsed **stays listed**: the right is gone and the loss
+should be visible. `needsAttention` is what separates what can still be chased (open, or opening
+within `BAD_DEBT_APPROACHING_DAYS` = 60) from what is only on the record. Sixty days is a product
+decision, not a legal term: instar el cobro por un medio fehaciente has to be done *and documented*
+before the rectificativa can be issued, so warning on the day the window opens would already be late.
+
+There is deliberately **no `pendiente-comunicar-952` stage.** That clock starts on the date a
+rectificativa was issued, and the app neither issues one nor records that anyone did. A stage
+nothing could ever compute would be a lie in the type; the one-month term lives in the checklist as
+text.
+
+| Checklist step | Basis |
+|----------------|-------|
+| Instar el cobro — reclamación judicial, requerimiento notarial **or any medio fehaciente**, and keep the proof | art. 80.Cuatro.A).4.ª |
+| The operation invoiced and the impago booked in the **Libros Registro**, in time and form | art. 80.Cuatro.A).2.ª; art. 24.2.a).1.º RIVA |
+| Issue («expedir») the rectificativa **inside the window** | art. 80.Cuatro.B); art. 15 RD 1619/2012 |
+| **Remit** it to the destinatario and be able to prove the remission | art. 24.1 RIVA; STS 371/2025 |
+| Upload the supporting documents through the registro electrónico and keep the **código de registro** | art. 24.2.a).2.º RIVA |
+| File the **modelo 952** within one month | art. 24.2.a).2.º RIVA |
+| Carry the minoración into the 303 of the period | art. 80.Cuatro |
+
+*Medio fehaciente* is the part that changed with Ley 31/2022: before 2023 only judicial or notarial
+claims counted. The DGT requires the medium to evidence the content of the claim, the identity of
+sender and recipient, and the result and date of delivery, *«con las mismas garantías»* as the
+notarial route — burofax and mediation are admitted (**V0206-23**, 09-02-2023, and V0209-23 /
+V0212-23; ⚠ read through two coincident secondary sources, not in the DGT database).
+
+The requirements are **substantive, not procedural niceties**: TEAC 00/05698/2023 (13-05-2025) held
+the plazo and the minimum amount compatible with art. 90 of Directiva 2006/112/CE. ⚠ That resolution
+judges the pre-2023 wording; what it establishes here is that **missing the window loses the right**.
+
+### Deliberately not built
+
+- **No rectificativa is generated, nothing is filed, no status changes.** Every step above is the
+  user's, and several of them (remitting, proving the remission, uploading evidence) happen outside
+  this app entirely.
+- **No B2C 50 € rule.** This user's recipients are empresarios, so the threshold never fires. And the
+  case law is contradictory: on the three SAN judgments of 22-01-2025 one commentator reports that
+  no minimum may be required in B2C and another that the 300 € limit was upheld. ⚠ The contradiction
+  is unresolved (the judgments were only read through summaries). Codifying either reading would be
+  encoding a guess — if it ever matters, research it then, with the judgment in hand.
+- **No art. 80.Tres (concurso) path**, and no IRPF treatment of the loss. The deductibility of a bad
+  debt in estimación directa, and how it interferes with the 5 % de difícil justificación, has **not
+  been investigated**; symmetry with the IVA must not be assumed.
+
+### Where it lives
+
+`getBadDebtReport(asOfDate)` in `InvoiceRepository.ts` over the pure maths of `src/utils/badDebt.ts`.
+The SQL is deliberately wide — every `ISSUED_INVOICE_STATUSES` invoice with a NULL `TransactionID` —
+and **the gate decides**, so a `'paid'` invoice whose link was lost is admitted by the WHERE and then
+ruled out as `COLLECTED`. That is the same finding the cross-quarter panel reports as
+`paid-without-linked-movement`, and it is emphatically **not** an impagado. Deciding it in SQL would
+bury the distinction inside a predicate; a test asserts the query contains no `'paid'` literal.
+
+`asOfDate` is always explicit, so the clock is testable and a report can never be computed against a
+different day than the copy around it.
+
+`GET /api/fiscal/bad-debt` serves it, **GET only and unscoped by period**: there is no write verb
+because the app exercises nothing, and no `?year=` because a window runs from each invoice's own
+devengo and straddles quarters and years — filtering by the period on screen would hide the invoice
+closest to lapsing. `BadDebtCard` renders it on **`/invoices`**, under the list, for the same reason:
+the thought that leads here is *this client never paid me*, and every other fiscal surface is
+organised by a period this clock does not have.
+
+The card **opens itself when something needs attention** and stays shut otherwise; a card you must
+open to discover a lapsing deadline is a display, and this is meant to chase. When `tracked` is empty
+the excluded list becomes the main state, **expanded**, each invoice showing its exclusion in full —
+so DW-09 reads *«Sin IVA repercutido… no hay ningún plazo que se te pueda pasar»* rather than looking
+broken. Two sentences are kept apart there: nothing uncollected at all, versus the article simply not
+reaching anything.
+
+
+`src/__tests__/services/bad-debt-invoices.test.ts` pins the boundaries — the day before a window
+opens, its opening day, its closing day (where `daysRemainingInWindow` is **0**: still open, and out
+of time) and the day after. **Every fixture prefixed `ES-` is labelled HYPOTHETICAL**, in the file
+header and in each docblock: no real invoice carries Spanish output VAT to an established client, so
+without them the clock could not be exercised at all. Do not read them as data about this taxpayer.
 
 ---
 
@@ -631,6 +850,73 @@ into the models, and only its interés.
 The principal and the recargo reach nothing, ever. They are movements of money the balance and the
 cash-flow charts are right about, and expenses that no tax model may count.
 
+### Cancelling a resolution
+
+A deferral can be paid off early or be cancelled outright, and until this existed its pending
+fracciones sat in Movimientos for ever, asking to be paid.
+
+`cancelDeferralPendingMovements()` cuts the calendar where the user actually is, in one transaction:
+
+- every fracción movement still **`pending`** becomes **`TRANSACTION_STATUS.CANCELLED`**;
+- every movement already **`paid`** is left **exactly** as it is — that money really did leave the
+  account, and its interés remains a deductible expense of the year it was paid in. Rewriting it
+  would delete a real expense from an already filed 130.
+
+Cancelling therefore needs **no new mechanism and no new flag**. `cancelled` is already filtered out
+of every summary view and every fiscal view, so a cancelled fracción leaves the 130 and the 100
+exactly as if it had never been booked, while the paid ones keep counting in the year they fell in.
+
+**The `Deferrals` row survives, and nothing on it changes.** Three reasons, in order of weight:
+
+1. `UQ_Deferrals_UserExpediente` is what stops the same letter being imported twice. Deleting the row
+   frees the expediente, so the very next upload of the same PDF would silently re-book the
+   instalments the user has just cancelled.
+2. The cancelled movements keep pointing at it through `DeferralID`. The letter is the only thing
+   that explains what those rows were, and `FK_Transactions_Deferral` would null the link.
+3. There is no status column to set. `DEFERRAL_STATUS` (`active` / `settled` / `cancelled`) is
+   **derived from the movements every time it is read**, never stored: a stored copy is one more flag
+   that can go stale, and the movements are the only truth about what has been paid. Note that
+   `settled` is *nothing pending and nothing cancelled* — paying ahead of the calendar cancels
+   nothing, because that money did move.
+
+Deleting a resolution is a different operation and it already exists: `deleteDeferral()` is for an
+import that was **wrong**, cancellation is for a deferral that really was **cancelled**.
+
+**The guard lives in the UPDATE, not in a check before it.** Only rows still `pending` are matched,
+so a fracción marked paid between the confirmation screen and the click is not rewritten, and two
+cancellations racing each other cannot both claim the same fracción — the second matches nothing and
+answers `409 api-error.conflict.deferral-nothing-to-cancel`. The movements are then re-read **inside
+the same transaction**, so the state reported back is the one the COMMIT leaves behind rather than
+the one the update intended.
+
+**The confirmation shows both halves**, and that is not decoration: a deferral is cancelled in the
+middle of its calendar, so what is *kept* matters as much as what goes. `DeferralCancellationPreview`
+carries the fracciones to cancel and the fracciones to keep with their own totals, and the copy says
+plainly that the cancelled movements are not deleted — they stay in the history with that status, and
+reviving one means marking it pending again by hand. It also says that this changes **only what the
+app shows**: if the aplazamiento was cancelled at AEAT too, the debt is still alive there, with its
+own plazos and recargos.
+
+A fracción is three movements, so its status is **resolved, not read**: pending if any part is still
+pending (there is something left to cancel), paid if none is pending and at least one was paid,
+cancelled only when every part is cancelled.
+
+**Until this existed no surface showed a deferral at all.** The wizard imported the letter and the
+app never mentioned it again, so adding the action meant building the place it lives: `DeferralList`
+on `/fiscal`, the year's resolutions with their expediente, modelo and period, keyed by year like the
+inmovilizado, because a resolution belongs to a year and not to a quarter. The list carries **no
+status badge per row** — `DEFERRAL_STATUS` is derived from the movements, so a badge would cost a
+query per resolution to print one word. It is computed once inside the confirmation, next to the
+fracciones it was derived from.
+
+`GET /api/fiscal/deferrals/:id/cancel` is the preview and `POST` to the same URL performs it, neither
+taking a payload: what gets cancelled is decided by the movements' own status, so there is nothing to
+validate and nothing that can drift between the confirmation and the write. The confirm button is not
+danger-red — nothing is destroyed — and after the write both halves come down, replaced by what
+actually happened; leaving them on screen under a success message would read as *these are still
+about to be cancelled*.
+
+
 ---
 
 ## The IRPF provision
@@ -724,6 +1010,29 @@ It deliberately does **not** ride the working-day extension. The rule says the d
 deadline moves "con carácter general" by the same days, but each year's calendar is what settles it,
 and a future year's is not published. Filing a day early costs nothing; a day late costs a recargo.
 
+**The year on the calendar is not the year being filed.** Every period is filed in the one after it:
+on 10 January the 303 and the 130 of Q4 are due and so is the 390, and the Renta of the previous year
+runs from April to June. A surface that only ever computes `new Date().getFullYear()` finds all of
+those `not_due` and shows **nothing at all on exactly the days something is owed** — which is what
+the dashboard banner did, and with it the cross-quarter qualifier of Q4, the likeliest quarter to
+carry one (invoice issued in December, collected in January, `crossesFiscalYear`).
+
+`getCarryOverDeadlines()` is the fix, and it stays inside the same discipline as the rest of this
+file: **pure, and it invents nothing.** It filters the entries `computeDeadlines()` already emits for
+a closed fiscal year down to those whose window is still open, and only the `active=true` path of the
+route prepends them. Two boundaries are deliberate:
+
+- **`upcoming` and `due` only — never `overdue`.** A filing missed in a year that is already closed
+  is a different conversation, and carrying it forward would park a permanent warning on the
+  dashboard of anyone who ever skipped one.
+- **The year view is left alone.** Asked about a year, the route answers for that year; adding
+  another year's rows would contradict the selector the user just moved and its own `meta.year`.
+
+⚠ One consequence to know about: a carried-over **Modelo 100** may be a window flagged
+`isWindowConfirmed: false` (see below). The banner does not render that flag — the panel is where
+dates are detailed — so a provisional Renta window can appear there without its caveat. Pre-existing
+in the banner and now reachable in one more situation; it is a copy decision, not a wiring one.
+
 **Renta window.** Fixed by an Orden ministerial each campaign and it moves — 3 April in 2023,
 2 April in 2024, 8 April in 2025. `RENTA_WINDOWS` holds the published ones; a year past
 `LAST_PUBLISHED_RENTA_CAMPAIGN` falls back to the most recent window *and* is flagged
@@ -757,6 +1066,11 @@ fact. **Add the new window here every year.**
 | Only the interés is deductible, at 100 %, into casilla 0203 | `DEFERRAL_PART_DEDUCTION_PERCENT`, `DEFERRAL_INTEREST_CASILLA` | A non-deductible recargo (art. 15.c LIS) or the tax itself enters the base |
 | `Importe total deuda (1+2)` is never stored as the principal | `PrincipalCents` and `SurchargeCents` are separate columns; `TotalDeudaCents` is not stored at all | Recargo de apremio disappears into a figure treated as tax paid — 416,24 € on one real letter |
 | The tipo reaches the verification as printed (4,062, not 4,0625) | `accrualToleranceCents()` is derived from the printed rate's ulp | Either false findings on every long fracción, or a tolerance wide enough to hide a real one |
+| Cancelling a deferral never rewrites a **paid** fracción | The UPDATE matches `Status = 'pending'` only; the guard is in the statement, not in a pre-check | A real, already deducted interés vanishes from a filed 130 — and two concurrent cancellations both claim the same fracción |
+| A deferral's state is derived from its movements, never stored | `DEFERRAL_STATUS` is computed on read | A stale flag says *cancelled* while instalments keep falling due, or the reverse |
+| A `'paid'` invoice with no linked movement is never reported as uncollected | `classifyCrossQuarter()` reads `"Invoices"."Status"` | A bookkeeping defect reads as a fiscal alarm, and the `declared-in-earlier-period` list is silently incomplete |
+| A cross-quarter finding qualifies a deadline, never creates one | `withCrossQuarterNotes()` only annotates what `computeDeadlines()` produced | An invented obligation enters the filing calendar and the status machine |
+| The art. 80.Cuatro clock is entered only through the fail-closed gate | `resolveBadDebtExclusion()`: cuota repercutida > 0 **and** recipient established; unknown closes it | The app invites a modelo 952 that declares something false (art. 24.2.a).2.º RIVA), or a rectificativa that recovers 0,00 € |
 
 ---
 
@@ -805,34 +1119,52 @@ Open items from the fiscal audit, in the order they matter:
      stop the schedule and settle the pending value; today the dotación simply keeps accruing.
    - **No historical assets.** Only what has been registered amortises. Anything bought before this
      module existed was deducted in full in its year and is not restated.
-5. **Cross-quarter invoices are flagged, but nothing is chased.** The alert of § Devengo vs. caja
-   surfaces the three disagreements on the fiscal page and in the pay flow. What is still manual:
-   - **It only sees invoices.** The detection reads `"Invoices"`. Professional income typed straight
-     into `Transactions` — every 2023 import, for one — has no issue date at all, so no disagreement
-     can be computed for it. Those rows are only ever booked on their cash date.
-   - **The third case depends on the link surviving.** A `'paid'` invoice whose `TransactionID` was
-     lost has no collection date, so it reports as *sin cobro registrado* and the money that arrived
-     this quarter is never matched back to the quarter that declared it. Nothing detects the broken
-     link.
-   - **Nothing acts on it.** It is a panel on the quarter being viewed: no reminder, no deadline
-     entry, and nothing stops a modelo from being recorded with the bank figure anyway.
-   - **No modificación de base imponible.** An invoice that will definitively not be paid allows the
-     IVA already declared on it to be recovered (art. 80.Cuatro LIVA, with its own deadlines and
-     formalities). The app flags the uncollected invoice and stops there.
-6. **Deferrals are booked, but the calendar is not policed.** The resolution, the three-way split and
-   the verification are implemented (§ Aplazamientos y fraccionamientos). What is still manual:
-   - **Each fracción's interés is booked whole on its vencimiento**, not spread over the days it
-     accrues. A fracción due in January 2027 accrues from July 2026, so a strict devengo reading
-     would split its interés across two Rentas. The letter's own calendar is what the app follows,
-     and the amounts involved are a few euros.
-   - **No matching back to the bank.** Nothing links a real charge to the fracción it paid; the
-     instalment is marked paid by hand like any other pending movement.
-   - **No early cancellation and no recalculation.** Paying the deferral off early, or missing an
-     instalment — which sends the remaining deuda to apremio and voids the calendar — leaves the
-     booked movements as they were. The letter is a snapshot of what was granted, not a live plan.
-   - **One deferred modelo per resolution.** A letter deferring several liquidaciones is transcribed
-     in full but comes back with `liquidacionNumber: null` and a capped confidence, for a human to
-     sort out.
+5. **Cross-quarter invoices: what is detected, and the one thing that cannot be.** The alert now
+   names four cases — the lost link among them — and rides the 303/130 deadline of its quarter
+   instead of waiting to be visited (§ Devengo vs. caja). What remains open is deliberate, in both
+   entries below. Do not "complete" either without reading the reasoning:
+   - **Professional income typed straight into `Transactions` is not detected, and cannot be.** The
+     detection reads `"Invoices"`, and it works by comparing two dates. A hand-typed income row —
+     every 2023 import, for one — **has no issue date at all**: there is no second date to disagree
+     with the payment date, so no disagreement exists to compute. This is *unknowable*, not
+     unimplemented, and inferring an issue date from a description or a category would be
+     manufacturing the very figure the alert exists to protect. Those rows are booked on their cash
+     date, and the only real fix is upstream — invoice them through the invoice module.
+   - **The alert warns; it does not enforce.** Nothing stops a modelo being recorded with the bank
+     figure anyway. That is the scope of the whole document: the app computes what goes in AEAT's
+     forms and makes a disagreement visible, and a filed modelo outranks a recomputation.
+   - **Recovering the IVA of an uncollected invoice is a clock, not an action.** The art. 80.Cuatro
+     module detects windows and lists the formalities; it generates no rectificativa and files no
+     952 (§ Créditos incobrables). For this portfolio it is expected to be **empty** — the article
+     does not reach invoices with no Spanish output VAT — and that is the correct answer, not a gap.
+     What *is* a gap: the detection is covered by 24 tests, but **the route, the hook and the card
+     are not**. The untested behaviour that will run on the live database every single time is
+     precisely the emptiest one — the excluded list expanding itself and naming the reason when
+     `tracked` is empty — so it is the one worth pinning first.
+6. **Deferrals: booked, cancellable, and deliberately not accrued day by day.** The resolution, the
+   three-way split, the verification and the cancellation are implemented (§ Aplazamientos y
+   fraccionamientos). Four things are **decisions**, not omissions:
+   - **A fracción's interés is booked whole on its vencimiento, on purpose.** AEAT liquidates the
+     interest *per fracción* and it falls due at that vencimiento (art. 53 RGR), so booking it there
+     is defensible and standard. A strict devengo reading would spread it over the days it accrues —
+     a fracción due in January 2027 accrues from July 2026 — and on the live data that would move
+     roughly **20 €** between the 2026 and the 2027 Renta. Which treatment is better is genuinely
+     arguable, the amount is small, and the letter's own calendar is what the user is paying.
+     **Leave the behaviour alone** unless the argument itself has been settled.
+   - **No matching of a bank charge back to a fracción, because there is no bank feed.** The app
+     ingests no statements; there is nothing to match against. Marking a pending movement paid
+     already works and is the whole mechanism. Building a matcher would mean building an importer
+     first, which is a different product.
+   - **One deferred modelo per resolution.** All three of the user's letters carry exactly one, and a
+     multi-liquidación letter has never occurred. Generalising the model for a case nobody has seen
+     would complicate the import, the verification and the ANEXO I rebuild against a guess about
+     what such a letter looks like. Today one is transcribed in full but comes back with
+     `liquidacionNumber: null` and a capped confidence, for a human to sort out — which is the right
+     behaviour for something unverified.
+   - **No recalculation after apremio.** Missing an instalment sends the remaining deuda to the
+     período ejecutivo and voids the calendar; AEAT then issues its own new figures. The app has no
+     way to derive them, so the answer is to cancel the resolution and import what AEAT actually
+     sent. The letter is a snapshot of what was granted, not a live plan.
 7. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
    `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
 8. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
@@ -855,6 +1187,15 @@ Open items from the fiscal audit, in the order they matter:
 | Base cannot turn negative through reductions | Art. 50.1 Ley 35/2006 |
 | Home-office supplies, 30% of the affected share | Art. 30.2.5.ª b Ley 35/2006 |
 | Localisation rules — services to non-resident businesses | Art. 69 Ley 37/1992 (IVA) |
+| Modificación de la base imponible por créditos incobrables: plazos, requisitos y exclusiones | Art. 80.Cuatro y 80.Cinco Ley 37/1992, redacción del art. 77 Ley 31/2022 (vigente 1-1-2023) |
+| Volumen de operaciones — the PYME six-month option | Art. 121 Ley 37/1992; umbral 6.010.121,04 € |
+| Devengo en prestaciones de servicios (what `InvoiceDate` approximates) | Art. 75.Uno.2.º y 75.Dos Ley 37/1992 |
+| Comunicación a la AEAT de la modificación: un mes, vía electrónica, documentación | Art. 24 RD 1624/1992 (RIVA), redacción del RD 1171/2023 (vigente 1-1-2024) — **modelo 952**, procedimiento AEAT G416 |
+| Expedición de la factura rectificativa | Art. 15 RD 1619/2012 (Reglamento de facturación) |
+| «Cualquier otro medio que acredite fehacientemente la reclamación» — qué exige | DGT V0206-23, de 09-02-2023 (y V0209-23, V0212-23) |
+| Prueba de la remisión de la rectificativa al destinatario | STS 371/2025, de 31 de marzo (ECLI:ES:TS:2025:1614) |
+| Los requisitos del 80.Cuatro son sustantivos, y compatibles con el art. 90 de la Directiva 2006/112/CE | TEAC 00/05698/2023, de 13-05-2025 (sobre la redacción anterior) |
+| Plazos por meses, de fecha a fecha, y el mes sin día equivalente | Art. 5.1 Código Civil |
 | Deduction of input VAT, affectation | Art. 95 Ley 37/1992; consulta V2554-23; TEAC 6654/2022 |
 | Compensation quotas expire after four years | Art. 99.5 Ley 37/1992 |
 | A deadline on a día inhábil runs to the next working day | Art. 30.5 Ley 39/2015 |

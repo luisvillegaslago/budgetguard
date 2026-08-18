@@ -4,7 +4,7 @@
  */
 
 import { FILING_STATUS, MODELO_TYPE } from '@/constants/finance';
-import { computeDeadlines, getActiveDeadlines } from '@/utils/fiscalDeadlines';
+import { computeDeadlines, getActiveDeadlines, getCarryOverDeadlines } from '@/utils/fiscalDeadlines';
 
 describe('computeDeadlines', () => {
   describe('structure', () => {
@@ -272,5 +272,41 @@ describe('getActiveDeadlines', () => {
     const active = getActiveDeadlines(deadlines);
 
     expect(active).toHaveLength(0);
+  });
+});
+
+describe('getCarryOverDeadlines', () => {
+  it('keeps the Q4 and 390 filings that fall due in January, after their year has closed', () => {
+    // 10 January 2027 is inside the window of fiscal year 2026: the calendar year has changed but
+    // the year being filed has not.
+    const now = new Date(2027, 0, 10);
+    const carryOver = getCarryOverDeadlines(computeDeadlines(2026, new Set(), 7, now));
+
+    expect(carryOver.map((d) => `${d.modeloType}-${d.fiscalQuarter}`).sort()).toEqual(['130-4', '303-4', '390-null']);
+    expect(carryOver.every((d) => d.fiscalYear === 2026)).toBe(true);
+  });
+
+  it('keeps the Renta of the closed year while its campaign runs', () => {
+    const now = new Date(2027, 4, 1); // 1 May 2027 — inside the campaign of fiscal year 2026
+    const carryOver = getCarryOverDeadlines(computeDeadlines(2026, new Set(), 7, now));
+
+    expect(carryOver.map((d) => d.modeloType)).toEqual([MODELO_TYPE.M100]);
+  });
+
+  it('drops the overdue ones, which are a different conversation', () => {
+    // Nothing filed all year, and every window of 2025 is shut. Carrying these over would park a
+    // permanent warning on the dashboard instead of pointing at what is running out now.
+    const now = new Date(2026, 7, 18);
+    const carryOver = getCarryOverDeadlines(computeDeadlines(2025, new Set(), 7, now));
+
+    expect(carryOver).toHaveLength(0);
+  });
+
+  it('drops what was already filed, so a diligent year carries nothing over', () => {
+    const now = new Date(2027, 0, 10);
+    const filedSet = new Set(['303-2026-4', '130-2026-4', '390-2026']);
+    const carryOver = getCarryOverDeadlines(computeDeadlines(2026, filedSet, 7, now));
+
+    expect(carryOver).toHaveLength(0);
   });
 });

@@ -1140,6 +1140,10 @@
       "cta-hint": "Upload the letter and the instalments are created already split",
       "empty": "No deferrals recorded yet",
       "empty-hint": "Upload the resolution AEAT sent you when it granted the deferral",
+      "list": {
+        "modelo-quarter": "Modelo {modelo} · Q{quarter} {year}",
+        "modelo-annual": "Modelo {modelo} · tax year {year}"
+      },
       "upload": {
         "title": "Upload the AEAT resolution",
         "description": "It is the letter titled \"RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO\" that lands in your Sede Electrónica inbox when AEAT grants the deferral: it carries the instalment table with its due dates and interest.",
@@ -1251,7 +1255,43 @@
         "not-a-deferral": "This document is not an AEAT deferral or instalment resolution. Upload the letter titled \"RESOLUCIÓN DE APLAZAMIENTO/FRACCIONAMIENTO\".",
         "unreadable": "The instalment table could not be read. If the PDF is scanned or skewed, try a sharp capture of the ANEXO I page.",
         "already-imported": "Case {expediente} is already recorded: its movements were created on {date}.",
-        "already-imported-generic": "This case is already recorded."
+        "already-imported-generic": "This case is already recorded.",
+        "nothing-to-cancel": "This deferral has no pending instalments left, so there is nothing to cancel.",
+        "cancel-failed": "The pending instalments could not be cancelled. Nothing was changed: please try again."
+      },
+      "status": {
+        "active": "In progress",
+        "settled": "Paid in full",
+        "cancelled": "Cancelled"
+      },
+      "cancel": {
+        "action": "Cancel the deferral",
+        "action-hint": "Cancels the instalments you have not paid yet",
+        "title": "Cancel deferral {expediente}?",
+        "description": "The deferral is cut off where you stand. The instalments you have not paid yet are cancelled; the ones you already paid stay exactly as they are, because that money really did leave your account and their interest is still a deductible expense of the year you paid it.",
+        "to-cancel-title": "Pending instalments to be cancelled",
+        "to-cancel-count": "Instalments cancelled: {count}",
+        "to-cancel-hint": "Their movements become \"Cancelled\" and drop out of the pending list. No figure in Modelo 130 or Modelo 100 moves: a pending instalment did not count either, because only what has actually been paid does.",
+        "to-cancel-empty": "No pending instalments left, so there is nothing to cancel.",
+        "to-keep-title": "What you already paid is kept",
+        "to-keep-count": "Instalments kept: {count}",
+        "to-keep-hint": "Not one amount or date is touched: they keep counting in the models of the year you paid them.",
+        "to-keep-empty": "You have not paid any instalment yet, so there is nothing to keep.",
+        "totals-to-cancel": "Total cancelled",
+        "totals-to-keep": "Total already paid",
+        "movements-count": "{count} movements",
+        "fraccion-label": "Instalment {number} · due {date}",
+        "confirm": "Cancel the pending instalments",
+        "cancelling": "Cancelling instalments...",
+        "back": "Leave it as it is",
+        "history-note": "Cancelled movements are not deleted: they stay in the history with that status. Reviving an instalment means marking it pending again by hand.",
+        "aeat-note": "This only changes what you see here. If the deferral has also been cancelled at the AEAT, the debt is still alive there with its own deadlines and surcharges.",
+        "success": {
+          "title": "Deferral cancelled",
+          "description": "{movements} movements across {fracciones} instalments were cancelled, {total} in total. The {kept} movements already paid are untouched.",
+          "description-nothing-kept": "{movements} movements across {fracciones} instalments were cancelled, {total} in total. There was no paid instalment to keep.",
+          "close": "Close"
+        }
       }
     },
     "deadlines": {
@@ -1271,7 +1311,15 @@
         "filed": "Filed"
       },
       "domiciliacion": "With direct debit, until {date}",
-      "window-unconfirmed": "dates to be confirmed"
+      "window-unconfirmed": "dates to be confirmed",
+      "cross-quarter": {
+        "summary": "Invoices whose issue and collection fall apart this quarter: {count} · {total}",
+        "summary-one": "One invoice whose issue and collection fall apart this quarter: {total}",
+        "hint": "When filing, remember each invoice goes in the quarter it was issued, not the one the money arrived in. This model's figures are already computed that way.",
+        "data-integrity": "Of those, {count} are recorded as paid with no linked movement: the collection date is missing. The amount to declare does not change.",
+        "data-integrity-one": "One is recorded as paid with no linked movement: the collection date is missing. The amount to declare does not change.",
+        "link": "See the Q{quarter} {year} detail"
+      }
     },
     "settings": {
       "title": "Fiscal Reminders",
@@ -1343,11 +1391,13 @@
         "collected-in-another-period": "Collected in Q{collectionQuarter}, but declared in this quarter: VAT and IRPF accrue on issue, not on collection.",
         "collected-in-another-year": "Collected in Q{collectionQuarter} {collectionYear}, already a different tax year: it is declared in this quarter and goes into the {invoiceYear} annual return, not the {collectionYear} one.",
         "issued-not-collected": "Issued this quarter with no collection on record: VAT accrues on issue, so it is declared now even though the money has not arrived yet.",
-        "declared-in-earlier-period": "The money arrived this quarter, but the invoice was declared in Q{invoiceQuarter} {invoiceYear}: this quarter's models do not count it."
+        "declared-in-earlier-period": "The money arrived this quarter, but the invoice was declared in Q{invoiceQuarter} {invoiceYear}: this quarter's models do not count it.",
+        "paid-without-linked-movement": "This invoice is collected. What is missing is the link to the bank movement, which is common on older invoices. Without that link there is no record of the date the money arrived, so the app cannot say which quarter it was collected in. The figures do not change —it is declared in the quarter it was issued— but while the link is missing there is also no way to check whether the money arrived in a quarter later than the one that declared it. Link the movement and the date comes back."
       },
       "group": {
         "collected-in-another-period": "Collected in another quarter",
         "issued-not-collected": "Issued, no collection on record",
+        "paid-without-linked-movement": "Paid, movement link missing",
         "declared-in-earlier-period": "Declared in an earlier quarter"
       },
       "columns": {
@@ -1357,7 +1407,161 @@
       },
       "quarter-label": "Q{quarter} {year}",
       "no-collection": "No collection on record",
+      "link-missing": "Collected, link missing",
+      "link-missing-hint": "What is missing is the link to the bank movement, not the collection itself.",
+      "data-integrity-note": "This is not a tax warning: no figure in the models changes because of it. It is a datum the app is missing, not something you owe.",
+      "data-integrity-fix": "To fix it: open the invoice and link it to the bank movement the money arrived in.",
       "pay-warning": "The collection date falls in a different quarter from the issue date: the invoice will still be declared in Q{invoiceQuarter} {invoiceYear}, the quarter it was issued in."
+    },
+    "bad-debt": {
+      "title": "VAT on unpaid invoices",
+      "subtitle": "Art. 80.Cuatro of the Spanish VAT Act",
+      "as-of": "Dates computed as of {date}",
+      "what-it-is": "The VAT on an invoice is paid over in the 303 of the quarter it was issued in, collected or not. If the client ends up never paying, the law lets you recover the VAT you fronted out of your own pocket: it is called modificación de la base imponible, and it is done by issuing a corrective invoice and notifying the tax office. It is neither automatic nor always available: you have to wait out a term, correct within a six-month window and notify within the following month. Once that window closes, the right is gone for good.",
+      "how": {
+        "title": "The three steps, and their deadlines",
+        "wait-title": "1. Wait for the debt to count as uncollectible",
+        "wait-description": "Six months or one year have to pass from the accrual date with no payment. The short term is an option for small businesses —available if your turnover in the previous calendar year was 6,010,121.04 € or less— and the law lets you choose between the two.",
+        "rectify-title": "2. Issue the corrective invoice",
+        "rectify-description": "Once the waiting term is over, a six-month window opens to issue it and get it to the client. It is a lapse period: the last day is the last day, with no extension and no fixing it afterwards.",
+        "notify-title": "3. Notify the AEAT",
+        "notify-description": "Within one month of the corrective invoice's date you file form 952 through the AEAT site, after uploading the supporting documents through the electronic register."
+      },
+      "summary": {
+        "tracked": "Invoices with the clock running: {count}",
+        "recoverable": "VAT at stake: {total}",
+        "excluded": "Invoices ruled out: {count}"
+      },
+      "attention": {
+        "badge": "Clock running",
+        "hint": "The window to correct is open, or opens in less than {days} days."
+      },
+      "columns": {
+        "invoice": "Invoice",
+        "client": "Client",
+        "accrual-date": "Invoice date",
+        "base": "Taxable base",
+        "vat": "Output VAT",
+        "total": "Total",
+        "recoverable": "VAT you can recover",
+        "window": "Window to correct",
+        "stage": "Situation",
+        "reason": "Why it is ruled out"
+      },
+      "stage": {
+        "waiting": "Waiting",
+        "in-window": "Window open",
+        "window-expired": "Window closed",
+        "out-of-scope": "Outside the article"
+      },
+      "stage-hint": {
+        "waiting": "The waiting term the law requires has not elapsed, so you cannot issue the corrective invoice yet. What you can get on with is claiming payment and keeping the evidence: that step has to be done first.",
+        "in-window": "You can issue the corrective invoice now. Once the window closes, the VAT on this invoice stops being recoverable.",
+        "window-expired": "The window closed with no corrective invoice: under this term, the VAT on this invoice can no longer be recovered. It stays listed so the loss is on record, not so it can be chased.",
+        "out-of-scope": "Art. 80.Cuatro does not reach this invoice, so no deadline is running for it."
+      },
+      "term": {
+        "pyme-six-months": "Short term: six months (small-business option)",
+        "general-one-year": "General term: one year"
+      },
+      "term-choice": "The law lets you choose between waiting six months or one year, and the app does not know which you chose: that is why it shows both calendars.",
+      "term-unconfirmed": "That letting the six-month window lapse still leaves you the one-year one is not confirmed by any tax ruling we could verify. Count on the term you chose from the start, and do not treat the second one as a safety net.",
+      "pyme-threshold": "The six-month term is available if your turnover in the previous calendar year was 6,010,121.04 € or less.",
+      "window": {
+        "opens": "Can be corrected from {date}",
+        "closes": "Last day to correct: {date}",
+        "range": "From {start} to {end}",
+        "days-until": "{days} days until it opens",
+        "days-until-one": "Opens tomorrow",
+        "days-remaining": "{days} days left",
+        "days-remaining-one": "One day left",
+        "last-day": "Today is the last day",
+        "expired": "Lapsed on {date}"
+      },
+      "accrual-note": "The deadlines here are counted from the invoice date. The law counts them from the accrual date, which for services is the day they are rendered: if you invoiced when the work ended they match, and if not, these dates may run a few days early or late. Check it before cutting it fine on the last day.",
+      "checklist": {
+        "title": "What has to be done, and in this order",
+        "description": "These are not formalities: the courts treat the requirements as part of the substance of the right, so skipping one costs the whole VAT amount.",
+        "legal-basis": "Legal basis: {basis}",
+        "step": {
+          "claim-payment": {
+            "title": "Claim the payment and keep the evidence",
+            "description": "A court claim, a notarial demand or any other means that reliably evidences the claim will do: since 2023 a burofax is accepted, because it records what you sent, to whom and when it was delivered. A phone call or a plain email will not do. Keep the receipt, because it has to be submitted. If the debtor is a public body, what you need is its certificate acknowledging the debt."
+          },
+          "book-in-registers": {
+            "title": "Have the invoice and the default booked",
+            "description": "The transaction has to be invoiced and booked in time and form in the register of issued invoices, and the default reflected in your accounts."
+          },
+          "issue-rectificativa": {
+            "title": "Issue the corrective invoice inside the window",
+            "description": "It corrects the original invoice and its VAT, under its own series. It does not void the invoice or change its status: the transaction happened and still stands."
+          },
+          "send-rectificativa": {
+            "title": "Send it to the client and be able to prove it",
+            "description": "Reducing the base is conditional on the corrective invoice being sent to the recipient. No particular means is required, but you do have to be able to prove you sent it."
+          },
+          "upload-evidence": {
+            "title": "Upload the documents through the electronic register",
+            "description": "A copy of the corrective invoice, showing the date of the invoice it corrects; the evidence of the claim; and, if the debtor is a public body, its certificate. The register returns a code: keep it, because it goes on form 952."
+          },
+          "file-modelo-952": {
+            "title": "File form 952 within one month",
+            "description": "One month from the date of the corrective invoice, electronically. On it you declare that the debt is not secured, guaranteed or insured, that it is not between related parties, and that the client is established in Spain."
+          },
+          "adjust-303": {
+            "title": "Carry the reduction into the 303",
+            "description": "The recovered VAT goes into the return for the relevant period. Your client, for their part, has to reduce the VAT they deducted; their failing to do so does not block you."
+          }
+        }
+      },
+      "upward-revision": {
+        "title": "If you do end up getting paid",
+        "description": "Once corrected, the base is not raised again even if you are eventually paid. But if you withdraw the court claim or agree payment terms with the client, you have one month from that moment to issue another corrective invoice, this time upwards. It is a second clock, and it runs just as fast."
+      },
+      "aeat": {
+        "form": "Form 952 — Notification of the modification of the taxable base in insolvency and uncollectible debt cases",
+        "deadline": "Filed within one month of the corrective invoice's date.",
+        "deadline-note": "The procedure sheet on the AEAT site says «deadline: none». The VAT regulation governs: one month.",
+        "procedure-link": "See the procedure on the AEAT site"
+      },
+      "empty": {
+        "title": "No invoice has the clock running",
+        "description": "This is where your unpaid invoices whose VAT you can still recover will appear. An empty list does not mean something is missing: if your invoices carry no Spanish VAT, or the client is established outside Spain, the article does not reach them. Every invoice ruled out is listed below with its reason."
+      },
+      "no-invoices": {
+        "title": "No invoices are outstanding",
+        "description": "Every invoice you have issued has been collected. This section only fills up when one goes unpaid."
+      },
+      "excluded": {
+        "title": "Invoices ruled out, and why",
+        "description": "They are issued and uncollected, but art. 80.Cuatro does not reach them: no deadline is running and there is no right you can lose by doing nothing.",
+        "show": "Show the invoices ruled out ({count})",
+        "hide": "Hide the invoices ruled out",
+        "reason-label": "Reason"
+      },
+      "exclusion": {
+        "no-output-vat": {
+          "label": "No output VAT",
+          "description": "This invoice carries no Spanish VAT, so you fronted nothing and there is nothing to recover. Art. 80.Cuatro only reduces the base of taxed transactions: a corrective invoice here would move 0.00 € in your 303. There is no deadline you can miss and no right you can lose."
+        },
+        "recipient-not-established": {
+          "label": "Client not established in Spain",
+          "description": "Your client is not established in Spain, nor in the Canary Islands, Ceuta or Melilla. The law expressly excludes those debts, and on form 952 you have to declare in writing that the invoice is not one with a non-established recipient: filing it for this invoice would be declaring something false. It is not a matter of deadlines — this route is not open to it."
+        },
+        "recipient-establishment-unknown": {
+          "label": "Client's country not recorded",
+          "description": "The invoice does not record the client's country, and whether the article applies depends on that. When in doubt it stays out: better that than pushing you to file a 952 that does not apply. Fill in the country in the client's details and it will be assessed again."
+        },
+        "not-issued": {
+          "label": "Not issued or cancelled",
+          "description": "A draft or a cancelled invoice declared nothing and charged no VAT, so there is no VAT fronted to recover."
+        },
+        "collected": {
+          "label": "Collected",
+          "description": "This invoice is recorded as collected, so there is no unpaid debt. If the collection was recorded by mistake or the money was returned, fix the collection first and it will be assessed again."
+        }
+      },
+      "disclaimer": "This is a calendar and a checklist, not a filing: the app does not issue the corrective invoice, does not file form 952 and does not touch the invoice's status. Those steps are yours to take — and if the amount is serious, your accountant's."
     }
   },
   "auth": {
@@ -2335,7 +2539,8 @@
       "prefix-in-use": "This prefix has invoices and cannot be deleted",
       "prefix-exists": "A series with this prefix already exists",
       "future-occurrence": "Cannot process a future occurrence",
-      "deferral-expediente-exists": "A deferral with that case number already exists"
+      "deferral-expediente-exists": "A deferral with that case number already exists",
+      "deferral-nothing-to-cancel": "This deferral has no pending instalments left, so there is nothing to cancel."
     },
     "invoice": {
       "category-required-for-paid": "An income category is required to mark as paid",
@@ -2441,6 +2646,9 @@
         "crypto-credentials": "Error disconnecting Binance",
         "deferral": "Error deleting the deferral"
       },
+      "cancel": {
+        "deferral": "Error cancelling the deferral"
+      },
       "import": {
         "jumps": "Error importing jumps",
         "tunnel-sessions": "Error importing tunnel sessions",
@@ -2465,7 +2673,9 @@
       "category-history": "Failed to load category history",
       "vouchers": "Failed to load vouchers",
       "fixed-assets": "Failed to load fixed assets",
-      "deferrals": "Could not load deferrals"
+      "deferrals": "Could not load deferrals",
+      "bad-debt": "Failed to load unpaid invoices",
+      "deferral-cancellation": "Failed to work out what would be cancelled"
     }
   },
   "pages": {

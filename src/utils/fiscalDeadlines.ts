@@ -250,3 +250,24 @@ export function getActiveDeadlines(deadlines: FiscalDeadline[]): FiscalDeadline[
     (d) => d.status === FILING_STATUS.UPCOMING || d.status === FILING_STATUS.DUE || d.status === FILING_STATUS.OVERDUE,
   );
 }
+
+/**
+ * The deadlines of a fiscal year that is already over but whose filing window is still running.
+ *
+ * A period is always filed in the one after it, so the year being filed is not always the year on
+ * the calendar. Q4, the 390 and the Renta all fall due after their fiscal year has ended: on 10
+ * January the 303 and the 130 of Q4 are due, and in May the Modelo 100 of the previous year is.
+ * A surface that only ever asks for `new Date().getFullYear()` finds all of those NOT_DUE — it
+ * shows nothing at all precisely on the days something is owed.
+ *
+ * Bounded to windows that are still open, and deliberately not to overdue ones. A filing missed in
+ * a closed year is a different conversation, and surfacing it here would park a permanent warning
+ * on the dashboard of anyone who ever skipped one.
+ *
+ * Pure, like everything else in this file: the caller decides which year to compute and does the
+ * reading. Nothing new is invented — these are the entries computeDeadlines() already emits for
+ * that year, filtered.
+ */
+export function getCarryOverDeadlines(deadlines: FiscalDeadline[]): FiscalDeadline[] {
+  return deadlines.filter((d) => d.status === FILING_STATUS.UPCOMING || d.status === FILING_STATUS.DUE);
+}

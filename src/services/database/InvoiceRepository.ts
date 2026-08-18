@@ -18,6 +18,8 @@ import {
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { BillingProfileInput, CreateInvoiceInput, UpdateInvoiceInput } from '@/schemas/invoice';
 import type {
+  BadDebtInvoice,
+  BadDebtReport,
   BillingProfile,
   CrossQuarterCase,
   CrossQuarterInvoice,
@@ -29,6 +31,7 @@ import type {
   PaymentMethod,
 } from '@/types/finance';
 import { ValidationError } from '@/utils/apiErrors';
+import { computeBadDebtWindows, hasBadDebtAttention, resolveBadDebtExclusion } from '@/utils/badDebt';
 import { computeInvoiceAmounts } from '@/utils/invoiceAmounts';
 import { getPool, query } from './connection';
 
@@ -1301,6 +1304,8 @@ interface CrossQuarterRow {
   InvoiceNumber: string | null;
   ClientName: string;
   TotalCents: number;
+  /** Needed to tell a 'finalized' invoice nobody has paid from a 'paid' one that lost its link */
+  Status: InvoiceStatus;
   InvoiceDate: Date;
   InvoiceYear: number;
   InvoiceQuarter: number;
@@ -1310,21 +1315,27 @@ interface CrossQuarterRow {
 }
 
 /**
- * Which of the three situations a row is, or null when there is nothing to say about it.
+ * Which of the four situations a row is, or null when there is nothing to say about it.
  *
  * Nothing here judges the accrual booking: an invoice declared and collected in the same
  * quarter is dropped precisely because the models and the bank statement already agree.
  */
 function classifyCrossQuarter(row: CrossQuarterRow, year: number, quarter: number): CrossQuarterCase | null {
   const declaredHere = row.InvoiceYear === year && row.InvoiceQuarter === quarter;
-  // No collection on record. A 'finalized' invoice never has a payment transaction, and a 'paid'
-  // one may still carry a NULL "TransactionID" if it was collected before that link existed —
-  // either way the app cannot know when the money arrived, so it can never prove the collection
+  // No collection on record: the app has no date to compare, so it can never prove the money
   // fell in another quarter. This is what keeps a NULL out of COLLECTED_IN_ANOTHER_PERIOD.
   const collected = row.CollectionYear !== null && row.CollectionQuarter !== null;
 
   if (declaredHere) {
-    if (!collected) return CROSS_QUARTER_CASE.ISSUED_NOT_COLLECTED;
+    if (!collected) {
+      // A missing date is not a missing collection. A 'finalized' invoice has genuinely not been
+      // paid and its IVA is owed on issue anyway; a 'paid' one carrying a NULL "TransactionID"
+      // WAS collected and only the link to the movement is gone. Reporting the second as *sin
+      // cobro registrado* would read as *aún no cobrada* — a fiscal alarm over a broken record.
+      return row.Status === INVOICE_STATUS.PAID
+        ? CROSS_QUARTER_CASE.PAID_WITHOUT_LINKED_MOVEMENT
+        : CROSS_QUARTER_CASE.ISSUED_NOT_COLLECTED;
+    }
     const collectedHere = row.CollectionYear === year && row.CollectionQuarter === quarter;
     return collectedHere ? null : CROSS_QUARTER_CASE.COLLECTED_IN_ANOTHER_PERIOD;
   }
@@ -1333,6 +1344,11 @@ function classifyCrossQuarter(row: CrossQuarterRow, year: number, quarter: numbe
   // another period. Only an EARLIER one is reported: an invoice dated after its own collection
   // is already surfaced from its own quarter as COLLECTED_IN_ANOTHER_PERIOD, so returning null
   // drops a duplicate rather than hiding anything.
+  //
+  // A PAID_WITHOUT_LINKED_MOVEMENT invoice can never reach here: with no collection date the
+  // WHERE clause only ever admits it from its own quarter. That is the real cost of the lost
+  // link — money that arrived this quarter for an invoice declared earlier cannot be computed
+  // for it at all, and no copy may imply the quarter's list is complete while one exists.
   const declaredEarlier = row.InvoiceYear < year || (row.InvoiceYear === year && row.InvoiceQuarter < quarter);
   return declaredEarlier ? CROSS_QUARTER_CASE.DECLARED_IN_EARLIER_PERIOD : null;
 }
@@ -1361,7 +1377,7 @@ function rowToCrossQuarterInvoice(row: CrossQuarterRow, crossQuarterCase: CrossQ
  *
  * The sibling of getUncountedIncome(): both are safety nets that change no figure and correct
  * no calculation. The models are right — "vw_FiscalAccrual" books an invoice on its own
- * "InvoiceDate" — and this only names the three ways a bank statement can tell a different
+ * "InvoiceDate" — and this only names the ways a bank statement can tell a different
  * story about the same quarter, so the human reading it does not overwrite a correct figure:
  *
  * - COLLECTED_IN_ANOTHER_PERIOD — declared here, the money arrived in another quarter.
@@ -1369,6 +1385,9 @@ function rowToCrossQuarterInvoice(row: CrossQuarterRow, crossQuarterCase: CrossQ
  * - DECLARED_IN_EARLIER_PERIOD — the money arrived here, but the invoice was already declared
  *   earlier. This is the misleading one: the quarter's bank income that no model of the
  *   quarter counts.
+ * - PAID_WITHOUT_LINKED_MOVEMENT — declared here, marked collected, no movement linked. The
+ *   odd one out: a broken record rather than a timing disagreement, and the only one that asks
+ *   for something to be repaired.
  *
  * The periods are extracted in SQL with EXTRACT over the same two dates the accrual view uses,
  * so a row can never be classified against a period the models would not agree with.
@@ -1379,7 +1398,7 @@ export async function getCrossQuarterInvoices(year: number, quarter: number): Pr
   // The LEFT JOIN is what allows an uncollected invoice through; joining on "UserID" as well
   // keeps a payment transaction of another user from ever dating this one's invoice.
   const rows = await query<CrossQuarterRow>(
-    `SELECT i."InvoiceID", i."InvoiceNumber", i."ClientName", i."TotalCents", i."InvoiceDate",
+    `SELECT i."InvoiceID", i."InvoiceNumber", i."ClientName", i."TotalCents", i."Status", i."InvoiceDate",
             EXTRACT(YEAR FROM i."InvoiceDate")::INT AS "InvoiceYear",
             EXTRACT(QUARTER FROM i."InvoiceDate")::INT AS "InvoiceQuarter",
             t."TransactionDate" AS "CollectionDate",
@@ -1402,4 +1421,109 @@ export async function getCrossQuarterInvoices(year: number, quarter: number): Pr
     const crossQuarterCase = classifyCrossQuarter(row, year, quarter);
     return crossQuarterCase === null ? [] : [rowToCrossQuarterInvoice(row, crossQuarterCase)];
   });
+}
+
+// ============================================================
+// Créditos incobrables — art. 80.Cuatro LIVA (informational)
+// ============================================================
+
+interface BadDebtRow {
+  InvoiceID: number;
+  InvoiceNumber: string | null;
+  ClientName: string;
+  /** Snapshot country: what art. 80.Cinco.2.ª is decided on, frozen at issue time */
+  ClientCountry: string | null;
+  InvoiceDate: Date;
+  BaseCents: number;
+  VatPercent: number;
+  VatCents: number;
+  TotalCents: number;
+  Status: InvoiceStatus;
+  /** NULL is what makes the row a candidate; a 'paid' invoice with a NULL link is still collected */
+  TransactionID: number | null;
+}
+
+function rowToBadDebtInvoice(row: BadDebtRow, asOfDate: string): BadDebtInvoice {
+  const exclusion = resolveBadDebtExclusion({
+    status: row.Status,
+    hasLinkedMovement: row.TransactionID !== null,
+    vatCents: Number(row.VatCents),
+    vatPercent: Number(row.VatPercent),
+    clientCountry: row.ClientCountry,
+  });
+
+  // No windows for an excluded invoice: presenting dates for a right that does not exist would
+  // invite the user to chase a deadline that means nothing. "InvoiceDate" stands in for the
+  // devengo — see BadDebtInvoice.accrualDate on why that is an approximation and not a fact.
+  const accrualDate = toDateString(row.InvoiceDate);
+  const windows = exclusion === null ? computeBadDebtWindows(accrualDate, asOfDate) : [];
+
+  return {
+    invoiceId: row.InvoiceID,
+    invoiceNumber: row.InvoiceNumber,
+    clientName: row.ClientName,
+    clientCountry: row.ClientCountry,
+    accrualDate,
+    baseCents: Number(row.BaseCents),
+    vatPercent: Number(row.VatPercent),
+    vatCents: Number(row.VatCents),
+    totalCents: Number(row.TotalCents),
+    status: row.Status,
+    exclusion,
+    windows,
+    needsAttention: hasBadDebtAttention(windows),
+  };
+}
+
+/**
+ * The art. 80.Cuatro LIVA clock over the issued invoices with no payment movement (user-scoped).
+ *
+ * A clock and a checklist, nothing else: it issues no factura rectificativa, files no modelo 952
+ * and never touches an invoice's "Status". It answers two questions — does the article reach this
+ * invoice at all, and if so, between which two dates may the right be exercised.
+ *
+ * The query is deliberately wide and the GATE is what decides: it selects every issued invoice
+ * carrying a NULL "TransactionID" and hands each one to resolveBadDebtExclusion(), which is
+ * fail-closed. Two consequences worth keeping:
+ *
+ * - A 'paid' invoice whose "TransactionID" was lost is admitted by the WHERE and then ruled out as
+ *   COLLECTED. It was collected; only the link to the movement is gone. That is the same finding
+ *   the cross-quarter panel reports as PAID_WITHOUT_LINKED_MOVEMENT, and it is emphatically not an
+ *   impagado. Deciding it in SQL would have hidden the distinction inside a predicate.
+ * - An invoice with no cuota repercutida, or with a recipient not established in the TAI, Canarias,
+ *   Ceuta or Melilla — or one whose snapshot does not say where the recipient is — lands in
+ *   `outOfScope` carrying the reason, instead of vanishing. For this user's portfolio (servicios a
+ *   empresarios no establecidos, casilla 120) that is every invoice, `tracked` is empty, and the
+ *   module has to be able to say *why* rather than look broken. DW-09 is out on two independent
+ *   grounds: NO_OUTPUT_VAT (art. 80.Cuatro: there is no cuota to recover) and, had there been one,
+ *   RECIPIENT_NOT_ESTABLISHED (art. 80.Cinco.2.ª).
+ *
+ * `tracked` keeps an invoice whose windows have all lapsed: the right is gone and the loss stays
+ * on screen. `needsAttention` is what separates what can still be chased from what only records
+ * the miss.
+ *
+ * `asOfDate` is always explicit so the clock is testable and so a report and the copy around it
+ * cannot be computed against two different days.
+ */
+export async function getBadDebtReport(asOfDate: string = toDateString(new Date())): Promise<BadDebtReport> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<BadDebtRow>(
+    `SELECT i."InvoiceID", i."InvoiceNumber", i."ClientName", i."ClientCountry", i."InvoiceDate",
+            i."BaseCents", i."VatPercent", i."VatCents", i."TotalCents", i."Status", i."TransactionID"
+     FROM "Invoices" i
+     WHERE i."UserID" = $1
+       AND i."Status" = ANY($2::VARCHAR[])
+       AND i."TransactionID" IS NULL
+     ORDER BY i."InvoiceDate" ASC, i."InvoiceID" ASC`,
+    [userId, [...ISSUED_INVOICE_STATUSES]],
+  );
+
+  const invoices = rows.map((row) => rowToBadDebtInvoice(row, asOfDate));
+
+  return {
+    asOfDate,
+    tracked: invoices.filter((invoice) => invoice.exclusion === null),
+    outOfScope: invoices.filter((invoice) => invoice.exclusion !== null),
+  };
 }

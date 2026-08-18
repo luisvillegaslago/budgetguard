@@ -20,6 +20,8 @@
 
 import {
   API_ERROR,
+  DEFERRAL_CANCELLABLE_MOVEMENT_STATUS,
+  DEFERRAL_CANCELLED_MOVEMENT_STATUS,
   DEFERRAL_CATEGORY,
   DEFERRAL_PART,
   SHARED_EXPENSE,
@@ -28,7 +30,14 @@ import {
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { DeferralFiltersInput } from '@/schemas/deferral';
-import type { Deferral, DeferralFraccion, DeferralInput, DeferralPart, DeferralUpdateInput } from '@/types/finance';
+import type {
+  Deferral,
+  DeferralFraccion,
+  DeferralInput,
+  DeferralPart,
+  DeferralUpdateInput,
+  TransactionStatus,
+} from '@/types/finance';
 import { ConflictError } from '@/utils/apiErrors';
 import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
@@ -65,6 +74,16 @@ interface FraccionRow {
   DueDate: Date | string;
 }
 
+/** One booked movement of a fracción, exactly as its "Transactions" row stands */
+interface DeferralMovementRow {
+  TransactionID: number;
+  DeferralFraccionNumber: number;
+  DeferralPart: string;
+  AmountCents: number | string;
+  TransactionDate: Date | string;
+  Status: string;
+}
+
 /** Columns shared by every SELECT and by the RETURNING of the mutations */
 const DEFERRAL_COLUMNS = `"DeferralID", "ExpedienteNumber", "ModeloType", "FiscalYear", "FiscalQuarter",
   "LiquidacionNumber", "InterestStartDate", "InterestRatePercent", "PrincipalCents", "SurchargeCents",
@@ -93,6 +112,19 @@ const MOVEMENT_COLUMNS = `"CategoryID", "AmountCents", "Description", "Transacti
   "DeferralID", "DeferralFraccionNumber", "DeferralPart", "UserID"`;
 
 const MOVEMENT_COLUMN_COUNT = 14;
+
+/**
+ * Columns every read of a booked movement asks for, and the RETURNING of the cancellation.
+ *
+ * Deliberately not the whole row: what a fracción is worth, when it falls due and where it stands
+ * is all a cancellation needs, and a repository that hands back the description and the category
+ * invites the caller to start re-deciding them.
+ */
+const MOVEMENT_READ_COLUMNS = `"TransactionID", "DeferralFraccionNumber", "DeferralPart", "AmountCents",
+  "TransactionDate", "Status"`;
+
+/** Fracción order, then insertion order inside it — the order ANEXO I and the import both use */
+const MOVEMENT_ORDER = 'ORDER BY "DeferralFraccionNumber", "TransactionID"';
 
 /** SQLSTATE of a UNIQUE breach — here, "UQ_Deferrals_UserExpediente" */
 const PG_UNIQUE_VIOLATION = '23505';
@@ -138,6 +170,18 @@ function rowToFraccion(row: FraccionRow): DeferralFraccion {
     interestCents: Number(row.InterestCents),
     totalCents: Number(row.TotalCents),
     dueDate: toDateString(row.DueDate),
+  };
+}
+
+function rowToMovement(row: DeferralMovementRow): DeferralMovementRecord {
+  return {
+    transactionId: row.TransactionID,
+    fraccionNumber: row.DeferralFraccionNumber,
+    // CK_Transactions_Deferral and the "Status" CHECK keep both of these inside their domains
+    part: row.DeferralPart as DeferralPart,
+    amountCents: Number(row.AmountCents),
+    dueDate: toDateString(row.TransactionDate),
+    status: row.Status as TransactionStatus,
   };
 }
 
@@ -218,6 +262,48 @@ export async function getDeferralFracciones(deferralId: number): Promise<Deferra
     [deferralId, userId, DEFERRAL_PART.PRINCIPAL, DEFERRAL_PART.SURCHARGE, DEFERRAL_PART.INTEREST],
   );
   return rows.map(rowToFraccion);
+}
+
+/**
+ * One booked movement of a resolution, as it stands. The read counterpart of
+ * {@link DeferralMovementDraft}: the draft says what to write, this says what is there now.
+ *
+ * The status is the movement's own, never the fracción's. The three parts of an instalment are
+ * three rows and can disagree — one marked paid by hand while the other two are still pending —
+ * and folding them into a single status is a decision, so it belongs to the service.
+ */
+export interface DeferralMovementRecord {
+  transactionId: number;
+  /** 1..N of ANEXO I. Movements sharing this number are the parts of the same instalment */
+  fraccionNumber: number;
+  part: DeferralPart;
+  amountCents: number;
+  /** "TransactionDate": the vencimiento the part was booked on, 'YYYY-MM-DD' */
+  dueDate: string;
+  status: TransactionStatus;
+}
+
+/**
+ * Every movement a resolution was booked as, part by part, in printed order.
+ *
+ * Unlike {@link getDeferralFracciones}, which folds the parts back into ANEXO I, this keeps them
+ * apart and carries their status: it is the input to deciding what a cancellation may touch, and
+ * that decision is per movement, not per fracción.
+ *
+ * Paid and cancelled rows come back too. A cancellation has to show what it will NOT touch just as
+ * clearly as what it will.
+ */
+export async function getDeferralMovements(deferralId: number): Promise<DeferralMovementRecord[]> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<DeferralMovementRow>(
+    `SELECT ${MOVEMENT_READ_COLUMNS}
+     FROM "Transactions"
+     WHERE "DeferralID" = $1 AND "UserID" = $2
+     ${MOVEMENT_ORDER}`,
+    [deferralId, userId],
+  );
+  return rows.map(rowToMovement);
 }
 
 /** The two subcategories a fracción is booked into. Null when the user no longer has one of them. */
@@ -514,6 +600,91 @@ export async function deleteDeferral(deferralId: number): Promise<DeletedDeferra
 
     await client.query('COMMIT');
     return { deleted: deleted.rows.length > 0, removedMovements: removed.rows.length };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** What a cancellation found and what it wrote. */
+export interface CancelledDeferralMovements {
+  /** Null when no resolution with that id belongs to the current user — a 404, not a conflict */
+  deferral: Deferral | null;
+  /**
+   * The rows this call moved to cancelled, with their new status. Empty when nothing was pending,
+   * which is what tells the caller there was nothing left to cancel — never a pre-check.
+   */
+  cancelled: DeferralMovementRecord[];
+  /** Every movement of the resolution AFTER the update, so the state reported is the written one */
+  movements: DeferralMovementRecord[];
+}
+
+/**
+ * Cancel a resolution: every fracción movement still pending becomes cancelled, atomically.
+ *
+ * **The "Deferrals" row survives, and nothing on it changes.** Three reasons, in order of weight:
+ *
+ * 1. "UQ_Deferrals_UserExpediente" is what stops the same letter being imported twice, and the
+ *    expediente is that key. Deleting the row frees it, so the very next upload of the same PDF
+ *    would silently re-book the instalments the user has just decided to cancel.
+ * 2. The cancelled movements keep pointing at it through "DeferralID". The letter is the only
+ *    thing that explains what those rows were, and FK_Transactions_Deferral would null the link.
+ * 3. There is no status column to set: DEFERRAL_STATUS is derived from the movements every time it
+ *    is read, so a resolution whose fracciones are all cancelled already reads as cancelled.
+ *
+ * Deleting a resolution is a different operation and it already exists ({@link deleteDeferral}):
+ * that one is for an import that was wrong, this one is for a deferral that really was cancelled.
+ *
+ * **The guard is in the UPDATE, not in a check before it.** Only rows still
+ * DEFERRAL_CANCELLABLE_MOVEMENT_STATUS are matched, so an instalment marked paid between the
+ * preview and the confirmation is not rewritten, and two cancellations racing each other cannot
+ * both claim the same fracción — the second matches nothing and its caller answers 409.
+ */
+export async function cancelDeferralPendingMovements(deferralId: number): Promise<CancelledDeferralMovements> {
+  const userId = await getUserIdOrThrow();
+  const pool = getPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const deferralResult = await client.query<DeferralRow>(
+      `SELECT ${DEFERRAL_COLUMNS} FROM "Deferrals" WHERE "DeferralID" = $1 AND "UserID" = $2`,
+      [deferralId, userId],
+    );
+
+    const deferralRow = deferralResult.rows[0];
+    if (!deferralRow) {
+      await client.query('ROLLBACK');
+      return { deferral: null, cancelled: [], movements: [] };
+    }
+
+    const cancelledResult = await client.query<DeferralMovementRow>(
+      `UPDATE "Transactions" SET "Status" = $3
+       WHERE "DeferralID" = $1 AND "UserID" = $2 AND "Status" = $4
+       RETURNING ${MOVEMENT_READ_COLUMNS}`,
+      [deferralId, userId, DEFERRAL_CANCELLED_MOVEMENT_STATUS, DEFERRAL_CANCELLABLE_MOVEMENT_STATUS],
+    );
+
+    // Read back inside the same transaction: the caller derives the resolution's state from this,
+    // and it has to be the state the COMMIT leaves behind, not the one the update intended.
+    const movementsResult = await client.query<DeferralMovementRow>(
+      `SELECT ${MOVEMENT_READ_COLUMNS}
+       FROM "Transactions"
+       WHERE "DeferralID" = $1 AND "UserID" = $2
+       ${MOVEMENT_ORDER}`,
+      [deferralId, userId],
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      deferral: rowToDeferral(deferralRow),
+      cancelled: cancelledResult.rows.map(rowToMovement),
+      movements: movementsResult.rows.map(rowToMovement),
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

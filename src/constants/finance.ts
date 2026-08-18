@@ -139,6 +139,7 @@ export const QUERY_KEY = {
   FISCAL_PROFILE: 'fiscal-profile',
   FIXED_ASSETS: 'fixed-assets',
   DEFERRALS: 'deferrals',
+  BAD_DEBT_INVOICES: 'bad-debt-invoices',
   CRYPTO_CREDENTIALS: 'crypto-credentials',
   CRYPTO_SYNC_STATUS: 'crypto-sync-status',
   CRYPTO_EVENTS: 'crypto-events',
@@ -206,6 +207,7 @@ export const API_ENDPOINT = {
   FIXED_ASSETS: '/api/fiscal/assets',
   DEFERRALS: '/api/fiscal/deferrals',
   DEFERRALS_EXTRACT: '/api/fiscal/deferrals/extract',
+  FISCAL_BAD_DEBT: '/api/fiscal/bad-debt',
   CRYPTO_CREDENTIALS: '/api/crypto/credentials',
   CRYPTO_CREDENTIALS_STATUS: '/api/crypto/credentials/status',
   CRYPTO_SYNC: '/api/crypto/sync',
@@ -634,6 +636,20 @@ export const DEFERRAL_PART_DEDUCTION_PERCENT = {
 } as const;
 
 /**
+ * Which figure of a fracción each part is worth, as a field name.
+ *
+ * One mapping for two shapes on purpose: `DeferralFraccion` (one row of ANEXO I) and
+ * `DeferralTotals` (a column total, or the totals of a set of movements) both carry these three
+ * keys, so the import that books a fracción and the cancellation that adds one back up read the
+ * same table instead of each keeping a copy that can drift.
+ */
+export const DEFERRAL_PART_AMOUNT_FIELD = {
+  [DEFERRAL_PART.PRINCIPAL]: 'principalCents',
+  [DEFERRAL_PART.SURCHARGE]: 'surchargeCents',
+  [DEFERRAL_PART.INTEREST]: 'interestCents',
+} as const;
+
+/**
  * Intereses de demora are *gastos financieros*, not "otros tributos": Modelo 100 casilla 0203.
  * The distinction is the whole point of the module — see DGT V4080-15 and STS 150/2021.
  */
@@ -692,6 +708,38 @@ export type DeferralCheck = (typeof DEFERRAL_CHECK)[keyof typeof DEFERRAL_CHECK]
  */
 export const DEFERRAL_MAX_FRACCIONES = 120;
 
+/**
+ * Where a deferral stands, DERIVED from the status of its fracción movements and never stored. A
+ * stored copy would be one more flag that can go stale, and the movements are the only truth
+ * about what has actually been paid.
+ *
+ * - `ACTIVE` — at least one fracción still pending.
+ * - `SETTLED` — nothing pending and nothing cancelled: every fracción was paid, an early payoff
+ *   included. Paying ahead of the calendar cancels nothing, because that money did move.
+ * - `CANCELLED` — nothing pending left and at least one fracción cancelled.
+ */
+export const DEFERRAL_STATUS = {
+  ACTIVE: 'active',
+  SETTLED: 'settled',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type DeferralStatus = (typeof DEFERRAL_STATUS)[keyof typeof DEFERRAL_STATUS];
+
+/**
+ * The only movement status cancelling a resolution may touch, and what it becomes.
+ *
+ * `TRANSACTION_STATUS.CANCELLED` is the mechanism the app already has: every summary view and
+ * every fiscal view filters it out, so a cancelled fracción leaves the 130 and the 100 exactly as
+ * if it had never been booked. Cancelling therefore adds no parallel flag anywhere — not on
+ * "Deferrals", not on "Transactions".
+ *
+ * A fracción already marked paid is never rewritten: that charge really did leave the account,
+ * and its interés is a deductible expense of the year it was paid in.
+ */
+export const DEFERRAL_CANCELLABLE_MOVEMENT_STATUS = TRANSACTION_STATUS.PENDING;
+export const DEFERRAL_CANCELLED_MOVEMENT_STATUS = TRANSACTION_STATUS.CANCELLED;
+
 // Invoice Statuses
 export const INVOICE_STATUS = {
   DRAFT: 'draft',
@@ -722,9 +770,31 @@ export const CROSS_QUARTER_CASE = {
   ISSUED_NOT_COLLECTED: 'issued-not-collected',
   /** Collected in this quarter, already declared in an earlier one. No model of this quarter counts it. */
   DECLARED_IN_EARLIER_PERIOD: 'declared-in-earlier-period',
+  /**
+   * The invoice is 'paid' and carries no linked movement: the money did arrive, the link to the
+   * transaction was never written or was lost. A data-integrity finding, not a fiscal one — no
+   * figure moves, because "vw_FiscalAccrual" books the invoice on its "InvoiceDate" either way.
+   *
+   * It is its own case because ISSUED_NOT_COLLECTED is only true of a 'finalized' invoice:
+   * reporting a collected one as *sin cobro registrado* reads as *aún no cobrada*. What is really
+   * lost is DECLARED_IN_EARLIER_PERIOD — with no collection date, money that arrived this quarter
+   * for an invoice declared in an earlier one cannot be computed for this invoice at all.
+   */
+  PAID_WITHOUT_LINKED_MOVEMENT: 'paid-without-linked-movement',
 } as const;
 
 export type CrossQuarterCase = (typeof CROSS_QUARTER_CASE)[keyof typeof CROSS_QUARTER_CASE];
+
+/**
+ * The cases that report a broken record rather than a timing disagreement.
+ *
+ * The other three are informational and the app is right in all of them; this one asks for a link
+ * to be repaired, so its tone and its copy must differ. Kept as a list so a fifth case of either
+ * kind only has to be classified in one place.
+ */
+export const CROSS_QUARTER_DATA_INTEGRITY_CASES = [CROSS_QUARTER_CASE.PAID_WITHOUT_LINKED_MOVEMENT] as const;
+
+export type CrossQuarterDataIntegrityCase = (typeof CROSS_QUARTER_DATA_INTEGRITY_CASES)[number];
 
 // IRPF withholding a Spanish business client must retain from a professional's invoice.
 // REDUCED applies during the year of registration and the two following ones.
@@ -857,6 +927,248 @@ export const FILING_STATUS = {
 } as const;
 
 export type FilingStatus = (typeof FILING_STATUS)[keyof typeof FILING_STATUS];
+
+/**
+ * Where a cross-quarter finding may qualify a deadline that already exists.
+ *
+ * It never becomes a deadline of its own: nothing new falls due because an invoice was collected
+ * in another quarter. It rides the 303 and the 130 of the quarter it belongs to — the two filings
+ * whose figures a devengo/cobro disagreement can distort. The annual 390 and 100 are excluded
+ * because a quarter boundary inside one year moves nothing for them.
+ */
+export const CROSS_QUARTER_DEADLINE_MODELOS = [MODELO_TYPE.M303, MODELO_TYPE.M130] as const;
+
+/**
+ * And when. Only a filing the user is about to make is worth qualifying: NOT_DUE is noise months
+ * ahead and FILED is too late to inform. OVERDUE is left out on purpose — that deadline already
+ * shouts on its own, and this note exists to reach the user while the figure is still being
+ * decided.
+ */
+export const CROSS_QUARTER_DEADLINE_FILING_STATUSES = [FILING_STATUS.UPCOMING, FILING_STATUS.DUE] as const;
+
+/**
+ * DOM id of the cross-quarter detail on /fiscal. A note that states a count and an amount owes the
+ * user the list behind them, and the list already exists — this is how the deadline surface links
+ * to it instead of restating it.
+ */
+export const CROSS_QUARTER_PANEL_ANCHOR = 'devengo-cobro';
+
+// ============================================================
+// MODIFICACIÓN DE LA BASE IMPONIBLE POR CRÉDITO INCOBRABLE
+// (art. 80.Cuatro LIVA) — a clock and a checklist, nothing more
+// ============================================================
+
+/**
+ * An invoice that will not be paid lets the IVA repercutido already declared on it be recovered,
+ * by issuing a factura rectificativa inside a window that closes for good. Everything below is
+ * the arithmetic of that window and the formalities around it. Nothing here issues a
+ * rectificativa, files anything, or touches an invoice's status.
+ *
+ * Vigencia verified on 18-ago-2026 against the BOE consolidated texts: art. 80 LIVA in the
+ * version in force since 1-1-2023 (art. 77 Ley 31/2022, BOE-A-2022-22128), with no later
+ * amendment reaching it, and art. 24 RIVA in force since 1-1-2024 (art. 1.4 RD 1171/2023,
+ * BOE-A-2023-26454).
+ *
+ * Sources: BOE https://www.boe.es/eli/es/l/1992/12/28/37 · AEAT, Manual práctico IVA 2025 ·
+ * AEAT, procedimiento G416 (modelo 952).
+ */
+
+/**
+ * The waiting term that must elapse from the devengo without collection before the credit counts
+ * as incobrable — art. 80.Cuatro.A).1.ª.
+ *
+ * One year is the general rule (párr. 1). Six months is an option open to whoever billed at most
+ * {@link BAD_DEBT_PYME_TURNOVER_THRESHOLD_CENTS} in the previous calendar year (párr. 3, computed
+ * per art. 121 LIVA) — the article reads «podrá ser, de seis meses o un año», so it is a genuine
+ * choice by the taxpayer and not one the app may make for them.
+ *
+ * NOT CONFIRMED, and deliberately not encoded as certainty: whether exhausting the six-month
+ * window still leaves the one-year one available, contiguous as the two are by construction. No
+ * DGT ruling saying so was found. Both terms are therefore always presented as labelled
+ * alternatives, and the chosen term is stored nowhere.
+ */
+export const BAD_DEBT_WAITING_TERM = {
+  /** art. 80.Cuatro.A).1.ª párr. 3 — the PYME option */
+  PYME_SIX_MONTHS: 'pyme-six-months',
+  /** art. 80.Cuatro.A).1.ª párr. 1 — the general rule */
+  GENERAL_ONE_YEAR: 'general-one-year',
+} as const;
+
+export type BadDebtWaitingTerm = (typeof BAD_DEBT_WAITING_TERM)[keyof typeof BAD_DEBT_WAITING_TERM];
+
+/** How long each term runs, in whole months from the devengo. */
+export const BAD_DEBT_WAITING_TERM_MONTHS = {
+  [BAD_DEBT_WAITING_TERM.PYME_SIX_MONTHS]: 6,
+  [BAD_DEBT_WAITING_TERM.GENERAL_ONE_YEAR]: 12,
+} as const;
+
+/** Both terms, shortest first: the first window to open is the first the user may act on. */
+export const BAD_DEBT_WAITING_TERM_OPTIONS = [
+  BAD_DEBT_WAITING_TERM.PYME_SIX_MONTHS,
+  BAD_DEBT_WAITING_TERM.GENERAL_ONE_YEAR,
+] as const;
+
+/**
+ * Months to expedir the factura rectificativa once the waiting term has elapsed —
+ * art. 80.Cuatro.B): «en el plazo de los seis meses siguientes a la finalización del periodo de
+ * seis meses o un año». A plazo de caducidad: letting it pass loses the right permanently (TEAC
+ * 00/05698/2023 treats these requirements as substantive, on the earlier three-month wording).
+ */
+export const BAD_DEBT_RECTIFICATION_WINDOW_MONTHS = 6;
+
+/**
+ * Months to notify the AEAT once the rectificativa has been issued — art. 24.2.a).2.º RIVA, «en
+ * el plazo de un mes contado desde la fecha de expedición de la factura rectificativa», by
+ * electronic means. The AEAT G416 procedure sheet prints «plazo de presentación: No tiene»; the
+ * RIVA prevails and the sheet is not normative.
+ */
+export const BAD_DEBT_AEAT_NOTICE_MONTHS = 1;
+
+/**
+ * Months to modify the base imponible back UPWARDS after desisting from the reclamación judicial
+ * or agreeing a settlement with the debtor — art. 80.Cuatro.C). A second clock, and the one that
+ * catches a user who recovered the IVA and then reached an agreement.
+ */
+export const BAD_DEBT_UPWARD_REVISION_MONTHS = 1;
+
+/**
+ * 6.010.121,04 €: the previous calendar year's volumen de operaciones (art. 121 LIVA) at or below
+ * which the six-month term is available — art. 80.Cuatro.A).1.ª párr. 3.
+ */
+export const BAD_DEBT_PYME_TURNOVER_THRESHOLD_CENTS = 601_012_104;
+
+/** The AEAT form the communication is made on, and where its procedure is documented. */
+export const BAD_DEBT_AEAT_FORM = {
+  MODELO: '952',
+  PROCEDURE_CODE: 'G416',
+  PROCEDURE_URL: 'https://sede.agenciatributaria.gob.es/Sede/procedimientos/G416.shtml',
+} as const;
+
+/**
+ * How many days before a window opens the invoice starts being surfaced. A product decision, not
+ * a legal term: instar el cobro por un medio fehaciente (step CLAIM_PAYMENT) has to be done and
+ * documented before the rectificativa can be issued, so warning on the day the window opens would
+ * already be late.
+ */
+export const BAD_DEBT_APPROACHING_DAYS = 60;
+
+/**
+ * Where an invoice stands against its window.
+ *
+ * There is deliberately no *pendiente de comunicar el 952* stage. That clock starts on the date a
+ * rectificativa was expedida, and this module neither issues one nor records that anyone did — a
+ * stage nothing could ever compute would be a lie in the type. The one-month term lives in the
+ * checklist as text ({@link BAD_DEBT_AEAT_NOTICE_MONTHS}).
+ */
+export const BAD_DEBT_STAGE = {
+  /** The gate is closed: art. 80.Cuatro does not reach this invoice at all */
+  OUT_OF_SCOPE: 'out-of-scope',
+  /** The waiting term has not elapsed yet */
+  WAITING: 'waiting',
+  /** Inside the six months of art. 80.Cuatro.B): the rectificativa may be issued now */
+  IN_WINDOW: 'in-window',
+  /** The window closed. For that term the right is lost */
+  WINDOW_EXPIRED: 'window-expired',
+} as const;
+
+export type BadDebtStage = (typeof BAD_DEBT_STAGE)[keyof typeof BAD_DEBT_STAGE];
+
+/**
+ * Why art. 80.Cuatro does not reach an invoice. The gate is FAIL-CLOSED: an invoice enters the
+ * clock only when every reason below has been ruled out, and a missing datum keeps it out rather
+ * than letting it in.
+ *
+ * For this user's portfolio — services to businesses established outside the TAI, no sujetas por
+ * reglas de localización (art. 69.Uno.1.º LIVA), declared in casilla 120 — the module is expected
+ * to be empty, and that is the correct answer rather than a bug. DW-09 (1.200,00 €, finalized
+ * 3-ago-2026, never collected) is out on NO_OUTPUT_VAT and on RECIPIENT_NOT_ESTABLISHED, two
+ * independent grounds.
+ */
+export const BAD_DEBT_EXCLUSION = {
+  /**
+   * art. 80.Cuatro reduces the base «cuando los créditos correspondientes a las cuotas
+   * repercutidas por las operaciones gravadas sean total o parcialmente incobrables». With
+   * "VatPercent" = 0 there is no cuota to recover: a rectificativa would move 0,00 € in the 303,
+   * and no right is lost by letting the window pass.
+   */
+  NO_OUTPUT_VAT: 'no-output-vat',
+  /**
+   * art. 80.Cinco.2.ª: no modification when the recipient is not established in the TAI, Canarias,
+   * Ceuta or Melilla. Art. 24.2.a).2.º RIVA turns it into an express declaration by the acreedor,
+   * so filing a 952 for a foreign client is declaring something false. The only carve-out —
+   * insolvencia declared by a court of another Member State under Reglamento (UE) 2015/848 —
+   * routes the case through art. 80.Tres, not through the Cuatro, and is outside this module.
+   */
+  RECIPIENT_NOT_ESTABLISHED: 'recipient-not-established',
+  /** The invoice snapshot does not say where the client is. Fail-closed: unknown is not a yes */
+  RECIPIENT_ESTABLISHMENT_UNKNOWN: 'recipient-establishment-unknown',
+  /** A draft or a cancelled invoice declared nothing and repercutió nothing */
+  NOT_ISSUED: 'not-issued',
+  /** The invoice was collected: there is no impagado to recover */
+  COLLECTED: 'collected',
+} as const;
+
+export type BadDebtExclusion = (typeof BAD_DEBT_EXCLUSION)[keyof typeof BAD_DEBT_EXCLUSION];
+
+/**
+ * "ClientCountry" values that place the recipient inside Spanish territory for art. 80.Cinco.2.ª,
+ * which names the TAI, Canarias, Ceuta and Melilla — so plain Spain covers all four. Compared
+ * lowercased and stripped of accents; anything else, NULL and empty included, closes the gate.
+ */
+export const SPANISH_ESTABLISHMENT_COUNTRY_TOKENS = ['es', 'esp', 'espana', 'spain'] as const;
+
+/**
+ * What has to be done, in order, once a window is open. Each step is rendered from i18n; the norm
+ * it rests on is {@link BAD_DEBT_CHECKLIST_LEGAL_BASIS}.
+ */
+export const BAD_DEBT_CHECKLIST_STEP = {
+  /** Instar el cobro: reclamación judicial, requerimiento notarial or any medio fehaciente */
+  CLAIM_PAYMENT: 'claim-payment',
+  /** The operation and the impago must be booked in the Libros Registro, in time and form */
+  BOOK_IN_REGISTERS: 'book-in-registers',
+  /** Expedir the rectificativa inside the window */
+  ISSUE_RECTIFICATIVA: 'issue-rectificativa',
+  /** Remitirla to the destinatario, and be able to prove the remission */
+  SEND_RECTIFICATIVA: 'send-rectificativa',
+  /** Aportar the supporting documents through the registro electrónico and keep its código */
+  UPLOAD_EVIDENCE: 'upload-evidence',
+  /** Present the modelo 952 within one month of the rectificativa */
+  FILE_MODELO_952: 'file-modelo-952',
+  /** Carry the minoración into the 303 of the period */
+  ADJUST_303: 'adjust-303',
+} as const;
+
+export type BadDebtChecklistStep = (typeof BAD_DEBT_CHECKLIST_STEP)[keyof typeof BAD_DEBT_CHECKLIST_STEP];
+
+/** The steps in the order they have to happen. */
+export const BAD_DEBT_CHECKLIST_STEPS = [
+  BAD_DEBT_CHECKLIST_STEP.CLAIM_PAYMENT,
+  BAD_DEBT_CHECKLIST_STEP.BOOK_IN_REGISTERS,
+  BAD_DEBT_CHECKLIST_STEP.ISSUE_RECTIFICATIVA,
+  BAD_DEBT_CHECKLIST_STEP.SEND_RECTIFICATIVA,
+  BAD_DEBT_CHECKLIST_STEP.UPLOAD_EVIDENCE,
+  BAD_DEBT_CHECKLIST_STEP.FILE_MODELO_952,
+  BAD_DEBT_CHECKLIST_STEP.ADJUST_303,
+] as const;
+
+/**
+ * The norm each step rests on. Normative citations, not copy: they read the same in both locales,
+ * exactly like the casilla numbers, and duplicating them across es.json and en.json would only
+ * let them drift.
+ *
+ * CLAIM_PAYMENT comes first because the documentation of the claim has to travel with the 952.
+ * Whether the claim must predate the end of the waiting term or only the rectificativa is NOT
+ * ESTABLISHED — no source settles it — so the checklist orders it early without asserting it.
+ */
+export const BAD_DEBT_CHECKLIST_LEGAL_BASIS = {
+  [BAD_DEBT_CHECKLIST_STEP.CLAIM_PAYMENT]: 'art. 80.Cuatro.A).4.ª LIVA',
+  [BAD_DEBT_CHECKLIST_STEP.BOOK_IN_REGISTERS]: 'art. 80.Cuatro.A).2.ª LIVA; art. 24.2.a).1.º RIVA',
+  [BAD_DEBT_CHECKLIST_STEP.ISSUE_RECTIFICATIVA]: 'art. 80.Cuatro.B) LIVA; art. 15 RD 1619/2012',
+  [BAD_DEBT_CHECKLIST_STEP.SEND_RECTIFICATIVA]: 'art. 24.1 RIVA; STS 371/2025',
+  [BAD_DEBT_CHECKLIST_STEP.UPLOAD_EVIDENCE]: 'art. 24.2.a).2.º RIVA',
+  [BAD_DEBT_CHECKLIST_STEP.FILE_MODELO_952]: 'art. 24.2.a).2.º RIVA',
+  [BAD_DEBT_CHECKLIST_STEP.ADJUST_303]: 'art. 80.Cuatro LIVA',
+} as const satisfies Record<BadDebtChecklistStep, string>;
 
 // Extraction Status (OCR pipeline)
 export const EXTRACTION_STATUS = {
@@ -1025,6 +1337,10 @@ export const API_ERROR = {
     VOUCHERS: 'api-error.load.vouchers',
     FIXED_ASSETS: 'api-error.load.fixed-assets',
     DEFERRALS: 'api-error.load.deferrals',
+    /** The art. 80.Cuatro clock (GET /api/fiscal/bad-debt) */
+    BAD_DEBT: 'api-error.load.bad-debt',
+    /** The preview of what cancelling a deferral would do (GET .../deferrals/[id]/cancel) */
+    DEFERRAL_CANCELLATION: 'api-error.load.deferral-cancellation',
   },
   NOT_FOUND: {
     TRANSACTION: 'api-error.not-found.transaction',
@@ -1055,6 +1371,7 @@ export const API_ERROR = {
     PREFIX_EXISTS: 'api-error.conflict.prefix-exists',
     FUTURE_OCCURRENCE: 'api-error.conflict.future-occurrence',
     DEFERRAL_EXPEDIENTE_EXISTS: 'api-error.conflict.deferral-expediente-exists',
+    DEFERRAL_NOTHING_TO_CANCEL: 'api-error.conflict.deferral-nothing-to-cancel',
   },
   INVOICE: {
     CATEGORY_REQUIRED_FOR_PAID: 'api-error.invoice.category-required-for-paid',
@@ -1158,6 +1475,14 @@ export const API_ERROR = {
       FIXED_ASSET: 'api-error.mutation.delete.fixed-asset',
       DEFERRAL: 'api-error.mutation.delete.deferral',
       CRYPTO_CREDENTIALS: 'api-error.mutation.delete.crypto-credentials',
+    },
+    /**
+     * Cancelling is neither a delete nor an update: nothing is removed and no figure is rewritten,
+     * the pending movements simply take TRANSACTION_STATUS.CANCELLED. Filing it under DELETE would
+     * have the fallback message promise a destruction that never happens.
+     */
+    CANCEL: {
+      DEFERRAL: 'api-error.mutation.cancel.deferral',
     },
     IMPORT: {
       JUMPS: 'api-error.mutation.import.jumps',

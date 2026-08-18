@@ -6,10 +6,14 @@
 import type {
   AmortizationCasilla,
   AmortizationGroupNumber,
+  BadDebtExclusion,
+  BadDebtStage,
+  BadDebtWaitingTerm,
   CompanyRole,
   CrossQuarterCase,
   DeferralCheck,
   DeferralPart,
+  DeferralStatus,
   FilingStatus,
   FiscalDocumentType,
   FiscalQuarter,
@@ -29,11 +33,17 @@ import type { AmortizationYear } from '@/utils/amortization';
 export type {
   AmortizationCasilla,
   AmortizationGroupNumber,
+  BadDebtChecklistStep,
+  BadDebtExclusion,
+  BadDebtStage,
+  BadDebtWaitingTerm,
   CompanyRole,
   CrossQuarterCase,
+  CrossQuarterDataIntegrityCase,
   DateRangePreset,
   DeferralCheck,
   DeferralPart,
+  DeferralStatus,
   FilingStatus,
   FiscalDocumentType,
   FiscalQuarter,
@@ -984,6 +994,86 @@ export interface CrossQuarterInvoice {
 }
 
 // ============================================================
+// CRÉDITOS INCOBRABLES (art. 80.Cuatro LIVA)
+// ============================================================
+
+/**
+ * One term's window on one invoice: when the rectificativa may be issued, and until when.
+ *
+ * Both terms are always computed, because which one applies is the taxpayer's option
+ * (art. 80.Cuatro.A).1.ª) and nothing in the data model records the choice. Presenting them as
+ * two labelled alternatives is deliberate: see BAD_DEBT_WAITING_TERM on why the app must not
+ * assume the second window survives the first.
+ */
+export interface BadDebtWindow {
+  term: BadDebtWaitingTerm;
+  /** 6 or 12 — BAD_DEBT_WAITING_TERM_MONTHS for this term */
+  waitingMonths: number;
+  /** devengo + waitingMonths: the first day the rectificativa may be issued */
+  windowStartDate: string;
+  /** windowStartDate + BAD_DEBT_RECTIFICATION_WINDOW_MONTHS. Caducidad: after it the right is gone */
+  windowEndDate: string;
+  stage: BadDebtStage;
+  /** Days left before the window opens; null once it has opened */
+  daysUntilWindowStart: number | null;
+  /** Days left before the right lapses; null while waiting and once expired */
+  daysRemainingInWindow: number | null;
+}
+
+/**
+ * An uncollected issued invoice measured against art. 80.Cuatro, whether or not the article
+ * reaches it.
+ *
+ * `exclusion` is the fail-closed gate: non-null means the clock does not run and `windows` is
+ * empty. It is carried rather than dropped so the UI can answer *why this invoice is not here* —
+ * for this user's portfolio (services to non-established businesses, casilla 120) that is the
+ * expected answer for every invoice, and an empty module with no explanation reads as a bug.
+ */
+export interface BadDebtInvoice {
+  invoiceId: number;
+  invoiceNumber: string | null;
+  clientName: string;
+  /** The snapshot value the establishment gate was decided on; null closes the gate */
+  clientCountry: string | null;
+  /**
+   * Proxy for the fecha de devengo. Services accrue when they are rendered (art. 75.Uno.2.º
+   * LIVA) and the app stores no service date, so this is "InvoiceDate": exact for an invoice
+   * issued the day the work ended, a few days out otherwise. The UI must say so.
+   */
+  accrualDate: string;
+  baseCents: number;
+  vatPercent: number;
+  /** The cuota repercutida — what art. 80.Cuatro would let the user recover. Zero closes the gate */
+  vatCents: number;
+  totalCents: number;
+  status: InvoiceStatus;
+  /** Why the article does not reach this invoice; null when the clock runs */
+  exclusion: BadDebtExclusion | null;
+  /** One entry per term, shortest first. Empty whenever `exclusion` is non-null */
+  windows: BadDebtWindow[];
+  /** True when a window is open or opens within BAD_DEBT_APPROACHING_DAYS */
+  needsAttention: boolean;
+}
+
+/**
+ * The whole clock, as one payload: what is running and what was ruled out.
+ *
+ * The module generates no rectificativa, files no 952 and never changes an invoice's status. It
+ * reports dates and what has to be done by them.
+ */
+export interface BadDebtReport {
+  /** Computed against this day, 'YYYY-MM-DD' */
+  asOfDate: string;
+  /**
+   * The invoices the gate lets through, lapsed windows included: once the right is gone the loss
+   * stays on screen rather than disappearing. `needsAttention` is what marks the chaseable ones.
+   */
+  tracked: BadDebtInvoice[];
+  /** Uncollected issued invoices the gate closed on, each carrying its `exclusion` */
+  outOfScope: BadDebtInvoice[];
+}
+
+// ============================================================
 // FISCAL DOCUMENTS & DEADLINES
 // ============================================================
 
@@ -1039,6 +1129,28 @@ export interface FiscalDocument {
 }
 
 /**
+ * What a quarter's cross-quarter findings add to a deadline that is already due.
+ *
+ * A qualifier, never an obligation of its own: no new date is invented, and the figures the
+ * models computed stay exactly as they are. It only reaches the user who is about to file the
+ * 303 or the 130 of that quarter, saying how many invoices disagree with the bank statement and
+ * for how much.
+ */
+export interface CrossQuarterDeadlineNote {
+  fiscalYear: number;
+  fiscalQuarter: number;
+  /** Invoices in disagreement for this quarter, all cases counted */
+  invoiceCount: number;
+  /** Their total, in cents. What the user would be tempted to move between quarters */
+  totalCents: number;
+  /**
+   * How many of those are the data-integrity case (CROSS_QUARTER_DATA_INTEGRITY_CASES): a broken
+   * link to repair, not a timing disagreement. Kept apart because it needs its own wording.
+   */
+  dataIntegrityCount: number;
+}
+
+/**
  * AEAT deadline (computed server-side, NOT by the client)
  */
 export interface FiscalDeadline {
@@ -1058,6 +1170,12 @@ export interface FiscalDeadline {
   isFiled: boolean;
   daysRemaining: number | null;
   needsPostponement: boolean;
+  /**
+   * Cross-quarter qualifier for this filing. Optional because the deadline computation is pure
+   * and knows nothing about invoices: it is attached afterwards, and only for the modelos and
+   * statuses listed in CROSS_QUARTER_DEADLINE_MODELOS / CROSS_QUARTER_DEADLINE_FILING_STATUSES.
+   */
+  crossQuarter?: CrossQuarterDeadlineNote;
 }
 
 /**
@@ -1201,4 +1319,55 @@ export interface DeferralVerdict {
   /** The same totals obtained by adding the fracciones one by one */
   computedTotals: DeferralTotals;
   issues: DeferralVerificationIssue[];
+}
+
+/**
+ * One fracción seen through its movements: what it costs, when it falls due, and where it stands.
+ *
+ * The three parts of a fracción are three transactions and can in principle disagree, so the
+ * status is resolved rather than read: **pending** if any movement is still pending (there is
+ * something left to cancel), **paid** if none is pending and at least one was paid, **cancelled**
+ * only when every movement is cancelled.
+ */
+export interface DeferralFraccionMovements {
+  fraccionNumber: number;
+  dueDate: string;
+  /** The three parts and their sum, as booked */
+  totals: DeferralTotals;
+  status: TransactionStatus;
+  /** The transactions this fracción is made of, one per DEFERRAL_PART */
+  movementIds: number[];
+}
+
+/**
+ * What cancelling a resolution would do, before anything is written.
+ *
+ * The confirmation has to show both halves: a deferral is cancelled in the middle of its
+ * calendar, so what is kept is as important as what goes. Nothing here is destructive — the
+ * pending movements become TRANSACTION_STATUS.CANCELLED and the paid ones are not touched at
+ * all, because that money really did move.
+ */
+export interface DeferralCancellationPreview {
+  deferralId: number;
+  expedienteNumber: string;
+  /** Derived state as it stands now, before cancelling */
+  status: DeferralStatus;
+  /** Fracciones with pending movements: these are what the cancellation would cancel */
+  toCancel: DeferralFraccionMovements[];
+  toCancelTotals: DeferralTotals;
+  /** Fracciones already paid, or already cancelled: left exactly as they are */
+  toKeep: DeferralFraccionMovements[];
+  toKeepTotals: DeferralTotals;
+}
+
+/** What the cancellation actually did — the same two halves, after the write. */
+export interface DeferralCancellationResult {
+  deferralId: number;
+  /** Derived again from the movements, so it reflects what was written and not what was intended */
+  status: DeferralStatus;
+  cancelledFraccionNumbers: number[];
+  cancelledMovementCount: number;
+  cancelledTotals: DeferralTotals;
+  keptMovementCount: number;
+  keptTotals: DeferralTotals;
 }

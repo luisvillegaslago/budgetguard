@@ -26,6 +26,7 @@
 import {
   API_ERROR,
   DEFERRAL_PART,
+  DEFERRAL_PART_AMOUNT_FIELD,
   DEFERRAL_PART_DEDUCTION_PERCENT,
   DEFERRAL_PART_OPTIONS,
   type ModeloType,
@@ -72,16 +73,6 @@ const PART_LABEL: Record<DeferralPart, string> = {
   [DEFERRAL_PART.INTEREST]: 'Intereses de demora',
 };
 
-/** Which figure of a fracción each part is worth. */
-const PART_AMOUNT: Record<
-  DeferralPart,
-  keyof Pick<DeferralFraccion, 'principalCents' | 'surchargeCents' | 'interestCents'>
-> = {
-  [DEFERRAL_PART.PRINCIPAL]: 'principalCents',
-  [DEFERRAL_PART.SURCHARGE]: 'surchargeCents',
-  [DEFERRAL_PART.INTEREST]: 'interestCents',
-};
-
 /** A DATE column takes a calendar day; the UTC one, since that is the day the schema coerced. */
 function toDay(value: Date): string {
   return value.toISOString().split('T')[0]!;
@@ -118,7 +109,7 @@ function planFraccion(
   const dueDate = toDay(fraccion.dueDate);
 
   return DEFERRAL_PART_OPTIONS.flatMap((part) => {
-    const amountCents = fraccion[PART_AMOUNT[part]] ?? 0;
+    const amountCents = fraccion[DEFERRAL_PART_AMOUNT_FIELD[part]] ?? 0;
     if (amountCents <= 0) return [];
 
     return [

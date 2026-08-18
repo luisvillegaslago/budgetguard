@@ -7,6 +7,7 @@
 
 import { AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useMemo } from 'react';
+import { DeadlineCrossQuarterNote } from '@/components/fiscal/DeadlineCrossQuarterNote';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { FILING_STATUS } from '@/constants/finance';
@@ -82,6 +83,8 @@ function DeadlineRow({ deadline }: { deadline: FiscalDeadline }) {
               {t('fiscal.deadlines.domiciliacion', { date: formatDeadlineDate(deadline.domiciliacionEndDate) })}
             </p>
           )}
+          {/* What the bank statement of this quarter disagrees with, before the figure is copied */}
+          {deadline.crossQuarter && <DeadlineCrossQuarterNote note={deadline.crossQuarter} className="mt-1" />}
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 pl-7 sm:pl-0">

@@ -1741,8 +1741,14 @@ export interface FiscalReport {
   crossQuarterInvoices: CrossQuarterInvoice[];  // Devengo and cobro disagree about this quarter
 }
 
-// Which of the three disagreements a row represents (CROSS_QUARTER_CASE in @/constants/finance)
-type CrossQuarterCase = 'collected-in-another-period' | 'issued-not-collected' | 'declared-in-earlier-period';
+// Which of the four situations a row represents (CROSS_QUARTER_CASE in @/constants/finance).
+// The last one is a data-integrity finding, not a fiscal one — CROSS_QUARTER_DATA_INTEGRITY_CASES
+// lists it, so a fifth case of either kind is only classified in one place
+type CrossQuarterCase =
+  | 'collected-in-another-period'
+  | 'issued-not-collected'
+  | 'declared-in-earlier-period'
+  | 'paid-without-linked-movement';
 
 // An issued invoice whose devengo and whose cobro do not tell the same story about a quarter
 export interface CrossQuarterInvoice {
@@ -1778,8 +1784,85 @@ statement does not override a correct figure. It is never summed into a casilla.
 `InvoiceRepository.getCrossQuarterInvoices()` fills it from `"Invoices"` and the payment transaction
 `TransactionID` points at, over `ISSUED_INVOICE_STATUSES` only, resolving both periods with the same
 `EXTRACT` the accrual view uses. An invoice both declared and collected in the quarter is left out.
-The three `crossQuarterCase` values and the reasoning behind them are in
+The four `crossQuarterCase` values and the reasoning behind them are in
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
+
+**`paid-without-linked-movement` is decided on `"Invoices"."Status"`, and it is not a fiscal
+finding.** With no collection date the app cannot say *when* the money arrived; the invoice's status
+is what says *whether* it did. A `'finalized'` invoice really has not been paid
+(`issued-not-collected`); a `'paid'` one whose `TransactionID` was never written or was lost **was**
+collected, and only the link is missing. The distinction exists because *sin cobro registrado*, said
+of a collected invoice, reads as *aún no cobrada*. No figure moves either way — the accrual view
+books the invoice on its `InvoiceDate` — but `declared-in-earlier-period` can never be computed for
+such an invoice, since it only ever surfaces from its own quarter.
+
+### Créditos incobrables (art. 80.Cuatro LIVA)
+
+The clock and the checklist for recovering the IVA repercutido on an invoice that will not be paid.
+Nothing here issues a factura rectificativa, files a modelo 952 or changes an invoice's status. Read
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Créditos incobrables before touching any of it — in
+particular the part explaining why, for this taxpayer, the article reaches **almost no invoice**.
+
+```typescript
+// One term's window on one invoice. Both terms are ALWAYS computed: which applies is the
+// taxpayer's option (art. 80.Cuatro.A).1.ª) and nothing in the data model records the choice
+export interface BadDebtWindow {
+  term: BadDebtWaitingTerm;         // 'pyme-six-months' | 'general-one-year'
+  waitingMonths: number;            // 6 | 12
+  windowStartDate: string;          // devengo + waitingMonths — first day the rectificativa may be issued
+  windowEndDate: string;            // + 6 months [art. 80.Cuatro.B)]. Caducidad: after it the right is gone
+  stage: BadDebtStage;              // 'waiting' | 'in-window' | 'window-expired' | 'out-of-scope'
+  daysUntilWindowStart: number | null;   // null once the window has opened
+  daysRemainingInWindow: number | null;  // null while waiting and once expired. 0 on the closing day
+}
+
+// An uncollected issued invoice measured against art. 80.Cuatro, WHETHER OR NOT it reaches it
+export interface BadDebtInvoice {
+  invoiceId: number;
+  invoiceNumber: string | null;
+  clientName: string;
+  clientCountry: string | null;     // The snapshot value the establishment gate was decided on
+  accrualDate: string;              // "InvoiceDate" as a PROXY for the devengo — an approximation
+  baseCents: number;
+  vatPercent: number;
+  vatCents: number;                 // The cuota repercutida. Zero closes the gate
+  totalCents: number;
+  status: InvoiceStatus;
+  exclusion: BadDebtExclusion | null;    // Non-null ⇒ the clock does not run and `windows` is empty
+  windows: BadDebtWindow[];              // One per term, shortest first
+  needsAttention: boolean;               // A window open, or opening within BAD_DEBT_APPROACHING_DAYS (60)
+}
+
+export interface BadDebtReport {
+  asOfDate: string;                 // The day it was computed against, always explicit
+  tracked: BadDebtInvoice[];        // The gate let these through — LAPSED windows included
+  outOfScope: BadDebtInvoice[];     // The gate closed on these, each carrying its `exclusion`
+}
+```
+
+`BadDebtExclusion` is `'no-output-vat'` | `'recipient-not-established'` |
+`'recipient-establishment-unknown'` | `'not-issued'` | `'collected'`. **The gate is fail-closed**:
+an invoice enters the clock only when every reason has been ruled out, and a missing datum keeps it
+out rather than letting it in. `resolveBadDebtExclusion()` reports the *first* reason only — several
+can be true at once — because the copy has one slot.
+
+**`outOfScope` carries the reason instead of dropping the row on purpose.** For this portfolio
+(services to non-established businesses, casilla 120) that is every invoice and `tracked` is empty;
+a module that shows nothing and explains nothing reads as a bug and gets "fixed".
+
+**`tracked` keeps an invoice whose windows have all lapsed.** The right is gone and the loss stays
+visible; `needsAttention` is what separates what can still be chased from what is only on the record.
+
+The dates come from `src/utils/badDebt.ts` (pure, no clock of its own): `computeBadDebtWindows()`,
+`resolveBadDebtExclusion()`, `isEstablishedInSpain()`, `addMonthsToIsoDay()` — which adds months *de
+fecha a fecha*, capping at the last day of a month that has no equivalent day (art. 5.1 CC), so
+31-ago-2026 + 6 months is 28-feb-2027. The legal constants (`BAD_DEBT_WAITING_TERM_MONTHS`,
+`BAD_DEBT_RECTIFICATION_WINDOW_MONTHS` = 6, `BAD_DEBT_AEAT_NOTICE_MONTHS` = 1,
+`BAD_DEBT_PYME_TURNOVER_THRESHOLD_CENTS`, `BAD_DEBT_CHECKLIST_STEPS` and
+`BAD_DEBT_CHECKLIST_LEGAL_BASIS`) live in `src/constants/finance.ts`, each citing its article. The
+checklist's legal basis is **not** translated: normative citations read the same in both locales,
+like the casilla numbers, and duplicating them across `es.json` and `en.json` would only let them
+drift.
 
 **`amortizacionCents` is a breakout, not an extra total.** It is already inside casilla 02, and it
 is the reason a breakdown of that box must read *documentados + amortización + difícil
@@ -1988,14 +2071,83 @@ export interface DeferralVerdict {
 }
 ```
 
+#### Cancelling a resolution
+
+A deferral can be paid off early or cancelled outright. Cancelling moves its **still-pending**
+fracción movements to `TRANSACTION_STATUS.CANCELLED` — already filtered out of every summary and
+fiscal view — and leaves the **paid** ones untouched, because that money really did move.
+
+```typescript
+// Where a resolution stands. DERIVED from its movements on every read, never stored:
+// a stored copy is one more flag that can go stale (DEFERRAL_STATUS in @/constants/finance)
+type DeferralStatus =
+  | 'active'      // At least one fracción still pending
+  | 'settled'     // Nothing pending and nothing cancelled — an early payoff included
+  | 'cancelled';  // Nothing pending left, and at least one fracción cancelled
+
+// One fracción seen through its movements. The three parts are three rows and CAN disagree,
+// so the status is resolved, not read: pending if any part is pending, paid if none is pending
+// and at least one was paid, cancelled only when every part is cancelled
+export interface DeferralFraccionMovements {
+  fraccionNumber: number;
+  dueDate: string;
+  totals: DeferralTotals;      // The three parts and their sum, as booked
+  status: TransactionStatus;
+  movementIds: number[];       // One per non-zero DEFERRAL_PART
+}
+
+// What cancelling would do, shown BEFORE anything is written
+export interface DeferralCancellationPreview {
+  deferralId: number;
+  expedienteNumber: string;
+  status: DeferralStatus;                     // As it stands now, before cancelling
+  toCancel: DeferralFraccionMovements[];      // Fracciones with pending movements
+  toCancelTotals: DeferralTotals;
+  toKeep: DeferralFraccionMovements[];        // Already paid, or already cancelled: untouched
+  toKeepTotals: DeferralTotals;
+}
+
+// What the cancellation actually did — the same two halves, after the write
+export interface DeferralCancellationResult {
+  deferralId: number;
+  status: DeferralStatus;             // Derived again from the movements the COMMIT left behind
+  cancelledFraccionNumbers: number[];
+  cancelledMovementCount: number;
+  cancelledTotals: DeferralTotals;
+  keptMovementCount: number;
+  keptTotals: DeferralTotals;
+}
+```
+
+**The confirmation must show both halves.** A deferral is cancelled in the middle of its calendar,
+so what is kept is as load-bearing as what goes — `toKeep` is not a courtesy, it is the statement
+that a paid instalment and its deducted interés are not being rewritten.
+
+**The `Deferrals` row survives a cancellation and nothing on it changes.** Deleting it would free
+`UQ_Deferrals_UserExpediente` (the next upload of the same PDF would silently re-book the cancelled
+instalments) and would null the `DeferralID` of the very rows that need explaining. There is no
+status column to set, because `DeferralStatus` is derived. Deleting a resolution remains a separate
+operation for an import that was *wrong*; cancelling is for a deferral that really was *cancelled*.
+See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Cancelling a resolution.
+
+At the repository level a movement is read as a `DeferralMovementRecord` (`transactionId`,
+`fraccionNumber`, `part`, `amountCents`, `dueDate`, `status`) — the read counterpart of the import's
+draft, deliberately without the description or the category, so a caller cannot start re-deciding
+them. `getDeferralMovements()` returns them all, paid and cancelled included: a cancellation has to
+show what it will **not** touch just as clearly as what it will.
+
 `Transaction` gained `deferralId?`, `deferralFraccionNumber?` and `deferralPart?: DeferralPart | null`.
 They are **optional**, not nullable-required: absent means "not selected by this query", an explicit
 `null` means "not part of a deferral".
 
 `DeferralPart` (`'principal' | 'recargo' | 'interes'` — the DB CHECK literals) and `DeferralCheck`
 come from `src/constants/finance.ts`, alongside `DEFERRAL_PART_DEDUCTION_PERCENT` (0 / 0 / 100),
-`DEFERRAL_INTEREST_CASILLA` (= `MODELO_100_CASILLA.C0203`), `DEFERRAL_CATEGORY` and
-`DEFERRAL_MAX_FRACCIONES`.
+`DEFERRAL_INTEREST_CASILLA` (= `MODELO_100_CASILLA.C0203`), `DEFERRAL_CATEGORY`,
+`DEFERRAL_MAX_FRACCIONES`, `DEFERRAL_STATUS`, and the pair
+`DEFERRAL_CANCELLABLE_MOVEMENT_STATUS` / `DEFERRAL_CANCELLED_MOVEMENT_STATUS` — the only movement
+status a cancellation may touch, and what it becomes. `DEFERRAL_PART_AMOUNT_FIELD` maps each part to
+its field name in both `DeferralFraccion` and `DeferralTotals`, so the import that books a fracción
+and the cancellation that adds one back up read the same table instead of each keeping a copy.
 
 ### Company
 
@@ -2196,6 +2348,17 @@ export interface FiscalDeadline {
   isFiled: boolean;                    // Whether a document exists for this deadline
   daysRemaining: number | null;        // Days until deadline (null if not applicable)
   needsPostponement: boolean;          // Whether postponement is advisable
+  crossQuarter?: CrossQuarterDeadlineNote;  // Attached afterwards, only for a 303/130 about to be filed
+}
+
+// What a quarter's cross-quarter findings add to a deadline that ALREADY exists.
+// A qualifier, never an obligation of its own: no new date, no figure changed
+export interface CrossQuarterDeadlineNote {
+  fiscalYear: number;
+  fiscalQuarter: number;
+  invoiceCount: number;        // Invoices in disagreement for this quarter, all cases counted
+  totalCents: number;          // Their total — what the user would be tempted to move between quarters
+  dataIntegrityCount: number;  // Of those, the broken-link case. Needs its own wording, so it is counted apart
 }
 ```
 
@@ -2203,6 +2366,15 @@ export interface FiscalDeadline {
 moved because the rule date was a Sunday, instead of silently showing a different day than the law
 says. `domiciliacionEndDate` deliberately does **not** ride the working-day extension — see
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Deadlines.
+
+**`crossQuarter` is optional, not nullable-required.** `computeDeadlines()` is pure and knows
+nothing about invoices; the note is attached afterwards by `withCrossQuarterNotes()`
+(`src/utils/crossQuarterDeadlineNotes.ts`), and only for `CROSS_QUARTER_DEADLINE_MODELOS`
+(303 and 130 — a quarter boundary moves nothing for the annual 390 and 100) in
+`CROSS_QUARTER_DEADLINE_FILING_STATUSES` (`upcoming` and `due`; `overdue` is excluded because that
+deadline already shouts on its own). An absent field means *no findings or not looked up*, and
+nothing downstream has to tell the two apart. **It never adds a deadline entry** — see
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
 
 ### FiscalDeadlineSettings
 

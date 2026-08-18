@@ -8,6 +8,7 @@
 import { FileText, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { BadDebtCard } from '@/components/fiscal/BadDebtCard';
 import { InvoiceForm } from '@/components/invoices/InvoiceForm';
 import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
@@ -85,6 +86,16 @@ export default function InvoicesPage() {
 
       {/* Invoice List */}
       <InvoiceList invoices={invoices ?? []} isLoading={isLoading} />
+
+      {/* The IVA of an invoice that never gets paid is recoverable, but only inside hard deadlines
+          (art. 80.Cuatro LIVA). It hangs off this page and not off /fiscal because the thought that
+          leads to it — "this client never paid me" — happens in front of the invoice list, and
+          because its windows run from each invoice's devengo and belong to no quarter. It opens
+          itself only when a window is running out; for a portfolio of non-established clients the
+          article reaches nothing, so it stays shut and says why rather than looking empty. */}
+      <div className="mt-8">
+        <BadDebtCard />
+      </div>
 
       {/* Create Form Modal */}
       {showCreateForm && <InvoiceForm onClose={() => setShowCreateForm(false)} onCreated={handleCreated} />}

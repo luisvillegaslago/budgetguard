@@ -2835,11 +2835,11 @@ Get all AEAT filing deadlines for a given fiscal year. Deadlines are computed se
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `year` | number | No | current year | Fiscal year (2020-2100) |
-| `active` | `true` | No | all | Return only upcoming/overdue deadlines |
+| `active` | `true` | No | all | Only what is owed now: this year's upcoming/due/overdue **plus the previous fiscal year's still-open filings** (see below) |
 
 **Example Request:**
 ```bash
-GET /api/fiscal/deadlines?year=2025&active=true
+GET /api/fiscal/deadlines?year=2026&active=true
 ```
 
 **Example Response:**
@@ -2848,20 +2848,84 @@ GET /api/fiscal/deadlines?year=2025&active=true
   "success": true,
   "data": [
     {
-      "id": "303-Q1",
       "modeloType": "303",
-      "quarter": 1,
-      "description": "Modelo 303 - Q1 2025",
-      "dueDate": "2025-04-20",
+      "fiscalYear": 2026,
+      "fiscalQuarter": 3,
+      "startDate": "2026-10-01",
+      "endDate": "2026-10-20",
+      "nominalEndDate": "2026-10-20",
+      "domiciliacionEndDate": "2026-10-15",
+      "isWindowConfirmed": true,
+      "status": "due",
       "isFiled": false,
-      "isOverdue": true,
-      "daysUntilDue": -5,
-      "isInReminderWindow": true
+      "daysRemaining": 4,
+      "needsPostponement": false,
+      "crossQuarter": {
+        "fiscalYear": 2026,
+        "fiscalQuarter": 3,
+        "invoiceCount": 2,
+        "totalCents": 180000,
+        "dataIntegrityCount": 1
+      }
     }
   ],
-  "meta": { "year": 2025, "reminderDaysBefore": 7 }
+  "meta": { "year": 2026, "reminderDaysBefore": 7 }
 }
 ```
+
+**`crossQuarter` is a qualifier on a deadline that already exists, never a deadline of its own.**
+Nothing new falls due because an invoice was collected in another quarter: `computeDeadlines()`
+stays the only source of what is owed and when, and the note is attached afterwards by
+`withCrossQuarterNotes()`. It is present only when **all three** hold:
+
+- the modelo is **303 or 130** (`CROSS_QUARTER_DEADLINE_MODELOS`) — the annual 390 and 100 span every
+  quarter, so a quarter boundary inside one year moves nothing for them;
+- the filing status is **`upcoming` or `due`** (`CROSS_QUARTER_DEADLINE_FILING_STATUSES`). `not_due`
+  is noise months ahead, `filed` is too late to inform, and `overdue` is excluded on purpose —
+  that deadline already shouts on its own;
+- the quarter actually **has findings**. An empty quarter yields no note at all rather than a zeroed
+  one, so the qualifier stays worth reading.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `invoiceCount` | number | Invoices of that quarter whose devengo and cobro disagree, all cases counted |
+| `totalCents` | number | Their total — what a user reading a bank statement would be tempted to move |
+| `dataIntegrityCount` | number | Of those, the `paid-without-linked-movement` ones: a broken link, not a timing disagreement. Counted apart because it needs its own wording |
+
+The figures the models computed do **not** change: they are already on an accrual basis and are
+right as they stand. The note guards the human step afterwards. Reading it costs at most one extra
+query per distinct quarter about to be filed, and none at all in a year with nothing imminent.
+See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
+
+**`active=true` also answers for the year being *filed*, not only the year on the calendar.** A
+period is always filed in the one after it, so on 10 January the 303 and the 130 of Q4 and the 390
+are due while `new Date().getFullYear()` has already moved on — and a surface asking only for the
+current year finds all of them `not_due` and shows **nothing at all on exactly the days something is
+owed**. The Renta campaign has the same hole for the whole of April to June.
+
+So the active view prepends the **previous fiscal year's still-open filings**
+(`getCarryOverDeadlines()`), annotated with that year's own cross-quarter findings, and they lead the
+list because they are the ones running out. Three things about it:
+
+- **No deadline is invented.** Every carry-over row is one `computeDeadlines()` already emits for that
+  year, shown inside its real window.
+- **`upcoming` and `due` only, never `overdue`.** A filing missed in a closed year is a different
+  conversation, and carrying it forward would park a permanent warning on the dashboard of anyone who
+  ever skipped one.
+- **The year view is untouched.** Without `active=true` the response answers for the year it was
+  asked about and nothing else — adding another year's rows there would contradict its own
+  `meta.year` and the selector the user just moved. `meta.year` stays the requested year in both
+  cases.
+
+Cost is guarded: the previous year is probed against an empty filed set first (pure, free), so
+`getFiledModelos` is only called for it when a window is actually open — zero extra queries on an
+ordinary day.
+
+> **Known rough edge.** For a fiscal year whose Orden is unpublished, `computeDeadlines()` falls back
+> to the last known Renta campaign and flags `isWindowConfirmed: false`. The banner does not render
+> that flag (the panel is where dates are detailed), so a carried-over Modelo 100 can appear there
+> with an unconfirmed window and no caveat. Pre-existing in the banner, now reachable in one more
+> situation; surfacing it is a copy decision, not a wiring one.
 
 #### `GET /api/fiscal/deadlines/settings`
 
@@ -3097,6 +3161,9 @@ the **recargo de apremio** is expressly non-deductible (art. 15.c LIS). See
 | GET | `/api/fiscal/deferrals/:id` | The resolution, its ANEXO I **rebuilt from the movements**, and the verdict |
 | PUT | `/api/fiscal/deferrals/:id` | Update the header (all fields optional) |
 | DELETE | `/api/fiscal/deferrals/:id` | Delete the resolution and its **still-pending** instalments |
+| POST | `/api/fiscal/deferrals/extract` | Read a resolución with Claude Vision → `ExtractedDeferralData`. **Persists nothing** |
+| GET | `/api/fiscal/deferrals/:id/cancel` | Preview a cancellation: what would be cancelled, what would be kept |
+| POST | `/api/fiscal/deferrals/:id/cancel` | Cancel it: still-pending fracciones → `cancelled`, paid ones untouched, letter kept |
 
 #### `GET /api/fiscal/deferrals`
 
@@ -3282,17 +3349,197 @@ left the account, and a wrong import does not undo a payment — those rows surv
 nulled by the FK, keeping their fracción number and their part. `cancelled` rows are kept for the
 same reason. Groups left empty are cleaned up; a group still holding a paid part is not.
 
+#### `GET /api/fiscal/deferrals/:id/cancel`
+
+What cancelling would do, computed and shown **before** anything is written. It is the preview *of
+this action*, not a view of the resolution — that is `GET /api/fiscal/deferrals/:id` — and the two
+share a URL with the `POST` on purpose: keeping the confirmation and the write on one resource is
+what stops them drifting apart.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "deferralId": 3,
+    "expedienteNumber": "28...",
+    "status": "active",
+    "toCancel": [
+      {
+        "fraccionNumber": 4,
+        "dueDate": "2026-11-20",
+        "totals": { "principalCents": 48000, "surchargeCents": 0, "interestCents": 917, "totalCents": 48917 },
+        "status": "pending",
+        "movementIds": [4821, 4822]
+      }
+    ],
+    "toCancelTotals": { "principalCents": 48000, "surchargeCents": 0, "interestCents": 917, "totalCents": 48917 },
+    "toKeep": [],
+    "toKeepTotals": { "principalCents": 0, "surchargeCents": 0, "interestCents": 0, "totalCents": 0 }
+  }
+}
+```
+
+**Both halves are always returned, empty ones included.** A deferral is cancelled in the middle of
+its calendar, so what is *kept* is as load-bearing as what goes — and "you have not paid a single
+instalment yet" is exactly what makes the decision easy. A fracción with some parts paid by hand and
+some still pending appears in **both** lists, each carrying only its own amounts: the three parts are
+three independent rows, and showing the fracción whole on either side would overstate what the user
+is approving.
+
+`status` is the resolution's `DeferralStatus` as it stands now, derived from the movements.
+
+#### `POST /api/fiscal/deferrals/:id/cancel`
+
+Performs it. **No request body** — cancelling takes no options: which movements are touched is
+decided by their own status, never by the request, so there is nothing to validate and no schema to
+keep in step with the preview.
+
+- every fracción movement still **`pending`** becomes **`cancelled`** — a status every summary view
+  and every fiscal view already filters out, so those instalments leave the 130 and the 100 exactly
+  as if they had never been booked;
+- every movement already **`paid`** is left **untouched**. That money really did leave the account and
+  its interés is a deductible expense of the year it was paid in.
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "deferralId": 3,
+    "status": "cancelled",
+    "cancelledFraccionNumbers": [4, 5, 6],
+    "cancelledMovementCount": 6,
+    "cancelledTotals": { "principalCents": 144000, "surchargeCents": 0, "interestCents": 2751, "totalCents": 146751 },
+    "keptMovementCount": 6,
+    "keptTotals": { "principalCents": 144000, "surchargeCents": 0, "interestCents": 4102, "totalCents": 148102 }
+  }
+}
+```
+
+`status` and `kept*` are derived from the movements re-read **inside the write transaction**, so what
+comes back is the state the COMMIT left behind rather than the one the UPDATE intended — a fracción
+marked paid while the confirmation was on screen is reported as kept, which is what it is.
+
+**Errors:** `404` no such resolution for this user; **`409 api-error.conflict.deferral-nothing-to-cancel`**
+when no fracción was still pending. The repository is idempotent (a second call matches nothing and
+writes nothing) and the *service* is what turns "matched nothing" into the conflict, because a UI
+saying *aplazamiento cancelado* for a call that touched zero movements reports an effect that did not
+happen. A resolution already paid off in full gets the same answer.
+
+**This is not `DELETE`.** The `Deferrals` row survives and nothing on it changes: deleting it would
+free `UQ_Deferrals_UserExpediente` (so the next upload of the same PDF would silently re-book the
+cancelled instalments) and would null the `DeferralID` of the rows that need explaining. There is no
+status column to set either — `DeferralStatus` (`active` / `settled` / `cancelled`) is derived from
+the movements on every read. `DELETE` remains for an import that was **wrong**; this is for a
+deferral that really was **cancelled**.
+
+**The guard is the UPDATE's own `WHERE "Status" = 'pending'`, not a check before it**, so an
+instalment marked paid between the preview and the confirmation is never rewritten, and two
+cancellations racing each other cannot both claim the same fracción.
+
+Nothing here moves a figure in any modelo: a pending movement never counted in one. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Cancelling a resolution.
+
 #### `POST /api/fiscal/deferrals/extract`
 
-**Not implemented yet.** `API_ENDPOINT.DEFERRALS_EXTRACT` is declared and the import wizard already
-calls it with a `FormData` field named `file`, matching `POST /api/fiscal/documents/detect-modelo`.
-The service behind it exists (`extractDeferral()` in `src/services/ocr/DeferralExtractor.ts`) and
-returns `ExtractedDeferralData`; only the route is missing. Until it lands, the request falls through
-to `/api/fiscal/deferrals/[id]` with `id: "extract"` and gets a `400`.
+Reads an uploaded resolución and returns `ExtractedDeferralData` — the header plus every row of
+ANEXO I, amounts **already in cents**. `multipart/form-data` with a field named `file`, matching
+`POST /api/fiscal/documents/detect-modelo`. Backed by `extractDeferral()` in
+`src/services/ocr/DeferralExtractor.ts`.
+
+**It persists nothing** — no Blob, no database row — so a bad reading costs a retry and never a
+cleanup. The import wizard uses the answer only to pre-fill its confirm screen, and just the
+confirmed payload reaches `POST /api/fiscal/deferrals`. The route is still authenticated even though
+nothing is written.
+
+**Errors:** `400 api-error.fiscal.file-required` with no file; a `VisionApiError` becomes the mapped
+vision failure with `api-error.fiscal.deferral-extraction-failed` as the fallback. A truncated answer
+surfaces as `INVALID_RESPONSE` rather than as a half-read ANEXO I, which is why the extractor raises
+the token ceiling — a silently short ANEXO I is the one failure that could reach the database looking
+plausible.
 
 The reader works from the **rendered** page, not the PDF text layer: these letters do have a real
 text layer, but it prints each AEAT label two lines away from its own value, and that mangling has
 already produced a misreading in this project.
+
+---
+
+### Créditos Incobrables (art. 80.Cuatro LIVA)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/fiscal/bad-debt` | Uncollected issued invoices measured against art. 80.Cuatro: the clocks that are running, and the ones the gate ruled out **with the reason** |
+
+The clock and the checklist for recovering the IVA repercutido on an invoice that will not be paid.
+`getBadDebtReport(asOfDate)` in `InvoiceRepository` returns a `BadDebtReport`; the maths behind it is
+pure (`src/utils/badDebt.ts`).
+
+> **Read [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Créditos incobrables before exposing or extending
+> this.** The article does **not** reach an invoice with no Spanish output VAT, nor one whose
+> recipient is not established in the TAI, Canarias, Ceuta or Melilla (art. 80.Cinco.2.ª) — which is
+> almost every invoice on file here. The gate is fail-closed and an empty `tracked` list is the
+> correct answer, not a bug to fix.
+
+**What it does and does not do.** It answers *does art. 80.Cuatro reach this invoice*, and *between
+which two dates may the right be exercised*. It generates no factura rectificativa, files no modelo
+952, and never touches an invoice's `Status`.
+
+```json
+{
+  "asOfDate": "2026-08-18",
+  "tracked": [],
+  "outOfScope": [
+    {
+      "invoiceId": 10,
+      "invoiceNumber": "DW-09",
+      "clientName": "…",
+      "clientCountry": "Australia",
+      "accrualDate": "2026-08-03",
+      "baseCents": 120000,
+      "vatPercent": 0,
+      "vatCents": 0,
+      "totalCents": 120000,
+      "status": "finalized",
+      "exclusion": "no-output-vat",
+      "windows": [],
+      "needsAttention": false
+    }
+  ]
+}
+```
+
+- `exclusion` is the fail-closed gate: `no-output-vat`, `recipient-not-established`,
+  `recipient-establishment-unknown`, `not-issued` or `collected`. Only the **first** applicable
+  reason is reported — several can be true at once, and the copy has one slot.
+- `windows` carries **both** terms, shortest first (6-month PYME option and 12-month general rule),
+  each with `windowStartDate`, `windowEndDate`, `stage` and its two day counters. Which term applies
+  is the taxpayer's option and the data model records no choice, so the app presents alternatives
+  rather than picking one.
+- `tracked` keeps invoices whose windows have lapsed; `needsAttention` marks the ones still
+  chaseable (open, or opening within 60 days).
+- `accrualDate` is `"InvoiceDate"` standing in for the **devengo** — an approximation, and the UI
+  must say so.
+
+#### `GET /api/fiscal/bad-debt`
+
+The whole report. **No query parameters, on purpose**: a window opens six months or a year after the
+devengo and closes six months later, so it straddles quarters and years by construction, and scoping
+the read to the period on screen would hide exactly the invoice whose deadline is about to lapse.
+
+`asOfDate` is the **server's** day, never the client's, and every date and day count in the UI is
+read from the payload rather than recomputed — so a countdown can never disagree with the stage badge
+beside it. `meta` carries `trackedCount` and `outOfScopeCount`.
+
+**There is no `POST`, and there will not be one.** Exercising the right means issuing a factura
+rectificativa, remitting it, uploading the evidence through the registro electrónico and filing a
+modelo 952 — none of which this app does. A write verb here would promise a button that cannot exist.
+
+Consumed by `useBadDebtInvoices()` (`QUERY_KEY.BAD_DEBT_INVOICES`, ten-minute `staleTime` — the
+windows move by whole days, but not `Infinity`, because a tab left open across midnight has to catch
+up with the calendar) and rendered by `BadDebtCard` on **`/invoices`**, under the invoice list. The
+thought that leads here is *this client never paid me*, and it happens in front of the invoices;
+`/fiscal` is organised by period, and this is the one fiscal clock that belongs to no period.
 
 ---
 

@@ -184,7 +184,11 @@ src/
 │   │   ├── FiscalUncountedIncome.tsx  # Income no model counts (safety net)
 │   │   ├── FiscalAmountRow.tsx        # Shared casilla row
 │   │   ├── FiscalDeadlinePanel.tsx    # Deadline display panel
-│   │   └── FiscalDeadlineBanner.tsx   # Dashboard deadline alert
+│   │   ├── FiscalDeadlineBanner.tsx   # Dashboard deadline alert
+│   │   ├── DeadlineCrossQuarterNote.tsx # Cross-quarter qualifier, shared by panel and banner
+│   │   ├── BadDebtCard.tsx            # art. 80.Cuatro clock + checklist (mounted on /invoices)
+│   │   ├── DeferralList.tsx           # The year's resolutions — the first surface that shows one
+│   │   └── DeferralCancelDialog.tsx   # Confirms a cancellation by showing BOTH halves
 │   └── ui/                            # ~25 shared primitives
 │       ├── MonthPicker.tsx            # Month navigation
 │       ├── CollapsibleSection.tsx     # Animated collapse
@@ -305,6 +309,8 @@ src/
 │   ├── amortization.ts               # Day-based dotacion + year-by-year schedule (pure)
 │   ├── fiscalDeadlines.ts            # AEAT deadline computation
 │   ├── workingDays.ts                # Working-day calendar (weekends, holidays, Semana Santa)
+│   ├── crossQuarterDeadlineNotes.ts  # Findings as a qualifier on an existing 303/130 deadline
+│   ├── badDebt.ts                    # art. 80.Cuatro LIVA: fail-closed gate + rectification windows
 │   ├── crypto/                       # fifo.ts, fiscalYear.ts, pairPnl.ts
 │   ├── cryptoSecrets.ts              # AES-256-GCM credential encryption
 │   ├── fiscalFileParser.ts           # Auto-detect doc metadata from filename
@@ -751,7 +757,9 @@ Fiscal reporting for Spanish tax obligations: Modelo 303 (IVA) and Modelo 130 (I
 
 It also owns the **inmovilizado**: assets whose cost is spread over their useful life instead of being deducted in full in the year of purchase. Their yearly dotación is a deductible expense that no transaction can carry, because no money moves when an asset amortizes — it is the second source of deductible expense in the module, and the only one that does not come from a view row.
 
-It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccionamiento is imported as a `Deferrals` row plus one pending movement per legally distinct part of each fracción, because an instalment is three different things paid together and only the intereses de demora are deductible — and as a *financial* expense, casilla 0203. Booking the instalment whole is what this replaces.
+It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccionamiento is imported as a `Deferrals` row plus one pending movement per legally distinct part of each fracción, because an instalment is three different things paid together and only the intereses de demora are deductible — and as a *financial* expense, casilla 0203. Booking the instalment whole is what this replaces. A resolution can be **cancelled**: its still-pending fracciones become `cancelled` movements, the paid ones are never rewritten, and the letter itself stays.
+
+Two read-only clocks sit alongside the models and change no figure: the **cross-quarter alert**, which now rides the 303/130 deadline of the quarter it belongs to instead of waiting to be visited, and the **art. 80.Cuatro LIVA window** for recovering the IVA of an invoice that will not be paid — a clock and a checklist, gated fail-closed, and expected to be empty for this taxpayer's portfolio.
 
 > **The tax rules themselves — devengo vs. caja, the casillas, the IVA compensation pool, the pension limits, the deadline rules — live in [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md), together with the invariants that must not be broken. Read it before changing anything in this module.**
 
@@ -786,6 +794,9 @@ It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccion
 │      part: DeferralID + FraccionNumber + DeferralPart         │
 │      principal 0% · recargo 0% · interés 100% → casilla 0203  │
 │                                                               │
+│  cancelDeferralPendingMovements()  ← cuts the calendar        │
+│  └── pending → 'cancelled'; paid rows untouched, ever         │
+│                                                               │
 │  verifyDeferral(letter) → DeferralVerdict  ← pure             │
 │  └── checks the letter against ITSELF; never derives a split  │
 │                                                               │
@@ -799,7 +810,15 @@ It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccion
 │      └── into 130 casilla 02, 100 casillas 0208/0227          │
 │                                                               │
 │  getCrossQuarterInvoices()  ← InvoiceRepository               │
-│  └── devengo vs. cobro — warns, feeds no casilla              │
+│  ├── devengo vs. cobro — warns, feeds no casilla              │
+│  └── 'paid' + no linked movement = broken record              │
+│                                                               │
+│  crossQuarterDeadlineNotes  ← pure, no DB                     │
+│  └── qualifies the 303/130 already due; creates NO deadline   │
+│                                                               │
+│  getBadDebtReport()  ← art. 80.Cuatro LIVA — a clock only     │
+│  ├── gate FAILS CLOSED: cuota > 0 AND destinatario en TAI     │
+│  └── devengo +6m/+12m, then 6m to rectificar (caducidad)      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -809,7 +828,7 @@ It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccion
 - `src/services/database/FixedAssetRepository.ts`: Inmovilizado CRUD, plus `getAmortizationCentsForPeriod()` — the fold over a date range that `FiscalRepository` consumes. It takes an explicit `userId` and never calls `getUserIdOrThrow()`, like the other repository functions the fiscal models call internally
 - `src/utils/fiscal.ts`: `computeFiscalFields()`, `rollVatPoolCents()`, `calcGastosDificilCents()` — pure
 - `src/utils/amortization.ts`: `amortizationCentsBetween()`, `computeAmortizationSchedule()` — pure, day-based, UTC. The schedule always sums to the base because each year is the difference of two capped accruals
-- `src/services/database/DeferralRepository.ts`: Resolutions + the movements they book, in one transaction. `getDeferralFracciones()` rebuilds ANEXO I from those movements (`SUM(...) FILTER`) rather than storing it twice
+- `src/services/database/DeferralRepository.ts`: Resolutions + the movements they book, in one transaction. `getDeferralFracciones()` rebuilds ANEXO I from those movements (`SUM(...) FILTER`) rather than storing it twice. `getDeferralMovements()` keeps the parts apart with their status, and `cancelDeferralPendingMovements()` cancels only what is still pending — the guard lives in the UPDATE, and the `Deferrals` row is never deleted
 - `src/services/DeferralImportService.ts`: The fiscal policy of a deferral — which parts exist, what each is worth, which category and which deduction. The repository decides none of it
 - `src/services/ocr/DeferralExtractor.ts`: Reads the resolución with Claude Vision (the rendered page, not the PDF text layer) and derives the deferred period from the *Fecha de Intereses*
 - `src/utils/deferral.ts`: `verifyDeferral()`, `accruedInterestCents()`, `interestAccrualEndDate()` — pure. Checks the letter against itself; the one recomputation (art. 53 RGR) carries a tolerance derived from the printed tipo's truncation
@@ -817,9 +836,11 @@ It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccion
 - `src/utils/fiscalDeadlines.ts` + `src/utils/workingDays.ts`: AEAT calendar, working-day extension, domiciliación
 - `src/schemas/fixed-asset.ts`: Asset validation, including the tabla × art. 103 LIS rate cap (`coefficientFitsGroup()`, exported so the PUT route can re-run it against the merged row)
 - `src/schemas/deferral.ts`: The arithmetic gate. Amounts in **cents**, never coerced; three refinements that check the letter against its own totals row and never recompute a split
-- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`, `useFixedAssets.ts`, `useDeferrals.ts`
-- `src/services/database/InvoiceRepository.ts`: `getCrossQuarterInvoices(year, quarter)` — the one fiscal read that does not go through `FiscalRepository`, because it is about invoices rather than about figures. Purely informational
-- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel, DeferralImportWizard (+ DeferralFraccionesTable, DeferralVerdictPanel, DeferralPartsLegend, `deferralDraft.ts`)
+- `src/hooks/useFiscalReport.ts`, `useIrpfProjection.ts`, `useFiscalProfile.ts`, `useFiscalDeadlines.ts`, `useFixedAssets.ts`, `useDeferrals.ts` (which also carries `useDeferralCancellationPreview` — `NO_CACHE`, because a decision aid must be re-read every time it is opened — and `useCancelDeferral`), `useBadDebtInvoices.ts` (read-only, no mutation to expose)
+- `src/services/database/InvoiceRepository.ts`: `getCrossQuarterInvoices(year, quarter)` — the one fiscal read that does not go through `FiscalRepository`, because it is about invoices rather than about figures. Purely informational. Also `getBadDebtReport(asOfDate)`, the art. 80.Cuatro clock: a deliberately wide query where the **gate**, not the WHERE clause, decides what is in scope
+- `src/utils/badDebt.ts`: `resolveBadDebtExclusion()` (fail-closed), `computeBadDebtWindows()`, `isEstablishedInSpain()`, `addMonthsToIsoDay()` — pure, and with no clock of their own: `asOfDate` is always passed in
+- `src/utils/crossQuarterDeadlineNotes.ts`: turns cross-quarter findings into a qualifier on an existing 303/130 deadline. Pure, like `fiscalDeadlines.ts` — the caller reads the invoices and passes them in, which is what keeps it out of a query per deadline
+- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel, DeadlineCrossQuarterNote, BadDebtCard, DeferralList, DeferralCancelDialog, DeferralImportWizard (+ DeferralFraccionesTable, DeferralVerdictPanel, DeferralPartsLegend, `deferralDraft.ts`)
 - `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector. `FixedAssetsCard` is mounted once outside both view branches and keyed by year — the dotación belongs to the year, not to the quarter or the selected view
 
 **The dotación is not a transaction, and not a run rate.** Two consequences worth keeping in mind
@@ -836,6 +857,35 @@ the invoice pay flow. It feeds no casilla and no computation: the models are alr
 alert exists because the human reading a bank statement is the one who gets it wrong. See
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Devengo vs. caja.
 
+**And it now chases: the findings ride the deadline.** A panel on the quarter being *looked at* never
+reaches the person about to file, so each quarter's findings are attached to that quarter's existing
+303/130 deadline as a `crossQuarter` qualifier — count, amount, and how many are the broken-link case
+— rendered by the one `DeadlineCrossQuarterNote` component in both the dashboard banner and the
+fiscal deadline list, so the wording cannot drift. **No deadline is invented**: `computeDeadlines()`
+stays the only source of what is owed and when, and the note only appears on an `upcoming` or `due`
+filing of a quarter that actually has findings.
+
+**A `'paid'` invoice with no linked movement is a broken record, not an impagado.** It is its own
+cross-quarter case (`paid-without-linked-movement`), decided on `"Invoices"."Status"`, because
+*sin cobro registrado* said of a collected invoice reads as *aún no cobrada*. No figure moves — and
+`declared-in-earlier-period` becomes uncomputable for it, which the copy has to admit.
+
+**Créditos incobrables are a clock, and for this portfolio an empty one.** `getBadDebtReport()`
+measures uncollected issued invoices against art. 80.Cuatro LIVA and lists the formalities; it
+generates no rectificativa, files no modelo 952, and never touches an invoice's status. The gate is
+**fail-closed** — output VAT > 0 **and** a recipient established in the TAI, Canarias, Ceuta or
+Melilla — so invoices to non-established clients (almost all of them here) land in `outOfScope`
+*carrying the reason*. An empty `tracked` list is the correct answer; do not "fix" the detection into
+offering the module. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Créditos incobrables.
+
+**And it is mounted on `/invoices`, not on `/fiscal`.** The thought that leads to it is *this client
+never paid me*, and it happens in front of the invoice list. Every other fiscal surface is organised
+by period; this is the one clock that belongs to no period, because a window runs from each invoice's
+own devengo and crosses quarters and years. `BadDebtCard` opens itself when something
+`needsAttention` and stays shut otherwise — a card you must open to discover a lapsing deadline is a
+display, and this is meant to chase — and when `tracked` is empty it treats the **excluded** list as
+the main event, expanded, each invoice carrying its reason.
+
 **A deferral is a calendar, not a figure.** Importing a resolución writes the letter and one
 **pending** movement per non-zero part of each fracción, in a single transaction. Nothing reaches a
 casilla until an instalment is marked paid — every fiscal view filters `Status = 'paid'` — and when
@@ -845,6 +895,25 @@ Two things must not be "simplified": the per-fracción split is read from ANEXO 
 (AEAT loads the rounding remainder onto the last one), and the tipo reaches `verifyDeferral()` as
 printed, because its tolerance is built on that figure being a truncation. See
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Aplazamientos y fraccionamientos.
+
+**Cancelling a deferral cancels movements, not the letter.** `cancelDeferralPendingMovements()` turns
+the still-`pending` fracciones into `cancelled` — a status every summary and fiscal view already
+filters out — and leaves the paid ones exactly as they are, because that money did move and its
+interés is a real expense of the year it was paid in. The `Deferrals` row survives: deleting it would
+free `UQ_Deferrals_UserExpediente` (the next upload of the same PDF would re-book what was just
+cancelled) and null the `DeferralID` of the rows that explain themselves through it. `DEFERRAL_STATUS`
+is **derived** from the movements on every read, never stored. `DELETE` stays what it was — for an
+import that was wrong, not for a deferral that was cancelled.
+
+Until this landed **no surface showed a deferral at all** — the wizard imported letters and the app
+never mentioned them again — so `DeferralList` is where the action had to live: the year's
+resolutions on `/fiscal`, keyed by year like `FixedAssetsCard`, each with its expediente, its modelo
+and period, and its three parts in the colour language of `DeferralFraccionesTable`. It shows **no
+per-row status badge**, deliberately: `DEFERRAL_STATUS` is derived from the movements, so a badge
+would cost a query per resolution to render one word. It is computed once inside the confirmation,
+beside the fracciones it was derived from. `DeferralCancelDialog` borrows `ConfirmDialog`'s shell but
+not the component — that takes a `message: string` and renders one paragraph, and what is being
+approved here is a *list*.
 
 **SharedDivisor vs DeductionPercent:**
 These two fields serve distinct purposes and are independent:
@@ -866,6 +935,15 @@ These two fields serve distinct purposes and are independent:
 | GET / POST | `/api/fiscal/deferrals?year=2026&modeloType=130` | Stored resolutions / import a confirmed one (letter + instalments, one transaction) |
 | GET | `/api/fiscal/deferrals/:id` | The resolution, its ANEXO I rebuilt from the movements, and the verdict |
 | PUT / DELETE | `/api/fiscal/deferrals/:id` | Update the header / delete it and its **still-pending** instalments |
+| POST | `/api/fiscal/deferrals/extract` | Read a resolución with Claude Vision; persists nothing — only the confirmed payload reaches `POST /api/fiscal/deferrals` |
+| GET / POST | `/api/fiscal/deferrals/:id/cancel` | Preview a cancellation / perform it: still-pending fracciones become `cancelled`, paid ones are untouched, the letter stays |
+| GET | `/api/fiscal/deadlines?year=2026` | AEAT calendar, each 303/130 about to be filed carrying its `crossQuarter` qualifier when its quarter has findings. With `active=true` it also leads with the **previous** fiscal year's still-open filings |
+| GET | `/api/fiscal/bad-debt` | art. 80.Cuatro LIVA: the clocks that are running and the invoices the gate ruled out, with the reason. **GET only** — the app exercises nothing |
+
+Two of those carry a constraint worth stating here. The cancellation is **not** a `DELETE`: the
+`Deferrals` row survives and only movements change status. And `/api/fiscal/bad-debt` takes **no
+year or quarter** — a window straddles quarters and years by construction, so filtering by the
+period on screen would hide the invoice closest to lapsing. See [API_REFERENCE.md](API_REFERENCE.md).
 
 **Constants:**
 
@@ -875,6 +953,7 @@ export const QUERY_KEY = {
   FISCAL: 'fiscal',
   FIXED_ASSETS: 'fixed-assets',
   DEFERRALS: 'deferrals',
+  BAD_DEBT_INVOICES: 'bad-debt-invoices',
 } as const;
 
 export const API_ENDPOINT = {
@@ -883,6 +962,7 @@ export const API_ENDPOINT = {
   FIXED_ASSETS: '/api/fiscal/assets',
   DEFERRALS: '/api/fiscal/deferrals',
   DEFERRALS_EXTRACT: '/api/fiscal/deferrals/extract',
+  FISCAL_BAD_DEBT: '/api/fiscal/bad-debt',   // GET only, and unscoped by period on purpose
 } as const;
 
 // The tabla de amortización simplificada, keyed by the grupo number the AEAT uses,
@@ -899,6 +979,39 @@ export const DEFERRAL_INTEREST_CASILLA = MODELO_100_CASILLA.C0203;  // gasto fin
 export const DEFERRAL_CATEGORY = { PARENT_NAME: 'Trabajo', INTEREST_SUBCATEGORY_NAME: 'Intereses de demora', TAX_SUBCATEGORY_NAME: 'Impuestos' } as const;
 export const DEFERRAL_CHECK = { PRINCIPAL_TOTAL: 'principal-total', /* ... */ INTEREST_ACCRUAL: 'interest-accrual' } as const;
 export const DEFERRAL_MAX_FRACCIONES = 120;
+
+// Where a resolution stands — DERIVED from its movements on every read, never stored.
+// `settled` is nothing pending AND nothing cancelled: paying early cancels nothing
+export const DEFERRAL_STATUS = { ACTIVE: 'active', SETTLED: 'settled', CANCELLED: 'cancelled' } as const;
+export const DEFERRAL_CANCELLABLE_MOVEMENT_STATUS = TRANSACTION_STATUS.PENDING;   // the only one it may touch
+export const DEFERRAL_CANCELLED_MOVEMENT_STATUS = TRANSACTION_STATUS.CANCELLED;   // and what it becomes
+
+// The fourth case is a data-integrity finding, not a fiscal one, and needs its own copy
+export const CROSS_QUARTER_CASE = { /* ... */ PAID_WITHOUT_LINKED_MOVEMENT: 'paid-without-linked-movement' } as const;
+export const CROSS_QUARTER_DATA_INTEGRITY_CASES = [CROSS_QUARTER_CASE.PAID_WITHOUT_LINKED_MOVEMENT] as const;
+
+// Where and when a finding may QUALIFY a deadline. It never becomes one
+export const CROSS_QUARTER_DEADLINE_MODELOS = [MODELO_TYPE.M303, MODELO_TYPE.M130] as const;
+export const CROSS_QUARTER_DEADLINE_FILING_STATUSES = [FILING_STATUS.UPCOMING, FILING_STATUS.DUE] as const;
+export const CROSS_QUARTER_PANEL_ANCHOR = 'devengo-cobro';   // the note links to the list behind its count
+
+// art. 80.Cuatro LIVA — the terms, each citing its article in the source
+export const BAD_DEBT_WAITING_TERM_MONTHS = { 'pyme-six-months': 6, 'general-one-year': 12 } as const;
+export const BAD_DEBT_RECTIFICATION_WINDOW_MONTHS = 6;   // art. 80.Cuatro.B), caducidad
+export const BAD_DEBT_AEAT_NOTICE_MONTHS = 1;            // art. 24.2.a).2.º RIVA — modelo 952
+export const BAD_DEBT_PYME_TURNOVER_THRESHOLD_CENTS = 601_012_104;  // 6.010.121,04 €, art. 121 LIVA
+export const BAD_DEBT_APPROACHING_DAYS = 60;             // product decision, not a legal term
+export const BAD_DEBT_STAGE = { OUT_OF_SCOPE: 'out-of-scope', WAITING: 'waiting', IN_WINDOW: 'in-window', WINDOW_EXPIRED: 'window-expired' } as const;
+export const BAD_DEBT_EXCLUSION = { NO_OUTPUT_VAT: 'no-output-vat', RECIPIENT_NOT_ESTABLISHED: 'recipient-not-established', /* ... */ } as const;
+export const BAD_DEBT_CHECKLIST_LEGAL_BASIS = { /* one norm per step — citations, never translated */ } as const;
+
+// Cancelling is neither a delete nor an update, so it gets its own group. Filed under DELETE, the
+// fallback message would promise a destruction that never happens — nothing is removed
+export const API_ERROR = {
+  LOAD: { /* ... */ BAD_DEBT: 'api-error.load.bad-debt', DEFERRAL_CANCELLATION: 'api-error.load.deferral-cancellation' },
+  CONFLICT: { /* ... */ DEFERRAL_NOTHING_TO_CANCEL: 'api-error.conflict.deferral-nothing-to-cancel' },
+  MUTATION: { /* ... */ CANCEL: { DEFERRAL: 'api-error.mutation.cancel.deferral' } },
+} as const;
 ```
 
 ### 7. Skydiving Module (Jump Log & Tunnel Sessions)
@@ -1110,15 +1223,33 @@ AEAT (Spanish tax agency) deadline computation for quarterly and annual tax obli
 **Key files:**
 - `src/utils/fiscalDeadlines.ts`: AEAT deadline computation logic
 - `src/utils/workingDays.ts`: Working-day calendar — weekends, national holidays, Semana Santa
+- `src/utils/crossQuarterDeadlineNotes.ts`: attaches a quarter's cross-quarter findings to the 303/130 deadline that is already due. Pure; the route reads the invoices and passes them in
 - `src/hooks/useFiscalDeadlines.ts`: TanStack Query hook for deadline data
 - `src/components/fiscal/FiscalDeadlineBanner.tsx`: Dashboard deadline alert banner
 - `src/components/fiscal/FiscalDeadlinePanel.tsx`: Detailed deadline panel
+- `src/components/fiscal/DeadlineCrossQuarterNote.tsx`: the qualifier itself, shared by both surfaces so its wording cannot drift
 - `src/components/settings/FiscalReminderSettings.tsx`: Reminder window configuration
 
 A deadline landing on a día inhábil runs to the next working day, and each quarterly deadline also
 carries the earlier **domiciliación** cut-off. The Renta window is table-driven per campaign and
 flagged as unconfirmed for years whose Orden is unpublished — the rules and their reasoning are in
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Deadlines.
+
+**The year being filed is not the year on the calendar.** Every period is filed in the one after it,
+so on 10 January the Q4 303/130 and the 390 are due while `new Date().getFullYear()` has already
+moved on — a banner asking only for the current year finds them all `not_due` and goes blank on
+exactly the days something is owed. `getCarryOverDeadlines()` (pure, in `fiscalDeadlines.ts`) returns
+the entries of a **closed** fiscal year whose window is still open, and the `active=true` path of the
+route leads with them. It is bounded to `upcoming`/`due` and deliberately not `overdue`, so a year
+someone skipped does not park a permanent warning on the dashboard, and it invents nothing —
+every row is one `computeDeadlines()` already emits for that year. The **year view is untouched**: it
+still answers only for the year it was asked about.
+
+**A deadline may be qualified, never invented.** `GET /api/fiscal/deadlines` computes the calendar
+first and only then annotates it: for each `upcoming`/`due` **303 or 130**, the quarter's
+cross-quarter invoices become a `crossQuarter` note (count, amount, and how many are the broken-link
+case). The status machine above keeps reading a calendar nobody has added rows to, a quarter whose
+devengo and cobro agree adds no note, and a year with nothing imminent costs no extra query at all.
 
 ### 12. Vouchers Module (Prepaid Passes / "Bonos")
 

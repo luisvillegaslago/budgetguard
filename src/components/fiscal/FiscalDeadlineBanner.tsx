@@ -7,6 +7,7 @@
  */
 
 import { AlertTriangle, Bell, Calendar } from 'lucide-react';
+import { DeadlineCrossQuarterNote } from '@/components/fiscal/DeadlineCrossQuarterNote';
 import { AlertPanel } from '@/components/ui/AlertPanel';
 import { ALERT_PANEL, ALERT_TONE, FILING_STATUS } from '@/constants/finance';
 import { useUpcomingDeadlines } from '@/hooks/useFiscalDeadlines';
@@ -28,49 +29,64 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
   const isDue = deadline.status === FILING_STATUS.DUE;
 
   return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-x-2 gap-y-1 text-sm',
-        isOverdue && 'text-guard-danger',
-        isDue && 'text-guard-warning',
-        !isOverdue && !isDue && 'text-foreground',
-      )}
-    >
-      {isOverdue ? (
-        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-      ) : (
-        <Calendar className="h-4 w-4 shrink-0" aria-hidden="true" />
-      )}
-      <span className="font-medium whitespace-nowrap">
-        {getModeloLabel(deadline.modeloType, deadline.fiscalQuarter)} {deadline.fiscalYear}
-      </span>
-      <span className="text-guard-muted whitespace-nowrap">
-        {t('fiscal.deadlines.due-date', { date: deadline.endDate })}
-      </span>
-      {deadline.daysRemaining != null && deadline.daysRemaining >= 0 && (
-        <span
-          className={cn(
-            'text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap',
-            isOverdue
-              ? 'bg-guard-danger/10 text-guard-danger'
-              : isDue
-                ? 'bg-guard-warning/10 text-guard-warning'
-                : 'bg-guard-primary/10 text-guard-primary',
-          )}
-        >
-          {t('fiscal.deadlines.days-remaining', { count: deadline.daysRemaining })}
+    <div className="space-y-1">
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-x-2 gap-y-1 text-sm',
+          isOverdue && 'text-guard-danger',
+          isDue && 'text-guard-warning',
+          !isOverdue && !isDue && 'text-foreground',
+        )}
+      >
+        {isOverdue ? (
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <Calendar className="h-4 w-4 shrink-0" aria-hidden="true" />
+        )}
+        <span className="font-medium whitespace-nowrap">
+          {getModeloLabel(deadline.modeloType, deadline.fiscalQuarter)} {deadline.fiscalYear}
         </span>
-      )}
-      {isOverdue && (
-        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-guard-danger/10 text-guard-danger whitespace-nowrap">
-          {t('fiscal.deadlines.overdue')}
+        <span className="text-guard-muted whitespace-nowrap">
+          {t('fiscal.deadlines.due-date', { date: deadline.endDate })}
         </span>
-      )}
-      {deadline.needsPostponement && (
-        <span className="text-xs text-guard-muted whitespace-nowrap">
-          {t('fiscal.deadlines.aplazamiento-available')}
-        </span>
-      )}
+        {/*
+          The Modelo 100 window is set by an Orden ministerial every year, and until it is published
+          computeDeadlines() reuses the last campaign's dates as a guess. The panel has always said
+          so; the banner never had to, because before carry-over the M100 of the year being filed
+          could not reach it. It can now — the Renta campaign runs on the PREVIOUS fiscal year — so
+          the caveat has to travel with the date, or the banner states a guessed deadline as fact.
+        */}
+        {!deadline.isWindowConfirmed && (
+          <span className="text-guard-muted whitespace-nowrap">{t('fiscal.deadlines.window-unconfirmed')}</span>
+        )}
+        {deadline.daysRemaining != null && deadline.daysRemaining >= 0 && (
+          <span
+            className={cn(
+              'text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap',
+              isOverdue
+                ? 'bg-guard-danger/10 text-guard-danger'
+                : isDue
+                  ? 'bg-guard-warning/10 text-guard-warning'
+                  : 'bg-guard-primary/10 text-guard-primary',
+            )}
+          >
+            {t('fiscal.deadlines.days-remaining', { count: deadline.daysRemaining })}
+          </span>
+        )}
+        {isOverdue && (
+          <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-guard-danger/10 text-guard-danger whitespace-nowrap">
+            {t('fiscal.deadlines.overdue')}
+          </span>
+        )}
+        {deadline.needsPostponement && (
+          <span className="text-xs text-guard-muted whitespace-nowrap">
+            {t('fiscal.deadlines.aplazamiento-available')}
+          </span>
+        )}
+      </div>
+
+      {/* Indented under its own deadline: it qualifies this filing, it is not another one */}
+      {deadline.crossQuarter && <DeadlineCrossQuarterNote note={deadline.crossQuarter} className="pl-6" />}
     </div>
   );
 }
