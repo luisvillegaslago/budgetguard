@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.61.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.60.0...v0.61.0) (2026-08-18)
+
+
+### Features
+
+* **fiscal:** read an AEAT deferral resolution and book its instalments split three ways ([d2ecc26](https://github.com/luisvillegaslago/budgetguard/commit/d2ecc2603632dc43792b94c224c7819757020922))
+
 ## [0.60.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.59.0...v0.60.0) (2026-08-17)
 
 
