@@ -402,6 +402,50 @@ export const SYNCABLE_TABLES: TableConfig[] = [
       'UpdatedAt',
     ],
   },
+  // Per-year figures only the taxpayer knows: pension contributions and the opening balance of the
+  // IVA a compensar pool. NOTHING can rebuild them from the movements — the pool is seeded from a
+  // filed modelo precisely because AEAT's registry, not this app's history, is what a refund is
+  // paid against. A backup that skipped this table would look complete while losing the only data
+  // in it that has no other source.
+  {
+    table: 'FiscalProfiles',
+    pk: 'ProfileID',
+    descriptionColumn: 'FiscalYear',
+    hasUpdatedAt: true,
+    columns: [
+      'ProfileID',
+      'UserID',
+      'FiscalYear',
+      'PensionIndividualCents',
+      'PensionEmploymentCents',
+      'VatPoolOpeningCents',
+      'CreatedAt',
+      'UpdatedAt',
+    ],
+  },
+  // Inmovilizado. The whole amortization schedule is derived from three of these fields, so losing
+  // a row loses every future year's dotación — and "TransactionID" with it, which is what keeps the
+  // purchase from being deducted a second time. Synced after "Transactions" because it points at it.
+  {
+    table: 'FixedAssets',
+    pk: 'AssetID',
+    descriptionColumn: 'Description',
+    hasUpdatedAt: true,
+    columns: [
+      'AssetID',
+      'UserID',
+      'TransactionID',
+      'Description',
+      'InServiceDate',
+      'BaseCents',
+      'CoefficientPercent',
+      'AmortizationGroup',
+      'Modelo100CasillaCode',
+      'Notes',
+      'CreatedAt',
+      'UpdatedAt',
+    ],
+  },
 ];
 
 // Reverse order for deletes (respect FK dependencies)
