@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.61.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.61.0...v0.61.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **sync:** back up FiscalProfiles and FixedAssets, which the backup silently skipped ([61d46f6](https://github.com/luisvillegaslago/budgetguard/commit/61d46f6ca3cda2da8b3eba8efa3831ae4d251c22))
+
 ## [0.61.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.60.0...v0.61.0) (2026-08-18)
 
 
