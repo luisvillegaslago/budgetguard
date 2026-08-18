@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.62.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.61.1...v0.62.0) (2026-08-18)
+
+
+### Features
+
+* **fiscal:** chase the cross-quarter alert, clock unpaid invoices, cancel deferrals ([3305953](https://github.com/luisvillegaslago/budgetguard/commit/330595375580c29587888ef61e5b2bfd31dc7e88))
+
 ## [0.61.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.61.0...v0.61.1) (2026-08-18)
 
 
