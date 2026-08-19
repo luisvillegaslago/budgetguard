@@ -587,7 +587,17 @@ export interface FiscalPeriod {
 export interface FiscalComputedFields {
   baseCents: number;
   ivaCents: number;
+  /** Base at the IRPF share — the deductible expense of Modelo 130 and Modelo 100 */
   baseDeducibleCents: number;
+  /**
+   * Base at the IVA share — casilla 28 of Modelo 303 and casilla 48/605 of Modelo 390.
+   *
+   * Not the same figure as `baseDeducibleCents` since the two shares were separated: 28 and 29 are
+   * the base and the cuota of the SAME line of the form, so a base computed with the IRPF share
+   * would declare a base whose VAT is not being deducted — an inconsistency visible inside the
+   * declaration itself. On the home supplies that is a base at 7,5 % against a cuota of 0,00 €.
+   */
+  baseVatDeducibleCents: number;
   ivaDeducibleCents: number;
 }
 

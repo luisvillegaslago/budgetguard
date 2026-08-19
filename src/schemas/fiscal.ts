@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { IRPF_PROJECTION, PENSION_PLAN, VALIDATION_KEY } from '@/constants/finance';
+import { IRPF_PROJECTION, PENSION_PLAN, VALIDATION_KEY, VAT_POOL_MAX_EUROS } from '@/constants/finance';
 
 /**
  * Schema for fiscal report filters (query params)
@@ -87,7 +87,7 @@ export const VatPoolOpeningSchema = z.object({
       invalid_type_error: VALIDATION_KEY.AMOUNT_NON_NEGATIVE,
     })
     .nonnegative(VALIDATION_KEY.AMOUNT_NON_NEGATIVE)
-    .max(PENSION_PLAN.MAX_CONTRIBUTION_EUROS, VALIDATION_KEY.AMOUNT_TOO_LARGE),
+    .max(VAT_POOL_MAX_EUROS, VALIDATION_KEY.AMOUNT_TOO_LARGE),
 });
 
 export type VatPoolOpeningInput = z.infer<typeof VatPoolOpeningSchema>;

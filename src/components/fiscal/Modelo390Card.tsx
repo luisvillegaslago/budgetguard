@@ -49,7 +49,6 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
   const { t } = useTranslate();
 
   const result = classifyFiscalResult(data.casilla65Cents);
-  const isToCompensate = result.kind === FISCAL_RESULT_KIND.TO_COMPENSATE;
 
   return (
     <div className="card border-l-4 border-l-guard-primary">
@@ -91,19 +90,26 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
             {formatCurrency(data.casilla65Cents, false)}
             <span className="ml-1">€</span>
           </span>
-          {isToCompensate ? (
-            // 97 and 662 are filled separately, and the AEAT cross-checks 97 against the 4T 303
+          {/* 97 and 662 are filled separately, and the AEAT cross-checks 97 against the 4T 303.
+              Each is gated on ITSELF, never on the sign of the annual result: getModelo390Summary
+              computes both as max(0, -quarterResult) per quarter, so a year that closes a ingresar
+              can still carry a fourth quarter a compensar — and hiding casilla 97 there loses the
+              one box AEAT reconciles against the 4T 303. */}
+          {(data.casilla97Cents > 0 || data.casilla662Cents > 0) && (
             <div className="text-xs mt-0.5 text-guard-success/70 space-y-0.5">
-              <p>
-                {t('fiscal.modelo390.casilla97')}: {formatCurrency(data.casilla97Cents, false)} €
-              </p>
+              {data.casilla97Cents > 0 && (
+                <p>
+                  {t('fiscal.modelo390.casilla97')}: {formatCurrency(data.casilla97Cents, false)} €
+                </p>
+              )}
               {data.casilla662Cents > 0 && (
                 <p>
                   {t('fiscal.modelo390.casilla662')}: {formatCurrency(data.casilla662Cents, false)} €
                 </p>
               )}
             </div>
-          ) : (
+          )}
+          {result.kind !== FISCAL_RESULT_KIND.TO_COMPENSATE && (
             <p className={cn('text-xs mt-0.5', result.labelClassName)}>
               {result.kind === FISCAL_RESULT_KIND.TO_PAY ? t('fiscal.modelo303.to-pay') : t('fiscal.result.neutral')}
             </p>

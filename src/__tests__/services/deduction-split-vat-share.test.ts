@@ -194,11 +194,16 @@ describe('Modelo 303', () => {
     expect(noVatDeduction.casilla45Cents).toBe(0);
   });
 
-  it('should leave casilla 28 alone: the base of the deduction is the IRPF share', async () => {
+  it('should drop casilla 28 with casilla 29: they are the base and the cuota of one line', async () => {
     const { inherited, noVatDeduction } = await bothReadings(() => getModelo303Summary(2026, 1));
 
-    expect(noVatDeduction.casilla28Cents).toBe(inherited.casilla28Cents);
-    expect(noVatDeduction.casilla28Cents).toBe(300);
+    // This assertion used to demand the opposite, on the reading that casilla 28 is "the base of
+    // the deduction" and therefore the IRPF one. It is not: 28 and 29 are the base and the cuota
+    // of the SAME line of the 303, so a base whose VAT is not being deducted is an inconsistency
+    // visible inside the declaration. No cuota deducted, no base declared.
+    expect(inherited.casilla28Cents).toBe(300);
+    expect(noVatDeduction.casilla28Cents).toBe(0);
+    expect(noVatDeduction.casilla29Cents).toBe(0);
   });
 
   it('should raise the quarter result by exactly the VAT no longer deducted', async () => {
@@ -226,12 +231,15 @@ describe('Modelo 390', () => {
     expect(noVatDeduction.casilla64Cents).toBe(0);
   });
 
-  it('should keep the base of the deductions in casillas 48 and 605', async () => {
+  it('should drop casillas 48 and 605 with the cuota they are the base of', async () => {
     const { inherited, noVatDeduction } = await bothReadings(() => getModelo390Summary(2026));
 
-    expect(noVatDeduction.casilla48Cents).toBe(inherited.casilla48Cents);
-    expect(noVatDeduction.casilla48Cents).toBe(SUPPLY_BASE_DEDUCIBLE_CENTS);
-    expect(noVatDeduction.casilla605Cents).toBe(SUPPLY_BASE_DEDUCIBLE_CENTS);
+    // Same rule as casilla 28 of the 303, of which 48 is the annual sum: a base declared without
+    // its cuota contradicts casillas 49/606 inside the 390 itself.
+    expect(inherited.casilla48Cents).toBe(SUPPLY_BASE_DEDUCIBLE_CENTS);
+    expect(noVatDeduction.casilla48Cents).toBe(0);
+    expect(noVatDeduction.casilla605Cents).toBe(0);
+    expect(noVatDeduction.casilla49Cents).toBe(0);
   });
 
   it('should raise the annual result by exactly the VAT no longer deducted', async () => {

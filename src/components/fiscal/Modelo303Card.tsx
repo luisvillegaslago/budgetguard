@@ -121,8 +121,11 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
         </div>
       </div>
 
-      {/* The accumulated "a compensar" balance, which the quarterly result alone never shows */}
-      {data.vatPoolClosingCents > 0 && (
+      {/* The accumulated "a compensar" balance, which the quarterly result alone never shows.
+          Gated on EITHER end: a quarter that consumes the pool in full closes at zero, and gating
+          on the closing balance alone would hide casilla 110 on exactly the filing that applies
+          it — the user would pay the whole quarter instead of the part left after compensating. */}
+      {(data.vatPoolOpeningCents > 0 || data.vatPoolClosingCents > 0) && (
         <div className="mt-4 pt-4 border-t border-border space-y-0.5">
           <CasillaRow number="110" label={t('fiscal.modelo303.casilla110')} cents={data.vatPoolOpeningCents} />
           <CasillaRow number="87" label={t('fiscal.modelo303.casilla87')} cents={data.vatPoolClosingCents} isTotal />

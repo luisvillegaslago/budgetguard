@@ -28,6 +28,7 @@ describe('computeFiscalFields', () => {
         baseCents: 7993,
         ivaCents: 1678,
         baseDeducibleCents: 7993,
+        baseVatDeducibleCents: 7993,
         ivaDeducibleCents: 1678,
       });
     });
@@ -39,6 +40,7 @@ describe('computeFiscalFields', () => {
         baseCents: 6545,
         ivaCents: 1374,
         baseDeducibleCents: 3273,
+        baseVatDeducibleCents: 3273,
         ivaDeducibleCents: 687,
       });
     });
@@ -64,6 +66,7 @@ describe('computeFiscalFields', () => {
         baseCents: 4000,
         ivaCents: 840,
         baseDeducibleCents: 2000,
+        baseVatDeducibleCents: 2000,
         ivaDeducibleCents: 420,
       });
     });
@@ -78,6 +81,7 @@ describe('computeFiscalFields', () => {
         baseCents: 10000,
         ivaCents: 1000,
         baseDeducibleCents: 10000,
+        baseVatDeducibleCents: 10000,
         ivaDeducibleCents: 1000,
       });
     });
@@ -92,6 +96,7 @@ describe('computeFiscalFields', () => {
         baseCents: 10000,
         ivaCents: 2100,
         baseDeducibleCents: 0,
+        baseVatDeducibleCents: 0,
         ivaDeducibleCents: 0,
       });
     });
@@ -105,6 +110,7 @@ describe('computeFiscalFields', () => {
         baseCents: 0,
         ivaCents: 0,
         baseDeducibleCents: 0,
+        baseVatDeducibleCents: 0,
         ivaDeducibleCents: 0,
       });
     });
@@ -122,6 +128,7 @@ describe('computeFiscalFields', () => {
         baseCents: 8264,
         ivaCents: 1735,
         baseDeducibleCents: 2727,
+        baseVatDeducibleCents: 2727,
         ivaDeducibleCents: 573,
       });
     });
@@ -185,6 +192,8 @@ describe('computeFiscalFields — the IVA deduction share', () => {
       ivaCents: 840,
       // 30% × 25% of the base: what art. 30.2.5.ª b LIRPF allows
       baseDeducibleCents: 300,
+      // Casilla 28 travels with casilla 29: no cuota deducted, so no base declared either
+      baseVatDeducibleCents: 0,
       // Nothing: art. 95 LIVA demands exclusive affectation
       ivaDeducibleCents: 0,
     });
@@ -202,6 +211,7 @@ describe('computeFiscalFields — the IVA deduction share', () => {
       baseCents: 4000,
       ivaCents: 840,
       baseDeducibleCents: 300,
+      baseVatDeducibleCents: 300,
       ivaDeducibleCents: 63,
     });
     expect(inherited).toEqual(singlePercentage);

@@ -618,7 +618,10 @@ describe('the IRPF provision', () => {
       estimatedIrpfCents: 198_635,
       provisionGapCents: -117_715,
       marginalRate: 0.227,
-      monthlyProvisionCents: 16_553,
+      // Zero, not estimatedIrpf/12: this fixture's Modelo 130 already pays 3.163,50 € against an
+      // estimated IRPF of 1.986,36 €, so there is nothing to set aside — a refund is coming. The
+      // card used to recommend 165,53 €/month on top of an overpayment.
+      monthlyProvisionCents: 0,
       effectiveRate: 0.1256,
       isProjectionReliable: true,
       // 2026 has published figures of its own, so the scale applied is the law and not a guess

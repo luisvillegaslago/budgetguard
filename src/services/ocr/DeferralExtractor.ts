@@ -124,9 +124,18 @@ const ANNUAL_MODELOS: readonly ModeloType[] = [MODELO_TYPE.M390, MODELO_TYPE.M10
  */
 const MONTH_TO_QUARTER: Readonly<Record<number, { readonly quarter: FiscalQuarter; readonly yearOffset: number }>> = {
   1: { quarter: FISCAL_QUARTER.Q4, yearOffset: -1 },
+  // A voluntary period ending on a día inhábil runs to the next working day (art. 30.5 Ley
+  // 39/2015), and the 4T one closes on 30 January: when that is a weekend the fecha de intereses
+  // spills into February. 30-ene-2027 is a Saturday, so this row is not hypothetical — without it
+  // a 4T resolution imports with no period at all.
+  2: { quarter: FISCAL_QUARTER.Q4, yearOffset: -1 },
   4: { quarter: FISCAL_QUARTER.Q1, yearOffset: 0 },
+  // The same spill for the three quarterly deadlines, which close on the 20th.
+  5: { quarter: FISCAL_QUARTER.Q1, yearOffset: 0 },
   7: { quarter: FISCAL_QUARTER.Q2, yearOffset: 0 },
+  8: { quarter: FISCAL_QUARTER.Q2, yearOffset: 0 },
   10: { quarter: FISCAL_QUARTER.Q3, yearOffset: 0 },
+  11: { quarter: FISCAL_QUARTER.Q3, yearOffset: 0 },
 };
 
 interface DeferralPeriod {

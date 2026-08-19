@@ -164,6 +164,12 @@ function AmortizationScheduleTable({ years, currentYear }: { years: Amortization
 
 interface AssetActionsProps {
   assetId: number;
+  /**
+   * Which of the two layouts is rendering. Both are always mounted — one is hidden by CSS, not
+   * unmounted — so an id built from the assetId alone appears twice in the document and
+   * aria-controls resolves to whichever comes first, which on a phone is the display:none copy.
+   */
+  layout: 'table' | 'cards';
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
@@ -171,7 +177,7 @@ interface AssetActionsProps {
 }
 
 /** Expand toggle + delete, shared by the desktop table and the mobile list. */
-function AssetActions({ assetId, isExpanded, onToggle, onDelete, isDeleting }: AssetActionsProps) {
+function AssetActions({ assetId, layout, isExpanded, onToggle, onDelete, isDeleting }: AssetActionsProps) {
   const { t } = useTranslate();
 
   return (
@@ -180,7 +186,7 @@ function AssetActions({ assetId, isExpanded, onToggle, onDelete, isDeleting }: A
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        aria-controls={`asset-schedule-${assetId}`}
+        aria-controls={`asset-schedule-${layout}-${assetId}`}
         aria-label={t('fiscal.fixed-assets.schedule.title')}
         className="tap-target lg:min-h-8 lg:min-w-8 p-2 rounded-lg text-guard-muted hover:bg-muted hover:text-foreground transition-colors duration-200"
       >
@@ -247,6 +253,7 @@ function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId, on
                 <td className={cn(CELL_CLASSES, 'text-guard-muted')}>{formatCurrency(row.remainingCents)}</td>
                 <td className="px-3 py-2">
                   <AssetActions
+                    layout="table"
                     assetId={row.asset.assetId}
                     isExpanded={expandedId === row.asset.assetId}
                     onToggle={() => onToggle(row.asset.assetId)}
@@ -265,7 +272,7 @@ function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId, on
               )}
               {expandedId === row.asset.assetId && (
                 <tr>
-                  <td colSpan={8} className="px-3 pb-3" id={`asset-schedule-${row.asset.assetId}`}>
+                  <td colSpan={8} className="px-3 pb-3" id={`asset-schedule-table-${row.asset.assetId}`}>
                     <AmortizationScheduleTable years={row.schedule} currentYear={year} />
                   </td>
                 </tr>
@@ -295,6 +302,7 @@ function AssetCards({ rows, year, expandedId, onToggle, onDelete, deletingId, on
               </p>
             </div>
             <AssetActions
+              layout="cards"
               assetId={row.asset.assetId}
               isExpanded={expandedId === row.asset.assetId}
               onToggle={() => onToggle(row.asset.assetId)}
@@ -321,7 +329,7 @@ function AssetCards({ rows, year, expandedId, onToggle, onDelete, deletingId, on
           {row.asset.transactionId === null && <UnlinkedPurchaseNotice asset={row.asset} onLinked={onLinked} />}
 
           {expandedId === row.asset.assetId && (
-            <div id={`asset-schedule-${row.asset.assetId}`}>
+            <div id={`asset-schedule-cards-${row.asset.assetId}`}>
               <AmortizationScheduleTable years={row.schedule} currentYear={year} />
             </div>
           )}

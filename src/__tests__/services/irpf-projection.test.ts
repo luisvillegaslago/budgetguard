@@ -192,7 +192,10 @@ describe('getIrpfProjection', () => {
     expect(projection.provisionGapCents).toBe(626_565);
 
     expect(projection.marginalRate).toBe(0.43);
-    expect(projection.monthlyProvisionCents).toBe(Math.round(2_010_345 / 12));
+    // The GAP over twelve, not the whole IRPF: the line above already says the gap is 6.265,65 €,
+    // and Modelo 130 extracts the rest through the year. Dividing the whole quota would recommend
+    // setting aside 1.675,29 €/month on top of what the 130 is already taking.
+    expect(projection.monthlyProvisionCents).toBe(Math.round(626_565 / 12));
     expect(projection.effectiveRate).toBe(Math.round((2_010_345 / 6_918_900) * 10_000) / 10_000);
   });
 
@@ -427,7 +430,9 @@ describe('getIrpfProjection', () => {
 
       // 20.103,45 € without the reduction → 17.630,95 €: 2.472,50 € less, 5.750 € × 43%
       expect(projection.estimatedIrpfCents).toBe(1_763_095);
-      expect(projection.monthlyProvisionCents).toBe(146_925);
+      // Again the gap, not the quota: the reduction lowers the IRPF, so it lowers what is left
+      // for the Renta to charge and therefore what has to be provisioned.
+      expect(projection.monthlyProvisionCents).toBe(31_610);
     });
 
     it('leaves the whole Modelo 130 side untouched', async () => {

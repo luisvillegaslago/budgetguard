@@ -516,6 +516,13 @@ export const PENSION_PLAN = {
 } as const;
 
 /** Modelo 130 pays a flat rate on the accumulated net income — the same IRPF_RATE, as a factor. */
+/**
+ * Sanity ceiling, in euros, for the IVA a compensar carried into a year. Its own constant on
+ * purpose: it used to borrow PENSION_PLAN.MAX_CONTRIBUTION_EUROS, so moving the pension form's
+ * bound would have silently moved this one, and the two answer unrelated questions.
+ */
+export const VAT_POOL_MAX_EUROS = 1_000_000;
+
 export const IRPF_PROJECTION = {
   M130_RATE: IRPF_RATE / 100,
   /** Run-rate on fewer elapsed days is noise, not a projection. */

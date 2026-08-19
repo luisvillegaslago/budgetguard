@@ -181,11 +181,14 @@ describe('computeDeadlines', () => {
 
   describe('daysRemaining', () => {
     it('should compute days remaining when before deadline', () => {
-      const now = new Date(2025, 3, 15); // April 15 — 6 days before the extended 21 April deadline
+      const now = new Date(2025, 3, 15); // April 15; the extended deadline is the whole of 21 April
       const deadlines = computeDeadlines(2025, new Set(), 7, now);
       const q1_303 = deadlines.find((d) => d.modeloType === MODELO_TYPE.M303 && d.fiscalQuarter === 1);
 
-      expect(q1_303?.daysRemaining).toBe(6);
+      // Seven, not six: the 21st is a day you can still file on, so it counts. This used to assert
+      // the distance to the deadline's opening instant, which is also why the countdown vanished
+      // at 10:00 on the last day — the one moment it is worth showing.
+      expect(q1_303?.daysRemaining).toBe(7);
     });
 
     it('should return null when past the deadline', () => {

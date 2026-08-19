@@ -7,7 +7,7 @@
  */
 
 import { AlertTriangle, FileText, Plus, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfidenceBadge } from '@/components/fiscal/ConfidenceBadge';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
@@ -80,12 +80,16 @@ export function FiscalExtractionConfirm({
     );
   }, [detectedVendor, companies]);
 
-  // Pre-select matched company on first load
+  // Pre-select the matched company ONCE. Keyed off a ref rather than off `companyId === null`,
+  // because CompanySelector's clear button calls onChange(null): re-running on that condition
+  // re-selected the very company the user had just cleared, so a wrong auto-match could be
+  // replaced but never removed.
+  const autoMatchApplied = useRef(false);
   useEffect(() => {
-    if (autoMatchedCompany && companyId === null) {
-      setCompanyId(autoMatchedCompany.companyId);
-    }
-  }, [autoMatchedCompany, companyId]);
+    if (autoMatchApplied.current || !autoMatchedCompany) return;
+    autoMatchApplied.current = true;
+    setCompanyId(autoMatchedCompany.companyId);
+  }, [autoMatchedCompany]);
 
   const lowConfidence = extractedData.confidence < LOW_CONFIDENCE_THRESHOLD;
 

@@ -183,11 +183,23 @@ function computeFilingStatus(
   return FILING_STATUS.NOT_DUE;
 }
 
+/** 23:59:59.999 of a day: a deadline is a whole calendar day, never its opening instant. */
+function endOfDay(date: Date): Date {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
 /**
- * Calculate days remaining until deadline end date
+ * Days remaining until the deadline, counted to the END of its last day.
+ *
+ * computeFilingStatus() already compares against 23:59:59, so measuring from local midnight here
+ * made the two disagree on exactly the day that matters: at 10:00 on the 20th the status was DUE
+ * while this returned null, and the banner and the panel dropped the countdown on the last day of
+ * the window.
  */
 function daysUntil(endDate: Date, now: Date): number | null {
-  const diffMs = endDate.getTime() - now.getTime();
+  const diffMs = endOfDay(endDate).getTime() - now.getTime();
   if (diffMs < 0) return null;
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
@@ -220,8 +232,9 @@ export function computeDeadlines(
     const status = computeFilingStatus(startDate, endDate, isFiled, now, reminderDaysBefore);
     const remaining = daysUntil(endDate, now);
 
-    // Aplazamiento can be requested within the voluntary payment period (same window)
-    const needsPostponement = !isFiled && now >= startDate && now <= endDate;
+    // Aplazamiento can be requested within the voluntary payment period (same window), and that
+    // window includes the whole of its last day — the day the hint is most worth showing.
+    const needsPostponement = !isFiled && now >= startDate && now <= endOfDay(endDate);
 
     return {
       modeloType: rule.modeloType,

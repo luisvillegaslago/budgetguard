@@ -58,6 +58,7 @@ function makeExpense(overrides: Partial<FiscalTransaction> = {}): FiscalTransact
     baseCents: 10_000,
     ivaCents: 2_100,
     baseDeducibleCents: 10_000,
+    baseVatDeducibleCents: 10_000,
     ivaDeducibleCents: 2_100,
     ...overrides,
   };
@@ -72,6 +73,8 @@ function makeSuppliesExpense(overrides: Partial<FiscalTransaction> = {}): Fiscal
     deductionPercent: 7.5,
     vatDeductionPercent: 0,
     baseDeducibleCents: 750,
+    // 0 % de IVA: la casilla 28 no declara base cuya cuota no se deduce
+    baseVatDeducibleCents: 0,
     ivaDeducibleCents: 0,
     ...overrides,
   });

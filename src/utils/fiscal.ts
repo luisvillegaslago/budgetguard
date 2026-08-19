@@ -89,9 +89,11 @@ export function computeFiscalFields(
   // `??`, never `||`: an explicit 0 is the whole point of the column and must not fall back.
   const vatShare = vatDeductionPercent ?? deductionPercent;
   const baseDeducibleCents = Math.round((baseCents * deductionPercent) / 100);
+  // Casilla 28 travels with casilla 29, so it takes the VAT share and not the IRPF one.
+  const baseVatDeducibleCents = Math.round((baseCents * vatShare) / 100);
   const ivaDeducibleCents = Math.round((ivaCents * vatShare) / 100);
 
-  return { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents };
+  return { baseCents, ivaCents, baseDeducibleCents, baseVatDeducibleCents, ivaDeducibleCents };
 }
 
 /**

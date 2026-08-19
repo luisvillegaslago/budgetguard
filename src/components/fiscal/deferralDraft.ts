@@ -14,6 +14,7 @@
 import type { DeferralPart, FiscalQuarter, ModeloType } from '@/constants/finance';
 import { DEFERRAL_PART } from '@/constants/finance';
 import type { CreateDeferralPayload } from '@/hooks/useDeferrals';
+import { quarterMatchesModelo } from '@/schemas/deferral';
 import type { DeferralFraccion, DeferralTotals, ExtractedDeferralData } from '@/types/finance';
 import { deferralTotals, type VerifiableDeferral } from '@/utils/deferral';
 import { centsToEuros, eurosToCents } from '@/utils/money';
@@ -214,7 +215,13 @@ export function buildCreatePayload(
     surchargeCents !== null &&
     interestCents !== null &&
     drafts.length > 0 &&
-    drafts.every(isFraccionDraftComplete);
+    drafts.every(isFraccionDraftComplete) &&
+    // The same rule CreateDeferralSchema and CK_Deferrals_Quarter enforce. Without it the wizard
+    // let an annual modelo keep a quarter — the extractor nulls the two independently, and the
+    // only code reconciling them fires on a change event that re-picking the same modelo never
+    // emits — so the payload built, the wizard advanced, and the server refused at the last step
+    // with the quarter <Select> disabled and no way back.
+    quarterMatchesModelo(header.modeloType, header.fiscalQuarter);
 
   if (!isComplete || header.modeloType === '') return null;
 

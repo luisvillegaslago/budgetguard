@@ -248,6 +248,7 @@ function issuedInvoiceToFiscalTransaction(row: IssuedInvoiceRow): FiscalTransact
     baseCents,
     ivaCents,
     baseDeducibleCents: 0,
+    baseVatDeducibleCents: 0,
     ivaDeducibleCents: 0,
   };
 }
@@ -311,7 +312,7 @@ interface Modelo303Totals {
 function modelo303Totals(rows: FiscalViewRow[]): Modelo303Totals {
   return rows.reduce<Modelo303Totals>(
     (totals, row) => {
-      const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
+      const { baseCents, ivaCents, baseVatDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
         row.FullAmountCents,
         row.VatPercent,
         ...deductionSharesOf(row),
@@ -325,7 +326,7 @@ function modelo303Totals(rows: FiscalViewRow[]): Modelo303Totals {
         casilla07: totals.casilla07 + (professional && withVat ? baseCents : 0),
         casilla09: totals.casilla09 + (professional && withVat ? ivaCents : 0),
         casilla120: totals.casilla120 + (professional && !withVat ? baseCents : 0),
-        casilla28: totals.casilla28 + (deductibleExpense ? baseDeducibleCents : 0),
+        casilla28: totals.casilla28 + (deductibleExpense ? baseVatDeducibleCents : 0),
         casilla29: totals.casilla29 + (deductibleExpense ? ivaDeducibleCents : 0),
       };
     },
@@ -342,12 +343,12 @@ const modelo303Result = (totals: Modelo303Totals): number => totals.casilla09 - 
 export async function getModelo303Summary(year: number, quarter: number): Promise<Modelo303Summary> {
   const userId = await getUserIdOrThrow();
 
-  // Cumulative rows: the earlier quarters are needed to roll the compensation pool forward
-  const [rows, profile] = await Promise.all([
-    loadFiscalRows(userId, year, { quarter, cumulative: true }),
-    getFiscalProfileForUser(userId, year),
-  ]);
+  // The WHOLE year, not the quarters up to this one: the pool needs the earlier quarters, and
+  // vatPoolIsStranded needs the later ones — a Q3 invoice with Spanish VAT is exactly what makes
+  // the claim "this balance can only grow" false while viewing Q1. Filtered in TS below.
+  const [yearRows, profile] = await Promise.all([loadFiscalRows(userId, year), getFiscalProfileForUser(userId, year)]);
 
+  const rows = yearRows.filter((row) => row.FiscalQuarter <= quarter);
   const totals = modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter));
   const casilla27 = totals.casilla09;
   const casilla45 = totals.casilla29;
@@ -362,7 +363,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
 
   // Output VAT is what a pool gets compensated against. With none in the whole year — every
   // client outside Spain — the balance can only grow, and the refund is the only way out.
-  const outputVatThisYear = modelo303Totals(rows).casilla09;
+  const outputVatThisYear = modelo303Totals(yearRows).casilla09;
 
   return {
     fiscalYear: year,
@@ -665,6 +666,12 @@ export async function getIrpfProjection(
 
   const estimatedIrpfCents = computeIrpfCents(year, baseLiquidableCents, DEFAULT_IRPF_REGION);
 
+  // The retenciones are NOT subtracted here: casilla 07 = 04 - 05 - 06 already nets them out
+  // quarter by quarter, so the four casillas 07 plus the withholdings add up to the whole 20%
+  // quota. Subtracting them again would count the withheld IRPF twice and understate the
+  // payment the Renta charges the following June.
+  const provisionGapCents = estimatedIrpfCents - modelo130TotalCents;
+
   return {
     fiscalYear: year,
     region: DEFAULT_IRPF_REGION,
@@ -692,7 +699,10 @@ export async function getIrpfProjection(
     provisionGapCents: estimatedIrpfCents - modelo130TotalCents,
     // On the reduced base: it is the rate the next euro billed would actually pay.
     marginalRate: computeMarginalRate(year, baseLiquidableCents, DEFAULT_IRPF_REGION),
-    monthlyProvisionCents: Math.round(estimatedIrpfCents / 12),
+    // The GAP over twelve, not the whole IRPF: Modelo 130 already extracts its 20 % through the
+    // year, so provisioning the full quota on top would set aside the tax nearly twice. Floored at
+    // zero — when the 130 overpays there is nothing to put aside, there is a refund coming.
+    monthlyProvisionCents: Math.round(Math.max(0, provisionGapCents) / 12),
     // Still divided by the rendimiento neto, not by the reduced base: the card reads this as
     // "tax over what I earned". Dividing by the base would silently redefine the percentage.
     effectiveRate:
@@ -721,7 +731,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   let totalC120 = 0;
 
   rows.forEach((row) => {
-    const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
+    const { baseCents, ivaCents, baseVatDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
       row.FullAmountCents,
       row.VatPercent,
       ...deductionSharesOf(row),
@@ -734,7 +744,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
         totalC120 += baseCents;
       }
     } else if (row.Type === TRANSACTION_TYPE.EXPENSE && row.VatPercent > 0) {
-      totalC28 += baseDeducibleCents;
+      totalC28 += baseVatDeducibleCents;
       totalC29 += ivaDeducibleCents;
     }
   });
