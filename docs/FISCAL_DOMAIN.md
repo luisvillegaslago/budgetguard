@@ -254,6 +254,38 @@ the same pair into hand-entered expenses through `useFiscalDefaults()`, which de
 **not** coerce a missing default to 0 — that would write an explicit *no VAT deducted* onto every
 expense of every category.
 
+`RecurringExpenseForm` puts the IVA share next to the IRPF one, so a rule can be given a share of
+its own instead of only ever receiving whatever its category carries. Left blank it stays NULL from
+the form (`toNullableNumber`) through the schema, the INSERT and `confirmOccurrence()` all the way
+to `Transactions."VatDeductionPercent"`, where the view resolves it to the IRPF share. Only an
+explicit `0` — the supplies case — writes a zero, and every hop uses `??`, never `||`, so that zero
+survives to the movement.
+
+### On screen: mark the divergence, do not print the agreement
+
+`FiscalTransaction` carries both shares — `deductionPercent` and `vatDeductionPercent`, the second
+already resolved by the view — and `FiscalExpenseTable` shows the IRPF one in its `Deduc%` column
+exactly as it always did. On the rows where the IVA share differs, and only there, a neutral
+`ⓘ IRPF ≠ IVA` badge appears beneath the percentage; the two figures, labelled, and the reason live
+in its tooltip.
+
+**A permanent second column was the obvious answer and is the wrong one.** The two shares are equal
+on almost every row — that is what *NULL inherits the IRPF share* means in practice — so a second
+column would print the same number twice down the entire table, and a column that says nothing on
+ninety-nine rows is not read on the hundredth. Equal is the normal case, and the normal case is
+precisely what does not need showing. The exception is what needs showing, and it has to *look*
+unlike its neighbours to be seen at all.
+
+What the badge defends against is not confusion, it is a correction. A supplies row reads **7,5 %**
+next to an **IVA deducible of 0,00 €**, which looks like arithmetic that failed. Both figures are
+right, and a right figure that looks like a bug is eventually "fixed" — by making the two agree,
+which means deducting input VAT that art. 95 LIVA denies, on recurring rows, every quarter, until a
+comprobación disallows it. An explanation attached to the row is the cheapest place to stop that.
+
+On the mobile card the marker sits under **IVA deducible** instead, because the card shows no
+deduction rate at all: there the `0,00 €` *is* the figure that reads as a bug, and the tooltip
+supplies the two percentages the card has no room for.
+
 ---
 
 ## Modelo 303 — IVA
@@ -1166,21 +1198,15 @@ fact. **Add the new window here every year.**
 Open items, in the order they matter. **The two findings of the original fiscal audit are closed**:
 the 036 affectation was filed on 18-ago-2026 (25 % of 102 m²), and the single deduction share that
 drove both IRPF and IVA is now two columns (§ The two deduction shares). They were blocked on each
-other and were closed together, as planned.
+other and were closed together, as planned. The split is closed **end to end**: the pair is stored,
+resolved once in the view, marked on `/fiscal` on the rows where the two disagree, and settable on
+the recurring rules that generate exactly those rows (§ The two deduction shares).
 
-1. **The screen shows one of the two percentages.** `FiscalExpenseTable` renders
-   `deductionPercent` alone, and `FiscalTransaction` carries no VAT share to render. On a diverging
-   row — the home supplies — it now reads **7,5 %** next to an IVA deducible of **0,00 €**, with
-   nothing on screen explaining why. The figures are right; the explanation is missing. Closing it
-   means a field on `FiscalTransaction`, a column or a second badge, and new i18n keys.
-   `RecurringExpenseForm` has the same shape of gap from the other end: the rule can *carry* a VAT
-   share and `confirmOccurrence()` stamps it, but no input lets a user set one — today it only
-   arrives from the category default.
-2. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
+1. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
    deductible expense is now assigned; the rest are personal categories left unmapped on purpose. A
    new one falls through to `C0202` and is reported in `unmappedCents`, so the gap is visible rather
    than silent.
-3. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
+2. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
    two Modelo 100 boxes are implemented (§ Amortización del inmovilizado). What is still manual:
    - **The link to the purchase is what prevents the double deduction.** Registering an asset
      without setting `TransactionID` leaves its purchase deductible on the IRPF side as well.
@@ -1192,7 +1218,7 @@ other and were closed together, as planned.
      stop the schedule and settle the pending value; today the dotación simply keeps accruing.
    - **No historical assets.** Only what has been registered amortises. Anything bought before this
      module existed was deducted in full in its year and is not restated.
-4. **Cross-quarter invoices: what is detected, and the one thing that cannot be.** The alert now
+3. **Cross-quarter invoices: what is detected, and the one thing that cannot be.** The alert now
    names four cases — the lost link among them — and rides the 303/130 deadline of its quarter
    instead of waiting to be visited (§ Devengo vs. caja). What remains open is deliberate, in both
    entries below. Do not "complete" either without reading the reasoning:
@@ -1214,7 +1240,7 @@ other and were closed together, as planned.
      are not**. The untested behaviour that will run on the live database every single time is
      precisely the emptiest one — the excluded list expanding itself and naming the reason when
      `tracked` is empty — so it is the one worth pinning first.
-5. **Deferrals: booked, cancellable, and deliberately not accrued day by day.** The resolution, the
+4. **Deferrals: booked, cancellable, and deliberately not accrued day by day.** The resolution, the
    three-way split, the verification and the cancellation are implemented (§ Aplazamientos y
    fraccionamientos). Four things are **decisions**, not omissions:
    - **A fracción's interés is booked whole on its vencimiento, on purpose.** AEAT liquidates the
@@ -1238,9 +1264,9 @@ other and were closed together, as planned.
      período ejecutivo and voids the calendar; AEAT then issues its own new figures. The app has no
      way to derive them, so the answer is to cancel the resolution and import what AEAT actually
      sent. The letter is a snapshot of what was granted, not a live plan.
-6. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
+5. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
    `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
-7. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
+6. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
    `MINIMO_PERSONAL_CENTS` and `PENSION_PLAN` hold the 2025-2026 figures. They are not versioned by
    year: projecting an older year applies today's scale.
 

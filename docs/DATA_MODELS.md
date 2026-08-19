@@ -1711,9 +1711,15 @@ export interface FiscalTransaction extends FiscalComputedFields {
   type: TransactionType;
   fullAmountCents: number;
   vatPercent: number;               // 0, never null: the view COALESCEs it
-  deductionPercent: number;         // The IRPF share. The IVA one is already folded into
-                                    // ivaDeducibleCents and is not exposed here — see the
-                                    // Known gaps entry in FISCAL_DOMAIN.md
+  deductionPercent: number;         // The IRPF share (art. 30.2.5.ª b LIRPF)
+  vatDeductionPercent?: number;     // The IVA share (art. 95 LIVA). Optional, and absent means
+                                    // "the same as the IRPF one", so a consumer reads it as
+                                    // `vatDeductionPercent ?? deductionPercent`. Both producers in
+                                    // FiscalRepository do set it — the view has already applied the
+                                    // COALESCE, and the issued-invoice branch emits 0 next to the
+                                    // deductionPercent 0 it already emitted — so it arrives present
+                                    // from the API. It exists so the screen can compare the two:
+                                    // FiscalExpenseTable marks the rows where they disagree
 }
 
 // Modelo 303 — IVA, one quarter

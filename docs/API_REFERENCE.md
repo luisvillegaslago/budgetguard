@@ -1636,6 +1636,7 @@ GET /api/fiscal?year=2025&quarter=1
         "vatPercent": 21,
         "vatAmountCents": 955,
         "deductionPercent": 100,
+        "vatDeductionPercent": 100,
         "deductibleAmountCents": 4550,
         "vendorName": "Mercadona",
         "invoiceNumber": "INV-2025-001",
@@ -1680,7 +1681,7 @@ GET /api/fiscal?year=2025&quarter=1
 | `quarter` | number | Quarter (1-4) |
 | `modelo303` | object | VAT summary (collected, deductible, balance in cents) |
 | `modelo130` | object | Income tax summary (gross, deductible, net, taxable base, tax amount in cents) |
-| `expenses` | array | Deductible expense transactions with computed fiscal fields |
+| `expenses` | array | Deductible expense transactions with computed fiscal fields. Every row carries **both** deduction shares: `deductionPercent` (IRPF, art. 30.2.5.ª b LIRPF) and `vatDeductionPercent` (IVA, art. 95 LIVA). The second is already resolved by the view — never `null` on the way out — so the two are equal on every row except the ones where the two articles disagree, and the UI marks only those. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The two deduction shares |
 | `invoices` | array | Transactions that have an `invoiceNumber` set |
 | `crossQuarterInvoices` | array | Issued invoices whose issue and collection dates disagree about this quarter — informational, see below |
 

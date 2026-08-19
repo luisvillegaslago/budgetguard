@@ -107,6 +107,9 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
     fullAmountCents: row.FullAmountCents,
     vatPercent: row.VatPercent,
     deductionPercent: row.DeductionPercent,
+    // Passthrough for display: the two shares diverge on the home-office supplies (7,5 % IRPF,
+    // 0 % IVA), and a table showing only the first makes a correct 0,00 € of IVA look like a bug.
+    vatDeductionPercent: row.VatDeductionPercent,
     ...computed,
   };
 }
@@ -238,7 +241,9 @@ function issuedInvoiceToFiscalTransaction(row: IssuedInvoiceRow): FiscalTransact
     // The withholding is not part of the fiscal amount: it is IRPF already paid, not less income.
     fullAmountCents: baseCents + ivaCents,
     vatPercent: Number(row.VatPercent),
+    // An issued invoice deducts nothing on either tax: it is output VAT and income, not a cost.
     deductionPercent: 0,
+    vatDeductionPercent: 0,
     baseCents,
     ivaCents,
     baseDeducibleCents: 0,

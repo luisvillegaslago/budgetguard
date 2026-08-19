@@ -603,7 +603,21 @@ export interface FiscalTransaction extends FiscalComputedFields {
   type: TransactionType;
   fullAmountCents: number;
   vatPercent: number;
+  /**
+   * The IRPF deduction share (art. 30.2.5.ª b LIRPF) — the one that shapes `baseDeducibleCents`.
+   * Named without a prefix for historical reasons; `vatDeductionPercent` is its IVA counterpart.
+   */
   deductionPercent: number;
+  /**
+   * The IVA deduction share (art. 95 LIVA) — the one that shapes `ivaDeducibleCents`. On the
+   * supplies of a partially affected dwelling it is 0 % while the IRPF share above is 7,5 %
+   * (V2554-23, TEAC 6654/2022), which is the whole reason the two travel separately.
+   *
+   * Optional only because a producer may not resolve it: absent means
+   * `VAT_DEDUCTION_INHERITS_IRPF`, i.e. read `deductionPercent`. Both repository producers do
+   * resolve it — the fiscal views apply the COALESCE — so it arrives present from the API.
+   */
+  vatDeductionPercent?: number;
 }
 
 /**
