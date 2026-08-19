@@ -779,6 +779,67 @@ so that re-importing or correcting the movement never destroys the schedule of a
 but note that a schedule whose link is lost stops excluding anything, and the purchase silently
 becomes deductible again.
 
+### A missing link is said out loud, and the purchase is offered
+
+The failure has no symptom. Both figures are individually correct — the purchase *is* a coded
+deductible expense, the dotación *is* the schedule of a registered asset — so nothing in the app
+looks wrong while the same asset is deducted twice, every year the schedule runs. That is what makes
+it worth detecting: an error that reads as a bug gets fixed by whoever sees it, and this one does
+not read as anything at all.
+
+**The warning half.** An asset whose `TransactionID` is null is reported, unprompted, next to the
+asset itself (`UnlinkedPurchaseNotice`), and the copy states the cost rather than the condition: the
+purchase is still being deducted as an expense of its period *and* the dotación is deducted on top.
+`getUnlinkedFixedAssets(year?)` is the server-side reading of the same set; it takes the `year` of
+`getFixedAssets()`, so it answers *which assets are being double-deducted in the modelos of this
+year*, which is the only question with a fiscal consequence. It deliberately returns no cost figure —
+what the duplication is worth is the dotación of a period, and only the caller knows which period it
+is asking about.
+
+**The fix half — and it is the valuable one.** A warning about a link the user must go and find by
+hand is a warning that gets postponed. `getAssetPurchaseCandidates(assetId)` searches for the
+movement that is almost certainly the purchase: a fiscally coded **expense** of this user whose
+amortizable cost is within `ASSET_PURCHASE_MATCH.AMOUNT_TOLERANCE_PERCENT` (1 %, floor
+`AMOUNT_TOLERANCE_MIN_CENTS` = 100 cents, so a cheap asset still has a band) of the asset's base,
+dated inside an **asymmetric** window around the in-service date — 90 days before, 30 after, because
+a thing is bought and *then* put into service and the forward month exists only because in-service
+dates are typed by hand — and **not already another asset's purchase**. Ranked by how close the
+amount is, then by how close the date is, cut at `MAX_CANDIDATES` (5).
+
+Every clause of that rule is there to offer *fewer* rows. **A wrong link is strictly worse than no
+candidate**: it makes a real purchase stop being deducted while the impostor keeps being deducted,
+and it is silent in both directions. So the module suggests and never acts — linking is an ordinary
+field update on the asset (`PUT /api/fiscal/assets/:id` with `{ transactionId }`), confirmed by the
+user, and there is no second write path onto that column.
+
+#### The two amounts are not comparable, and the comparison is the whole trick
+
+`FixedAssets.BaseCents` is the acquisition cost **net of deductible VAT**. A transaction's amount is
+what left the account: VAT included, and *halved* when the expense is shared. Both corrections
+already have a home — `vw_FiscalQuarterly` un-halves the amount into `FullAmountCents` and resolves
+the NULL `VatDeductionPercent` into the IRPF share, and `computeFiscalFields()` splits that into base
+and cuota — so the comparable figure is
+
+```
+amortizableCost = baseCents + ivaCents − ivaDeducibleCents
+```
+
+Input VAT that is **not** deductible was never recovered from the Treasury, so it is part of the cost
+and belongs in the base. On the live Lenovo the VAT is fully deductible and this comes out at exactly
+the 718,18 € stored on the asset.
+
+This is the one fiscal read that goes to **`vw_FiscalQuarterly`** on purpose, and it is not the
+mistake § Devengo vs. caja warns about: it fills no casilla and computes no fiscal figure. It is
+looking for a *movement*, and it needs that movement's own `TransactionID` and its own payment date —
+which is precisely what the accrual view replaces for issued invoices. For expense rows the two views
+are the same row anyway.
+
+> **The regression test is silence.** The only asset on the live data, the Lenovo, is linked to
+> transaction **3489**. A correct implementation therefore renders nothing, requests nothing and
+> reports nothing on the real database, and the tests pin exactly that — the asset on screen, no
+> warning, no candidate query issued at all. Every fixture that exercises the matcher is labelled
+> HYPOTHETICAL for the same reason.
+
 ---
 
 ## Aplazamientos y fraccionamientos
@@ -1051,9 +1112,9 @@ surprise.
 2. **Net income.** Projected income − projected expenses − gastos de difícil justificación.
 3. **Base liquidable.** Net income − the pension reduction (next section). Modelo 130 does *not*
    get this reduction, which is precisely why declaring contributions shrinks the gap.
-4. **Apply the scale.** `computeIrpfCents()` runs both halves — `IRPF_STATE_SCALE` and
-   `IRPF_REGIONAL_SCALE[madrid]` — and adds them.
-5. **Relieve the mínimo personal.** 5.550 € (`MINIMO_PERSONAL_CENTS`) is **not subtracted from the
+4. **Apply the scale of that year.** `computeIrpfCents(fiscalYear, base)` runs both halves —
+   `stateScale` and `regionalScale[madrid]` of `getIrpfFigures(fiscalYear)` — and adds them.
+5. **Relieve the mínimo personal.** 5.550 € (`minimoPersonalCents`) is **not subtracted from the
    base**. It is taxed by the scale and its resulting quota is subtracted from the gross quota, which
    is what makes it always relieve at the lowest brackets. It is capped at the base, so a small base
    pays zero rather than generating a refund.
@@ -1062,6 +1123,40 @@ surprise.
 `modelo130PaidCents` counts only quarters whose filing window has already **closed**
 (`settledM130Quarters()` reuses the deadline calculator). A quarter still inside its window is
 pending, not paid, and belongs in the deadline calendar instead.
+
+### The figures are per year, and they are looked up
+
+Both halves of the scale, the mínimo personal and the ceilings of the pension reduction are fixed
+by the Ley de Presupuestos. They live in `IRPF_YEAR_FIGURES`, keyed by fiscal year — deliberately
+the same shape as `RENTA_WINDOWS` in `src/utils/fiscalDeadlines.ts`, which had this problem first
+and answered it once. The three pieces map one to one, and a fourth answer to the same question is
+what this is meant to prevent:
+
+| Renta filing window | IRPF figures |
+|---------------------|--------------|
+| `RENTA_WINDOWS`, keyed by campaign | `IRPF_YEAR_FIGURES`, keyed by fiscal year |
+| `LAST_PUBLISHED_RENTA_CAMPAIGN` | `LAST_PUBLISHED_IRPF_YEAR` |
+| `isRentaWindowConfirmed()` | `isIrpfScaleConfirmed()` |
+
+The reason both look like this is the same: a date or an amount set by ley cannot be derived from
+the previous year's, only looked up — and when it is missing the honest answer is last year's
+figure *labelled as last year's*, not a guess presented as fact.
+
+`computeIrpfCents()`, `computeMarginalRate()` and `computePensionReductionCents()` therefore all
+take the year, and `getIrpfFigures(year)` falls back to `LAST_PUBLISHED_IRPF_YEAR` when the year has
+no entry of its own. `isIrpfScaleConfirmed(year)` says which of the two happened, and reaches the UI
+as `IrpfProjection.isScaleConfirmed`.
+
+**This is not a nicety.** While the figures were flat constants, updating them for a new ley
+rewrote the projection of every year already declared — the app would have started disagreeing with
+declarations that are on record, with nothing on screen to say so. Hence the rule: **a new year gets
+a new entry, never an edit of an existing one.** 2025 and 2026 deliberately point at the same object
+(`IRPF_FIGURES_PRORROGADAS_2023`), which is what a prorrogación is.
+
+`isScaleConfirmed` and `isProjectionReliable` answer different questions and must not be merged:
+the second is about how much of the year has elapsed and improves on its own as days pass, the
+first is about whether the law is published and only changes when somebody adds the year to the
+table.
 
 ---
 
@@ -1156,6 +1251,11 @@ in the banner and now reachable in one more situation; it is a copy decision, no
 `isWindowConfirmed: false`, so the UI shows it as provisional rather than presenting a guess as a
 fact. **Add the new window here every year.**
 
+This is the older of the two published-by-ley lookups in the module. The IRPF figures follow the
+same shape for the same reason (§ The figures are per year, and they are looked up), and a third
+answer to the question *what do we say about a year the legislator has not spoken about yet* would
+be one too many.
+
 ---
 
 ## Invariants (what breaks if you change this)
@@ -1178,6 +1278,9 @@ fact. **Add the new window here every year.**
 | The IVA deduction share falls back to the IRPF one, never to 0 | `COALESCE(t."VatDeductionPercent", t."DeductionPercent", 0)` in `vw_FiscalQuarterly`; `??` and never `\|\|` in `computeFiscalFields()` | A NULL read as a zero strips the input VAT of every row written before the column existed — casilla 29 of every already filed quarter |
 | A place that copies one deduction share copies both | `deductionSharesOf()` feeds both to all seven `computeFiscalFields()` call sites; `confirmOccurrence()` stamps both onto the generated movement | The copy keeps the IRPF share and silently re-inherits it for IVA: a home-supply expense deducts input VAT again, in a row that looks correctly coded |
 | An asset's purchase is skipped by the IRPF models only | `getAssetTransactionIds()`, applied in Modelo 130/100 and the projection | Skipped nowhere: the asset is deducted twice. Skipped everywhere: its input VAT vanishes from an already filed 303 |
+| An asset with no linked purchase says so | `getUnlinkedFixedAssets()` + `getAssetPurchaseCandidates()`, rendered by `UnlinkedPurchaseNotice` on every asset whose `TransactionID` is null | **The asset is deducted twice** — the purchase stays a period expense *and* the dotación is deducted on top — silently, and for as long as the schedule runs |
+| A candidate purchase is offered, never linked | The route is GET-only; linking is `PUT /api/fiscal/assets/:id` with `{ transactionId }`, confirmed by the user | A wrong link is worse than none: a real purchase stops being deducted while the impostor keeps being, and neither says anything |
+| The IRPF figures of a year are looked up, never edited | `IRPF_YEAR_FIGURES` keyed by fiscal year; `getIrpfFigures()` falls back and `isIrpfScaleConfirmed()` says so | Updating a flat constant for a new Ley de Presupuestos rewrites the projection of every year already filed |
 | A dotación is never a `Transactions` row | `FixedAssets` is its own table | The purchase is double-counted and every balance, summary view and cash-flow chart is falsified |
 | With a group declared, rate ≤ tabla × 2 | `coefficientFitsGroup()`, re-run by PUT against the merged row | An over-fast rate over-deducts — the exact error this module exists to prevent |
 | A fracción's split is read from ANEXO I, never divided out of the total | `CreateDeferralSchema` stores the rows as read and only checks them against the totals row | The remainder AEAT loads onto the last fracción is lost: every instalment off by up to three cents |
@@ -1206,11 +1309,9 @@ the recurring rules that generate exactly those rows (§ The two deduction share
    deductible expense is now assigned; the rest are personal categories left unmapped on purpose. A
    new one falls through to `C0202` and is reported in `unmappedCents`, so the gap is visible rather
    than silent.
-2. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
-   two Modelo 100 boxes are implemented (§ Amortización del inmovilizado). What is still manual:
-   - **The link to the purchase is what prevents the double deduction.** Registering an asset
-     without setting `TransactionID` leaves its purchase deductible on the IRPF side as well.
-     Nothing warns about it.
+2. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling, the two
+   Modelo 100 boxes and the detection of an asset whose purchase is not linked are implemented
+   (§ Amortización del inmovilizado). What is still manual:
    - **The 300 € threshold is not suggested either way.** Nothing flags a 250 € purchase registered
      as an asset, nor a 4.000 € one left as a period expense, nor the 25.000 €/year ceiling of
      art. 12.3.e) LIS.
@@ -1265,10 +1366,8 @@ the recurring rules that generate exactly those rows (§ The two deduction share
      way to derive them, so the answer is to cancel the resolution and import what AEAT actually
      sent. The letter is a snapshot of what was granted, not a live plan.
 5. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
-   `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
-6. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
-   `MINIMO_PERSONAL_CENTS` and `PENSION_PLAN` hold the 2025-2026 figures. They are not versioned by
-   year: projecting an older year applies today's scale.
+   the `regionalScale` of every year of `IRPF_YEAR_FIGURES`; nothing else in the code assumes a
+   single region.
 
 ---
 

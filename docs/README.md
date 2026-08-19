@@ -49,11 +49,14 @@ The domain knowledge behind the fiscal module — required reading before changi
 - Modelo 303/130/390/100 casilla by casilla, with the rules that govern each
 - The IVA a compensar pool, its 4-year expiry and the refund window
 - Amortization: the 300 € threshold, the tabla simplificada, the ×2 of art. 103 LIS, and why an
-  asset's purchase is expense for IVA but not for IRPF
+  asset's purchase is expense for IVA but not for IRPF — plus what happens when the purchase is not
+  linked (the asset is deducted twice) and how the likely movement is found and offered
 - Aplazamientos: why an AEAT instalment is three legally different things and only the intereses de
   demora are deductible — as a financial expense, casilla 0203 — and why the split is read from the
   letter and never derived
-- The IRPF provision: progressive scale, mínimo personal, pension limits (arts. 51-52)
+- The IRPF provision: progressive scale, mínimo personal, pension limits (arts. 51-52) — all four
+  per fiscal year, looked up and never edited, so a new Ley de Presupuestos cannot rewrite a year
+  already filed
 - Deadlines: working-day extension, domiciliación cut-off, Renta window per campaign
 - A table of invariants and what breaks when each is violated
 - Known gaps and legal references

@@ -10,7 +10,12 @@
  * equals the actuals and the assertions stay stable whenever the suite runs.
  */
 
-import { IRPF_REGION, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  IRPF_REGION,
+  LAST_PUBLISHED_IRPF_YEAR,
+  PROFESSIONAL_INCOME_CATEGORY,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 
 // ── Fixtures ──
 
@@ -267,6 +272,43 @@ describe('getIrpfProjection', () => {
     const projection = await getIrpfProjection(YEAR);
 
     expect(projection.retencionesCents).toBe(0);
+  });
+
+  // ── Which figures the scale used: the year's own, or the last published ones ──
+
+  describe('the scale of the year', () => {
+    it('flags a year with published figures as confirmed', async () => {
+      const projection = await getIrpfProjection(LAST_PUBLISHED_IRPF_YEAR);
+
+      expect(projection.isScaleConfirmed).toBe(true);
+    });
+
+    it('flags a year past the last published one as unconfirmed', async () => {
+      // No Ley de Presupuestos fixes it yet: the projection runs on carried-forward figures and
+      // must not be presented as what the law says.
+      const projection = await getIrpfProjection(LAST_PUBLISHED_IRPF_YEAR + 1);
+
+      expect(projection.isScaleConfirmed).toBe(false);
+    });
+
+    it('keeps the flag apart from isProjectionReliable, which answers a different question', async () => {
+      // Published law, but barely any of the year elapsed: reliable false, confirmed true.
+      const early = await getIrpfProjection(LAST_PUBLISHED_IRPF_YEAR, {
+        now: new Date(Date.UTC(LAST_PUBLISHED_IRPF_YEAR, 0, 5)),
+      });
+
+      expect(early.isProjectionReliable).toBe(false);
+      expect(early.isScaleConfirmed).toBe(true);
+
+      // A fully elapsed year the law has not reached: reliable true, confirmed false. Days
+      // elapsed can never turn the second one true — only a new entry in IRPF_YEAR_FIGURES can.
+      const unpublished = await getIrpfProjection(LAST_PUBLISHED_IRPF_YEAR + 1, {
+        now: new Date(Date.UTC(LAST_PUBLISHED_IRPF_YEAR + 2, 0, 1)),
+      });
+
+      expect(unpublished.isProjectionReliable).toBe(true);
+      expect(unpublished.isScaleConfirmed).toBe(false);
+    });
   });
 
   it('flags a closed year as a reliable projection', async () => {

@@ -1733,6 +1733,8 @@ This array is **informational and changes no figure in the response**. The summa
 
 Get the IRPF provision for a year: the gap between the flat 20% paid through Modelo 130 and the progressive IRPF the annual Renta will charge. Estimación directa simplificada only, Madrid scale (`DEFAULT_IRPF_REGION`). Reads `vw_FiscalAccrual`, like every other fiscal model.
 
+**The scale is the one of the year requested.** The brackets, the mínimo personal and the pension ceilings are looked up in `IRPF_YEAR_FIGURES` by `fiscalYear`; a year the Ley de Presupuestos has not fixed yet carries the figures of `LAST_PUBLISHED_IRPF_YEAR` forward and comes back with `isScaleConfirmed: false`, so the response says a projection is provisional instead of asserting a law nobody has passed.
+
 **Query Parameters:**
 
 | Parameter | Type | Required | Default | Description |
@@ -1772,7 +1774,8 @@ GET /api/fiscal/projection?year=2026&projectedIncome=77237
     "marginalRate": 0.43,
     "monthlyProvisionCents": 167529,
     "effectiveRate": 0.2906,
-    "isProjectionReliable": true
+    "isProjectionReliable": true,
+    "isScaleConfirmed": true
   }
 }
 ```
@@ -1840,6 +1843,9 @@ The two amounts are stored separately because each carries its own legal ceiling
 | `monthlyProvisionCents` | number | `estimatedIrpfCents / 12` |
 | `effectiveRate` | number | `estimatedIrpfCents / projectedNetIncomeCents` |
 | `isProjectionReliable` | boolean | `false` while fewer than `IRPF_PROJECTION.MIN_PROJECTION_DAYS` days have elapsed — the run-rate is noise that early, on both income and expenses |
+| `isScaleConfirmed` | boolean | `false` when the year has no entry in `IRPF_YEAR_FIGURES` and its figures were carried forward from `LAST_PUBLISHED_IRPF_YEAR` (2026) |
+
+**The two flags are not the same caveat and must not be read as one.** `isProjectionReliable` is about how much of the year has elapsed and improves on its own as days pass; `isScaleConfirmed` is about whether the law is published, and changes only when somebody adds the year to `IRPF_YEAR_FIGURES`. A fully elapsed year can still be unconfirmed. The UI treats them differently for that reason: the unreliable run-rate gets an amber warning because it will fix itself, the unconfirmed scale gets a muted qualifier because the reader can do nothing about it.
 
 `provisionGapCents` does **not** subtract `retencionesCents`: casilla 07 = 04 − 05 − 06 already nets them out quarter by quarter, so the four casillas 07 plus the withholdings add up to the whole 20% quota. Subtracting them again would count the withheld IRPF twice.
 
@@ -3046,6 +3052,7 @@ returns cannot contradict the figures in the fiscal reports.
 | GET | `/api/fiscal/assets/:id` | The asset **plus its full year-by-year schedule** |
 | PUT | `/api/fiscal/assets/:id` | Update (all fields optional) |
 | DELETE | `/api/fiscal/assets/:id` | Delete; the purchase transaction is left untouched |
+| GET | `/api/fiscal/assets/:id/purchase-candidates` | Movements that look like the **missing** purchase of this asset |
 
 #### `GET /api/fiscal/assets`
 
@@ -3121,8 +3128,11 @@ Modelo 100 and the IRPF projection skip the purchase, whose cost reaches them as
 Modelo 303 and 390 deliberately do **not** skip it — an asset's input VAT is deducted in full in the
 quarter of purchase and is never amortized.
 
-What the link is worth: an asset registered **without** `transactionId` excludes nothing, and its
-purchase stays deductible on the IRPF side as well. Nothing enforces the link. See
+What the link is worth: an asset registered **without** `transactionId` excludes nothing, so its
+purchase stays deductible on the IRPF side **and** the dotación is deducted on top — the same asset
+twice, for as long as the schedule runs. Nothing *enforces* the link, because only the user knows
+which movement bought the asset, but nothing is silent about it either: the asset is reported, and
+`GET /api/fiscal/assets/:id/purchase-candidates` (below) offers the movement to link. See
 [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
 
 #### `GET /api/fiscal/assets/:id`
@@ -3152,6 +3162,74 @@ Same body as `POST`, every field optional; an omitted field keeps its stored val
 cap is re-checked against the **merged** row, not just the payload — raising `coefficientPercent`
 alone on a stored grupo 5 asset is rejected exactly as if the group had been sent with it. Sending
 `amortizationGroup: null` is an explicit clear (custom rate, uncapped).
+
+#### `GET /api/fiscal/assets/:id/purchase-candidates`
+
+The movements that look like the purchase this asset amortises, for an asset whose `transactionId`
+is `null`. **Read-only on purpose:** linking is `PUT /api/fiscal/assets/:id` with `{ transactionId }`
+— the ordinary field update — so there is no second write path onto the same column. What this
+returns is a suggestion; only the user turns one into a link.
+
+**An asset that already has its purchase linked returns `[]`.** A linked asset is not a problem to be
+fixed, and the empty array is the whole answer. `404` with `api-error.not-found.fixed-asset` when the
+id belongs to no asset of the current user — an unknown id and *nothing to fix* are different
+answers, and an empty array for both would hide the difference.
+
+**How a candidate is chosen** (`ASSET_PURCHASE_MATCH` in `src/constants/finance.ts`). A fiscally
+coded **expense** of this user, read from `vw_FiscalQuarterly`, whose amortizable cost is within
+`AMOUNT_TOLERANCE_PERCENT` (1 %, floor `AMOUNT_TOLERANCE_MIN_CENTS` = 100 cents) of the asset's
+`baseCents`, dated inside an **asymmetric** window around `inServiceDate` —
+`DAYS_BEFORE_IN_SERVICE` = 90 back, `DAYS_AFTER_IN_SERVICE` = 30 forward, because a thing is bought
+and *then* put into service — and **not already another asset's purchase**. Ranked by amount delta,
+then by date distance, cut at `MAX_CANDIDATES` = 5. Every clause is there to return *fewer* rows: a
+wrong link is strictly worse than no candidate.
+
+**Example Response** — *hypothetical*. On the live data every asset is linked, so this endpoint
+returns `{ "data": [], "meta": { "count": 0 } }` for all of them; the shape below is what it would
+answer for the same Lenovo had its `transactionId` been left null:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "transactionId": 3489,
+      "transactionDate": "2025-11-28",
+      "description": "Lenovo Yoga Slim 7 Gen 9",
+      "vendorName": "Lenovo",
+      "categoryName": "Material informático",
+      "fullAmountCents": 86900,
+      "amortizableCostCents": 71818,
+      "amountDeltaCents": 0,
+      "daysBeforeInService": 0
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transactionId` | number | What `PUT /api/fiscal/assets/:id` takes as `transactionId` to close the gap |
+| `transactionDate` | string | `YYYY-MM-DD`, the day the money left the account |
+| `description` / `vendorName` | string \| null | What a human needs to recognise the movement at a glance |
+| `categoryName` | string | The category the movement is coded in |
+| `fullAmountCents` | number | What the movement cost: VAT included, and **un-halved** for a shared expense |
+| `amortizableCostCents` | number | `baseCents + ivaCents − ivaDeducibleCents` — the only figure comparable with the asset's base |
+| `amountDeltaCents` | number | Distance between that figure and `baseCents`; `0` is an exact match |
+| `daysBeforeInService` | number | Days from the movement to the in-service date; negative when the movement is the later one |
+
+**The two amounts are not interchangeable, and the comparison is the whole trick.** `baseCents` is
+the acquisition cost net of *deductible* VAT, while a transaction's amount is what left the account.
+`vw_FiscalQuarterly` un-halves the shared expense into `FullAmountCents` and resolves the NULL
+`VatDeductionPercent` into the IRPF share; `computeFiscalFields()` splits that into base and cuota;
+input VAT that is **not** deductible was never recovered from the Treasury and is therefore cost. On
+the live Lenovo this lands on exactly the 718,18 € stored on the asset.
+
+This is the one fiscal read that goes to `vw_FiscalQuarterly` deliberately: it fills no casilla and
+computes no fiscal figure, it looks for a *movement* and needs that movement's own id and payment
+date — precisely what `vw_FiscalAccrual` replaces for issued invoices. For expense rows the two
+views are the same row anyway.
 
 #### `DELETE /api/fiscal/assets/:id`
 

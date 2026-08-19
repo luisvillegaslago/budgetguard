@@ -138,6 +138,8 @@ export const QUERY_KEY = {
   FISCAL_DEADLINE_SETTINGS: 'fiscal-deadline-settings',
   FISCAL_PROFILE: 'fiscal-profile',
   FIXED_ASSETS: 'fixed-assets',
+  /** Movements that look like the purchase of one asset — keyed by that asset's id */
+  ASSET_PURCHASE_CANDIDATES: 'asset-purchase-candidates',
   DEFERRALS: 'deferrals',
   BAD_DEBT_INVOICES: 'bad-debt-invoices',
   CRYPTO_CREDENTIALS: 'crypto-credentials',
@@ -411,18 +413,10 @@ export const GASTOS_DIFICIL = {
 
 // ── IRPF provision (Modelo 130 vs. the real progressive tax) ──
 
-/**
- * IRPF progressive scale, state half (2026).
- * Tuples of [upperLimitCents, rate]; the last bracket has no upper limit.
- */
-export const IRPF_STATE_SCALE = [
-  [1_245_000, 0.095],
-  [2_020_000, 0.12],
-  [3_520_000, 0.15],
-  [6_000_000, 0.185],
-  [30_000_000, 0.225],
-  [Number.POSITIVE_INFINITY, 0.245],
-] as const;
+/** One IRPF bracket: [upper limit in cents (Infinity for the last one), rate as a factor] */
+export type IrpfScaleBracket = readonly [number, number];
+
+export type IrpfScale = readonly IrpfScaleBracket[];
 
 /** Autonomous regions with their own IRPF scale. */
 export const IRPF_REGION = {
@@ -431,44 +425,92 @@ export const IRPF_REGION = {
 
 export type IrpfRegion = (typeof IRPF_REGION)[keyof typeof IRPF_REGION];
 
-/**
- * IRPF progressive scale, regional half (2026).
- * Extensible by region: only Madrid is supported today — add a new entry to IRPF_REGION
- * and its bracket table here to support another comunidad autónoma.
- */
-export const IRPF_REGIONAL_SCALE = {
-  [IRPF_REGION.MADRID]: [
-    [1_336_222, 0.085],
-    [1_900_463, 0.107],
-    [3_542_568, 0.128],
-    [5_732_040, 0.174],
-    [Number.POSITIVE_INFINITY, 0.205],
-  ],
-} as const;
-
 export const DEFAULT_IRPF_REGION: IrpfRegion = IRPF_REGION.MADRID;
 
-/** Mínimo personal del contribuyente (5.550 €). Taxed by the scale and then subtracted as a quota. */
-export const MINIMO_PERSONAL_CENTS = 555_000;
+/**
+ * Everything the Ley de Presupuestos fixes for one fiscal year: both halves of the progressive
+ * scale, the mínimo personal and the ceilings of the pension reduction. They are set by the same
+ * law, they move together and the projection reads them together, so they are stored together —
+ * one entry per year, never a set of loose constants that a later year could overwrite.
+ */
+export interface IrpfYearFigures {
+  /** State half of the scale, brackets ascending, the last one unbounded */
+  stateScale: IrpfScale;
+  /** Regional half, one scale per comunidad autónoma: add an IRPF_REGION entry and its table here */
+  regionalScale: Record<IrpfRegion, IrpfScale>;
+  /** Mínimo personal del contribuyente. Taxed by the scale and then subtracted as a quota. */
+  minimoPersonalCents: number;
+  /** Ceilings of the reduction for pension contributions (arts. 51-52 Ley 35/2006) */
+  pensionPlan: {
+    /** Art. 52.1.b): general limit, in cents */
+    generalLimitCents: number;
+    /** Art. 52.1.b) 2.º: increment for the self-employed, on top of the general one, in cents */
+    selfEmployedExtraCents: number;
+    /** Art. 52.1.a): share of the rendimientos netos del trabajo y de actividades económicas, as a factor */
+    incomePercentageCap: number;
+  };
+}
 
 /**
- * Pension plan contributions that reduce the base imponible general (arts. 51-52 Ley 35/2006).
+ * The figures in force since 01-01-2023 — art. 52.1 as worded by Ley 31/2022 for the pension
+ * ceilings — and prorrogadas for 2026: there is no PGE 2026 moving any of them.
  *
- * Tax years 2025 and 2026: art. 52.1 as worded by Ley 31/2022, in force since 01-01-2023 and
- * unchanged for 2026 (no PGE 2026; the 2023 figures were prorrogadas).
+ * Shared by every year they govern instead of copied into each, so the prorrogación is visible
+ * rather than looking like a coincidence. When a Ley de Presupuestos moves ANY of these figures,
+ * the new year gets its own literal below; editing this one would rewrite what the app says
+ * about years that have already been declared.
+ */
+const IRPF_FIGURES_PRORROGADAS_2023: IrpfYearFigures = {
+  stateScale: [
+    [1_245_000, 0.095],
+    [2_020_000, 0.12],
+    [3_520_000, 0.15],
+    [6_000_000, 0.185],
+    [30_000_000, 0.225],
+    [Number.POSITIVE_INFINITY, 0.245],
+  ],
+  regionalScale: {
+    [IRPF_REGION.MADRID]: [
+      [1_336_222, 0.085],
+      [1_900_463, 0.107],
+      [3_542_568, 0.128],
+      [5_732_040, 0.174],
+      [Number.POSITIVE_INFINITY, 0.205],
+    ],
+  },
+  minimoPersonalCents: 555_000,
+  pensionPlan: {
+    generalLimitCents: 150_000,
+    selfEmployedExtraCents: 425_000,
+    incomePercentageCap: 0.3,
+  },
+};
+
+/**
+ * IRPF figures per fiscal year. Same shape, and for the same reason, as RENTA_WINDOWS in
+ * src/utils/fiscalDeadlines.ts: a figure fixed by ley cannot be derived, only looked up. A year
+ * with no entry of its own falls back to LAST_PUBLISHED_IRPF_YEAR and comes back flagged as
+ * unconfirmed (isIrpfScaleConfirmed), so the projection is presented as provisional and not as
+ * a fact about a law nobody has passed yet.
  *
- * The two ceilings are kept apart on purpose: the general limit covers any plan (an individual
- * one included), while the increment is reserved for planes de empleo simplificados de
- * trabajadores por cuenta propia. A single joint ceiling could not tell 1.500 + 4.250 (legal)
- * from 5.750 in an individual plan (illegal).
+ * There is deliberately no 2027 entry: the Ley de Presupuestos for 2027 is not published.
+ * Years before 2025 have none either — their figures are not simply these ones and would have
+ * to be verified before being asserted, and this app has never projected a year that old.
+ */
+export const IRPF_YEAR_FIGURES: Record<number, IrpfYearFigures> = {
+  2025: IRPF_FIGURES_PRORROGADAS_2023,
+  2026: IRPF_FIGURES_PRORROGADAS_2023,
+};
+
+/** The most recent year whose figures are published; later ones reuse them as a carried-forward guess. */
+export const LAST_PUBLISHED_IRPF_YEAR = 2026;
+
+/**
+ * The legal ceilings of the pension reduction are per year and live in IRPF_YEAR_FIGURES.
+ * This is not one of them: it is the sanity bound of the form input, which no legal figure
+ * comes near, and it therefore has nothing to do with the year being declared.
  */
 export const PENSION_PLAN = {
-  /** Art. 52.1.b): general limit, 1.500 €/year, in cents */
-  GENERAL_LIMIT_CENTS: 150_000,
-  /** Art. 52.1.b) 2.º: increment for the self-employed, 4.250 €/year on top of the general one, in cents */
-  SELF_EMPLOYED_EXTRA_CENTS: 425_000,
-  /** Art. 52.1.a): 30% of the rendimientos netos del trabajo y de actividades económicas, as a factor */
-  INCOME_PERCENTAGE_CAP: 0.3,
   /** Sanity ceiling for the amount typed per bucket, in euros — no bucket can legally come near it. */
   MAX_CONTRIBUTION_EUROS: 100_000,
 } as const;
@@ -631,6 +673,29 @@ export const AMORTIZATION = {
 export const AMORTIZATION_CASILLA_OPTIONS = [MODELO_100_CASILLA.C0208, MODELO_100_CASILLA.C0227] as const;
 
 export type AmortizationCasilla = (typeof AMORTIZATION_CASILLA_OPTIONS)[number];
+
+/**
+ * How narrow the search for an asset's missing purchase is.
+ *
+ * An asset with no "TransactionID" is deducted twice — the purchase stays a period expense and the
+ * dotación is deducted on top — so the fix is to find the movement and link it. But a **wrong** link
+ * is worse than none: it stops a real purchase from being deducted while the impostor keeps being,
+ * and nothing afterwards says so. Every number below therefore errs towards offering nothing.
+ *
+ * - The window is asymmetric because the causality is: a thing is bought and *then* put into
+ *   service. A quarter beforehand covers an order that took a while to arrive; the month afterwards
+ *   only exists because an in-service date is typed by hand and is often the invoice's.
+ * - The tolerance is a percentage with a floor, so it stays tight on a laptop (7,18 € on 718,18 €)
+ *   without collapsing to nothing on a cheap asset.
+ * - The cap is five because a list the user has to squint at is an invitation to link the wrong row.
+ */
+export const ASSET_PURCHASE_MATCH = {
+  DAYS_BEFORE_IN_SERVICE: 90,
+  DAYS_AFTER_IN_SERVICE: 30,
+  AMOUNT_TOLERANCE_PERCENT: 1,
+  AMOUNT_TOLERANCE_MIN_CENTS: 100,
+  MAX_CANDIDATES: 5,
+} as const;
 
 // ============================================================
 // APLAZAMIENTOS / FRACCIONAMIENTOS (AEAT deferrals)
@@ -1376,6 +1441,8 @@ export const API_ERROR = {
     CATEGORY_HISTORY: 'api-error.load.category-history',
     VOUCHERS: 'api-error.load.vouchers',
     FIXED_ASSETS: 'api-error.load.fixed-assets',
+    /** The movements offered as the missing purchase of an asset (GET .../assets/[id]/purchase-candidates) */
+    ASSET_PURCHASE_CANDIDATES: 'api-error.load.asset-purchase-candidates',
     DEFERRALS: 'api-error.load.deferrals',
     /** The art. 80.Cuatro clock (GET /api/fiscal/bad-debt) */
     BAD_DEBT: 'api-error.load.bad-debt',

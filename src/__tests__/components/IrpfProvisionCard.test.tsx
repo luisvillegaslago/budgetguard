@@ -16,7 +16,7 @@
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { DEFAULT_IRPF_REGION } from '@/constants/finance';
+import { DEFAULT_IRPF_REGION, LAST_PUBLISHED_IRPF_YEAR } from '@/constants/finance';
 import { createTranslator } from '@/libs/i18n';
 import es from '@/messages/es.json';
 import type { FiscalProfile, IrpfProjection } from '@/types/finance';
@@ -77,6 +77,7 @@ const BASE_PROJECTION: IrpfProjection = {
   monthlyProvisionCents: 172_213,
   effectiveRate: 0.287,
   isProjectionReliable: true,
+  isScaleConfirmed: true,
 };
 
 /** The stored profile the pension form seeds itself from — independent of what the projection applied. */
@@ -180,6 +181,35 @@ describe('IrpfProvisionCard', () => {
     renderCard({ isProjectionReliable: true });
 
     expect(screen.queryByText(translate('fiscal.irpf-projection.unreliable-projection'))).not.toBeInTheDocument();
+  });
+
+  it('says the figures are provisional when the year has no published scale', () => {
+    renderCard({ fiscalYear: LAST_PUBLISHED_IRPF_YEAR + 1, isScaleConfirmed: false });
+
+    expect(screen.getByText(translate('fiscal.irpf-projection.scale-unconfirmed'))).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        translate('fiscal.irpf-projection.scale-unconfirmed-note', {
+          year: LAST_PUBLISHED_IRPF_YEAR + 1,
+          scaleYear: LAST_PUBLISHED_IRPF_YEAR,
+        }),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('stays silent about the scale when the year has its own published figures', () => {
+    renderCard({ isScaleConfirmed: true });
+
+    expect(screen.queryByText(translate('fiscal.irpf-projection.scale-unconfirmed'))).not.toBeInTheDocument();
+  });
+
+  it('does not mistake an unreliable projection for an unpublished scale', () => {
+    // Two independent caveats: the run-rate rests on too few days, but the law of the year IS
+    // published. Showing the scale warning here would tell the user the figures are a guess.
+    renderCard({ isProjectionReliable: false, isScaleConfirmed: true });
+
+    expect(screen.getByText(translate('fiscal.irpf-projection.unreliable-projection'))).toBeInTheDocument();
+    expect(screen.queryByText(translate('fiscal.irpf-projection.scale-unconfirmed'))).not.toBeInTheDocument();
   });
 
   it('renders the retenciones row when clients withheld IRPF', () => {

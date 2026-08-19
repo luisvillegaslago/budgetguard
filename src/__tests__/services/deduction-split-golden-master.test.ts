@@ -621,6 +621,8 @@ describe('the IRPF provision', () => {
       monthlyProvisionCents: 16_553,
       effectiveRate: 0.1256,
       isProjectionReliable: true,
+      // 2026 has published figures of its own, so the scale applied is the law and not a guess
+      isScaleConfirmed: true,
     });
   });
 });

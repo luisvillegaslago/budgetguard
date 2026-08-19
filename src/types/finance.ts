@@ -50,6 +50,9 @@ export type {
   FiscalStatus,
   InvoiceStatus,
   IrpfRegion,
+  IrpfScale,
+  IrpfScaleBracket,
+  IrpfYearFigures,
   ModeloType,
   OccurrenceStatus,
   PaymentMethod,
@@ -747,13 +750,6 @@ export interface AnnualFiscalReport {
 }
 
 /**
- * One IRPF bracket: [upper limit in cents (Infinity for the last one), rate as a factor]
- */
-export type IrpfScaleBracket = readonly [number, number];
-
-export type IrpfScale = readonly IrpfScaleBracket[];
-
-/**
  * IRPF provision: the gap between the flat 20% paid through Modelo 130 and the
  * progressive IRPF that the annual Renta will actually charge.
  * Estimación directa simplificada only. Every amount is in cents.
@@ -794,6 +790,16 @@ export interface IrpfProjection {
   monthlyProvisionCents: number; // estimatedIrpfCents / 12
   effectiveRate: number; // estimatedIrpfCents / projectedNetIncomeCents
   isProjectionReliable: boolean; // False when the run-rate rests on fewer than MIN_PROJECTION_DAYS elapsed days
+  /**
+   * False when the year has no published figures of its own and the scale, the mínimo personal
+   * and the pension ceilings were carried forward from LAST_PUBLISHED_IRPF_YEAR.
+   *
+   * Not a variant of isProjectionReliable: that one is about how much of the year has elapsed
+   * and improves on its own as days pass, this one is about whether the Ley de Presupuestos is
+   * published and only changes when somebody adds the year to IRPF_YEAR_FIGURES. A year can be
+   * fully elapsed and still unconfirmed, and vice versa.
+   */
+  isScaleConfirmed: boolean;
 }
 
 /**
@@ -882,6 +888,34 @@ export type FixedAssetUpdateInput = Partial<FixedAssetInput>;
 export interface FixedAssetSchedule {
   asset: FixedAsset;
   years: AmortizationYear[];
+}
+
+/**
+ * A movement that looks like the purchase of an asset whose `transactionId` is null.
+ *
+ * It is a *suggestion*, never a link: only the user can confirm which movement bought the asset,
+ * and the repository offers at most a handful (ASSET_PURCHASE_MATCH.MAX_CANDIDATES) so that the
+ * choice stays recognisable. Everything a human needs to recognise the movement travels with it —
+ * a candidate they cannot identify at a glance is one they should not link.
+ */
+export interface AssetPurchaseCandidate {
+  transactionId: number;
+  /** Calendar day the money left the account, 'YYYY-MM-DD' */
+  transactionDate: string;
+  description: string | null;
+  vendorName: string | null;
+  categoryName: string;
+  /** What the movement cost, VAT included and un-halved for a shared expense */
+  fullAmountCents: number;
+  /**
+   * The only figure comparable with `FixedAsset.baseCents`: the base plus whatever input VAT is
+   * **not** deductible, because an amortizable base is the cost net of *deductible* VAT alone.
+   */
+  amortizableCostCents: number;
+  /** How far that figure is from the asset's base, in cents. Zero is an exact match */
+  amountDeltaCents: number;
+  /** Days from the movement to the in-service date; negative when the movement is the later one */
+  daysBeforeInService: number;
 }
 
 // No per-year aggregate lives here on purpose: the dotación of a year is derived, never stored.

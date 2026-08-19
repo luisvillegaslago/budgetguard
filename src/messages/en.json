@@ -861,6 +861,8 @@
       "marginal-rate": "Current marginal rate",
       "effective-rate": "Effective rate",
       "unreliable-projection": "The year has barely started, so projecting the run-rate is unreliable. Type the annual billing you expect to sharpen the estimate.",
+      "scale-unconfirmed": "figures to be confirmed",
+      "scale-unconfirmed-note": "The {year} figures are not published yet, so the estimate applies the last known ones, those of {scaleYear}. Carrying the previous scale forward is what applies while there is no new one — the 2023 figures were carried forward twice — but the projection stays provisional until the Ley de Presupuestos sets those of {year}.",
       "override": {
         "label": "Projected annual billing (€)",
         "apply": "Recalculate",
@@ -1072,6 +1074,17 @@
         "remaining": "Remaining",
         "total": "Total depreciated",
         "fully-amortized": "Fully depreciated"
+      },
+      "unlinked-purchase": {
+        "label": "No purchase linked",
+        "warning": "This asset has no linked purchase: the purchase is still deducted in full as an expense of its year and the yearly charge is deducted on top, so the same asset is deducted twice.",
+        "context": "It almost always happens with things bought before you kept fixed assets here, or when the payment was never recorded. Linking the purchase makes the IRPF models stop counting it as an expense of the year, leaving only the yearly charge.",
+        "candidates-title": "Purchases that fit",
+        "candidates-hint": "Deductible expenses for an amount close to the asset base and dated near its in-service date. Pick the one that is this asset's purchase.",
+        "link": "This is the purchase",
+        "linking": "Linking...",
+        "linked": "Purchase linked",
+        "candidates-empty": "No purchase fits, and that is normal: it may predate your keeping the accounts here, or it may never have been recorded. The asset depreciates just the same; it is only worth checking that the purchase is not also deducted as an expense."
       },
       "errors": {
         "load-failed": "Could not load the assets"
@@ -2686,6 +2699,7 @@
       "category-history": "Failed to load category history",
       "vouchers": "Failed to load vouchers",
       "fixed-assets": "Failed to load fixed assets",
+      "asset-purchase-candidates": "Could not search for matching purchases",
       "deferrals": "Could not load deferrals",
       "bad-debt": "Failed to load unpaid invoices",
       "deferral-cancellation": "Failed to work out what would be cancelled"

@@ -20,6 +20,7 @@ import { Boxes, ChevronDown, ChevronUp, Info, Plus, X } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { FiscalAmountRow as AmountRow } from '@/components/fiscal/FiscalAmountRow';
+import { UnlinkedPurchaseNotice } from '@/components/fiscal/UnlinkedPurchaseNotice';
 import { DeleteButton } from '@/components/ui/DeleteButton';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
@@ -206,10 +207,12 @@ interface AssetListProps {
   onToggle: (assetId: number) => void;
   onDelete: (assetId: number) => void;
   deletingId: number | null;
+  /** An asset just got its purchase linked; the notice that offered it is already unmounted */
+  onLinked: () => void;
 }
 
 /** Desktop table. The schedule of the expanded asset takes a full-width row under it. */
-function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId }: AssetListProps) {
+function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId, onLinked }: AssetListProps) {
   const { t, locale } = useTranslate();
 
   return (
@@ -252,6 +255,14 @@ function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId }: 
                   />
                 </td>
               </tr>
+              {/* Not behind the expand toggle: an asset deducted twice has to say so unprompted */}
+              {row.asset.transactionId === null && (
+                <tr>
+                  <td colSpan={8} className="px-3 pb-3">
+                    <UnlinkedPurchaseNotice asset={row.asset} onLinked={onLinked} />
+                  </td>
+                </tr>
+              )}
               {expandedId === row.asset.assetId && (
                 <tr>
                   <td colSpan={8} className="px-3 pb-3" id={`asset-schedule-${row.asset.assetId}`}>
@@ -268,7 +279,7 @@ function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId }: 
 }
 
 /** Mobile/tablet list: the same figures as the table, stacked. */
-function AssetCards({ rows, year, expandedId, onToggle, onDelete, deletingId }: AssetListProps) {
+function AssetCards({ rows, year, expandedId, onToggle, onDelete, deletingId, onLinked }: AssetListProps) {
   const { t, locale } = useTranslate();
 
   return (
@@ -306,6 +317,8 @@ function AssetCards({ rows, year, expandedId, onToggle, onDelete, deletingId }: 
               <p className="tabular-nums">{formatCurrency(row.remainingCents)}</p>
             </div>
           </div>
+
+          {row.asset.transactionId === null && <UnlinkedPurchaseNotice asset={row.asset} onLinked={onLinked} />}
 
           {expandedId === row.asset.assetId && (
             <div id={`asset-schedule-${row.asset.assetId}`}>
@@ -649,6 +662,9 @@ export function FixedAssetsCard({ year }: FixedAssetsCardProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   // Confirmation of the last save. Lives here and not in the form, which unmounts on success
   const [justSaved, setJustSaved] = useState(false);
+  // Same reason: linking a purchase makes the notice that offered it disappear, so the
+  // confirmation cannot live inside it
+  const [justLinked, setJustLinked] = useState(false);
 
   const { data, isLoading, isError } = useFixedAssets(year);
   const deleteAsset = useDeleteFixedAsset();
@@ -679,6 +695,7 @@ export function FixedAssetsCard({ year }: FixedAssetsCardProps) {
     onToggle: (assetId: number) => setExpandedId(expandedId === assetId ? null : assetId),
     onDelete: handleDelete,
     deletingId,
+    onLinked: () => setJustLinked(true),
   };
 
   return (
@@ -759,6 +776,12 @@ export function FixedAssetsCard({ year }: FixedAssetsCardProps) {
               {justSaved && (
                 <output className="block text-sm text-guard-success animate-fade-in">
                   {t('fiscal.fixed-assets.saved')}
+                </output>
+              )}
+
+              {justLinked && (
+                <output className="block text-sm text-guard-success animate-fade-in">
+                  {t('fiscal.fixed-assets.unlinked-purchase.linked')}
                 </output>
               )}
 

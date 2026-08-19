@@ -34,6 +34,7 @@ const mockProjection: IrpfProjection = {
   monthlyProvisionCents: 167_529,
   effectiveRate: 0.2906,
   isProjectionReliable: true,
+  isScaleConfirmed: true,
 };
 
 // ── Mocks ──

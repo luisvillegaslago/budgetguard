@@ -861,6 +861,8 @@
       "marginal-rate": "Tipo marginal actual",
       "effective-rate": "Tipo efectivo",
       "unreliable-projection": "El año acaba de empezar, así que proyectar el ritmo de facturación no es fiable. Escribe la facturación anual que esperas para afinar la estimación.",
+      "scale-unconfirmed": "cifras por confirmar",
+      "scale-unconfirmed-note": "Las cifras de {year} todavía no están publicadas, así que la estimación aplica las últimas conocidas, las de {scaleYear}. Prorrogar la escala anterior es lo que corresponde mientras no haya una nueva —la de 2023 se prorrogó dos veces—, pero la proyección es provisional hasta que la Ley de Presupuestos fije las de {year}.",
       "override": {
         "label": "Facturación anual proyectada (€)",
         "apply": "Recalcular",
@@ -1072,6 +1074,17 @@
         "remaining": "Pendiente",
         "total": "Total amortizado",
         "fully-amortized": "Totalmente amortizado"
+      },
+      "unlinked-purchase": {
+        "label": "Sin compra enlazada",
+        "warning": "Este activo no tiene enlazada la compra que amortiza: la compra se sigue deduciendo entera como gasto de su año y encima se deduce la dotación anual, así que el mismo activo se deduce dos veces.",
+        "context": "Pasa casi siempre con lo que compraste antes de llevar el inmovilizado aquí, o cuando el pago nunca llegó a apuntarse. Al enlazar la compra, los modelos de IRPF dejan de contarla como gasto del año y solo queda la dotación.",
+        "candidates-title": "Compras que encajan",
+        "candidates-hint": "Gastos deducibles por un importe parecido a la base del activo y con fecha cercana a su puesta en servicio. Elige el que sea la compra de este activo.",
+        "link": "Es esta compra",
+        "linking": "Enlazando...",
+        "linked": "Compra enlazada",
+        "candidates-empty": "No hay ninguna compra que encaje, y es lo normal: puede ser anterior a que llevaras las cuentas aquí o no haberse apuntado nunca. El activo se amortiza igual; solo conviene comprobar que esa compra no esté además deducida como gasto."
       },
       "errors": {
         "load-failed": "No se pudieron cargar los activos"
@@ -2686,6 +2699,7 @@
       "category-history": "Error al cargar el historial de la categoría",
       "vouchers": "Error al cargar los bonos",
       "fixed-assets": "Error al cargar los activos",
+      "asset-purchase-candidates": "No se pudieron buscar las compras que encajan",
       "deferrals": "Error al cargar los aplazamientos",
       "bad-debt": "Error al cargar las facturas impagadas",
       "deferral-cancellation": "Error al calcular qué se cancelaría"

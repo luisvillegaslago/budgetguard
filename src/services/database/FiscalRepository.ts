@@ -47,6 +47,7 @@ import {
   computeMarginalRate,
   computePensionReductionCents,
   getYearProgress,
+  isIrpfScaleConfirmed,
   projectAnnualCents,
 } from '@/utils/irpf';
 import { query } from './connection';
@@ -627,6 +628,7 @@ export async function getIrpfProjection(
   // reduced base feeds the progressive scale only, and the whole Modelo 130 side below keeps
   // reading projectedNetIncomeCents.
   const pensionReductionCents = computePensionReductionCents(
+    year,
     profile.pensionIndividualCents,
     profile.pensionEmploymentCents,
     projectedNetIncomeCents,
@@ -661,7 +663,7 @@ export async function getIrpfProjection(
   // again, so they leave the quarterly instalments still to be filed.
   const modelo130RemainingCents = Math.max(0, modelo130TotalCents - modelo130PaidCents - retencionesCents);
 
-  const estimatedIrpfCents = computeIrpfCents(baseLiquidableCents, DEFAULT_IRPF_REGION);
+  const estimatedIrpfCents = computeIrpfCents(year, baseLiquidableCents, DEFAULT_IRPF_REGION);
 
   return {
     fiscalYear: year,
@@ -689,7 +691,7 @@ export async function getIrpfProjection(
     // payment the Renta charges the following June.
     provisionGapCents: estimatedIrpfCents - modelo130TotalCents,
     // On the reduced base: it is the rate the next euro billed would actually pay.
-    marginalRate: computeMarginalRate(baseLiquidableCents, DEFAULT_IRPF_REGION),
+    marginalRate: computeMarginalRate(year, baseLiquidableCents, DEFAULT_IRPF_REGION),
     monthlyProvisionCents: Math.round(estimatedIrpfCents / 12),
     // Still divided by the rendimiento neto, not by the reduced base: the card reads this as
     // "tax over what I earned". Dividing by the base would silently redefine the percentage.
@@ -698,6 +700,10 @@ export async function getIrpfProjection(
     // Depends on the elapsed days alone: overriding the billing fixes the income side, but the
     // expenses are still extrapolated from a handful of days, so the projection stays unreliable.
     isProjectionReliable: elapsedDays >= IRPF_PROJECTION.MIN_PROJECTION_DAYS,
+    // Independent of the one above: this says whether the figures the scale used are the ones
+    // published for this year or the last published ones carried forward, which no amount of
+    // elapsed days can fix — only the Ley de Presupuestos can.
+    isScaleConfirmed: isIrpfScaleConfirmed(year),
   };
 }
 

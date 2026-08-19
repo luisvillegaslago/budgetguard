@@ -1929,10 +1929,50 @@ justificación* — the two figures it sits between do not add up to it on their
 reaches `Modelo100Section` the same way, as its own `gastosPorCasilla` row for `0208` or `0227`
 (never through `unmappedCents`: an asset always declares its casilla).
 
+### IrpfYearFigures
+
+Everything the Ley de Presupuestos fixes for one fiscal year, in `src/constants/finance.ts`. The
+four figures are stored together because the same law moves them together and the projection reads
+them together — as loose constants, a new year could only be expressed by overwriting the old one.
+
+```typescript
+export type IrpfScaleBracket = readonly [number, number];  // [upper limit in cents, rate as a factor]
+export type IrpfScale = readonly IrpfScaleBracket[];       // ascending; the last bracket is Infinity
+
+export interface IrpfYearFigures {
+  stateScale: IrpfScale;
+  regionalScale: Record<IrpfRegion, IrpfScale>;  // Only 'madrid' is implemented today
+  minimoPersonalCents: number;                   // Taxed by the scale, then subtracted as a quota
+  pensionPlan: {
+    generalLimitCents: number;       // Art. 52.1.b): any plan, an individual one included
+    selfEmployedExtraCents: number;  // Art. 52.1.b) 2.º: planes de empleo simplificados, on top
+    incomePercentageCap: number;     // Art. 52.1.a): share of the rendimientos netos, as a factor
+  };
+}
+
+// Keyed by fiscal year. 2025 and 2026 point at the SAME object (IRPF_FIGURES_PRORROGADAS_2023):
+// there is no PGE 2026, and a prorrogación should look like one rather than a coincidence
+export const IRPF_YEAR_FIGURES: Record<number, IrpfYearFigures> = { 2025: ..., 2026: ... };
+export const LAST_PUBLISHED_IRPF_YEAR = 2026;
+```
+
+`getIrpfFigures(year)` in `src/utils/irpf.ts` falls back to `LAST_PUBLISHED_IRPF_YEAR` for a year
+with no entry, and `isIrpfScaleConfirmed(year)` says which of the two happened. Deliberately the
+same shape as `RENTA_WINDOWS` / `LAST_PUBLISHED_RENTA_CAMPAIGN` / `isRentaWindowConfirmed()` in
+`src/utils/fiscalDeadlines.ts`, which had the identical problem first: a figure set by ley cannot be
+derived from the previous year's, only looked up.
+
+**A new year gets a new entry, never an edit of an existing one.** Editing these in place when a
+Ley de Presupuestos lands would rewrite the projections of years already declared. `PENSION_PLAN`
+survives alongside the table holding only `MAX_CONTRIBUTION_EUROS`, which is a form sanity bound and
+not a legal ceiling — the legal ones are per year and live here. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The figures are per year, and they are looked up.
+
 ### IrpfProjection
 
 The IRPF provision: the gap between the flat 20% that Modelo 130 pays and the progressive scale the
-annual Renta will charge. Computed in `getIrpfProjection()` from `src/utils/irpf.ts` primitives.
+annual Renta will charge. Computed in `getIrpfProjection()` from `src/utils/irpf.ts` primitives,
+which all take the fiscal year and look their figures up in `IRPF_YEAR_FIGURES`.
 
 ```typescript
 export interface IrpfProjection {
@@ -1960,11 +2000,18 @@ export interface IrpfProjection {
   monthlyProvisionCents: number;
   effectiveRate: number;
   isProjectionReliable: boolean;    // False below MIN_PROJECTION_DAYS elapsed
+  isScaleConfirmed: boolean;        // False when the year's figures were carried forward
 }
 ```
 
 `isProjectionReliable` depends on **elapsed days only**, never on whether the caller supplied an
 income override: the expense side is still extrapolated either way.
+
+`isScaleConfirmed` is **not** a variant of it. It is `isIrpfScaleConfirmed(fiscalYear)`: false when
+the year has no published figures of its own and the scale, the mínimo personal and the pension
+ceilings were carried forward from `LAST_PUBLISHED_IRPF_YEAR`. One improves on its own as days pass,
+the other only when somebody adds the year to `IRPF_YEAR_FIGURES` — a year can be fully elapsed and
+still unconfirmed, and vice versa, so merging them would make both unreadable.
 
 `amortizacionCents` sits deliberately outside the run-rate pair (`ytdExpensesCents` /
 `projectedExpensesCents`): it is a calendar figure, and extrapolating it in January would inflate
@@ -1984,7 +2031,7 @@ export interface FixedAsset {
   coefficientPercent: number;       // The rate ACTUALLY applied — stored, never re-derived
   amortizationGroup: AmortizationGroupNumber | null;  // 1-10 of the tabla, or null for a custom rate
   modelo100CasillaCode: AmortizationCasilla;          // '0208' material | '0227' intangible
-  transactionId: number | null;     // The purchase movement, when it is recorded
+  transactionId: number | null;     // The purchase movement. `null` is reported: see below
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -1993,6 +2040,10 @@ export interface FixedAsset {
 // Cents in, what the repository writes. The route converts the euros that arrive on the wire
 export type FixedAssetInput = Omit<FixedAsset, 'assetId' | 'createdAt' | 'updatedAt'>;
 export type FixedAssetUpdateInput = Partial<FixedAssetInput>;
+
+// `transactionId: null` is not a neutral state. It is what makes getAssetTransactionIds() stop
+// excluding the purchase from the IRPF models, so the asset is deducted twice — the purchase as an
+// expense of its period AND the dotación on top. AssetPurchaseCandidate (below) is the fix offered
 
 // One year of the schedule (src/utils/amortization.ts)
 export interface AmortizationYear {
@@ -2022,6 +2073,38 @@ The repository exposes one more shape for the fiscal models, `AmortizationPeriod
 (`{ totalCents, byCasilla: Map<AmortizationCasilla, number> }`), returned by
 `getAmortizationCentsForPeriod()`. It is keyed by `AmortizationCasilla` rather than `string` so a
 caller cannot invent a third box.
+
+### AssetPurchaseCandidate
+
+A movement that looks like the purchase of an asset whose `transactionId` is null — which is an
+asset being **deducted twice**, because the purchase stays a period expense while the dotación is
+deducted on top. Produced by `getAssetPurchaseCandidates(assetId)` in `FixedAssetRepository`.
+
+```typescript
+export interface AssetPurchaseCandidate {
+  transactionId: number;
+  transactionDate: string;          // 'YYYY-MM-DD': the day the money left the account
+  description: string | null;
+  vendorName: string | null;
+  categoryName: string;
+  fullAmountCents: number;          // What it cost: VAT included, un-halved for a shared expense
+  amortizableCostCents: number;     // The only figure comparable with FixedAsset.baseCents
+  amountDeltaCents: number;         // Distance to the asset's base; 0 is an exact match
+  daysBeforeInService: number;      // Negative when the movement is later than the in-service date
+}
+```
+
+**The two amounts are both shown because they are both needed.** `fullAmountCents` is what the user
+recognises in the ledger; `amortizableCostCents` is what the matcher actually compared, and it is
+`baseCents + ivaCents − ivaDeducibleCents` — an amortizable base is the acquisition cost net of
+*deductible* VAT alone, so input VAT that was never recovered is part of the cost. On the live Lenovo
+they are 869,00 € and 718,18 €.
+
+It is a **suggestion, never a link**: the type carries no write path, and the field is set through
+the ordinary `PUT /api/fiscal/assets/:id` with `{ transactionId }` once the user confirms. A wrong
+link is worse than no candidate — it stops a real purchase from being deducted while the impostor
+keeps being deducted, silently in both directions. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md)
+§ A missing link is said out loud, and the purchase is offered.
 
 ### Deferral
 

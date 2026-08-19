@@ -11,10 +11,16 @@
  * which takes the id from a caller that already resolved it (same contract as getFiledModeloAmounts).
  */
 
-import type { AmortizationCasilla, AmortizationGroupNumber } from '@/constants/finance';
+import {
+  type AmortizationCasilla,
+  type AmortizationGroupNumber,
+  ASSET_PURCHASE_MATCH,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import type { FixedAsset, FixedAssetInput, FixedAssetUpdateInput } from '@/types/finance';
+import type { AssetPurchaseCandidate, FixedAsset, FixedAssetInput, FixedAssetUpdateInput } from '@/types/finance';
 import { amortizationCentsBetween } from '@/utils/amortization';
+import { computeFiscalFields } from '@/utils/fiscal';
 import { toDateString } from '@/utils/helpers';
 import { query } from './connection';
 
@@ -125,6 +131,26 @@ export async function getFixedAssets(year?: number): Promise<FixedAsset[]> {
   return assets.filter((asset) => amortizationCentsBetween(asset, `${year}-01-01`, `${year}-12-31`) > 0);
 }
 
+/**
+ * The assets whose purchase is not linked — the ones being deducted twice.
+ *
+ * `TransactionID` is what makes getAssetTransactionIds() pull the purchase out of the IRPF models
+ * (§ Amortización del inmovilizado). Without it the purchase stays a period expense **and** the
+ * dotación is deducted on top: the same asset deducted twice, silently, for as long as its
+ * schedule runs. Nothing else in the app notices, because both figures are individually correct.
+ *
+ * Same `year` semantics as getFixedAssets(): the assets with a dotación in that fiscal year, which
+ * is exactly the set whose duplication reaches that year's modelos. Omit it for every asset.
+ *
+ * Deliberately just the assets: what the duplication *costs* is the dotación of a period, and the
+ * caller already knows which period it is asking about. Returning a number computed against some
+ * other period would be worse than returning none.
+ */
+export async function getUnlinkedFixedAssets(year?: number): Promise<FixedAsset[]> {
+  const assets = await getFixedAssets(year);
+  return assets.filter((asset) => asset.transactionId === null);
+}
+
 export async function getFixedAssetById(assetId: number): Promise<FixedAsset | null> {
   const userId = await getUserIdOrThrow();
   const rows = await query<FixedAssetRow>(
@@ -159,6 +185,11 @@ export async function createFixedAsset(input: FixedAssetInput): Promise<FixedAss
  * Editing the rate or the base rewrites the whole schedule, past years included: that is the point,
  * a corrected purchase price must reach the year that was mis-filed. Nothing here is frozen by the
  * repository — what protects a filed year is the user not touching the asset behind it.
+ *
+ * **This is also how a purchase gets linked.** `transactionId` is an ordinary writable field, so
+ * `{ transactionId }` on an asset returned by getUnlinkedFixedAssets() is the whole fix, and
+ * UpdateFixedAssetSchema already accepts it. No dedicated link mutation exists because it would be
+ * a second door onto the same column, and the two would eventually disagree.
  */
 export async function updateFixedAsset(assetId: number, input: FixedAssetUpdateInput): Promise<FixedAsset | null> {
   const userId = await getUserIdOrThrow();
@@ -186,6 +217,152 @@ export async function deleteFixedAsset(assetId: number): Promise<boolean> {
     [assetId, userId],
   );
   return rows.length > 0;
+}
+
+// ============================================================
+// Purchase Matching (the fix for an unlinked asset)
+// ============================================================
+
+interface PurchaseCandidateRow {
+  TransactionID: number;
+  TransactionDate: Date | string;
+  Description: string | null;
+  VendorName: string | null;
+  CategoryName: string;
+  /** COALESCE("OriginalAmountCents", "AmountCents"): a shared expense stores its halved amount */
+  FullAmountCents: number | string;
+  /** NUMERIC(5,2) columns: the driver hands them over as strings */
+  VatPercent: number | string;
+  DeductionPercent: number | string;
+  /** Already resolved against "DeductionPercent" by the view: never NULL here */
+  VatDeductionPercent: number | string;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/** Parse a 'YYYY-MM-DD' calendar day into a UTC timestamp. A DATE column is a day, not an instant. */
+function dayToUtcMs(day: string): number {
+  const [year, month, date] = day.split('-').map(Number);
+  return Date.UTC(year!, month! - 1, date!);
+}
+
+/** A calendar day shifted by whole days, 'YYYY-MM-DD'. */
+function shiftDay(day: string, offsetDays: number): string {
+  return new Date(dayToUtcMs(day) + offsetDays * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+/**
+ * What the movement would cost to amortize, i.e. the only figure comparable with
+ * "FixedAssets"."BaseCents".
+ *
+ * **Two numbers that look comparable and are not.** The stored base is the acquisition cost *net of
+ * deductible VAT*, while a transaction's amount is what left the account: VAT included, and halved
+ * when the expense is shared. So the comparison needs both corrections, and both already have one
+ * home each — "vw_FiscalQuarterly" un-halves the amount into "FullAmountCents" and resolves the
+ * NULL "VatDeductionPercent" into the IRPF share, and computeFiscalFields() splits that into base
+ * and cuota. Whatever input VAT is **not** deductible was never recovered from the Treasury, so it
+ * is part of the cost and belongs in the base; on the live Lenovo the VAT is fully deductible and
+ * this is exactly the 718,18 € stored on the asset.
+ */
+function amortizableCostOf(row: PurchaseCandidateRow): number {
+  const { baseCents, ivaCents, ivaDeducibleCents } = computeFiscalFields(
+    Number(row.FullAmountCents),
+    Number(row.VatPercent),
+    Number(row.DeductionPercent),
+    Number(row.VatDeductionPercent),
+  );
+
+  return baseCents + ivaCents - ivaDeducibleCents;
+}
+
+/**
+ * The movements that look like the purchase of an asset that has none linked.
+ *
+ * **The rule, stated once so it cannot drift into something looser.** A candidate is a *fiscally
+ * coded expense* of this user whose amortizable cost is within
+ * `ASSET_PURCHASE_MATCH.AMOUNT_TOLERANCE_PERCENT` of the asset's base (with a floor of
+ * `AMOUNT_TOLERANCE_MIN_CENTS`, so a cheap asset still has a band), dated inside an asymmetric
+ * window around the in-service date — `DAYS_BEFORE_IN_SERVICE` back, `DAYS_AFTER_IN_SERVICE`
+ * forward — and **not already the purchase of another asset**. Ranked by how close the amount is,
+ * then by how close the date is, and cut at `MAX_CANDIDATES`.
+ *
+ * Every one of those clauses is there to offer *fewer* rows. A wrong link is strictly worse than no
+ * candidate: it makes a real purchase stop being deducted while the impostor keeps being deducted,
+ * and it is silent in both directions. Nothing here links anything — the user picks, and
+ * updateFixedAsset() writes it.
+ *
+ * **Why "vw_FiscalQuarterly" and not "vw_FiscalAccrual".** This computes no fiscal figure and fills
+ * no casilla: it searches for a *movement*, and it needs that movement's own id and its own payment
+ * date, which is precisely what the accrual view replaces for issued invoices (TransactionID 0, the
+ * invoice date). For expense rows the two views are the same row, and the quarterly one is where
+ * the two corrections the comparison depends on — "FullAmountCents" and the resolved
+ * "VatDeductionPercent" — are already applied. Reading it here is not the mistake § Devengo vs.
+ * caja warns about.
+ *
+ * @param assetId - Asset of the current user. A foreign one, a missing one or an already linked one
+ *                  yields no candidates: an asset with a link is not a problem to be fixed.
+ */
+export async function getAssetPurchaseCandidates(assetId: number): Promise<AssetPurchaseCandidate[]> {
+  const userId = await getUserIdOrThrow();
+  const asset = await getFixedAssetById(assetId);
+  if (!asset || asset.transactionId !== null) return [];
+
+  const rows = await query<PurchaseCandidateRow>(
+    `SELECT v."TransactionID", v."TransactionDate", v."Description", v."VendorName", v."CategoryName",
+            v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."VatDeductionPercent"
+     FROM "vw_FiscalQuarterly" v
+     WHERE v."UserID" = $1
+       AND v."Type" = $2
+       AND v."TransactionDate" BETWEEN $3 AND $4
+       -- A movement already amortized as another asset can never be this one's purchase, and
+       -- offering it invites linking the same cost twice
+       AND NOT EXISTS (
+         SELECT 1 FROM "FixedAssets" fa
+         WHERE fa."UserID" = v."UserID" AND fa."TransactionID" = v."TransactionID"
+       )
+     ORDER BY v."TransactionDate", v."TransactionID"`,
+    [
+      userId,
+      TRANSACTION_TYPE.EXPENSE,
+      shiftDay(asset.inServiceDate, -ASSET_PURCHASE_MATCH.DAYS_BEFORE_IN_SERVICE),
+      shiftDay(asset.inServiceDate, ASSET_PURCHASE_MATCH.DAYS_AFTER_IN_SERVICE),
+    ],
+  );
+
+  const toleranceCents = Math.max(
+    Math.round((asset.baseCents * ASSET_PURCHASE_MATCH.AMOUNT_TOLERANCE_PERCENT) / 100),
+    ASSET_PURCHASE_MATCH.AMOUNT_TOLERANCE_MIN_CENTS,
+  );
+
+  return (
+    rows
+      .map<AssetPurchaseCandidate>((row) => {
+        const amortizableCostCents = amortizableCostOf(row);
+        const transactionDate = toDateString(row.TransactionDate);
+
+        return {
+          transactionId: row.TransactionID,
+          transactionDate,
+          description: row.Description,
+          vendorName: row.VendorName,
+          categoryName: row.CategoryName,
+          fullAmountCents: Number(row.FullAmountCents),
+          amortizableCostCents,
+          amountDeltaCents: Math.abs(amortizableCostCents - asset.baseCents),
+          daysBeforeInService: Math.round((dayToUtcMs(asset.inServiceDate) - dayToUtcMs(transactionDate)) / MS_PER_DAY),
+        };
+      })
+      .filter((candidate) => candidate.amountDeltaCents <= toleranceCents)
+      // Amount first: it is the discriminating signal. The date only breaks ties, because everything
+      // that reached this point is already inside the window
+      .sort(
+        (a, b) =>
+          a.amountDeltaCents - b.amountDeltaCents ||
+          Math.abs(a.daysBeforeInService) - Math.abs(b.daysBeforeInService) ||
+          b.transactionId - a.transactionId,
+      )
+      .slice(0, ASSET_PURCHASE_MATCH.MAX_CANDIDATES)
+  );
 }
 
 // ============================================================

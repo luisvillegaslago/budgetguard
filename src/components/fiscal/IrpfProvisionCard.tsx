@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import { type UseFormRegisterReturn, useForm } from 'react-hook-form';
 import { FiscalAmountRow as AmountRow } from '@/components/fiscal/FiscalAmountRow';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { FILING_STATUS, MODELO_TYPE, PENSION_PLAN } from '@/constants/finance';
+import { FILING_STATUS, LAST_PUBLISHED_IRPF_YEAR, MODELO_TYPE } from '@/constants/finance';
 import { useFiscalProfile, useUpsertFiscalProfile } from '@/hooks/useFiscalProfile';
 import { useIrpfProjection } from '@/hooks/useIrpfProjection';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -27,6 +27,7 @@ import { FiscalProfileAmountsSchema, IrpfProjectionOverrideSchema } from '@/sche
 import type { FiscalDeadline, IrpfProjection } from '@/types/finance';
 import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { cn, formatDate } from '@/utils/helpers';
+import { getIrpfFigures } from '@/utils/irpf';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
 
 interface IrpfProvisionCardProps {
@@ -254,7 +255,9 @@ function PensionCapNotices({ data }: { data: IrpfProjection }) {
   // the backend's business — re-deriving it here would let the card contradict the figure it
   // was given.
   const declaredCents = data.pensionIndividualCents + data.pensionEmploymentCents;
-  const individualExceedsLimit = data.pensionIndividualCents > PENSION_PLAN.GENERAL_LIMIT_CENTS;
+  // The ceiling is the one of the year being declared, not the one of the current law.
+  const { generalLimitCents } = getIrpfFigures(data.fiscalYear).pensionPlan;
+  const individualExceedsLimit = data.pensionIndividualCents > generalLimitCents;
 
   if (data.pensionReductionCents >= declaredCents) return null;
 
@@ -262,7 +265,7 @@ function PensionCapNotices({ data }: { data: IrpfProjection }) {
     individualExceedsLimit
       ? t('fiscal.irpf-projection.pension.cap-individual', {
           declared: formatCurrency(data.pensionIndividualCents),
-          applied: formatCurrency(PENSION_PLAN.GENERAL_LIMIT_CENTS),
+          applied: formatCurrency(generalLimitCents),
         })
       : null,
   ].filter((notice): notice is string => notice !== null);
@@ -456,6 +459,15 @@ export function IrpfProvisionCard({ year }: IrpfProvisionCardProps) {
         </h3>
         <span className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-guard-muted">{t('fiscal.irpf-projection.subtitle', { year })}</span>
+          {/* The figures behind every number below are the last published ones carried forward, not
+              this year's law. It qualifies the year, so it sits next to it and survives collapsing.
+              Muted like fiscal.deadlines.window-unconfirmed, and for the same reason: it is
+              provenance, not an alarm — there is nothing to do about it but wait for the BOE. */}
+          {data && !data.isScaleConfirmed && (
+            <span className="text-xs text-guard-muted whitespace-nowrap">
+              {t('fiscal.irpf-projection.scale-unconfirmed')}
+            </span>
+          )}
           {isCollapsed ? (
             <ChevronDown className="h-4 w-4 text-guard-muted" aria-hidden="true" />
           ) : (
@@ -514,9 +526,22 @@ export function IrpfProvisionCard({ year }: IrpfProvisionCardProps) {
 
               <DeadlineSchedule year={year} />
 
-              <p className="text-xs text-guard-muted border-t border-border pt-3">
-                {t('fiscal.irpf-projection.disclaimer')}
-              </p>
+              {/* Where the card already qualifies its own figures. A different caveat from the
+                  unreliable-projection warning above and independent of it: that one is about how
+                  much of the year has elapsed and closes by itself, this one is about which year's
+                  law the numbers rest on and only closes when the Ley de Presupuestos is published.
+                  Kept out of the warning box for that reason — it asks nothing of the user. */}
+              <div className="space-y-1.5 border-t border-border pt-3">
+                {!data.isScaleConfirmed && (
+                  <p className="text-xs text-guard-muted">
+                    {t('fiscal.irpf-projection.scale-unconfirmed-note', {
+                      year: data.fiscalYear,
+                      scaleYear: LAST_PUBLISHED_IRPF_YEAR,
+                    })}
+                  </p>
+                )}
+                <p className="text-xs text-guard-muted">{t('fiscal.irpf-projection.disclaimer')}</p>
+              </div>
             </div>
           </div>
         </div>

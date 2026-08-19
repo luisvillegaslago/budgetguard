@@ -53,7 +53,9 @@ src/
 │   │   │   ├── annual/route.ts        # GET annual report (Modelo 390 + 100)
 │   │   │   ├── assets/
 │   │   │   │   ├── route.ts           # GET/POST fixed assets (inmovilizado)
-│   │   │   │   └── [id]/route.ts      # GET (asset + schedule) / PUT / DELETE
+│   │   │   │   └── [id]/
+│   │   │   │       ├── route.ts       # GET (asset + schedule) / PUT / DELETE
+│   │   │   │       └── purchase-candidates/route.ts  # GET the missing purchase, offered
 │   │   │   ├── documents/
 │   │   │   │   ├── route.ts           # GET/POST fiscal documents
 │   │   │   │   ├── bulk/route.ts      # POST bulk upload
@@ -181,6 +183,7 @@ src/
 │   │   ├── Modelo100Card.tsx          # Renta economic-activities section
 │   │   ├── IrpfProvisionCard.tsx      # 20% vs progressive scale + pension form
 │   │   ├── FixedAssetsCard.tsx        # Inmovilizado + per-asset amortization schedule
+│   │   ├── UnlinkedPurchaseNotice.tsx # "deducted twice" warning + the candidates to link
 │   │   ├── FiscalUncountedIncome.tsx  # Income no model counts (safety net)
 │   │   ├── FiscalAmountRow.tsx        # Shared casilla row
 │   │   ├── FiscalDeadlinePanel.tsx    # Deadline display panel
@@ -225,7 +228,7 @@ src/
 │   ├── useSkydiveCategories.ts       # Paracaidismo subcategories query
 │   ├── useIrpfProjection.ts          # IRPF provision query
 │   ├── useFiscalProfile.ts           # Per-year fiscal profile query/mutation
-│   ├── useFixedAssets.ts             # Inmovilizado CRUD (invalidates the fiscal queries too)
+│   ├── useFixedAssets.ts             # Inmovilizado CRUD + useAssetPurchaseCandidates
 │   ├── useVouchers.ts                # Voucher CRUD + balance
 │   ├── useSkydiveVouchers.ts         # Voucher reconciliation for skydive activity
 │   ├── useCryptoSync.ts              # Sync job trigger + polling
@@ -252,7 +255,7 @@ src/
 │   │   ├── CompanyRepository.ts       # Company CRUD + role filtering
 │   │   ├── SkydiveRepository.ts       # Jump + tunnel CRUD, bulk import, stats, tx linking
 │   │   ├── FiscalProfileRepository.ts # Per-year fiscal profile (partial upsert)
-│   │   ├── FixedAssetRepository.ts    # Inmovilizado CRUD + amortization fold for the models
+│   │   ├── FixedAssetRepository.ts    # Inmovilizado CRUD, amortization fold, purchase matching
 │   │   ├── VoucherRepository.ts       # Voucher CRUD + balance view
 │   │   ├── Crypto*Repository.ts       # Raw events, positions, price cache, sync jobs, credentials
 │   │   ├── TaxableEventsRepository.ts # Normalised legs + FIFO disposals
@@ -305,7 +308,7 @@ src/
 │   ├── helpers.ts                     # Date/utility functions
 │   ├── recurring.ts                   # Occurrence date calculation
 │   ├── fiscal.ts                     # computeFiscalFields, rollVatPoolCents, gastos dificil
-│   ├── irpf.ts                       # Progressive scale, minimo personal, pension reduction
+│   ├── irpf.ts                       # Per-year scale lookup, minimo personal, pension reduction
 │   ├── amortization.ts               # Day-based dotacion + year-by-year schedule (pure)
 │   ├── fiscalDeadlines.ts            # AEAT deadline computation
 │   ├── workingDays.ts                # Working-day calendar (weekends, holidays, Semana Santa)
@@ -756,7 +759,7 @@ Multi-day, multi-category travel expenses grouped under a named trip entity.
 
 Fiscal reporting for Spanish tax obligations: Modelo 303 (IVA) and Modelo 130 (IRPF pago fraccionado) quarterly, Modelo 390 and the economic-activities section of Modelo 100 annually, plus an IRPF provision that projects the gap between the two IRPF regimes. Adds fiscal-specific fields to transactions and categories, with a dedicated repository and pure utilities for computing derived values.
 
-It also owns the **inmovilizado**: assets whose cost is spread over their useful life instead of being deducted in full in the year of purchase. Their yearly dotación is a deductible expense that no transaction can carry, because no money moves when an asset amortizes — it is the second source of deductible expense in the module, and the only one that does not come from a view row.
+It also owns the **inmovilizado**: assets whose cost is spread over their useful life instead of being deducted in full in the year of purchase. Their yearly dotación is a deductible expense that no transaction can carry, because no money moves when an asset amortizes — it is the second source of deductible expense in the module, and the only one that does not come from a view row. What holds the two halves together is the asset's `TransactionID`: without it the purchase stays a period expense while the dotación is deducted on top, so the module also **detects the asset that has none and offers the movement that is almost certainly its purchase**.
 
 It also owns the **aplazamientos**: an AEAT resolución de aplazamiento/fraccionamiento is imported as a `Deferrals` row plus one pending movement per legally distinct part of each fracción, because an instalment is three different things paid together and only the intereses de demora are deductible — and as a *financial* expense, casilla 0203. Booking the instalment whole is what this replaces. A resolution can be **cancelled**: its still-pending fracciones become `cancelled` movements, the paid ones are never rewritten, and the letter itself stays.
 
@@ -782,7 +785,16 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 │                                                               │
 │  FixedAssets (inmovilizado — a cost, not a movement)          │
 │  ├── BaseCents + InServiceDate + CoefficientPercent           │
-│  └── Modelo100CasillaCode: 0208 material | 0227 intangible    │
+│  ├── Modelo100CasillaCode: 0208 material | 0227 intangible    │
+│  └── TransactionID → the purchase. NULL = deducted twice      │
+│      getUnlinkedFixedAssets() says so, and                    │
+│      getAssetPurchaseCandidates() offers the movement         │
+│      (suggests only; the user confirms, PUT writes it)        │
+│                                                               │
+│  IRPF_YEAR_FIGURES[year]  ← what the Ley de Presupuestos sets │
+│  ├── stateScale + regionalScale + minimoPersonal + pension    │
+│  └── missing year → LAST_PUBLISHED_IRPF_YEAR, flagged         │
+│      isScaleConfirmed: false  (same shape as RENTA_WINDOWS)   │
 │                                                               │
 │  computeFiscalFields(full, vat%, irpf%, vat%?)                │
 │  ├── baseCents          ├── baseDeducibleCents (irpf%)        │
@@ -828,14 +840,14 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 **Key files:**
 - `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalAccrual` through `loadFiscalRows()`. Never reads `vw_FiscalQuarterly` directly — that view books invoice income on the collection date
 - `src/services/database/FiscalProfileRepository.ts`: Per-year fiscal profile. Partial upsert (`COALESCE` per column) so two cards can edit the same row
-- `src/services/database/FixedAssetRepository.ts`: Inmovilizado CRUD, plus `getAmortizationCentsForPeriod()` — the fold over a date range that `FiscalRepository` consumes. It takes an explicit `userId` and never calls `getUserIdOrThrow()`, like the other repository functions the fiscal models call internally
+- `src/services/database/FixedAssetRepository.ts`: Inmovilizado CRUD, plus `getAmortizationCentsForPeriod()` — the fold over a date range that `FiscalRepository` consumes. It takes an explicit `userId` and never calls `getUserIdOrThrow()`, like the other repository functions the fiscal models call internally. Also `getUnlinkedFixedAssets(year?)` and `getAssetPurchaseCandidates(assetId)` — the detection of an asset deducted twice and the search for its purchase. The second is the **only** fiscal read that goes to `vw_FiscalQuarterly` on purpose: it fills no casilla, it looks for a movement and needs that movement's own id and payment date. Neither writes: linking is `updateFixedAsset({ transactionId })`, the field update that already existed
 - `src/utils/fiscal.ts`: `computeFiscalFields()`, `rollVatPoolCents()`, `calcGastosDificilCents()` — pure
 - `src/utils/amortization.ts`: `amortizationCentsBetween()`, `computeAmortizationSchedule()` — pure, day-based, UTC. The schedule always sums to the base because each year is the difference of two capped accruals
 - `src/services/database/DeferralRepository.ts`: Resolutions + the movements they book, in one transaction. `getDeferralFracciones()` rebuilds ANEXO I from those movements (`SUM(...) FILTER`) rather than storing it twice. `getDeferralMovements()` keeps the parts apart with their status, and `cancelDeferralPendingMovements()` cancels only what is still pending — the guard lives in the UPDATE, and the `Deferrals` row is never deleted
 - `src/services/DeferralImportService.ts`: The fiscal policy of a deferral — which parts exist, what each is worth, which category and which deduction. The repository decides none of it
 - `src/services/ocr/DeferralExtractor.ts`: Reads the resolución with Claude Vision (the rendered page, not the PDF text layer) and derives the deferred period from the *Fecha de Intereses*
 - `src/utils/deferral.ts`: `verifyDeferral()`, `accruedInterestCents()`, `interestAccrualEndDate()` — pure. Checks the letter against itself; the one recomputation (art. 53 RGR) carries a tolerance derived from the printed tipo's truncation
-- `src/utils/irpf.ts`: Progressive scale, mínimo personal, pension reduction, run-rate projection — pure
+- `src/utils/irpf.ts`: Progressive scale, mínimo personal, pension reduction, run-rate projection — pure. `computeIrpfCents()`, `computeMarginalRate()` and `computePensionReductionCents()` all take the fiscal year and read `getIrpfFigures(year)`; `isIrpfScaleConfirmed(year)` says whether those figures are the year's own or last published year's, carried forward. Modelled on `rentaWindowDate()` / `isRentaWindowConfirmed()` in `fiscalDeadlines.ts`, which answered the same question first
 - `src/utils/fiscalDeadlines.ts` + `src/utils/workingDays.ts`: AEAT calendar, working-day extension, domiciliación
 - `src/schemas/fixed-asset.ts`: Asset validation, including the tabla × art. 103 LIS rate cap (`coefficientFitsGroup()`, exported so the PUT route can re-run it against the merged row)
 - `src/schemas/deferral.ts`: The arithmetic gate. Amounts in **cents**, never coerced; three refinements that check the letter against its own totals row and never recompute a split
@@ -843,7 +855,7 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 - `src/services/database/InvoiceRepository.ts`: `getCrossQuarterInvoices(year, quarter)` — the one fiscal read that does not go through `FiscalRepository`, because it is about invoices rather than about figures. Purely informational. Also `getBadDebtReport(asOfDate)`, the art. 80.Cuatro clock: a deliberately wide query where the **gate**, not the WHERE clause, decides what is in scope
 - `src/utils/badDebt.ts`: `resolveBadDebtExclusion()` (fail-closed), `computeBadDebtWindows()`, `isEstablishedInSpain()`, `addMonthsToIsoDay()` — pure, and with no clock of their own: `asOfDate` is always passed in
 - `src/utils/crossQuarterDeadlineNotes.ts`: turns cross-quarter findings into a qualifier on an existing 303/130 deadline. Pure, like `fiscalDeadlines.ts` — the caller reads the invoices and passes them in, which is what keeps it out of a query per deadline
-- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel, DeadlineCrossQuarterNote, BadDebtCard, DeferralList, DeferralCancelDialog, DeferralImportWizard (+ DeferralFraccionesTable, DeferralVerdictPanel, DeferralPartsLegend, `deferralDraft.ts`)
+- `src/components/fiscal/`: Modelo303Card, Modelo130Card, Modelo390Card, Modelo100Card, IrpfProvisionCard, FixedAssetsCard, UnlinkedPurchaseNotice, FiscalUncountedIncome, FiscalCrossQuarterInvoices, FiscalDeadlinePanel, DeadlineCrossQuarterNote, BadDebtCard, DeferralList, DeferralCancelDialog, DeferralImportWizard (+ DeferralFraccionesTable, DeferralVerdictPanel, DeferralPartsLegend, `deferralDraft.ts`)
 - `src/app/(auth)/fiscal/page.tsx`: Fiscal report page with year/quarter selector. `FixedAssetsCard` is mounted once outside both view branches and keyed by year — the dotación belongs to the year, not to the quarter or the selected view
 
 **The dotación is not a transaction, and not a run rate.** Two consequences worth keeping in mind
@@ -853,9 +865,14 @@ and falsify every balance and cash-flow chart), and `getIrpfProjection()` subtra
 roughly thirtyfold). The purchase transaction is **not** to be zeroed by hand: the IRPF models
 exclude it at read time through `getAssetTransactionIds()`, because the purchase is not a period
 expense at any percentage — and its input VAT stays deducted in full in the quarter of purchase,
-which zeroing would destroy. What nothing enforces is the *link*: an asset registered without a
-`TransactionID` excludes nothing. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del
-inmovilizado.
+which zeroing would destroy. What nothing can *enforce* is the link itself — only the user knows
+which movement bought the asset — so the module makes the gap audible instead: an asset with no
+`TransactionID` excludes nothing and is therefore deducted twice, `UnlinkedPurchaseNotice` says so
+unprompted next to the asset, and `getAssetPurchaseCandidates()` offers the movement to link. It
+suggests and never acts, because a wrong link is worse than none: a real purchase would stop being
+deducted while the impostor kept being, silently in both directions. On the live data — the Lenovo,
+transaction 3489 — every asset is linked, so the correct behaviour is complete silence. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
 
 **The cross-quarter alert warns the user, it does not adjust anything.** `crossQuarterInvoices` on
 the quarterly report lists the issued invoices whose devengo and whose cobro disagree about the
@@ -945,7 +962,8 @@ These two fields serve distinct purposes and are independent:
 | GET / PUT | `/api/fiscal/profile?year=2025` | Per-year fiscal profile (pension contributions, VAT pool opening) |
 | GET / POST | `/api/fiscal/assets?year=2026` | Fixed assets with a dotación that year / register one |
 | GET | `/api/fiscal/assets/:id` | The asset plus its full year-by-year amortization schedule |
-| PUT / DELETE | `/api/fiscal/assets/:id` | Update / delete (the purchase transaction is left untouched) |
+| PUT / DELETE | `/api/fiscal/assets/:id` | Update / delete (the purchase transaction is left untouched). `PUT { transactionId }` is also how a suggested purchase becomes a link |
+| GET | `/api/fiscal/assets/:id/purchase-candidates` | The movements that look like this asset's missing purchase. Read-only; `[]` for an asset already linked |
 | GET / POST | `/api/fiscal/deferrals?year=2026&modeloType=130` | Stored resolutions / import a confirmed one (letter + instalments, one transaction) |
 | GET | `/api/fiscal/deferrals/:id` | The resolution, its ANEXO I rebuilt from the movements, and the verdict |
 | PUT / DELETE | `/api/fiscal/deferrals/:id` | Update the header / delete it and its **still-pending** instalments |
@@ -966,6 +984,7 @@ export const QUERY_KEY = {
   // ... existing keys
   FISCAL: 'fiscal',
   FIXED_ASSETS: 'fixed-assets',
+  ASSET_PURCHASE_CANDIDATES: 'asset-purchase-candidates',  // keyed by asset id
   DEFERRALS: 'deferrals',
   BAD_DEBT_INVOICES: 'bad-debt-invoices',
 } as const;
@@ -984,6 +1003,18 @@ export const API_ENDPOINT = {
 export const AMORTIZATION_GROUP = { 1: { group: 1, coefficientPercent: 3, maxYears: 68 }, /* ... */ } as const;
 export const AMORTIZATION = { ERD_MULTIPLIER: 2 } as const;
 export const AMORTIZATION_CASILLA_OPTIONS = ['0208', '0227'] as const;
+
+// How narrow the search for an asset's missing purchase is. Every number errs towards
+// offering nothing: a wrong link is strictly worse than no candidate
+export const ASSET_PURCHASE_MATCH = {
+  DAYS_BEFORE_IN_SERVICE: 90, DAYS_AFTER_IN_SERVICE: 30,  // asymmetric: bought, THEN put into service
+  AMOUNT_TOLERANCE_PERCENT: 1, AMOUNT_TOLERANCE_MIN_CENTS: 100, MAX_CANDIDATES: 5,
+} as const;
+
+// What the Ley de Presupuestos fixes, per year. A new year gets a NEW entry: editing one
+// in place would rewrite the projections of years already filed
+export const IRPF_YEAR_FIGURES: Record<number, IrpfYearFigures> = { 2025: ..., 2026: ... };
+export const LAST_PUBLISHED_IRPF_YEAR = 2026;
 
 // The three parts of a fracción — the literals of the "Transactions"."DeferralPart" CHECK —
 // and their deductible share. Not a preference: two are non-deductible by article
