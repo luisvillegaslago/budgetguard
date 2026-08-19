@@ -983,7 +983,11 @@
     "form": {
       "section-title": "Fiscal Data",
       "vat-percent": "VAT (%)",
-      "deduction-percent": "Deduction (%)",
+      "deduction-percent": "Income tax deduction (%)",
+      "vat-deduction-percent": "Input VAT deduction (%)",
+      "vat-deduction-placeholder": "Same as income tax",
+      "vat-deduction-hint": "Left blank, the input VAT is deducted at the same rate as income tax. The utility bills of a partly affected home, for instance, deduct 30% of the affected share for income tax and 0% for VAT.",
+      "deduction-split-hint": "The same expense can be deductible at one rate for income tax and a different one for VAT, because the two follow independent rules. The utility bills of a home partly used for the activity are deductible for income tax at 30% of the affected share (art. 30.2.5.ª b LIRPF), while for VAT nothing is deductible at all: art. 95 LIVA requires exclusive use. That is why there are two boxes and not one.",
       "vendor-name": "Vendor",
       "vendor-placeholder": "e.g., Vodafone",
       "invoice-number": "Invoice No.",
@@ -991,7 +995,11 @@
     },
     "category-defaults": {
       "vat-percent": "Default VAT (%)",
-      "deduction-percent": "Default deduction (%)",
+      "deduction-percent": "Default income tax deduction (%)",
+      "vat-deduction-percent": "Default input VAT deduction (%)",
+      "vat-deduction-placeholder": "Same as income tax",
+      "vat-deduction-hint": "Left blank, expenses in this category deduct input VAT at the same rate as income tax. Set it to 0 for the utility bills of a partly affected home: 30% of the affected share for income tax, nothing for VAT.",
+      "deduction-split-hint": "Set it to 0 when the category gives no right to deduct VAT even though it is a deductible business cost for income tax: that is the case of the utility bills of a partly affected home, deductible at 30% of the affected share for income tax (art. 30.2.5.ª b LIRPF) and not deductible for VAT for lack of exclusive use (art. 95 LIVA).",
       "modelo100-casilla": "Modelo 100 casilla",
       "modelo100-none": "Not assigned"
     },
@@ -2467,6 +2475,7 @@
     "too-many-sub-items": "Too many sub-items (max 20)",
     "invalid-date": "Invalid date",
     "invalid-vat-rate": "Invalid VAT rate",
+    "invalid-vat-deduction-percent": "The input VAT deduction must be between 0 and 100. Leave it blank to apply the same rate as income tax",
     "invalid-retention-rate": "Invalid IRPF withholding rate",
     "name-required": "Name is required",
     "name-too-long": "Name is too long",

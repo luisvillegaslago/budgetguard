@@ -1045,6 +1045,9 @@ export async function updateInvoiceStatus(
           throw new Error(API_ERROR.INVOICE.BANK_FEE_CATEGORY_NOT_FOUND);
         }
 
+        // No "VatPercent", so no "VatDeductionPercent": a comisión bancaria is exempt from IVA
+        // (art. 20.Uno.18.º LIVA), so there is no input VAT for a second share to apply to. The
+        // 100% here is the IRPF one.
         await client.query(
           `INSERT INTO "Transactions"
            ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type",

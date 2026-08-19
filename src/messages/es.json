@@ -983,7 +983,11 @@
     "form": {
       "section-title": "Datos Fiscales",
       "vat-percent": "IVA (%)",
-      "deduction-percent": "Deducción (%)",
+      "deduction-percent": "Deducción en IRPF (%)",
+      "vat-deduction-percent": "Deducción del IVA soportado (%)",
+      "vat-deduction-placeholder": "Igual que IRPF",
+      "vat-deduction-hint": "En blanco se deduce el mismo porcentaje que en IRPF. Los suministros de la vivienda parcialmente afecta, por ejemplo, se deducen al 30 % de la parte afecta en IRPF y al 0 % en IVA.",
+      "deduction-split-hint": "Un mismo gasto puede deducir un porcentaje en IRPF y otro distinto en IVA, porque son dos reglas independientes. Los suministros de una vivienda parcialmente afecta a la actividad se deducen en IRPF al 30 % de la parte afecta (art. 30.2.5.ª b LIRPF), mientras que en IVA no se deduce nada: el art. 95 LIVA exige afectación exclusiva. Por eso hay dos casillas y no una.",
       "vendor-name": "Proveedor",
       "vendor-placeholder": "Ej: Vodafone",
       "invoice-number": "Nº Factura",
@@ -991,7 +995,11 @@
     },
     "category-defaults": {
       "vat-percent": "IVA por defecto (%)",
-      "deduction-percent": "Deducción por defecto (%)",
+      "deduction-percent": "Deducción en IRPF por defecto (%)",
+      "vat-deduction-percent": "Deducción del IVA soportado por defecto (%)",
+      "vat-deduction-placeholder": "Igual que IRPF",
+      "vat-deduction-hint": "En blanco, los gastos de esta categoría deducen en IVA el mismo porcentaje que en IRPF. Ponlo a 0 en los suministros de la vivienda parcialmente afecta: 30 % de la parte afecta en IRPF y nada en IVA.",
+      "deduction-split-hint": "Ponlo a 0 cuando la categoría no dé derecho a deducir IVA aunque sí a deducir gasto en IRPF: es el caso de los suministros de la vivienda parcialmente afecta, deducibles al 30 % de la parte afecta en IRPF (art. 30.2.5.ª b LIRPF) y no deducibles en IVA por falta de afectación exclusiva (art. 95 LIVA).",
       "modelo100-casilla": "Casilla Modelo 100",
       "modelo100-none": "Sin asignar"
     },
@@ -2467,6 +2475,7 @@
     "too-many-sub-items": "Demasiados subconceptos (máximo 20)",
     "invalid-date": "Fecha inválida",
     "invalid-vat-rate": "Tipo de IVA no válido",
+    "invalid-vat-deduction-percent": "La deducción del IVA soportado debe estar entre 0 y 100. Déjalo en blanco para aplicar el mismo porcentaje que en IRPF",
     "invalid-retention-rate": "Tipo de retención de IRPF no válido",
     "name-required": "El nombre es requerido",
     "name-too-long": "El nombre es muy largo",

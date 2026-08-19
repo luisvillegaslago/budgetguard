@@ -3,7 +3,7 @@
  * Database operations for recurring expense rules and occurrences (user-scoped)
  */
 
-import { API_ERROR, OCCURRENCE_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, OCCURRENCE_STATUS, TRANSACTION_TYPE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   OccurrenceStatus,
@@ -47,6 +47,8 @@ interface RecurringExpenseRow {
   OriginalAmountCents: number | null;
   VatPercent: number | null;
   DeductionPercent: number | null;
+  /** NULL means VAT_DEDUCTION_INHERITS_IRPF: the IVA share follows "DeductionPercent" */
+  VatDeductionPercent: number | null;
   VendorName: string | null;
   CompanyID: number | null;
   CreatedAt: Date;
@@ -79,6 +81,7 @@ interface OccurrenceRow {
   RE_OriginalAmountCents: number | null;
   RE_VatPercent: number | null;
   RE_DeductionPercent: number | null;
+  RE_VatDeductionPercent: number | null;
   RE_VendorName: string | null;
   RE_CompanyID: number | null;
   RE_CreatedAt: Date;
@@ -119,6 +122,7 @@ function rowToRecurringExpense(row: RecurringExpenseRow): RecurringExpense {
     originalAmountCents: row.OriginalAmountCents,
     vatPercent: row.VatPercent,
     deductionPercent: row.DeductionPercent,
+    vatDeductionPercent: row.VatDeductionPercent,
     vendorName: row.VendorName,
     companyId: row.CompanyID,
     createdAt: toISOString(row.CreatedAt),
@@ -164,6 +168,7 @@ function rowToOccurrence(row: OccurrenceRow): RecurringOccurrence {
       originalAmountCents: row.RE_OriginalAmountCents,
       vatPercent: row.RE_VatPercent,
       deductionPercent: row.RE_DeductionPercent,
+      vatDeductionPercent: row.RE_VatDeductionPercent,
       vendorName: row.RE_VendorName,
       companyId: row.RE_CompanyID,
       createdAt: toISOString(row.RE_CreatedAt),
@@ -184,7 +189,7 @@ const RECURRING_EXPENSE_SELECT = `
   re."DayOfWeek", re."DayOfMonth", re."MonthOfYear",
   re."StartDate", re."EndDate", re."IsActive",
   re."SharedDivisor", re."OriginalAmountCents",
-  re."VatPercent", re."DeductionPercent", re."VendorName",
+  re."VatPercent", re."DeductionPercent", re."VatDeductionPercent", re."VendorName",
   re."CompanyID", re."CreatedAt", re."UpdatedAt"
 `;
 
@@ -250,6 +255,8 @@ export async function createRecurringExpense(data: {
   originalAmountCents?: number | null;
   vatPercent?: number | null;
   deductionPercent?: number | null;
+  /** Omitted or null is VAT_DEDUCTION_INHERITS_IRPF — the IVA share follows deductionPercent */
+  vatDeductionPercent?: number | null;
   vendorName?: string | null;
   companyId?: number | null;
 }): Promise<RecurringExpense> {
@@ -259,8 +266,10 @@ export async function createRecurringExpense(data: {
     `INSERT INTO "RecurringExpenses" ("CategoryID", "AmountCents", "Description", "Frequency",
                                           "DayOfWeek", "DayOfMonth", "MonthOfYear",
                                           "StartDate", "EndDate", "SharedDivisor", "OriginalAmountCents",
-                                          "VatPercent", "DeductionPercent", "VendorName", "CompanyID", "UserID")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING "RecurringExpenseID"`,
+                                          "VatPercent", "DeductionPercent", "VatDeductionPercent",
+                                          "VendorName", "CompanyID", "UserID")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+         RETURNING "RecurringExpenseID"`,
     [
       data.categoryId,
       data.amountCents,
@@ -275,6 +284,7 @@ export async function createRecurringExpense(data: {
       data.originalAmountCents ?? null,
       data.vatPercent ?? null,
       data.deductionPercent ?? null,
+      data.vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
       data.vendorName ?? null,
       data.companyId ?? null,
       userId,
@@ -314,6 +324,8 @@ export async function updateRecurringExpense(
     originalAmountCents: number | null;
     vatPercent: number | null;
     deductionPercent: number | null;
+    /** null clears it back to VAT_DEDUCTION_INHERITS_IRPF; undefined leaves the stored share alone */
+    vatDeductionPercent: number | null;
     vendorName: string | null;
     companyId: number | null;
   }>,
@@ -379,6 +391,10 @@ export async function updateRecurringExpense(
   if (data.deductionPercent !== undefined) {
     updates.push(`"DeductionPercent" = $${paramIndex++}`);
     params.push(data.deductionPercent);
+  }
+  if (data.vatDeductionPercent !== undefined) {
+    updates.push(`"VatDeductionPercent" = $${paramIndex++}`);
+    params.push(data.vatDeductionPercent);
   }
   if (data.vendorName !== undefined) {
     updates.push(`"VendorName" = $${paramIndex++}`);
@@ -531,6 +547,7 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
                 re."OriginalAmountCents" AS "RE_OriginalAmountCents",
                 re."VatPercent"          AS "RE_VatPercent",
                 re."DeductionPercent"    AS "RE_DeductionPercent",
+                re."VatDeductionPercent" AS "RE_VatDeductionPercent",
                 re."VendorName"          AS "RE_VendorName",
                 re."CompanyID"           AS "RE_CompanyID",
                 re."CreatedAt"           AS "RE_CreatedAt",
@@ -606,6 +623,7 @@ export async function confirmOccurrence(
                 re."OriginalAmountCents" AS "RE_OriginalAmountCents",
                 re."VatPercent"          AS "RE_VatPercent",
                 re."DeductionPercent"    AS "RE_DeductionPercent",
+                re."VatDeductionPercent" AS "RE_VatDeductionPercent",
                 re."VendorName"          AS "RE_VendorName",
                 re."CompanyID"           AS "RE_CompanyID",
                 re."CreatedAt"           AS "RE_CreatedAt",
@@ -646,6 +664,9 @@ export async function confirmOccurrence(
     recurringExpenseId: row.RecurringExpenseID,
     vatPercent: row.RE_VatPercent ?? null,
     deductionPercent: row.RE_DeductionPercent ?? null,
+    // The rule carries both shares, so the movement it generates must too: stamping only the IRPF
+    // one would re-create the defect this column exists to fix on every single occurrence.
+    vatDeductionPercent: row.RE_VatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
     vendorName: row.RE_VendorName ?? null,
     companyId: row.RE_CompanyID ?? null,
   });

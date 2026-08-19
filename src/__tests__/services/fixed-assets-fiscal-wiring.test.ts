@@ -367,10 +367,12 @@ describe('the purchase of an asset is expense for IVA but not for IRPF', () => {
    * of an asset is deducted in full in the quarter it was bought and is never amortized, so Modelo
    * 303 must keep it.
    *
-   * The obvious shortcut — zeroing the purchase's DeductionPercent — cannot do this: that single
-   * column drives the deductible VAT as well (see computeFiscalFields), so it would erase the input
-   * VAT too. On the real Lenovo that was 150,82 € of the 158,74 € in casilla 29 of an already filed
-   * 4T 2025. Hence the exclusion by FixedAssets.TransactionID, asserted here.
+   * The obvious shortcut — zeroing the purchase's DeductionPercent — used to erase the input VAT
+   * along with it, because one column drove both shares: on the real Lenovo, 150,82 € of the
+   * 158,74 € in casilla 29 of an already filed 4T 2025. "VatDeductionPercent" has separated the two
+   * since, but the shortcut is still wrong — a purchase is not a period expense at any percentage,
+   * and zeroing rewrites a fiscal datum of a period that may already be filed. Hence the exclusion
+   * by FixedAssets.TransactionID, asserted here.
    */
   beforeEach(() => {
     accrualRows = [INCOME_Q1, EXPENSE_Q1, ASSET_PURCHASE_Q1];

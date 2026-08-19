@@ -11,9 +11,10 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { ColorPicker } from '@/components/categories/ColorPicker';
 import { IconPicker } from '@/components/categories/IconPicker';
+import { VatDeductionShareField } from '@/components/fiscal/VatDeductionShareField';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
-import { MODELO_100_CASILLA_OPTIONS, TRANSACTION_TYPE } from '@/constants/finance';
+import { MODELO_100_CASILLA_OPTIONS, TRANSACTION_TYPE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { useCreateCategory, useUpdateCategory } from '@/hooks/useCategories';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type CreateCategoryInput, CreateCategorySchema, type UpdateCategoryInput } from '@/schemas/transaction';
@@ -60,6 +61,8 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
           defaultShared: editCategory.defaultShared,
           defaultVatPercent: editCategory.defaultVatPercent,
           defaultDeductionPercent: editCategory.defaultDeductionPercent,
+          // null is VAT_DEDUCTION_INHERITS_IRPF: the field renders empty and follows the IRPF share
+          defaultVatDeductionPercent: editCategory.defaultVatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
           modelo100CasillaCode: editCategory.modelo100CasillaCode,
         }
       : {
@@ -71,6 +74,7 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
           color: null,
           defaultVatPercent: null,
           defaultDeductionPercent: null,
+          defaultVatDeductionPercent: VAT_DEDUCTION_INHERITS_IRPF,
           modelo100CasillaCode: null,
         },
   });
@@ -90,6 +94,7 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
           defaultShared: data.defaultShared,
           defaultVatPercent: data.defaultVatPercent,
           defaultDeductionPercent: data.defaultDeductionPercent,
+          defaultVatDeductionPercent: data.defaultVatDeductionPercent,
           modelo100CasillaCode: data.modelo100CasillaCode,
         };
         await updateCategory.mutateAsync({ id: editCategory.categoryId, data: updateData });
@@ -325,6 +330,19 @@ export function CategoryFormModal({ onClose, editCategory, parentCategory }: Cat
                 />
               </div>
             </div>
+          )}
+
+          {/* Default IVA deduction share — optional, and empty means "the same as the IRPF one" */}
+          {watchedType === TRANSACTION_TYPE.EXPENSE && (
+            <VatDeductionShareField
+              id="defaultVatDeductionPercent"
+              size="base"
+              label={t('fiscal.category-defaults.vat-deduction-percent')}
+              placeholder={t('fiscal.category-defaults.vat-deduction-placeholder')}
+              hint={t('fiscal.category-defaults.vat-deduction-hint')}
+              splitHint={t('fiscal.category-defaults.deduction-split-hint')}
+              registration={register('defaultVatDeductionPercent', { setValueAs: toNullableNumber })}
+            />
           )}
 
           {/* Modelo 100 Casilla (only for expense subcategories) */}

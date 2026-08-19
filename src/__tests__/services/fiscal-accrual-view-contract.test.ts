@@ -39,6 +39,36 @@ function viewDefinition(name: string): string {
   return stripComments(SCHEMA.slice(start, end));
 }
 
+/**
+ * The select list of one UNION branch, split on the commas that are not inside a function call.
+ *
+ * Depth-aware on purpose: the invoice branch opens with `EXTRACT(YEAR FROM i."InvoiceDate")`, so a
+ * naive search for the first FROM — or a naive split on every comma — would cut the list in half.
+ */
+function selectListColumns(branch: string): string[] {
+  const body = branch.slice(branch.indexOf('SELECT') + 'SELECT'.length);
+  const columns: string[] = [];
+  let depth = 0;
+  let current = '';
+
+  for (let index = 0; index < body.length; index++) {
+    if (depth === 0 && /^\s/.test(body[index] ?? '') && /^FROM\s/.test(body.slice(index + 1).trimStart())) break;
+
+    const char = body[index] ?? '';
+    if (char === '(') depth++;
+    if (char === ')') depth--;
+    if (char === ',' && depth === 0) {
+      columns.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  columns.push(current.trim());
+
+  return columns.filter((column) => column.length > 0);
+}
+
 /** Every `"Status" IN ('a', 'b')` clause, as arrays of the literals it lists. */
 function statusClauses(sql: string): string[][] {
   return [...sql.matchAll(/"Status" IN \(([^)]*)\)/g)].map((match) =>
@@ -57,6 +87,24 @@ describe('vw_FiscalAccrual contract', () => {
     clauses.forEach((statuses) => {
       expect(statuses).toEqual([...ISSUED_INVOICE_STATUSES]);
     });
+  });
+
+  /**
+   * The invoice branch is a list of positional literals: nothing names the column each 0 lands in.
+   * When "VatDeductionPercent" was added, the transaction branch grew a column and the invoice one
+   * had to grow the matching zero — the IVA deduction share of an issued invoice, which deducts
+   * nothing on either side. A branch left one short does not fail quietly: every column after the
+   * gap shifts one place, so a VAT rate would be read as a deduction share. Postgres rejects it at
+   * CREATE VIEW time, but only once somebody applies the schema to a real database.
+   */
+  it('keeps the two halves of the UNION at the same width', () => {
+    const [transactions, invoices] = view.split('UNION ALL');
+
+    const transactionColumns = selectListColumns(transactions ?? '');
+    const invoiceColumns = selectListColumns(invoices ?? '');
+
+    expect(transactionColumns).toContain('v."VatDeductionPercent"');
+    expect(invoiceColumns.length).toBe(transactionColumns.length);
   });
 
   it('never books a draft or cancelled invoice as income', () => {

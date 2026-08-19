@@ -26,6 +26,7 @@ overwrite it.
 - [Ground rules](#ground-rules)
 - [Devengo vs. caja](#devengo-vs-caja-the-single-most-important-rule)
 - [What counts as fiscal](#what-counts-as-fiscal)
+- [The two deduction shares](#the-two-deduction-shares-irpf-is-not-iva)
 - [Modelo 303 — IVA](#modelo-303--iva)
 - [IVA a compensar: the pool](#iva-a-compensar-the-pool)
 - [Créditos incobrables (art. 80.Cuatro LIVA)](#créditos-incobrables-art-80cuatro-liva)
@@ -177,12 +178,81 @@ be filed are right; what the note guards is the human step afterwards.
   (`PROFESSIONAL_INCOME_CATEGORY`). Income outside that category is surfaced as
   `FiscalReport.uncountedIncome` rather than dropped, so a miscategorised invoice is visible
   instead of silently missing from the 130 and the 100.
-- **An expense enters only once it is coded** — it carries a `VatPercent`, a `DeductionPercent` or
-  an `InvoiceNumber`. Everything else is private spending.
+- **An expense enters only once it is coded** — it carries a `VatPercent`, a `DeductionPercent`,
+  a `VatDeductionPercent` or an `InvoiceNumber`. Everything else is private spending. The IVA share
+  counts on its own: an expense whose single fiscal datum is *none of this input VAT is deductible*
+  would otherwise never reach a model (§ The two deduction shares).
 
 An earlier version inferred the income side the same way as the expense side, requiring fiscal
 coding on both. That erased every 2023 invoice — 44.954,00 €, imported without VAT data — from the
 130, the 390 and the 100 of that year. Do not make this filter symmetric.
+
+---
+
+## The two deduction shares: IRPF is not IVA
+
+A coded expense carries **two** deduction percentages, because one receipt is answering two
+different articles:
+
+| Column | Answers | On the live home-office supplies |
+|--------|---------|----------------------------------|
+| `DeductionPercent` | Art. 30.2.5.ª b LIRPF — the supplies of a dwelling partially affected to the activity are deductible at **30 % of the affected proportion** | The modelo 036 filed on **18-ago-2026** declares a **25 % affectation of 102 m²**, so 30 % × 25 % = **7,5 %** |
+| `VatDeductionPercent` | Art. 95 LIVA — exclusive affectation is required for anything that is not a bien de inversión | AEAT's position on those same supplies (consulta **V2554-23**, **TEAC 6654/2022**) is that **none** of that input VAT is deductible: **0 %** |
+
+7,5 and 0, on the same receipt, on the same day. One column could not say both, and while there was
+only one the app deducted input VAT a comprobación would disallow. That was the last open finding
+of the fiscal audit, and it also shaped a second module — see § Amortización del inmovilizado.
+
+**`DeductionPercent` did not change meaning.** It is the IRPF share, as it always was. Every
+pre-existing row, category default and test keeps working untouched; the IVA share is the new
+column, and it is the only thing that is new.
+
+### NULL means "the same share as the IRPF one" — it does not mean 0
+
+`VatDeductionPercent` is nullable on `Transactions` and `RecurringExpenses`
+(`DefaultVatDeductionPercent` on `Categories`), and **an unset value inherits the IRPF share**.
+That is exactly what the app did while there was a single percentage, which is why adding the
+column moved no figure anywhere: with no row setting it, every casilla 29 and every deductible base
+came out identical to the cent against the pre-change database. Only a row that sets it explicitly
+makes the two diverge.
+
+`VAT_DEDUCTION_INHERITS_IRPF = null` names the default in `src/constants/finance.ts`, and
+`VAT_DEDUCTION_PERCENT` names the two points art. 95 LIVA actually leaves available for a
+non-bien-de-inversión expense (`NONE: 0`, `FULL: 100`). Do not "tidy" the null into a `0`: a 0 is
+an explicit *deduct no input VAT*, and applied as a default it would strip the input VAT from every
+row written before the column existed — including quarters already filed.
+
+**The fallback is resolved once, in SQL**, by `vw_FiscalQuarterly`:
+
+```sql
+COALESCE(t."VatDeductionPercent", t."DeductionPercent", 0) AS "VatDeductionPercent"
+```
+
+The view column is therefore never NULL, and no model has to remember the rule. Resolving it in SQL
+rather than in TypeScript is deliberate: a model that read a raw NULL as a zero would erase an
+already filed casilla 29.
+
+`computeFiscalFields()` takes the VAT share as an optional **fourth** argument and falls back with
+`??` — never `||`, which would discard the explicit `0` that is the entire point of the column:
+
+```ts
+const vatShare = vatDeductionPercent ?? deductionPercent;
+const baseDeducibleCents = Math.round((baseCents * deductionPercent) / 100); // IRPF, art. 30 LIRPF
+const ivaDeducibleCents = Math.round((ivaCents * vatShare) / 100);           // IVA, art. 95 LIVA
+```
+
+The first three parameters keep their order and meaning, so a three-argument call is still correct
+— it simply means *both shares are the same*.
+
+### The rule has to travel, or it is recreated every month
+
+Internet, luz and calefacción — the expenses the two shares actually differ on — are **recurring**.
+`RecurringExpenses` therefore carries the pair as well, and `confirmOccurrence()` stamps both onto
+the movement it generates: a rule that could only carry the IRPF share would re-create the defect
+every month, on a row nobody ever re-codes by hand. `Categories.DefaultVatDeductionPercent` seeds
+the same pair into hand-entered expenses through `useFiscalDefaults()`, which deliberately does
+**not** coerce a missing default to 0 — that would write an explicit *no VAT deducted* onto every
+expense of every category.
 
 ---
 
@@ -649,13 +719,28 @@ as the dotación instead; counting the purchase as well would deduct the same la
 of an asset is deducted **in full in the quarter of purchase** and is never amortized — amortization
 is an IRPF concept, not an IVA one.
 
-This is why the exclusion happens at read time instead of by zeroing the transaction's
-`DeductionPercent`, which is the obvious shortcut and is wrong: that single column drives the
-deductible VAT as well (see `computeFiscalFields`), so zeroing it silently erases the purchase's
-input VAT from the 303 and the 390. On the real Lenovo that would have removed 150,82 € of the
-158,74 € in casilla 29 of an already filed 4T 2025 — a 95% hole in a quarter that cannot be
-rectified without cost. The audit finding that one `DeductionPercent` drives two legally distinct
-percentages is exactly what makes the shortcut unsafe.
+The exclusion happens **at read time**, and not by zeroing the transaction's `DeductionPercent`,
+which is the obvious shortcut.
+
+**The original reason is now historical.** While a single column drove both percentages, zeroing
+`DeductionPercent` also erased the purchase's *input VAT* from the 303 and the 390: on the real
+Lenovo that would have removed 150,82 € of the 158,74 € in casilla 29 of an already filed 4T 2025,
+a 95% hole in a quarter that cannot be rectified without cost. Since the two shares were split
+(§ The two deduction shares) that trap is gone — an asset could now be zeroed on the IRPF side
+while `VatDeductionPercent` kept its VAT whole.
+
+**The design does not change, because it never rested only on that.** Two reasons stand on their
+own, and both were always the better ones:
+
+- **The purchase is not a period expense at all**, at any percentage. Its cost reaches the IRPF
+  models as the dotación, spread over the asset's life. A deduction share is not a weaker version
+  of that — it is the wrong instrument. Read-time exclusion states the actual rule: *this row is
+  not an expense of this period*.
+- **Zeroing rewrites a fiscal datum of a period that may already be filed**, and it does not
+  survive the link being undone. Deleting the asset, or the `ON DELETE SET NULL` clearing
+  `TransactionID`, would leave a zeroed row with no schedule behind it — a purchase deducted
+  nowhere, on either side. The exclusion is *derived* from the link, so it disappears exactly when
+  the link does.
 
 `FixedAssets.TransactionID` is therefore load-bearing, not decorative. The FK is `ON DELETE SET NULL`
 so that re-importing or correcting the movement never destroys the schedule of a year already filed —
@@ -1058,6 +1143,8 @@ fact. **Add the new window here every year.**
 | Amounts are summed in TypeScript, not SQL | Views expose rows | Backend and frontend round differently |
 | An amortization schedule sums to the base, to the cent | Each year is the difference of two capped accruals in `amortizationCentsBetween()` | A cent of the asset is deducted twice, or never — and the last year no longer closes at zero |
 | Amortization is a calendar, never a run-rate projection | `getIrpfProjection()` subtracts it outside `projectAnnualCents()` | In January the provision projects a dotación ~30× the real one |
+| The IVA deduction share falls back to the IRPF one, never to 0 | `COALESCE(t."VatDeductionPercent", t."DeductionPercent", 0)` in `vw_FiscalQuarterly`; `??` and never `\|\|` in `computeFiscalFields()` | A NULL read as a zero strips the input VAT of every row written before the column existed — casilla 29 of every already filed quarter |
+| A place that copies one deduction share copies both | `deductionSharesOf()` feeds both to all seven `computeFiscalFields()` call sites; `confirmOccurrence()` stamps both onto the generated movement | The copy keeps the IRPF share and silently re-inherits it for IVA: a home-supply expense deducts input VAT again, in a row that looks correctly coded |
 | An asset's purchase is skipped by the IRPF models only | `getAssetTransactionIds()`, applied in Modelo 130/100 and the projection | Skipped nowhere: the asset is deducted twice. Skipped everywhere: its input VAT vanishes from an already filed 303 |
 | A dotación is never a `Transactions` row | `FixedAssets` is its own table | The purchase is double-counted and every balance, summary view and cash-flow chart is falsified |
 | With a group declared, rate ≤ tabla × 2 | `coefficientFitsGroup()`, re-run by PUT against the merged row | An over-fast rate over-deducts — the exact error this module exists to prevent |
@@ -1076,38 +1163,24 @@ fact. **Add the new window here every year.**
 
 ## Known gaps
 
-Open items from the fiscal audit, in the order they matter:
+Open items, in the order they matter. **The two findings of the original fiscal audit are closed**:
+the 036 affectation was filed on 18-ago-2026 (25 % of 102 m²), and the single deduction share that
+drove both IRPF and IVA is now two columns (§ The two deduction shares). They were blocked on each
+other and were closed together, as planned.
 
-1. **036 affectation not declared.** Deducting home-office supplies (art. 30.2.5.ª b LIRPF, 30% of
-   the affected share) requires the affectation to be declared in the censo. Until the 036 is filed
-   and the real m² share known, those deductions are exposed on inspection.
-2. **One `DeductionPercent` drives two legally different percentages.** A transaction carries a
-   single deduction share, and `computeFiscalFields()` applies it to both the IRPF base and the
-   deductible VAT. The law does not treat them as the same number:
-   - **IRPF** allows 30% of the affected proportion of a home's supplies (art. 30.2.5.ª b LIRPF).
-   - **IVA** is far stricter: art. 95 LIVA requires exclusive affectation for anything that is not
-     a bien de inversión, and AEAT's position on the supplies of a partially affected dwelling —
-     consulta V2554-23, TEAC 6654/2022 — is that none of that input VAT is deductible.
-
-   So a single figure is wrong in both directions at once. The live data has the supplies at 10%:
-   under-deducting the IRPF the article would allow, while deducting **46,31 €** of input VAT
-   across Internet, Luz and Calefacción that a comprobación would most likely disallow entirely.
-
-   The amount is small and the defect is not: no value of that one field expresses the correct
-   treatment, so this cannot be fixed by re-coding transactions. It needs two columns — or one
-   column plus a rule per casilla — and it is the reason the amortization module excludes an
-   asset's purchase at read time instead of zeroing its `DeductionPercent`
-   (§ Amortización del inmovilizado), which would have erased 150,82 € of VAT from an already
-   filed 4T 2025.
-
-   **Blocked with gap 1.** The right percentages are only knowable once the 036 declares the
-   affectation and the real m² share is known, so both should be closed in one go.
-
-3. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
+1. **The screen shows one of the two percentages.** `FiscalExpenseTable` renders
+   `deductionPercent` alone, and `FiscalTransaction` carries no VAT share to render. On a diverging
+   row — the home supplies — it now reads **7,5 %** next to an IVA deducible of **0,00 €**, with
+   nothing on screen explaining why. The figures are right; the explanation is missing. Closing it
+   means a field on `FiscalTransaction`, a column or a second badge, and new i18n keys.
+   `RecurringExpenseForm` has the same shape of gap from the other end: the rule can *carry* a VAT
+   share and `confirmOccurrence()` stamps it, but no input lets a user set one — today it only
+   arrives from the category default.
+2. **Modelo 100 casilla map covers only what has been used.** Every category that has ever carried a
    deductible expense is now assigned; the rest are personal categories left unmapped on purpose. A
    new one falls through to `C0202` and is reported in `unmappedCents`, so the gap is visible rather
    than silent.
-4. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
+3. **Amortization is recorded, but not policed.** The schedule, the tabla, the ERD doubling and the
    two Modelo 100 boxes are implemented (§ Amortización del inmovilizado). What is still manual:
    - **The link to the purchase is what prevents the double deduction.** Registering an asset
      without setting `TransactionID` leaves its purchase deductible on the IRPF side as well.
@@ -1119,7 +1192,7 @@ Open items from the fiscal audit, in the order they matter:
      stop the schedule and settle the pending value; today the dotación simply keeps accruing.
    - **No historical assets.** Only what has been registered amortises. Anything bought before this
      module existed was deducted in full in its year and is not restated.
-5. **Cross-quarter invoices: what is detected, and the one thing that cannot be.** The alert now
+4. **Cross-quarter invoices: what is detected, and the one thing that cannot be.** The alert now
    names four cases — the lost link among them — and rides the 303/130 deadline of its quarter
    instead of waiting to be visited (§ Devengo vs. caja). What remains open is deliberate, in both
    entries below. Do not "complete" either without reading the reasoning:
@@ -1141,7 +1214,7 @@ Open items from the fiscal audit, in the order they matter:
      are not**. The untested behaviour that will run on the live database every single time is
      precisely the emptiest one — the excluded list expanding itself and naming the reason when
      `tracked` is empty — so it is the one worth pinning first.
-6. **Deferrals: booked, cancellable, and deliberately not accrued day by day.** The resolution, the
+5. **Deferrals: booked, cancellable, and deliberately not accrued day by day.** The resolution, the
    three-way split, the verification and the cancellation are implemented (§ Aplazamientos y
    fraccionamientos). Four things are **decisions**, not omissions:
    - **A fracción's interés is booked whole on its vencimiento, on purpose.** AEAT liquidates the
@@ -1165,9 +1238,9 @@ Open items from the fiscal audit, in the order they matter:
      período ejecutivo and voids the calendar; AEAT then issues its own new figures. The app has no
      way to derive them, so the answer is to cancel the resolution and import what AEAT actually
      sent. The letter is a snapshot of what was granted, not a live plan.
-7. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
+6. **Madrid only.** Adding a comunidad means an entry in `IRPF_REGION` plus its bracket table in
    `IRPF_REGIONAL_SCALE`; nothing else in the code assumes a single region.
-8. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
+7. **Scales are hardcoded per year.** `IRPF_STATE_SCALE`, `IRPF_REGIONAL_SCALE`,
    `MINIMO_PERSONAL_CENTS` and `PENSION_PLAN` hold the 2025-2026 figures. They are not versioned by
    year: projecting an older year applies today's scale.
 

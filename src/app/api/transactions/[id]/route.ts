@@ -5,7 +5,7 @@
  * DELETE /api/transactions/[id] - Delete a transaction
  */
 
-import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { CreateTransactionSchema, validateRequest } from '@/schemas/transaction';
 import { unlinkTransactionDocuments } from '@/services/database/FiscalDocumentRepository';
 import {
@@ -37,8 +37,17 @@ export const PUT = withApiHandler(async (request, { params }) => {
   const validation = validateRequest(CreateTransactionSchema.partial(), body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, status, ...rest } =
-    validation.data;
+  const {
+    amount,
+    isShared,
+    vatPercent,
+    deductionPercent,
+    vatDeductionPercent,
+    vendorName,
+    invoiceNumber,
+    status,
+    ...rest
+  } = validation.data;
 
   const updateData: Parameters<typeof updateTransaction>[1] = {
     ...rest,
@@ -51,6 +60,11 @@ export const PUT = withApiHandler(async (request, { params }) => {
   // Pass fiscal fields if provided
   if (vatPercent !== undefined) updateData.vatPercent = vatPercent ?? null;
   if (deductionPercent !== undefined) updateData.deductionPercent = deductionPercent ?? null;
+  // `?? VAT_DEDUCTION_INHERITS_IRPF` is not `?? 0`: clearing the field means "follow the IRPF share",
+  // and an explicit 0 (home supplies) has to survive as a 0.
+  if (vatDeductionPercent !== undefined) {
+    updateData.vatDeductionPercent = vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF;
+  }
   if (vendorName !== undefined) updateData.vendorName = vendorName ?? null;
   if (invoiceNumber !== undefined) updateData.invoiceNumber = invoiceNumber ?? null;
 

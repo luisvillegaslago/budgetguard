@@ -113,7 +113,12 @@ CREATE TABLE "Categories" (
     "ParentCategoryID" INT NULL,
     "DefaultShared" BOOLEAN DEFAULT FALSE NOT NULL,
     "DefaultVatPercent" NUMERIC(5,2) NULL,
+    -- Default IRPF deduction share seeded into a new movement of this category.
     "DefaultDeductionPercent" NUMERIC(5,2) NULL,
+    -- Default IVA deduction share. The two are legally different numbers -- see the pair on
+    -- "Transactions" for the articles. NULL means "the same as "DefaultDeductionPercent"", so a
+    -- category that has never set it keeps seeding exactly what it has always seeded.
+    "DefaultVatDeductionPercent" NUMERIC(5,2) NULL,
     "Modelo100CasillaCode" VARCHAR(4) NULL,
     "UserID" INT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -188,7 +193,23 @@ CREATE TABLE "Transactions" (
     "TripID" INT NULL,
     "RecurringExpenseID" INT NULL,
     "VatPercent" NUMERIC(5,2) NULL,
+    -- THE IRPF DEDUCTION SHARE, and only that. The supplies of a home partially affected to the
+    -- activity are deductible at 30% of the affected proportion (art. 30.2.5.ª b LIRPF): with the
+    -- 25% affectation of 102 m² declared in the modelo 036, that is 30% × 25% = 7,5%.
     "DeductionPercent" NUMERIC(5,2) NULL,
+    -- THE IVA DEDUCTION SHARE, which the law does not let be the same number. Art. 95 LIVA
+    -- requires exclusive affectation for anything that is not a bien de inversión, and AEAT's
+    -- position on the supplies of a partially affected dwelling (consulta V2554-23, TEAC
+    -- 6654/2022) is that NONE of that input VAT is deductible: 0%, against the 7,5% the IRPF
+    -- allows on the very same receipt. One column could not say both, and while there was only
+    -- one the app deducted input VAT a comprobación would disallow.
+    --
+    -- NULL IS NOT 0. It means "the same share as "DeductionPercent"" -- precisely what the app
+    -- did before this column existed -- so every existing row keeps the figures it already
+    -- produced and no already filed modelo moves. Only a row that sets this explicitly makes the
+    -- two diverge. The fallback is resolved once, in "vw_FiscalQuarterly", so no model can forget
+    -- it.
+    "VatDeductionPercent" NUMERIC(5,2) NULL,
     "VendorName" VARCHAR(150) NULL,
     "InvoiceNumber" VARCHAR(50) NULL,
     "Status" VARCHAR(15) NOT NULL DEFAULT 'paid'
@@ -271,7 +292,12 @@ CREATE TABLE "RecurringExpenses" (
     "SharedDivisor" SMALLINT DEFAULT 1 NOT NULL,
     "OriginalAmountCents" INT NULL,
     "VatPercent" NUMERIC(5,2) NULL,
+    -- The same pair as on "Transactions", seeded into every occurrence this rule generates.
+    -- Internet, luz and calefacción -- the expenses the two shares actually differ on -- are
+    -- recurring, so a rule that could only carry the IRPF share would recreate the defect on
+    -- every generated movement. NULL on "VatDeductionPercent" means "the same as the IRPF share".
     "DeductionPercent" NUMERIC(5,2) NULL,
+    "VatDeductionPercent" NUMERIC(5,2) NULL,
     "VendorName" VARCHAR(150) NULL,
     "CompanyID" INT NULL,
     "UserID" INT NULL,
@@ -505,7 +531,15 @@ SELECT
     t."Description",
     COALESCE(t."OriginalAmountCents", t."AmountCents") AS "FullAmountCents",
     COALESCE(t."VatPercent", 0) AS "VatPercent",
-    COALESCE(t."DeductionPercent", 0) AS "DeductionPercent"
+    -- The IRPF deduction share (art. 30.2.5.ª b LIRPF).
+    COALESCE(t."DeductionPercent", 0) AS "DeductionPercent",
+    -- The IVA deduction share (art. 95 LIVA), and the ONE place the NULL fallback is resolved:
+    -- an unset "VatDeductionPercent" means "the same as the IRPF share", which is what the app
+    -- did while there was a single column. Resolving it here rather than in TypeScript is what
+    -- makes the migration provably inert -- with no row setting the column, this expression is
+    -- "DeductionPercent" for every row in the database -- and stops a model from reading a NULL
+    -- as a zero and silently erasing an already filed casilla 29.
+    COALESCE(t."VatDeductionPercent", t."DeductionPercent", 0) AS "VatDeductionPercent"
 FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -518,6 +552,9 @@ WHERE t."Status" = 'paid'
     -- An expense, on the other hand, only becomes fiscal once someone codes it: a VAT rate, a
     -- deduction share or an invoice number. Everything else is private spending.
     OR t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
+    -- A row coded only on the IVA side is coded too: without this term an expense whose single
+    -- fiscal datum is "none of this input VAT is deductible" would never reach a model at all.
+    OR t."VatDeductionPercent" IS NOT NULL
     OR t."InvoiceNumber" IS NOT NULL);
 
 -- View: Skydiving statistics (user-scoped)
@@ -918,6 +955,8 @@ SELECT
     v."FullAmountCents",
     v."VatPercent",
     v."DeductionPercent",
+    -- Already resolved against "DeductionPercent" by "vw_FiscalQuarterly": never NULL here
+    v."VatDeductionPercent",
     -- Only issued invoices can carry an IRPF withholding (see the UNION branch below)
     0 AS "RetentionCents"
 FROM "vw_FiscalQuarterly" v
@@ -949,6 +988,10 @@ SELECT
     NULL,
     i."BaseCents" + i."VatCents",
     i."VatPercent",
+    -- "DeductionPercent" and then "VatDeductionPercent". An issued invoice is income: it deducts
+    -- nothing on either side, so both zeros are the figure and not a placeholder -- and the two
+    -- halves of the UNION keep the same column count and the same order.
+    0,
     0,
     i."RetentionCents"
 FROM "Invoices" i

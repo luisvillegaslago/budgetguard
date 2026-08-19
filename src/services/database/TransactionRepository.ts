@@ -3,7 +3,7 @@
  * Database operations for transactions (PostgreSQL, user-scoped)
  */
 
-import { TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { TRANSACTION_STATUS, TRANSACTION_TYPE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   CategoryHistorySummary,
@@ -41,6 +41,8 @@ interface TransactionRow {
   TripName: string | null;
   VatPercent: number | null;
   DeductionPercent: number | null;
+  /** NULL means VAT_DEDUCTION_INHERITS_IRPF: the IVA share follows "DeductionPercent" */
+  VatDeductionPercent: number | null;
   VendorName: string | null;
   InvoiceNumber: string | null;
   Status: TransactionStatus;
@@ -126,6 +128,7 @@ function rowToTransaction(row: TransactionRow): Transaction {
     tripName: row.TripName,
     vatPercent: row.VatPercent,
     deductionPercent: row.DeductionPercent,
+    vatDeductionPercent: row.VatDeductionPercent,
     vendorName: row.VendorName,
     invoiceNumber: row.InvoiceNumber,
     companyId: row.CompanyID,
@@ -157,7 +160,7 @@ export async function getTransactionsByMonth(
       t."Type", t."SharedDivisor", t."OriginalAmountCents",
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
-      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."VoucherID", t."VoucherUnits",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
@@ -217,7 +220,7 @@ export async function getTransactionById(transactionId: number): Promise<Transac
       t."Type", t."SharedDivisor", t."OriginalAmountCents",
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
-      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."VoucherID", t."VoucherUnits",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
@@ -250,7 +253,7 @@ export async function getTransactionsByVoucherId(voucherId: number): Promise<Tra
       t."Type", t."SharedDivisor", t."OriginalAmountCents",
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
-      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."VoucherID", t."VoucherUnits",
       (SELECT fd."DocumentID" FROM "FiscalDocuments" fd WHERE fd."TransactionID" = t."TransactionID" LIMIT 1) AS "FiscalDocumentID",
       t."CreatedAt", t."UpdatedAt"
@@ -284,6 +287,8 @@ export async function createTransaction(data: {
   tripId?: number | null;
   vatPercent?: number | null;
   deductionPercent?: number | null;
+  /** Omitted or null is VAT_DEDUCTION_INHERITS_IRPF — the IVA share follows deductionPercent */
+  vatDeductionPercent?: number | null;
   vendorName?: string | null;
   invoiceNumber?: string | null;
   companyId?: number | null;
@@ -299,10 +304,10 @@ export async function createTransaction(data: {
       "CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
       "SharedDivisor", "OriginalAmountCents", "RecurringExpenseID",
       "TransactionGroupID", "TripID", "VatPercent", "DeductionPercent",
-      "VendorName", "InvoiceNumber", "CompanyID", "Status", "VoucherID",
-      "VoucherUnits", "UserID"
+      "VatDeductionPercent", "VendorName", "InvoiceNumber", "CompanyID", "Status",
+      "VoucherID", "VoucherUnits", "UserID"
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
     RETURNING "TransactionID"
   `,
     [
@@ -318,6 +323,7 @@ export async function createTransaction(data: {
       data.tripId ?? null,
       data.vatPercent ?? null,
       data.deductionPercent ?? null,
+      data.vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
       data.vendorName ?? null,
       data.invoiceNumber ?? null,
       data.companyId ?? null,
@@ -356,6 +362,8 @@ export async function updateTransaction(
     originalAmountCents: number | null;
     vatPercent: number | null;
     deductionPercent: number | null;
+    /** null clears it back to VAT_DEDUCTION_INHERITS_IRPF; undefined leaves the stored share alone */
+    vatDeductionPercent: number | null;
     vendorName: string | null;
     invoiceNumber: string | null;
     companyId: number | null;
@@ -405,6 +413,10 @@ export async function updateTransaction(
   if (data.deductionPercent !== undefined) {
     updates.push(`"DeductionPercent" = $${paramIndex++}`);
     params.push(data.deductionPercent);
+  }
+  if (data.vatDeductionPercent !== undefined) {
+    updates.push(`"VatDeductionPercent" = $${paramIndex++}`);
+    params.push(data.vatDeductionPercent);
   }
   if (data.vendorName !== undefined) {
     updates.push(`"VendorName" = $${paramIndex++}`);
@@ -724,7 +736,7 @@ export async function getCategoryHistoryTransactions(
       t."Type", t."SharedDivisor", t."OriginalAmountCents",
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
-      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
@@ -758,7 +770,7 @@ export async function getCompanyTransactions(companyId: number, dateFrom: Date, 
       t."Type", t."SharedDivisor", t."OriginalAmountCents",
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
-      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
@@ -912,7 +924,7 @@ export async function getTransactionsByGroupId(groupId: number): Promise<Transac
       t."Type", t."SharedDivisor", t."OriginalAmountCents",
       t."RecurringExpenseID", t."TransactionGroupID",
       t."TripID", trip."Name" AS "TripName",
-      t."VatPercent", t."DeductionPercent", t."VendorName", t."InvoiceNumber",
+      t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"

@@ -4,7 +4,7 @@
  * POST /api/recurring-expenses - Create a new recurring expense rule
  */
 
-import { END_CONDITION, SHARED_EXPENSE } from '@/constants/finance';
+import { END_CONDITION, SHARED_EXPENSE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { CreateRecurringExpenseSchema } from '@/schemas/recurring-expense';
 import { validateRequest } from '@/schemas/transaction';
 import { createRecurringExpense, getRecurringExpenses } from '@/services/database/RecurringExpenseRepository';
@@ -28,8 +28,17 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(CreateRecurringExpenseSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { amount, isShared, vatPercent, deductionPercent, vendorName, endCondition, occurrenceCount, ...rest } =
-    validation.data;
+  const {
+    amount,
+    isShared,
+    vatPercent,
+    deductionPercent,
+    vatDeductionPercent,
+    vendorName,
+    endCondition,
+    occurrenceCount,
+    ...rest
+  } = validation.data;
 
   const fullAmountCents = eurosToCents(amount);
   const sharedDivisor = isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR;
@@ -58,6 +67,7 @@ export const POST = withApiHandler(async (request) => {
     description: rest.description ?? undefined,
     vatPercent: vatPercent ?? null,
     deductionPercent: deductionPercent ?? null,
+    vatDeductionPercent: vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
     vendorName: vendorName ?? null,
   });
 

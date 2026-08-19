@@ -48,7 +48,11 @@ interface FixedAssetsCardProps {
 /** Ties the collapse toggle to the region it controls (aria-controls) */
 const CONTENT_ID = 'fixed-assets-content';
 
-/** The whole base is amortizable: computeFiscalFields() splits by deduction, which does not apply here */
+/**
+ * The whole base is amortizable: computeFiscalFields() splits by deduction, which does not apply
+ * here. Only `baseCents` is read, and that figure depends on the VAT rate alone — neither of the
+ * two deduction shares reaches it — so the IVA share is left to its default (it follows this one).
+ */
 const FULL_DEDUCTION_PERCENT = 100;
 
 const VAT_RATE_OPTIONS = Object.values(VAT_RATE);

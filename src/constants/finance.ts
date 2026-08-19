@@ -347,6 +347,46 @@ export const VAT_RATE = {
 
 export type VatRate = (typeof VAT_RATE)[keyof typeof VAT_RATE];
 
+// ── The two deduction shares of one expense ──
+//
+// A coded expense carries TWO percentages, and they answer to two different articles:
+//
+//   "DeductionPercent"    — the IRPF share. The supplies of a home partially affected to the
+//                           activity are deductible at 30% of the affected proportion
+//                           (art. 30.2.5.ª b LIRPF): with a 25% affectation of 102 m² declared in
+//                           the modelo 036, 30% × 25% = 7,5%.
+//   "VatDeductionPercent" — the IVA share. Art. 95 LIVA requires exclusive affectation for
+//                           anything that is not a bien de inversión, and AEAT's position on the
+//                           supplies of a partially affected dwelling (consulta V2554-23, TEAC
+//                           6654/2022) is that NONE of that input VAT is deductible: 0%.
+//
+// So 7,5 and 0 on the same receipt. One field could not say both, and while there was one the app
+// deducted input VAT a comprobación would disallow — and zeroing that single field to fix it would
+// have erased 150,82 € of already filed input VAT (see docs/FISCAL_DOMAIN.md, § Amortización).
+
+/**
+ * An unset "VatDeductionPercent": the IVA share is whatever the IRPF share is.
+ *
+ * NOT 0. This is the fallback that makes the column inert on every row written before it existed,
+ * and it is the reason adding it moved no figure in any filed modelo. "vw_FiscalQuarterly"
+ * resolves it with a COALESCE onto "DeductionPercent", so nothing downstream has to remember it.
+ */
+export const VAT_DEDUCTION_INHERITS_IRPF = null;
+
+/**
+ * The two values art. 95 LIVA actually leaves available for a non-bien-de-inversión expense.
+ *
+ * A percentage in between is only meaningful for a bien de inversión (art. 95.Tres LIVA), so these
+ * are named points on the scale rather than an enum the field is validated against — the column
+ * takes any 0-100 share.
+ */
+export const VAT_DEDUCTION_PERCENT = {
+  /** No exclusive affectation, no deduction. Home-office supplies land here. */
+  NONE: 0,
+  /** Exclusively affected to the activity. */
+  FULL: 100,
+} as const;
+
 // Fiscal quarters
 export const FISCAL_QUARTER = {
   Q1: 1,
@@ -1525,6 +1565,8 @@ export const VALIDATION_KEY = {
   TOO_MANY_SUB_ITEMS: 'validation.too-many-sub-items',
   INVALID_DATE: 'validation.invalid-date',
   INVALID_VAT_RATE: 'validation.invalid-vat-rate',
+  /** Out of range on the IVA share. The message also states that blank is VAT_DEDUCTION_INHERITS_IRPF */
+  INVALID_VAT_DEDUCTION_PERCENT: 'validation.invalid-vat-deduction-percent',
   INVALID_RETENTION_RATE: 'validation.invalid-retention-rate',
   NAME_REQUIRED: 'validation.name-required',
   NAME_TOO_LONG: 'validation.name-too-long',

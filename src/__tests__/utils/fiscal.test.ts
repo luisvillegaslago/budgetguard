@@ -160,6 +160,80 @@ describe('computeFiscalFields', () => {
 });
 
 // ---------------------------------------------------------------------------
+// computeFiscalFields — the IVA deduction share (art. 95 LIVA)
+// ---------------------------------------------------------------------------
+
+/**
+ * The IRPF share and the IVA share answer to two different articles and are not the same number:
+ * the supplies of a home partially affected to the activity deduct 30% of the affected proportion
+ * on the IRPF side (art. 30.2.5.ª b LIRPF) and *none* of the input VAT on the IVA side (art. 95
+ * LIVA; V2554-23, TEAC 6654/2022).
+ *
+ * The fallback is the safety of the whole split: an absent or null VAT share means "the same as
+ * the IRPF one", which is exactly what this function did while it took a single percentage.
+ */
+describe('computeFiscalFields — the IVA deduction share', () => {
+  /** The live case: Internet at 48,40 € — base 4.000, IVA 840 — with a 7,5% affectation. */
+  const INTERNET_CENTS = 4840;
+  const SUPPLIES_IRPF_SHARE = 7.5;
+
+  it('should deduct none of the input VAT while still deducting the IRPF share', () => {
+    const result = computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, SUPPLIES_IRPF_SHARE, 0);
+
+    expect(result).toEqual<FiscalComputedFields>({
+      baseCents: 4000,
+      ivaCents: 840,
+      // 30% × 25% of the base: what art. 30.2.5.ª b LIRPF allows
+      baseDeducibleCents: 300,
+      // Nothing: art. 95 LIVA demands exclusive affectation
+      ivaDeducibleCents: 0,
+    });
+  });
+
+  it.each([
+    ['omitted', undefined],
+    ['null', null],
+  ])('should follow the IRPF share when the VAT share is %s', (_case, vatShare) => {
+    const inherited = computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, SUPPLIES_IRPF_SHARE, vatShare);
+    const singlePercentage = computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, SUPPLIES_IRPF_SHARE);
+
+    // 840 × 7,5% = 63 — the figure the app produced before the two shares were told apart
+    expect(inherited).toEqual<FiscalComputedFields>({
+      baseCents: 4000,
+      ivaCents: 840,
+      baseDeducibleCents: 300,
+      ivaDeducibleCents: 63,
+    });
+    expect(inherited).toEqual(singlePercentage);
+  });
+
+  it('should never read an explicit 0 as "unset"', () => {
+    // `??` and not `||`: a zero VAT share is the correct treatment of home supplies, not a gap
+    expect(computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, 100, 0).ivaDeducibleCents).toBe(0);
+    expect(computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, 100).ivaDeducibleCents).toBe(840);
+  });
+
+  it('should let the VAT share exceed the IRPF one', () => {
+    // Not a home supply: a fully affected expense whose IRPF share was reduced for another reason.
+    // Nothing ties the two, so the function must not clamp one against the other.
+    const result = computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, 50, 100);
+
+    expect(result.baseDeducibleCents).toBe(2000);
+    expect(result.ivaDeducibleCents).toBe(840);
+  });
+
+  it('should leave the base untouched whatever the VAT share is', () => {
+    const shares = [0, 25, 50, 100];
+
+    const bases = shares.map(
+      (share) => computeFiscalFields(INTERNET_CENTS, VAT_RATE.STANDARD, SUPPLIES_IRPF_SHARE, share).baseDeducibleCents,
+    );
+
+    expect(bases).toEqual([300, 300, 300, 300]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // calcGastosDificilCents
 // ---------------------------------------------------------------------------
 

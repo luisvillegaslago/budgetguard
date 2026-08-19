@@ -23,6 +23,27 @@ export function modelo100CasillaField() {
 }
 
 /**
+ * The IVA deduction share of an expense (art. 95 LIVA), which is not the same figure as the IRPF
+ * one (art. 30.2.5.ª b LIRPF) on the very same receipt.
+ *
+ * Optional AND nullable, and both states mean the same thing — VAT_DEDUCTION_INHERITS_IRPF: the
+ * IVA share follows the IRPF one, exactly as the app behaved before the column existed. It is
+ * never coerced to 0 here: a 0 is an explicit "deduct no input VAT", and applying it by default
+ * would strip the input VAT of every row written before the split.
+ *
+ * One helper for the six declarations (transaction, category default × 2, recurring rule × 2,
+ * fiscal-document link) so the range and its translated message cannot drift between them.
+ */
+export function vatDeductionShareField() {
+  return z
+    .number()
+    .min(0, VALIDATION_KEY.INVALID_VAT_DEDUCTION_PERCENT)
+    .max(100, VALIDATION_KEY.INVALID_VAT_DEDUCTION_PERCENT)
+    .nullable()
+    .optional();
+}
+
+/**
  * Required positive number whose i18n message also covers the "empty form field
  * coerced to NaN" case. Without required_error/invalid_type_error, an empty
  * numeric input (NaN) fails the base `z.number()` check and the UI leaks Zod's

@@ -41,26 +41,55 @@ export function isSameFiscalPeriod(a: FiscalPeriod, b: FiscalPeriod): boolean {
 }
 
 /**
- * Compute fiscal fields from a total amount (IVA-inclusive), VAT rate, and deduction percentage
+ * Compute fiscal fields from a total amount (IVA-inclusive), a VAT rate and the two deduction
+ * shares of the expense.
+ *
+ * **There are two shares because the law is two rules, not one.** The IRPF share answers art.
+ * 30.2.5.ª b LIRPF — the supplies of a home partially affected to the activity are deductible at
+ * 30% of the affected proportion, so 30% × 25% = 7,5% with the affectation declared in the modelo
+ * 036. The IVA share answers art. 95 LIVA, which demands exclusive affectation for anything that
+ * is not a bien de inversión: AEAT's position on those same supplies (consulta V2554-23, TEAC
+ * 6654/2022) is that **none** of that input VAT is deductible, i.e. 0%. One number could not say
+ * 7,5 and 0 at once, and while there was only one the app deducted VAT a comprobación would
+ * disallow.
+ *
+ * `vatDeductionPercent` is therefore a separate argument, and **omitting it or passing null means
+ * "the same share as the IRPF one"** — precisely what this function did while it took a single
+ * percentage. That fallback is what makes every pre-existing caller, every stored row and every
+ * category default behave exactly as before; "vw_FiscalQuarterly" resolves the same fallback in
+ * SQL, so a row read from the view already arrives with it applied. It is emphatically not 0: a
+ * zero default would erase input VAT from modelos that have already been filed.
+ *
+ * It is the **fourth** parameter on purpose. The first three keep their order and meaning, so no
+ * existing call site can silently swap two percentages that happen to share a type.
  *
  * @param fullAmountCents - Total invoice amount in cents (IVA included)
  * @param vatPercent - VAT percentage (e.g., 21 for 21%)
- * @param deductionPercent - Professional deduction percentage (e.g., 50 for 50%)
+ * @param deductionPercent - IRPF deduction share (e.g., 50 for 50%)
+ * @param vatDeductionPercent - IVA deduction share; null/undefined follows `deductionPercent`
  * @returns Computed fiscal breakdown: base, IVA, deductible base, deductible IVA
  *
  * @example
  * computeFiscalFields(7919, 21, 50)
  * // → { baseCents: 6545, ivaCents: 1374, baseDeducibleCents: 3273, ivaDeducibleCents: 687 }
+ *
+ * @example
+ * // Home-office supplies: 7,5% of the base for IRPF, none of the input VAT for IVA
+ * computeFiscalFields(4840, 21, 7.5, VAT_DEDUCTION_PERCENT.NONE)
+ * // → { baseCents: 4000, ivaCents: 840, baseDeducibleCents: 300, ivaDeducibleCents: 0 }
  */
 export function computeFiscalFields(
   fullAmountCents: number,
   vatPercent: number,
   deductionPercent: number,
+  vatDeductionPercent?: number | null,
 ): FiscalComputedFields {
   const baseCents = Math.round(fullAmountCents / (1 + vatPercent / 100));
   const ivaCents = fullAmountCents - baseCents;
+  // `??`, never `||`: an explicit 0 is the whole point of the column and must not fall back.
+  const vatShare = vatDeductionPercent ?? deductionPercent;
   const baseDeducibleCents = Math.round((baseCents * deductionPercent) / 100);
-  const ivaDeducibleCents = Math.round((ivaCents * deductionPercent) / 100);
+  const ivaDeducibleCents = Math.round((ivaCents * vatShare) / 100);
 
   return { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents };
 }

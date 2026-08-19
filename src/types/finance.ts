@@ -100,7 +100,15 @@ export interface Category {
   parentCategoryId: number | null;
   defaultShared: boolean;
   defaultVatPercent: number | null;
+  /** Default IRPF deduction share (art. 30.2.5.ª b LIRPF). */
   defaultDeductionPercent: number | null;
+  /**
+   * Default IVA deduction share (art. 95 LIVA), which the law does not let be the same number.
+   *
+   * Optional and nullable, and the two states mean different things: absent is "the read did not
+   * ask for this column", null is "unset — the IVA share is whatever the IRPF share is".
+   */
+  defaultVatDeductionPercent?: number | null;
   modelo100CasillaCode?: string | null;
   subcategories?: Category[];
 }
@@ -126,7 +134,22 @@ export interface Transaction {
   tripId: number | null;
   tripName: string | null;
   vatPercent: number | null;
+  /**
+   * The IRPF deduction share, and only that. The supplies of a home partially affected to the
+   * activity are deductible at 30% of the affected proportion (art. 30.2.5.ª b LIRPF).
+   */
   deductionPercent: number | null;
+  /**
+   * The IVA deduction share. Art. 95 LIVA requires exclusive affectation for anything that is not
+   * a bien de inversión, and AEAT holds that none of the input VAT on the supplies of a partially
+   * affected dwelling is deductible (V2554-23, TEAC 6654/2022) — 0%, on the same receipt the IRPF
+   * deducts a share of.
+   *
+   * Optional, like `deferralId`: an absent field means the read did not select the column, while
+   * an explicit null means unset, and unset is `VAT_DEDUCTION_INHERITS_IRPF` — the IVA share
+   * follows `deductionPercent`, which is what the app did before the column existed.
+   */
+  vatDeductionPercent?: number | null;
   vendorName: string | null;
   invoiceNumber: string | null;
   companyId: number | null;
@@ -193,6 +216,8 @@ export interface RecurringExpense {
   originalAmountCents: number | null;
   vatPercent: number | null;
   deductionPercent: number | null;
+  /** The IVA deduction share of every occurrence this rule generates. Null: follows the IRPF one. */
+  vatDeductionPercent?: number | null;
   vendorName: string | null;
   companyId: number | null;
   createdAt: string;
@@ -215,6 +240,7 @@ export interface RecurringExpenseInput {
   isShared?: boolean;
   vatPercent?: number | null;
   deductionPercent?: number | null;
+  vatDeductionPercent?: number | null;
   vendorName?: string | null;
   companyId?: number | null;
 }

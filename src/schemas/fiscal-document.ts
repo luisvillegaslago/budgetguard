@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { VALIDATION_KEY } from '@/constants/finance';
+import { vatDeductionShareField } from '@/schemas/shared';
 import { eurosToCents } from '@/utils/money';
 
 /**
@@ -186,6 +187,8 @@ export const LinkTransactionSchema = z.object({
   description: z.string().nullable().optional(),
   vatPercent: z.number().nullable().optional(),
   deductionPercent: z.number().nullable().optional(),
+  /** Null (or absent) is VAT_DEDUCTION_INHERITS_IRPF: the IVA share follows deductionPercent */
+  vatDeductionPercent: vatDeductionShareField(),
   vendorName: z.string().nullable().optional(),
   invoiceNumber: z.string().nullable().optional(),
   companyId: z.number().int().positive().nullable().optional(),

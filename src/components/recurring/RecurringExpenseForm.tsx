@@ -10,12 +10,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CalendarCheck, ChevronDown, ChevronUp, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Resolver, useForm, useWatch } from 'react-hook-form';
+import { VatDeductionShareField } from '@/components/fiscal/VatDeductionShareField';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import type { EndCondition } from '@/constants/finance';
-import { END_CONDITION, RECURRING_FREQUENCY, SHARED_EXPENSE, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  END_CONDITION,
+  RECURRING_FREQUENCY,
+  SHARED_EXPENSE,
+  TRANSACTION_TYPE,
+  VAT_DEDUCTION_INHERITS_IRPF,
+} from '@/constants/finance';
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateRecurringExpense, useUpdateRecurringExpense } from '@/hooks/useRecurringExpenses';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -40,6 +47,7 @@ interface RecurringExpenseFormValues {
   isShared: boolean;
   vatPercent: number | null;
   deductionPercent: number | null;
+  vatDeductionPercent: number | null;
   vendorName: string | null;
   companyId: number | null;
 }
@@ -82,7 +90,9 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
     DEFAULT_OCCURRENCE_COUNT[expense?.frequency ?? RECURRING_FREQUENCY.MONTHLY],
   );
   const [showFiscal, setShowFiscal] = useState(
-    () => isEditing && (expense.vatPercent !== null || expense.deductionPercent !== null),
+    () =>
+      isEditing &&
+      (expense.vatPercent !== null || expense.deductionPercent !== null || expense.vatDeductionPercent != null),
   );
   const fiscalDirtyRef = useRef(isEditing);
 
@@ -109,6 +119,8 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
       isShared: expense ? expense.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR : false,
       vatPercent: expense?.vatPercent ?? null,
       deductionPercent: expense?.deductionPercent ?? null,
+      // null is VAT_DEDUCTION_INHERITS_IRPF: the field renders empty and follows the IRPF share
+      vatDeductionPercent: expense?.vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
       vendorName: expense?.vendorName ?? null,
       companyId: expense?.companyId ?? null,
     },
@@ -127,6 +139,9 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
     if (fiscalDefaults && !fiscalDirtyRef.current) {
       setValue('vatPercent', fiscalDefaults.vatPercent);
       setValue('deductionPercent', fiscalDefaults.deductionPercent);
+      // Both shares travel together: a rule that took only the IRPF one would re-create the defect
+      // on every occurrence it generates, on a row nobody ever re-codes by hand
+      setValue('vatDeductionPercent', fiscalDefaults.vatDeductionPercent);
       setShowFiscal(true);
     } else if (!fiscalDefaults && !fiscalDirtyRef.current) {
       setShowFiscal(false);
@@ -503,6 +518,19 @@ export function RecurringExpenseForm({ onClose, expense }: RecurringExpenseFormP
                     />
                   </div>
                 </div>
+
+                {/* IVA deduction share — optional, and empty means "the same as the IRPF one above" */}
+                <VatDeductionShareField
+                  id="re-vatDeductionPercent"
+                  label={t('fiscal.form.vat-deduction-percent')}
+                  placeholder={t('fiscal.form.vat-deduction-placeholder')}
+                  hint={t('fiscal.form.vat-deduction-hint')}
+                  splitHint={t('fiscal.form.deduction-split-hint')}
+                  registration={register('vatDeductionPercent', { setValueAs: toNullableNumber })}
+                  onValueChange={() => {
+                    fiscalDirtyRef.current = true;
+                  }}
+                />
 
                 {/* Company/Vendor */}
                 <div>

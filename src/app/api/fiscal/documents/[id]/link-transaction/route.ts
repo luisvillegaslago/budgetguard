@@ -5,7 +5,7 @@
  */
 
 import type { TransactionType } from '@/constants/finance';
-import { API_ERROR, SHARED_EXPENSE } from '@/constants/finance';
+import { API_ERROR, SHARED_EXPENSE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { LinkTransactionSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
@@ -48,6 +48,7 @@ export const POST = withApiHandler(async (request, { params }) => {
     originalAmountCents: isShared ? data.amountCents : null,
     vatPercent: data.vatPercent ?? null,
     deductionPercent: data.deductionPercent ?? null,
+    vatDeductionPercent: data.vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
     vendorName: data.vendorName ?? null,
     invoiceNumber: data.invoiceNumber ?? null,
     companyId: data.companyId ?? null,

@@ -29,6 +29,8 @@ Covers the overall system design:
 - Data flow from UI → Zustand → TanStack Query → API → Database
 - State management strategy (Zustand for UI, TanStack Query for server)
 - Money handling patterns (cents vs euros)
+- Two databases (Neon primary → local backup), what the backup copies, and why a `UserID`
+  does not mean the same row on both
 - Provider stack configuration
 - i18n system (standard and static translations)
 - Error handling strategy
@@ -42,6 +44,8 @@ Covers the overall system design:
 The domain knowledge behind the fiscal module — required reading before changing it:
 - Devengo vs. caja, and why `vw_FiscalAccrual` is the only view a tax model may read
 - What counts as fiscal, and why income and expenses are filtered asymmetrically
+- The two deduction shares: IRPF (art. 30.2.5.ª b LIRPF) and IVA (art. 95 LIVA) are different
+  numbers on the same receipt, and an unset IVA share means *the same as the IRPF one*, never 0
 - Modelo 303/130/390/100 casilla by casilla, with the rules that govern each
 - The IVA a compensar pool, its 4-year expiry and the refund window
 - Amortization: the 300 € threshold, the tabla simplificada, the ×2 of art. 103 LIS, and why an

@@ -404,7 +404,8 @@ database/
 │  Tables:                                                     │
 │  - Categories (hierarchical via ParentCategoryID)            │
 │  - Transactions (SharedDivisor, OriginalAmountCents, TripID, │
-│                  VatPercent, DeductionPercent, VendorName)    │
+│                  VatPercent, DeductionPercent,               │
+│                  VatDeductionPercent, VendorName)            │
 │  - TransactionGroups (identity anchor)                       │
 │  - Trips (multi-day travel expense tracking)                 │
 │  - RecurringExpenses (rules with frequency scheduling)       │
@@ -769,7 +770,9 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 │                                                               │
 │  Category (defaults)              Transaction (per-record)    │
 │  ├── DefaultVatPercent            ├── VatPercent              │
-│  └── DefaultDeductionPercent      ├── DeductionPercent        │
+│  ├── DefaultDeductionPercent      ├── DeductionPercent  (IRPF)│
+│  └── DefaultVatDeductionPercent   ├── VatDeductionPercent     │
+│      (null = same as IRPF)        │ (IVA; null = same as IRPF)│
 │                                   ├── VendorName              │
 │                                   └── InvoiceNumber           │
 │                                                               │
@@ -781,9 +784,9 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 │  ├── BaseCents + InServiceDate + CoefficientPercent           │
 │  └── Modelo100CasillaCode: 0208 material | 0227 intangible    │
 │                                                               │
-│  computeFiscalFields(full, vat%, deduction%)                  │
-│  ├── baseCents            ├── baseDeducibleCents              │
-│  └── ivaCents             └── ivaDeducibleCents               │
+│  computeFiscalFields(full, vat%, irpf%, vat%?)                │
+│  ├── baseCents          ├── baseDeducibleCents (irpf%)        │
+│  └── ivaCents           └── ivaDeducibleCents  (vat% ?? irpf%)│
 │                                                               │
 │  amortizationCentsBetween(asset, from, to)  ← pure, by days   │
 │  └── computeAmortizationSchedule(asset)  Σ cents === base     │
@@ -847,8 +850,12 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 before touching this: it is never written to `Transactions` (that would deduct the purchase twice
 and falsify every balance and cash-flow chart), and `getIrpfProjection()` subtracts it *outside*
 `projectAnnualCents()` (extrapolating a calendar figure in January would inflate December's
-roughly thirtyfold). The purchase transaction must be set to `DeductionPercent = 0` by hand;
-nothing enforces it. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
+roughly thirtyfold). The purchase transaction is **not** to be zeroed by hand: the IRPF models
+exclude it at read time through `getAssetTransactionIds()`, because the purchase is not a period
+expense at any percentage — and its input VAT stays deducted in full in the quarter of purchase,
+which zeroing would destroy. What nothing enforces is the *link*: an asset registered without a
+`TransactionID` excludes nothing. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del
+inmovilizado.
 
 **The cross-quarter alert warns the user, it does not adjust anything.** `crossQuarterInvoices` on
 the quarterly report lists the issued invoices whose devengo and whose cobro disagree about the
@@ -918,8 +925,14 @@ approved here is a *list*.
 **SharedDivisor vs DeductionPercent:**
 These two fields serve distinct purposes and are independent:
 - `SharedDivisor` splits a transaction amount between people (e.g., couple splitting a bill). It affects `AmountCents` -- the stored amount is already halved.
-- `DeductionPercent` indicates what percentage of the transaction is tax-deductible. It does NOT affect `AmountCents` -- it is used only for fiscal report calculations.
-- Both can apply simultaneously: a shared expense can also be partially deductible. The deduction is calculated on the effective `AmountCents` (already halved), not the original amount.
+- `DeductionPercent` indicates what percentage of the transaction is deductible **in IRPF**. It does NOT affect `AmountCents` -- it is used only for fiscal report calculations.
+- `VatDeductionPercent` is the same idea for **input VAT**, and it is a different legal question (art. 95 LIVA vs. art. 30.2.5.ª b LIRPF). `NULL` means *the same share as `DeductionPercent`*, never 0. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The two deduction shares.
+- Both can apply simultaneously, and the fiscal side uses the **full** amount, not the halved one:
+  `vw_FiscalQuarterly` exposes `COALESCE(t."OriginalAmountCents", t."AmountCents") AS "FullAmountCents"`,
+  so a deduction percentage falls on the whole invoice. That is deliberate — the deductible expense is the
+  one the invoice documents and the taxpayer bears, and splitting a household bill with a partner is a
+  budgeting convention, not a fiscal fact. This paragraph used to claim the opposite, and the claim cost
+  two wrong figures in a real analysis before anyone noticed the code disagreed with it.
 
 **API:**
 
@@ -1528,6 +1541,33 @@ DROP TABLE IF EXISTS "Transactions";
 DROP TABLE IF EXISTS "Categories";
 -- Then CREATE all objects...
 ```
+
+### Two databases, two user IDs
+
+There are two PostgreSQL databases: **Neon** (primary — what the deployed app reads and writes) and
+a **local backup**. `SyncService` copies the first into the second: `executeBackup()` is
+**Primary → Backup only**, never the reverse, table by table in FK order, using the column lists
+declared in `SYNCABLE_TABLES`.
+
+**A column that is not in `SYNCABLE_TABLES` is not backed up.** Those lists name every column
+explicitly, so a newly added one is silently dropped from every backup until it is declared there —
+and a NOT NULL or CHECK column breaks the sync outright (`InvoiceLineItems.Title` did exactly that).
+`sync-config-columns.test.ts` parses `database/schema.sql` and fails on any persisted column of a
+syncable table the config does not declare; a deliberate omission goes in `INTENTIONALLY_EXCLUDED`
+with its reason.
+
+**`"Users"` is deliberately not in that list.** Each database therefore assigns its own user ids,
+and they do not match: the main user is **`UserID` 2 on Neon** and **`UserID` 1 on the local
+backup**. The backup copes with this on its own — `buildUserIdRemap()` pairs the two `"Users"`
+tables **by email** and rewrites each row's `UserID` on the way across — so the copy is correct and
+the divergence never surfaces from inside the app.
+
+It surfaces the moment a person writes SQL by hand. **Maintenance SQL must scope by primary key,
+never by `UserID`.** Every other table is synced with its primary keys intact, so a `CategoryID` or
+a `TransactionID` means the same row on both databases; a `UserID` does not. A script verified on
+the local copy with `WHERE "UserID" = 1` will match nothing on Neon — or, worse, another user's
+rows — and will look like it ran fine either way. Filter by the ids the two databases agree on, and
+`SELECT` the rows before updating them.
 
 ---
 

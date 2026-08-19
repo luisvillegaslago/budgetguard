@@ -4,7 +4,7 @@
  * POST /api/transactions - Create a new transaction
  */
 
-import { SHARED_EXPENSE } from '@/constants/finance';
+import { SHARED_EXPENSE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { CreateTransactionSchema, TransactionFiltersSchema, validateRequest } from '@/schemas/transaction';
 import { createTransaction, getTransactionsByMonth } from '@/services/database/TransactionRepository';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
@@ -39,8 +39,17 @@ export const POST = withApiHandler(async (request) => {
   const validation = validateRequest(CreateTransactionSchema, body);
   if (!validation.success) return validationError(validation.errors);
 
-  const { amount, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber, status, ...rest } =
-    validation.data;
+  const {
+    amount,
+    isShared,
+    vatPercent,
+    deductionPercent,
+    vatDeductionPercent,
+    vendorName,
+    invoiceNumber,
+    status,
+    ...rest
+  } = validation.data;
 
   // Convert euros to cents for storage
   const fullAmountCents = eurosToCents(amount);
@@ -57,6 +66,7 @@ export const POST = withApiHandler(async (request) => {
     description: rest.description ?? undefined,
     vatPercent: vatPercent ?? null,
     deductionPercent: deductionPercent ?? null,
+    vatDeductionPercent: vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
     vendorName: vendorName ?? null,
     invoiceNumber: invoiceNumber ?? null,
     status,

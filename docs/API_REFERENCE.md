@@ -210,7 +210,8 @@ Create a new category. Supports subcategories via `parentCategoryId`.
 | `parentCategoryId` | number \| null | No | `null` | Parent category ID (creates a subcategory) |
 | `defaultShared` | boolean | No | `false` | Whether transactions in this category default to shared |
 | `defaultVatPercent` | number \| null | No | `null` | Default VAT percentage for transactions in this category (0-100). Used by fiscal module |
-| `defaultDeductionPercent` | number \| null | No | `null` | Default tax deduction percentage for transactions in this category (0-100). Used by fiscal module |
+| `defaultDeductionPercent` | number \| null | No | `null` | Default **IRPF** deduction percentage for transactions in this category (0-100). Used by fiscal module |
+| `defaultVatDeductionPercent` | number \| null | No | `null` | Default **IVA** deduction percentage (0-100). `null` does **not** mean 0 — it means *the same share as `defaultDeductionPercent`*. Send `0` only where art. 95 LIVA denies the input VAT that art. 30.2.5.ª b LIRPF allows on the IRPF side. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The two deduction shares |
 
 **Example Request:**
 ```json
@@ -266,7 +267,8 @@ Update an existing category. All fields are optional. Note: `type` and `parentCa
 | `isActive` | boolean | No | Activate/deactivate the category |
 | `defaultShared` | boolean | No | Default shared status |
 | `defaultVatPercent` | number \| null | No | Default VAT percentage (0-100) |
-| `defaultDeductionPercent` | number \| null | No | Default tax deduction percentage (0-100) |
+| `defaultDeductionPercent` | number \| null | No | Default **IRPF** deduction percentage (0-100) |
+| `defaultVatDeductionPercent` | number \| null | No | Default **IVA** deduction percentage (0-100); `null` = the same share as `defaultDeductionPercent` |
 
 **Example Request:**
 ```json
@@ -436,7 +438,8 @@ Create a new transaction.
 | `type` | `income` \| `expense` | Yes | - | Transaction type |
 | `isShared` | boolean | No | `false` | If true, amount is halved (ceil) for storage |
 | `vatPercent` | number \| null | No | `null` | VAT percentage applied to this transaction (0-100). Used by fiscal module |
-| `deductionPercent` | number \| null | No | `null` | Tax deduction percentage for this transaction (0-100). Used by fiscal module |
+| `deductionPercent` | number \| null | No | `null` | **IRPF** deduction percentage for this transaction (0-100). Used by fiscal module |
+| `vatDeductionPercent` | number \| null | No | `null` | **IVA** deduction percentage (0-100). `null` = the same share as `deductionPercent`, **never 0**. The two only diverge where the law diverges — home-office supplies are 7,5 % for IRPF and 0 % for IVA |
 | `vendorName` | string \| null | No | `null` | Vendor/supplier name for fiscal tracking (max 255 chars) |
 | `invoiceNumber` | string \| null | No | `null` | Invoice or receipt reference number (max 100 chars) |
 | `status` | `paid` \| `pending` \| `cancelled` | No | `paid` | Payment status. Use `pending` for future expenses not yet paid |
@@ -573,7 +576,8 @@ Update an existing transaction. All fields are optional. Shared expense logic is
 | `type` | `income` \| `expense` | No | Transaction type |
 | `isShared` | boolean | No | Shared flag (recalculates amount) |
 | `vatPercent` | number \| null | No | VAT percentage (0-100) |
-| `deductionPercent` | number \| null | No | Tax deduction percentage (0-100) |
+| `deductionPercent` | number \| null | No | **IRPF** deduction percentage (0-100) |
+| `vatDeductionPercent` | number \| null | No | **IVA** deduction percentage (0-100). Omit it to leave the stored share alone; send `null` to go back to inheriting the IRPF one, `0` to deduct no input VAT |
 | `vendorName` | string \| null | No | Vendor/supplier name |
 | `invoiceNumber` | string \| null | No | Invoice or receipt reference |
 | `status` | `paid` \| `pending` \| `cancelled` | No | Payment status |
@@ -963,6 +967,13 @@ Create a new recurring expense rule. Conditional validation applies based on fre
 | `startDate` | string | Yes | - | Start date in ISO format |
 | `endDate` | string \| null | No | `null` | End date in ISO format (null = indefinite) |
 | `isShared` | boolean | No | `false` | If true, amount is halved |
+| `vatPercent` | number \| null | No | `null` | VAT rate stamped onto every occurrence this rule generates (0-100) |
+| `deductionPercent` | number \| null | No | `null` | **IRPF** deduction share stamped onto every occurrence (0-100) |
+| `vatDeductionPercent` | number \| null | No | `null` | **IVA** deduction share stamped onto every occurrence (0-100); `null` = the same share as `deductionPercent` |
+
+The last three matter more here than anywhere else: the expenses whose two shares actually diverge
+— internet, luz, calefacción — are recurring, so a rule that could only carry the IRPF share would
+re-create the defect on every occurrence, on a row nobody ever re-codes by hand.
 
 **Frequency Validation Rules:**
 
@@ -1037,6 +1048,9 @@ Update an existing recurring expense rule. All fields are optional.
 | `endDate` | string \| null | No | End date |
 | `isShared` | boolean | No | Shared flag (recalculates amount when `amount` also provided) |
 | `isActive` | boolean | No | Activate/deactivate the rule |
+| `vatPercent` | number \| null | No | VAT rate for generated occurrences (0-100) |
+| `deductionPercent` | number \| null | No | **IRPF** deduction share for generated occurrences (0-100) |
+| `vatDeductionPercent` | number \| null | No | **IVA** deduction share (0-100); `null` = the same share as `deductionPercent` |
 
 **Example Request:**
 ```json
@@ -1193,7 +1207,7 @@ Confirm a pending occurrence, creating a real transaction. Optionally override t
 }
 ```
 
-**Behavior:** Creates a transaction with the recurring expense's category, description, shared settings, and links it via `recurringExpenseId`. The occurrence status is updated to `confirmed` with the created transaction's ID.
+**Behavior:** Creates a transaction with the recurring expense's category, description, shared settings **and its fiscal coding** — `vatPercent`, `deductionPercent` and `vatDeductionPercent` are all stamped onto the generated movement — and links it via `recurringExpenseId`. The occurrence status is updated to `confirmed` with the created transaction's ID.
 
 **Errors:**
 - `500` if occurrence not found or not in `pending` status
@@ -1576,7 +1590,7 @@ GET /api/trips/categories
 
 ### Fiscal
 
-Fiscal reports provide quarterly tax data for Spanish tax models (Modelo 303 for VAT and Modelo 130 for income tax). The endpoint aggregates transaction-level fiscal fields (`vatPercent`, `deductionPercent`, `vendorName`, `invoiceNumber`) into quarterly summaries.
+Fiscal reports provide quarterly tax data for Spanish tax models (Modelo 303 for VAT and Modelo 130 for income tax). The endpoint aggregates transaction-level fiscal fields (`vatPercent`, `deductionPercent`, `vatDeductionPercent`, `vendorName`, `invoiceNumber`) into quarterly summaries.
 
 #### `GET /api/fiscal`
 
@@ -2752,7 +2766,8 @@ Atomically create a transaction and link it to the document. Used after OCR extr
 | `type` | `income` \| `expense` | Yes | Transaction type |
 | `description` | string | No | Transaction description |
 | `vatPercent` | number | No | VAT percentage (e.g., 21) |
-| `deductionPercent` | number | No | Deduction percentage for fiscal reporting |
+| `deductionPercent` | number | No | **IRPF** deduction percentage |
+| `vatDeductionPercent` | number \| null | No | **IVA** deduction percentage (0-100); `null` or absent = the same share as `deductionPercent` |
 | `vendorName` | string | No | Vendor name |
 | `invoiceNumber` | string | No | Invoice number |
 | `companyId` | number | No | Company ID |
@@ -3098,9 +3113,16 @@ returns `400` with `{ "coefficientPercent": ["validation.invalid-amortization-co
 A rate that does not come from the tabla (libertad de amortización, art. 102 LIS) is recorded with
 `amortizationGroup: null` and is not capped.
 
-**Registering an asset does not touch its transaction.** The purchase keeps its `Transactions` row —
-the money did leave the account — but its `DeductionPercent` must be set to `0` separately, or the
-cost is deducted twice: once as a purchase, once as the dotación.
+**Registering an asset does not touch its transaction, and its `DeductionPercent` must not be zeroed
+by hand.** The purchase keeps its `Transactions` row — the money did leave the account — and the
+double deduction is prevented at *read* time instead: `getAssetTransactionIds()` makes Modelo 130,
+Modelo 100 and the IRPF projection skip the purchase, whose cost reaches them as the dotación.
+Modelo 303 and 390 deliberately do **not** skip it — an asset's input VAT is deducted in full in the
+quarter of purchase and is never amortized.
+
+What the link is worth: an asset registered **without** `transactionId` excludes nothing, and its
+purchase stays deductible on the IRPF side as well. Nothing enforces the link. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § Amortización del inmovilizado.
 
 #### `GET /api/fiscal/assets/:id`
 
@@ -3132,8 +3154,9 @@ alone on a stored grupo 5 asset is rejected exactly as if the group had been sen
 
 #### `DELETE /api/fiscal/assets/:id`
 
-Deletes the asset. The linked purchase transaction survives untouched — including its
-`DeductionPercent`, which is the user's to restore if the asset was registered by mistake.
+Deletes the asset. The linked purchase transaction survives untouched — no deduction share of its
+own was ever rewritten — and with the schedule gone it simply becomes a deductible expense of its
+period again, which is the right answer when an asset was registered by mistake.
 
 ```json
 { "success": true, "data": { "deleted": true } }
@@ -3717,11 +3740,11 @@ All endpoints use Zod schemas for validation. Invalid requests return `400 Bad R
 
 | Schema | Purpose |
 |--------|---------|
-| `CreateTransactionSchema` | New transaction validation (amount, categoryId, date, type, isShared, vatPercent, deductionPercent, vendorName, invoiceNumber) |
+| `CreateTransactionSchema` | New transaction validation (amount, categoryId, date, type, isShared, vatPercent, deductionPercent, vatDeductionPercent, vendorName, invoiceNumber) |
 | `UpdateTransactionSchema` | Extends CreateTransactionSchema.partial() with required transactionId |
 | `TransactionFiltersSchema` | Query parameter validation (month, type, categoryId) |
-| `CreateCategorySchema` | New category (name, type, icon, color, sortOrder, parentCategoryId, defaultShared, defaultVatPercent, defaultDeductionPercent) |
-| `UpdateCategorySchema` | Partial category updates (name, icon, color, sortOrder, isActive, defaultShared, defaultVatPercent, defaultDeductionPercent). Type and parentCategoryId are immutable |
+| `CreateCategorySchema` | New category (name, type, icon, color, sortOrder, parentCategoryId, defaultShared, defaultVatPercent, defaultDeductionPercent, defaultVatDeductionPercent) |
+| `UpdateCategorySchema` | Partial category updates (name, icon, color, sortOrder, isActive, defaultShared, defaultVatPercent, defaultDeductionPercent, defaultVatDeductionPercent). Type and parentCategoryId are immutable |
 | `CreateTransactionGroupSchema` | Group creation (description, date, type, isShared, parentCategoryId, items[]) |
 | `UpdateTransactionGroupSchema` | Group updates (description, transactionDate) |
 

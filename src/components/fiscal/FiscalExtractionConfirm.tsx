@@ -13,7 +13,12 @@ import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import type { TransactionType } from '@/constants/finance';
-import { COMPANY_ROLE, LOW_CONFIDENCE_THRESHOLD, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  COMPANY_ROLE,
+  LOW_CONFIDENCE_THRESHOLD,
+  TRANSACTION_TYPE,
+  VAT_DEDUCTION_INHERITS_IRPF,
+} from '@/constants/finance';
 import { useCategories } from '@/hooks/useCategories';
 import { useCompanies, useQuickCreateCompany } from '@/hooks/useCompanies';
 import { useLinkTransaction } from '@/hooks/useFiscalDocuments';
@@ -53,6 +58,8 @@ export function FiscalExtractionConfirm({
     extractedData.vatPercent != null ? String(extractedData.vatPercent) : '',
   );
   const [deductionPercent, setDeductionPercent] = useState('100');
+  // Empty string is VAT_DEDUCTION_INHERITS_IRPF: left blank, the IVA share follows the IRPF one
+  const [vatDeductionPercent, setVatDeductionPercent] = useState('');
   const [type, setType] = useState<TransactionType>(TRANSACTION_TYPE.EXPENSE);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [isShared, setIsShared] = useState(false);
@@ -103,6 +110,11 @@ export function FiscalExtractionConfirm({
         if (found.defaultDeductionPercent != null) {
           setDeductionPercent(String(found.defaultDeductionPercent));
         }
+        // Carried alongside the IRPF one on purpose: a category that deducts a share of the expense
+        // and none of its input VAT (art. 95 LIVA) has to arrive here as both figures, not one.
+        if (found.defaultVatDeductionPercent != null) {
+          setVatDeductionPercent(String(found.defaultVatDeductionPercent));
+        }
       }
     },
     [categories, vatPercent],
@@ -134,6 +146,7 @@ export function FiscalExtractionConfirm({
         description: description || null,
         vatPercent: vatPercent ? Number(vatPercent) : null,
         deductionPercent: deductionPercent ? Number(deductionPercent) : null,
+        vatDeductionPercent: vatDeductionPercent === '' ? VAT_DEDUCTION_INHERITS_IRPF : Number(vatDeductionPercent),
         invoiceNumber: invoiceNumber || null,
         companyId: companyId ?? null,
         isShared,
@@ -329,7 +342,7 @@ export function FiscalExtractionConfirm({
               <input
                 id="ext-deduction"
                 type="number"
-                step="1"
+                step="0.01"
                 min="0"
                 max="100"
                 value={deductionPercent}
@@ -337,6 +350,25 @@ export function FiscalExtractionConfirm({
                 className={INPUT_CLASSES}
               />
             </div>
+          </div>
+
+          {/* The IVA share, which the law does not make the same number as the IRPF one */}
+          <div>
+            <label htmlFor="ext-vat-deduction" className="block text-sm font-medium text-foreground mb-1.5">
+              {t('fiscal.form.vat-deduction-percent')}
+            </label>
+            <input
+              id="ext-vat-deduction"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={vatDeductionPercent}
+              onChange={(e) => setVatDeductionPercent(e.target.value)}
+              placeholder={t('fiscal.form.vat-deduction-placeholder')}
+              className={INPUT_CLASSES}
+            />
+            <p className="mt-1 text-xs text-guard-muted">{t('fiscal.form.vat-deduction-hint')}</p>
           </div>
 
           {/* Shared toggle */}

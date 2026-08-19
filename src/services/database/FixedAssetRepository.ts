@@ -205,11 +205,18 @@ export interface AmortizationPeriodTotals {
  * The IRPF models must skip these rows: their cost is already entering through the amortization,
  * and counting the purchase as well would deduct the same asset twice.
  *
- * They are skipped at read time rather than by zeroing the transaction's DeductionPercent, because
- * that single column also drives the DEDUCTIBLE VAT (see computeFiscalFields). Zeroing it would
- * silently erase the input VAT of the purchase from Modelo 303 and Modelo 390 — and VAT on an asset
- * is deducted in full in the quarter of purchase, never amortized. On the real Lenovo that would
- * have removed 150,82 € of the 158,74 € in casilla 29 of an already filed 4T 2025.
+ * They are skipped at read time rather than by zeroing the transaction's DeductionPercent. The
+ * reason used to be that the one column drove the deductible VAT too, so zeroing it erased the
+ * purchase's input VAT from Modelo 303 and Modelo 390 — on the real Lenovo, 150,82 € of the
+ * 158,74 € in casilla 29 of an already filed 4T 2025. "VatDeductionPercent" now separates the two
+ * shares, so that particular trap is gone, but the read-time exclusion stays for what it always
+ * also was: DeductionPercent states what the law allows on that expense, and the exclusion states
+ * that its cost is arriving through the amortization instead. Rewriting the first to express the
+ * second overwrites a fiscal datum of a period that may already have been filed, and it breaks the
+ * moment the asset's link is undone.
+ *
+ * VAT on an asset is deducted in full in the quarter of purchase and is never amortized, so the
+ * 303 and the 390 must keep seeing the purchase whatever the IRPF models do with it.
  */
 export async function getAssetTransactionIds(userId: number): Promise<Set<number>> {
   const rows = await query<{ TransactionID: number }>(

@@ -65,14 +65,34 @@ interface FiscalViewRow {
   Description: string | null;
   FullAmountCents: number;
   VatPercent: number;
+  /** The IRPF deduction share (art. 30.2.5.ª b LIRPF), COALESCEd to 0 by the view. */
   DeductionPercent: number;
+  /**
+   * The IVA deduction share (art. 95 LIVA), which the law does not let be the same number: the
+   * supplies of a partially affected dwelling deduct a share of the base and none of the input VAT
+   * (V2554-23, TEAC 6654/2022).
+   *
+   * Not nullable. "vw_FiscalQuarterly" resolves the unset case with
+   * COALESCE("VatDeductionPercent", "DeductionPercent", 0), so a row arrives here with the
+   * fallback already applied — and today, with the column unset everywhere, it arrives equal to
+   * `DeductionPercent` for every row in the database.
+   */
+  VatDeductionPercent: number;
   /** IRPF withheld by the client. Non-zero only on issued-invoice rows. */
   RetentionCents: number;
   CompanyTaxId: string | null;
 }
 
+/**
+ * The two shares of a view row, in the order `computeFiscalFields()` takes them.
+ *
+ * Every call site in this file spreads this instead of listing the two percentages by hand: they
+ * are both `number`, so a transposition would compile and simply file the wrong figures.
+ */
+const deductionSharesOf = (row: FiscalViewRow): [number, number] => [row.DeductionPercent, row.VatDeductionPercent];
+
 function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
-  const computed = computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent);
+  const computed = computeFiscalFields(row.FullAmountCents, row.VatPercent, ...deductionSharesOf(row));
 
   return {
     transactionId: row.TransactionID,
@@ -94,7 +114,8 @@ function rowToFiscalTransaction(row: FiscalViewRow): FiscalTransaction {
 const FISCAL_VIEW_COLUMNS = `v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
            v."CategoryName", v."ParentCategoryName", v."TransactionDate",
            v."VendorName", v."InvoiceNumber", v."Description",
-           v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."RetentionCents",
+           v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."VatDeductionPercent",
+           v."RetentionCents",
            co."TaxId" AS "CompanyTaxId"`;
 
 const FISCAL_FROM = `FROM "vw_FiscalAccrual" v
@@ -104,7 +125,7 @@ const FISCAL_FROM = `FROM "vw_FiscalAccrual" v
 const FISCAL_VIEW_COLUMNS_SIMPLE = `"FiscalYear", "FiscalQuarter", "Type", "TransactionID", "CategoryID",
            "CategoryName", "ParentCategoryName", "TransactionDate",
            "VendorName", "InvoiceNumber", "Description",
-           "FullAmountCents", "VatPercent", "DeductionPercent", "RetentionCents"`;
+           "FullAmountCents", "VatPercent", "DeductionPercent", "VatDeductionPercent", "RetentionCents"`;
 
 function isProfessionalIncome(row: FiscalViewRow): boolean {
   return row.Type === TRANSACTION_TYPE.INCOME && row.ParentCategoryName === PROFESSIONAL_INCOME_CATEGORY;
@@ -287,7 +308,7 @@ function modelo303Totals(rows: FiscalViewRow[]): Modelo303Totals {
       const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
         row.FullAmountCents,
         row.VatPercent,
-        row.DeductionPercent,
+        ...deductionSharesOf(row),
       );
 
       const professional = isProfessionalIncome(row);
@@ -397,7 +418,7 @@ function quarterTotals(rows: FiscalViewRow[], quarter: number, assetTransactionI
         const { baseCents, baseDeducibleCents } = computeFiscalFields(
           row.FullAmountCents,
           row.VatPercent,
-          row.DeductionPercent,
+          ...deductionSharesOf(row),
         );
 
         if (isProfessionalIncome(row)) {
@@ -568,7 +589,7 @@ export async function getIrpfProjection(
   const ytdIncomeCents = rows
     .filter(isProfessionalIncome)
     .reduce(
-      (sum, row) => sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent).baseCents,
+      (sum, row) => sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, ...deductionSharesOf(row)).baseCents,
       0,
     );
   // An asset's purchase is excluded: it reaches the projection as amortization, below.
@@ -576,7 +597,7 @@ export async function getIrpfProjection(
     .filter((row) => row.Type === TRANSACTION_TYPE.EXPENSE && !assetTransactionIds.has(row.TransactionID))
     .reduce(
       (sum, row) =>
-        sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, row.DeductionPercent).baseDeducibleCents,
+        sum + computeFiscalFields(row.FullAmountCents, row.VatPercent, ...deductionSharesOf(row)).baseDeducibleCents,
       0,
     );
 
@@ -692,7 +713,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
     const { baseCents, ivaCents, baseDeducibleCents, ivaDeducibleCents } = computeFiscalFields(
       row.FullAmountCents,
       row.VatPercent,
-      row.DeductionPercent,
+      ...deductionSharesOf(row),
     );
 
     if (isProfessionalIncome(row)) {
@@ -758,7 +779,8 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
       `SELECT v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
             v."CategoryName", v."ParentCategoryName", v."TransactionDate",
             v."VendorName", v."InvoiceNumber", v."Description",
-            v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."RetentionCents",
+            v."FullAmountCents", v."VatPercent", v."DeductionPercent", v."VatDeductionPercent",
+            v."RetentionCents",
             NULL AS "CompanyTaxId", cat."Modelo100CasillaCode"
      FROM "vw_FiscalAccrual" v
      LEFT JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID"
@@ -781,15 +803,16 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
     const { baseCents, baseDeducibleCents } = computeFiscalFields(
       row.FullAmountCents,
       row.VatPercent,
-      row.DeductionPercent,
+      ...deductionSharesOf(row),
     );
 
     if (isProfessionalIncome(row)) {
       ingresosCents += baseCents;
     }
     // The purchase of an asset is not an expense of the year: it enters below as amortization.
-    // Skipped here rather than zeroed on the transaction, because DeductionPercent also drives the
-    // deductible VAT, which an asset keeps in full in the quarter it was bought.
+    // Skipped here rather than zeroed on the transaction — see getAssetTransactionIds(). Zeroing
+    // would rewrite a fiscal datum of a period that may already be filed, and it stops excluding
+    // anything the moment the asset's link is undone.
     if (assetTransactionIds.has(row.TransactionID)) return;
 
     if (row.Type === TRANSACTION_TYPE.EXPENSE && baseDeducibleCents > 0) {

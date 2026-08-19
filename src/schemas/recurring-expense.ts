@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { END_CONDITION, RECURRING_FREQUENCY, VALIDATION_KEY } from '@/constants/finance';
-import { requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
+import { requiredPositiveInt, requiredPositiveNumber, vatDeductionShareField } from '@/schemas/shared';
 
 export const RecurringFrequencySchema = z.enum([
   RECURRING_FREQUENCY.WEEKLY,
@@ -33,7 +33,10 @@ export const CreateRecurringExpenseSchema = z.object({
   occurrenceCount: z.number().int().min(1).max(520).nullable().optional().default(null),
   isShared: z.boolean().optional().default(false),
   vatPercent: z.number().min(0).max(100).nullable().optional().default(null),
+  // The IRPF share and the IVA share. Null on the second is not 0: it means the IVA share follows
+  // the IRPF one, which is what every rule written before the column existed keeps doing.
   deductionPercent: z.number().min(0).max(100).nullable().optional().default(null),
+  vatDeductionPercent: vatDeductionShareField().default(null),
   vendorName: z.string().max(150).nullable().optional().default(null),
   companyId: z.number().int().positive().nullable().optional().default(null),
 });
@@ -59,6 +62,7 @@ export const UpdateRecurringExpenseSchema = z.object({
   isActive: z.boolean().optional(),
   vatPercent: z.number().min(0).max(100).nullable().optional(),
   deductionPercent: z.number().min(0).max(100).nullable().optional(),
+  vatDeductionPercent: vatDeductionShareField(),
   vendorName: z.string().max(150).nullable().optional(),
   companyId: z.number().int().positive().nullable().optional(),
 });

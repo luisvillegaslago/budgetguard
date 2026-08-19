@@ -24,7 +24,8 @@ CREATE TABLE Categories (
     ParentCategoryID INT NULL,        -- Self-referencing FK for subcategories (NULL = parent)
     DefaultShared BIT DEFAULT 0 NOT NULL, -- Auto-toggle shared checkbox in form
     DefaultVatPercent DECIMAL(5,2) NULL,    -- Default VAT % for fiscal module (0-100)
-    DefaultDeductionPercent DECIMAL(5,2) NULL, -- Default deduction % for fiscal module (0-100)
+    DefaultDeductionPercent DECIMAL(5,2) NULL, -- Default IRPF deduction % (0-100)
+    DefaultVatDeductionPercent DECIMAL(5,2) NULL, -- Default IVA deduction % (0-100). NULL = same as the IRPF one
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
     CONSTRAINT FK_Categories_Parent FOREIGN KEY (ParentCategoryID)
@@ -44,7 +45,8 @@ CREATE TABLE Categories (
 | `ParentCategoryID` | INT NULL | Self-referencing FK. `NULL` = top-level parent category. Non-null = subcategory pointing to its parent |
 | `DefaultShared` | BIT | When `1`, the shared expense checkbox is pre-checked in forms for this category |
 | `DefaultVatPercent` | DECIMAL(5,2) NULL | Default VAT percentage (0-100) applied to transactions in this category. Pre-fills the VAT field in transaction forms. Used by fiscal module |
-| `DefaultDeductionPercent` | DECIMAL(5,2) NULL | Default tax deduction percentage (0-100) for this category. Pre-fills the deduction field in transaction forms. Used by fiscal module |
+| `DefaultDeductionPercent` | DECIMAL(5,2) NULL | Default **IRPF** deduction percentage (0-100) for this category. Pre-fills the deduction field in transaction forms. Used by fiscal module |
+| `DefaultVatDeductionPercent` | DECIMAL(5,2) NULL | Default **IVA** deduction percentage (0-100). `NULL` does **not** mean 0 — it means *the same share as `DefaultDeductionPercent`*, which is what the app did before this column existed. Set it explicitly (typically to `0`) only where the two articles disagree, e.g. the supplies of a partially affected dwelling. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The two deduction shares |
 
 **Hierarchy rules:**
 - A category with `ParentCategoryID = NULL` is a top-level (parent) category.
@@ -121,7 +123,8 @@ CREATE TABLE Transactions (
     TripID INT NULL,                 -- FK to Trips (NULL if not a trip expense)
     RecurringExpenseID INT NULL,      -- FK to RecurringExpenses (NULL if not from recurring)
     VatPercent DECIMAL(5,2) NULL,    -- VAT percentage for fiscal module (0-100)
-    DeductionPercent DECIMAL(5,2) NULL, -- Tax deduction percentage for fiscal module (0-100)
+    DeductionPercent DECIMAL(5,2) NULL, -- IRPF deduction percentage (0-100), art. 30.2.5.a b LIRPF
+    VatDeductionPercent DECIMAL(5,2) NULL, -- IVA deduction percentage (0-100), art. 95 LIVA. NULL = same as the IRPF one
     VendorName NVARCHAR(255) NULL,   -- Vendor/supplier name for fiscal tracking
     InvoiceNumber NVARCHAR(100) NULL, -- Invoice or receipt reference number
     Status VARCHAR(15) NOT NULL DEFAULT 'paid' CHECK (Status IN ('paid', 'pending', 'cancelled')),
@@ -150,7 +153,8 @@ CREATE TABLE Transactions (
 | `TripID` | INT NULL | FK to `Trips`. `NULL` if not a trip expense |
 | `RecurringExpenseID` | INT NULL | FK to `RecurringExpenses`. `NULL` if not generated from a recurring rule |
 | `VatPercent` | DECIMAL(5,2) NULL | VAT percentage applied to this transaction (0-100). Used by fiscal module for Modelo 303 calculations |
-| `DeductionPercent` | DECIMAL(5,2) NULL | Tax deduction percentage (0-100). Used by fiscal module for Modelo 130 calculations |
+| `DeductionPercent` | DECIMAL(5,2) NULL | **IRPF** deduction percentage (0-100), art. 30.2.5.ª b LIRPF. Drives the deductible base of Modelo 130, 100 and the projection |
+| `VatDeductionPercent` | DECIMAL(5,2) NULL | **IVA** deduction percentage (0-100), art. 95 LIVA. Drives casilla 29 of Modelo 303 and 49/606/64 of Modelo 390. `NULL` means *the same share as `DeductionPercent`*, **never 0** — the fallback is what made adding this column inert on every pre-existing row. The two only diverge where the law diverges: home-office supplies are 7,5 % for IRPF and 0 % for IVA. See [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The two deduction shares |
 | `VendorName` | NVARCHAR(255) NULL | Vendor or supplier name. Used for fiscal invoice tracking |
 | `InvoiceNumber` | NVARCHAR(100) NULL | Invoice or receipt reference number. Used to identify invoiced transactions in fiscal reports |
 | `Status` | VARCHAR(15) | Payment status: `'paid'` (default), `'pending'`, or `'cancelled'`. Pending/cancelled transactions are excluded from summary views and fiscal reports |
@@ -184,6 +188,9 @@ CREATE TABLE RecurringExpenses (
     IsActive BIT DEFAULT 1 NOT NULL,
     SharedDivisor TINYINT DEFAULT 1 NOT NULL,
     OriginalAmountCents INT NULL,
+    VatPercent DECIMAL(5,2) NULL,          -- Seeded into every occurrence this rule generates
+    DeductionPercent DECIMAL(5,2) NULL,    -- IRPF deduction %
+    VatDeductionPercent DECIMAL(5,2) NULL, -- IVA deduction %. NULL = same as the IRPF one
     CreatedAt DATETIME2 DEFAULT GETUTCDATE(),
     UpdatedAt DATETIME2 DEFAULT GETUTCDATE(),
 
@@ -217,6 +224,9 @@ CREATE TABLE RecurringExpenses (
 | `IsActive` | BIT | Whether this rule is currently active |
 | `SharedDivisor` | TINYINT | Same semantics as Transactions (`1` = personal, `2` = split) |
 | `OriginalAmountCents` | INT NULL | Full amount before division (when shared) |
+| `VatPercent` | DECIMAL(5,2) NULL | VAT rate stamped onto every occurrence this rule generates |
+| `DeductionPercent` | DECIMAL(5,2) NULL | **IRPF** deduction share stamped onto every occurrence |
+| `VatDeductionPercent` | DECIMAL(5,2) NULL | **IVA** deduction share stamped onto every occurrence; `NULL` = the same as the IRPF one. The expenses the two shares actually differ on (internet, luz, calefacción) are recurring, so a rule that could only carry the IRPF share would re-create the defect every month. `confirmOccurrence()` writes both onto the generated transaction |
 
 **Constraint logic:**
 - `weekly` frequency requires `DayOfWeek` to be set
@@ -300,6 +310,15 @@ CREATE TABLE Users (
 | `PasswordHash` | NVARCHAR(255) | Bcrypt hash (NULL for OAuth) |
 | `Locale` | NVARCHAR(5) | Language: `'es'` or `'en'` |
 | `EmailVerified` | DATETIME2 | Verification timestamp |
+
+> **`UserID` is not the same number on both databases.** `"Users"` is deliberately **not** synced,
+> so each database assigns its own ids: the main user is **`UserID` 2 on Neon** and **`UserID` 1 on
+> the local backup**. Every other table *is* synced, primary keys included, so a `CategoryID` or a
+> `TransactionID` means the same row on both — a `UserID` does not.
+>
+> **Any hand-written maintenance SQL must scope by primary key, never by `UserID`.** A script
+> filtered by `"UserID" = 1` that was checked on the local copy will silently hit nothing (or the
+> wrong person's rows) on Neon. See [ARCHITECTURE.md](ARCHITECTURE.md) § Two databases, two user IDs.
 
 ---
 
@@ -1228,8 +1247,8 @@ One row per fiscally relevant transaction, tagged with its year and quarter. It 
 **Income and expenses enter under different rules, and the asymmetry is deliberate.** All paid
 income enters the view unconditionally; whether it counts as professional activity is a decision
 the models make later (`ParentCategoryName = 'Facturas'`). An expense only enters once someone has
-coded it fiscally — a VAT rate, a deduction share or an invoice number — because everything else is
-private spending.
+coded it fiscally — a VAT rate, either deduction share or an invoice number — because everything
+else is private spending.
 
 Inferring the income side from missing VAT data, as an earlier version did, silently erased every
 2023 invoice — 44.954,00 € imported without fiscal coding — from the 130, the 390 and the 100 of
@@ -1249,7 +1268,11 @@ SELECT
     -- ...VendorName, InvoiceNumber, Description...
     COALESCE(t."OriginalAmountCents", t."AmountCents") AS "FullAmountCents",
     COALESCE(t."VatPercent", 0) AS "VatPercent",
-    COALESCE(t."DeductionPercent", 0) AS "DeductionPercent"
+    -- The IRPF deduction share (art. 30.2.5.ª b LIRPF)
+    COALESCE(t."DeductionPercent", 0) AS "DeductionPercent",
+    -- The IVA share (art. 95 LIVA), and the ONE place its NULL fallback is resolved:
+    -- unset means "the same share as the IRPF one", never 0
+    COALESCE(t."VatDeductionPercent", t."DeductionPercent", 0) AS "VatDeductionPercent"
 FROM "Transactions" t
 INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
 LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
@@ -1258,8 +1281,18 @@ WHERE t."Status" = 'paid'
     AND (t."Type" = 'income'
     -- An expense only becomes fiscal once someone codes it
     OR t."VatPercent" IS NOT NULL OR t."DeductionPercent" IS NOT NULL
+    -- A row coded only on the IVA side is coded too: without this term an expense whose
+    -- single fiscal datum is "none of this input VAT is deductible" never reaches a model
+    OR t."VatDeductionPercent" IS NOT NULL
     OR t."InvoiceNumber" IS NOT NULL);
 ```
+
+**`"VatDeductionPercent"` is never NULL on the way out**, and that is the point of resolving the
+fallback here rather than in TypeScript: `computeFiscalFields()` receives a plain number, and no
+model can read a raw NULL as a zero and silently erase an already filed casilla 29. While no row
+sets the column the expression is `COALESCE(t."DeductionPercent", 0)` for every row in the
+database, which is what makes the split provably inert. See
+[FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § The two deduction shares.
 
 This view books each transaction on its `TransactionDate`, i.e. on a **cash basis**. The fiscal models must not read it directly — see below.
 
@@ -1288,7 +1321,13 @@ FROM "Invoices" i
 WHERE i."Status" IN ('finalized', 'paid');
 ```
 
-Same columns as `vw_FiscalQuarterly`. Two invariants hold by construction:
+**17 columns, and both halves of the UNION must emit all 17 in the same order.** The first branch
+passes `v."VatDeductionPercent"` straight through, already resolved. The invoice branch emits `0, 0`
+for the two deduction shares — an issued invoice is income and deducts nothing on either side, so
+both zeros are the real figure, not a placeholder. Adding a column to `vw_FiscalQuarterly` without
+adding its counterpart to the invoice branch is the failure mode here: the counts stop lining up.
+
+Same columns as `vw_FiscalQuarterly`, plus `"RetentionCents"`. Two invariants hold by construction:
 
 - **No double counting.** A payment transaction is dropped only when the invoice holding it is one the second branch adds back. An invoice that kept a `TransactionID` after leaving the issued states cannot erase its own income.
 - **Invoice rows carry no category** (`CategoryID` = 0). Join `Categories` with a `LEFT JOIN` or they disappear — this is why `getModelo100Summary()` does so.
@@ -1448,7 +1487,8 @@ export interface Category {
   parentCategoryId: number | null;   // NULL = parent category
   defaultShared: boolean;            // Auto-toggle shared checkbox
   defaultVatPercent: number | null;  // Default VAT % for fiscal module
-  defaultDeductionPercent: number | null; // Default deduction % for fiscal module
+  defaultDeductionPercent: number | null; // Default IRPF deduction % for fiscal module
+  defaultVatDeductionPercent?: number | null; // Default IVA deduction %. Null/absent = same as IRPF
   subcategories?: Category[];        // Populated client-side for tree rendering
 }
 ```
@@ -1473,7 +1513,8 @@ export interface Transaction {
   tripId: number | null;             // FK to Trips
   tripName: string | null;           // Trip name (joined from Trips table)
   vatPercent: number | null;         // VAT percentage for fiscal module
-  deductionPercent: number | null;   // Tax deduction percentage for fiscal module
+  deductionPercent: number | null;   // IRPF deduction share (art. 30.2.5.ª b LIRPF)
+  vatDeductionPercent?: number | null; // IVA deduction share (art. 95 LIVA). Null/absent = same as IRPF
   vendorName: string | null;         // Vendor/supplier name for fiscal tracking
   invoiceNumber: string | null;      // Invoice or receipt reference number
   createdAt: string;                 // ISO datetime
@@ -1499,6 +1540,9 @@ export interface RecurringExpense {
   isActive: boolean;
   sharedDivisor: number;
   originalAmountCents: number | null;
+  vatPercent: number | null;
+  deductionPercent: number | null;    // IRPF share stamped onto every occurrence
+  vatDeductionPercent?: number | null; // IVA share. Null/absent = same as the IRPF one
   createdAt: string;
   updatedAt: string;
 }
@@ -1518,6 +1562,9 @@ export interface RecurringExpenseInput {
   startDate: Date;
   endDate?: Date | null;
   isShared?: boolean;
+  vatPercent?: number | null;
+  deductionPercent?: number | null;
+  vatDeductionPercent?: number | null; // Null/absent = the same share as deductionPercent
 }
 ```
 
@@ -1643,9 +1690,13 @@ definitions are in `src/types/finance.ts`.
 export interface FiscalComputedFields {
   baseCents: number;                // fullAmount / (1 + vat/100)
   ivaCents: number;                 // fullAmount - baseCents
-  baseDeducibleCents: number;       // baseCents * deductionPercent / 100
-  ivaDeducibleCents: number;        // ivaCents * deductionPercent / 100
+  baseDeducibleCents: number;       // baseCents * deductionPercent / 100     (IRPF share)
+  ivaDeducibleCents: number;        // ivaCents  * vatDeductionPercent / 100  (IVA share)
 }
+
+// computeFiscalFields(fullAmountCents, vatPercent, deductionPercent, vatDeductionPercent?)
+// The fourth argument is optional: omitted or null means "the same share as the IRPF one",
+// resolved with ?? and never ||, so an explicit 0 survives. FISCAL_DOMAIN.md explains why.
 
 // One fiscally relevant row of vw_FiscalAccrual, with the amounts above already computed
 export interface FiscalTransaction extends FiscalComputedFields {
@@ -1660,7 +1711,9 @@ export interface FiscalTransaction extends FiscalComputedFields {
   type: TransactionType;
   fullAmountCents: number;
   vatPercent: number;               // 0, never null: the view COALESCEs it
-  deductionPercent: number;
+  deductionPercent: number;         // The IRPF share. The IVA one is already folded into
+                                    // ivaDeducibleCents and is not exposed here — see the
+                                    // Known gaps entry in FISCAL_DOMAIN.md
 }
 
 // Modelo 303 — IVA, one quarter
@@ -3103,6 +3156,8 @@ export const LinkTransactionSchema = z.object({
   description: z.string().nullable().optional(),
   vatPercent: z.number().nullable().optional(),
   deductionPercent: z.number().nullable().optional(),
+  // Null or absent is VAT_DEDUCTION_INHERITS_IRPF: the IVA share follows deductionPercent
+  vatDeductionPercent: z.number().min(0).max(100).nullable().optional(),
   vendorName: z.string().nullable().optional(),
   invoiceNumber: z.string().nullable().optional(),
   companyId: z.number().int().positive().nullable().optional(),

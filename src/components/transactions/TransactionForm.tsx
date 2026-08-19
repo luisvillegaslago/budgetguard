@@ -10,13 +10,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Download, FileText, Ticket, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { VatDeductionShareField } from '@/components/fiscal/VatDeductionShareField';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { AmountSumPopover } from '@/components/ui/AmountSumPopover';
 import { CompanySelector } from '@/components/ui/CompanySelector';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { Select } from '@/components/ui/Select';
-import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { useFiscalDefaults } from '@/hooks/useFiscalDefaults';
 import { useCreateTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -43,7 +44,11 @@ export function TransactionForm({
   const initialType = transaction?.type ?? defaultType;
   const [transactionType, setTransactionType] = useState<TransactionType>(initialType);
   const [showFiscal, setShowFiscal] = useState(
-    () => isEditing && (transaction.vatPercent !== null || transaction.deductionPercent !== null),
+    () =>
+      isEditing &&
+      (transaction.vatPercent !== null ||
+        transaction.deductionPercent !== null ||
+        transaction.vatDeductionPercent != null),
   );
   const [showVoucher, setShowVoucher] = useState(() => isEditing && transaction.voucherId != null);
   const fiscalDirtyRef = useRef(isEditing);
@@ -76,6 +81,8 @@ export function TransactionForm({
           isShared: transaction.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR,
           vatPercent: transaction.vatPercent,
           deductionPercent: transaction.deductionPercent,
+          // null is VAT_DEDUCTION_INHERITS_IRPF: the field renders empty and follows the IRPF share
+          vatDeductionPercent: transaction.vatDeductionPercent ?? VAT_DEDUCTION_INHERITS_IRPF,
           vendorName: transaction.vendorName,
           invoiceNumber: transaction.invoiceNumber,
           companyId: transaction.companyId,
@@ -92,6 +99,7 @@ export function TransactionForm({
           isShared: false,
           vatPercent: null,
           deductionPercent: null,
+          vatDeductionPercent: VAT_DEDUCTION_INHERITS_IRPF,
           vendorName: null,
           invoiceNumber: null,
           companyId: null,
@@ -130,6 +138,7 @@ export function TransactionForm({
     if (fiscalDefaults && !fiscalDirtyRef.current) {
       setValue('vatPercent', fiscalDefaults.vatPercent);
       setValue('deductionPercent', fiscalDefaults.deductionPercent);
+      setValue('vatDeductionPercent', fiscalDefaults.vatDeductionPercent);
       setShowFiscal(true);
     } else if (!fiscalDefaults && !fiscalDirtyRef.current) {
       setShowFiscal(false);
@@ -588,6 +597,19 @@ export function TransactionForm({
                   />
                 </div>
               </div>
+
+              {/* IVA deduction share — optional, and empty means "the same as the IRPF one above" */}
+              <VatDeductionShareField
+                id="vatDeductionPercent"
+                label={t('fiscal.form.vat-deduction-percent')}
+                placeholder={t('fiscal.form.vat-deduction-placeholder')}
+                hint={t('fiscal.form.vat-deduction-hint')}
+                splitHint={t('fiscal.form.deduction-split-hint')}
+                registration={register('vatDeductionPercent', { setValueAs: toNullableNumber })}
+                onValueChange={() => {
+                  fiscalDirtyRef.current = true;
+                }}
+              />
 
               {/* Company/Vendor + Invoice Number (side by side on desktop) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

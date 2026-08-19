@@ -11,7 +11,12 @@ import {
   TRANSACTION_TYPE,
   VALIDATION_KEY,
 } from '@/constants/finance';
-import { modelo100CasillaField, requiredPositiveInt, requiredPositiveNumber } from '@/schemas/shared';
+import {
+  modelo100CasillaField,
+  requiredPositiveInt,
+  requiredPositiveNumber,
+  vatDeductionShareField,
+} from '@/schemas/shared';
 
 /**
  * Transaction type enum
@@ -39,7 +44,11 @@ export const CreateTransactionSchema = z.object({
   type: TransactionTypeSchema,
   isShared: z.boolean().optional().default(false),
   vatPercent: z.number().min(0).max(100).optional().nullable(),
+  // The IRPF deduction share (art. 30.2.5.ª b LIRPF) and the IVA one (art. 95 LIVA). Two fields
+  // because they are two different figures on the same receipt; omitting the second, or sending
+  // it null, keeps the IVA share tied to the IRPF one exactly as before it existed.
   deductionPercent: z.number().min(0).max(100).optional().nullable(),
+  vatDeductionPercent: vatDeductionShareField(),
   vendorName: z.string().max(150).optional().nullable(),
   invoiceNumber: z.string().max(50).optional().nullable(),
   companyId: z.number().int().positive().optional().nullable(),
@@ -96,6 +105,7 @@ export const CreateCategorySchema = z.object({
   defaultShared: z.boolean().optional().default(false),
   defaultVatPercent: z.number().min(0).max(100).optional().nullable(),
   defaultDeductionPercent: z.number().min(0).max(100).optional().nullable(),
+  defaultVatDeductionPercent: vatDeductionShareField(),
   modelo100CasillaCode: modelo100CasillaField(),
 });
 
@@ -118,6 +128,7 @@ export const UpdateCategorySchema = z.object({
   defaultShared: z.boolean().optional(),
   defaultVatPercent: z.number().min(0).max(100).optional().nullable(),
   defaultDeductionPercent: z.number().min(0).max(100).optional().nullable(),
+  defaultVatDeductionPercent: vatDeductionShareField(),
   modelo100CasillaCode: modelo100CasillaField(),
 });
 

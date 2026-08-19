@@ -106,7 +106,14 @@ const WRITABLE_COLUMNS: Record<keyof DeferralInput, string> = {
 
 const WRITABLE_FIELDS = Object.keys(WRITABLE_COLUMNS) as (keyof DeferralInput)[];
 
-/** Columns of one booked part of a fracción, in the order the batch INSERT writes them */
+/**
+ * Columns of one booked part of a fracción, in the order the batch INSERT writes them.
+ *
+ * There is no "VatPercent" here, and therefore deliberately no "VatDeductionPercent" either: no
+ * part of a deferral carries input VAT — the principal *is* the IVA, already declared in the
+ * quarter it accrued — so there is nothing for an IVA share to apply to. "DeductionPercent" is the
+ * IRPF one, 0 for principal and recargo (art. 15.c LIS) and 100 for the interés.
+ */
 const MOVEMENT_COLUMNS = `"CategoryID", "AmountCents", "Description", "TransactionDate", "Type",
   "SharedDivisor", "Status", "DeductionPercent", "VendorName", "TransactionGroupID",
   "DeferralID", "DeferralFraccionNumber", "DeferralPart", "UserID"`;
