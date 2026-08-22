@@ -96,6 +96,21 @@ describe('parseDocumentFilename', () => {
       expect(result.fiscalYear).toBe(2025);
     });
 
+    it('should detect a year past 2029 (no silent fallback to the current year)', () => {
+      // A null fiscalYear makes the bulk upload route substitute new Date().getFullYear(),
+      // silently filing the document under the wrong fiscal year.
+      const result = parseDocumentFilename('vodafone diciembre 2030.pdf');
+
+      expect(result.documentType).toBe(FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA);
+      expect(result.fiscalYear).toBe(2030);
+    });
+
+    it('should detect a year at the top of the 20xx range', () => {
+      const result = parseDocumentFilename('naturgy 2099.pdf');
+
+      expect(result.fiscalYear).toBe(2099);
+    });
+
     it('should handle files without year', () => {
       const result = parseDocumentFilename('random-document.pdf');
 

@@ -5,9 +5,15 @@
  * which takes the id from a caller that already resolved it.
  */
 
-import { FISCAL_STATUS } from '@/constants/finance';
+import { FISCAL_STATUS, SHARED_EXPENSE, TRANSACTION_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import type { FiscalDeadlineSettings, FiscalDocument, FiscalStatus, ModeloType } from '@/types/finance';
+import type {
+  FiscalDeadlineSettings,
+  FiscalDocument,
+  FiscalStatus,
+  ModeloType,
+  TransactionType,
+} from '@/types/finance';
 import { query } from './connection';
 
 // ============================================================
@@ -376,22 +382,42 @@ export async function unlinkTransactionDocuments(transactionId: number): Promise
 }
 
 /**
- * Find a matching transaction by amount (exact or shared ÷2) and date.
- * Uses ±7 days window for income (invoices issued), ±3 days for expenses.
+ * Find a matching transaction by amount (exact or shared ÷2) and date, inside a ±7 day window.
+ *
+ * The candidate must carry the sign the document implies — an expense for a factura recibida,
+ * income for a factura emitida — and must not be cancelled: a cancelled movement is filtered out
+ * of every summary view and of the fiscal views, so a document booked against one would read as
+ * settled against a row no modelo counts. `pending` is deliberately still eligible: a received
+ * invoice legitimately matches an expense that has not been paid yet.
+ *
  * Returns the transaction ID if found, null otherwise.
  */
-export async function findMatchingTransaction(amountCents: number, transactionDate: string): Promise<number | null> {
+export async function findMatchingTransaction(
+  amountCents: number,
+  transactionDate: string,
+  transactionType: TransactionType,
+): Promise<number | null> {
   const userId = await getUserIdOrThrow();
   const halfAmountCents = Math.round(amountCents / 2);
 
   const rows = await query<{ TransactionID: number }>(
     `SELECT "TransactionID" FROM "Transactions"
-     WHERE ("AmountCents" = $1 OR ("AmountCents" = $4 AND "SharedDivisor" = 2))
+     WHERE ("AmountCents" = $1 OR ("AmountCents" = $4 AND "SharedDivisor" = $5))
        AND "TransactionDate" BETWEEN ($2::date - INTERVAL '7 days') AND ($2::date + INTERVAL '7 days')
        AND "UserID" = $3
+       AND "Type" = $6
+       AND "Status" <> $7
      ORDER BY ABS("TransactionDate" - $2::date)
      LIMIT 1`,
-    [amountCents, transactionDate, userId, halfAmountCents],
+    [
+      amountCents,
+      transactionDate,
+      userId,
+      halfAmountCents,
+      SHARED_EXPENSE.DIVISOR,
+      transactionType,
+      TRANSACTION_STATUS.CANCELLED,
+    ],
   );
 
   return rows[0]?.TransactionID ?? null;
@@ -412,7 +438,7 @@ export async function linkTransactionGroup(id: number, transactionGroupId: numbe
 /**
  * Find matching transaction group by summing transactions from the same vendor
  * on nearby dates (±3 days) that total the invoice amount.
- * Works with both exact and shared (÷2) amounts.
+ * Shared expenses are compared un-halved, so the sum is always the whole invoice.
  * Returns the group ID if found or created, null otherwise.
  */
 export async function findMatchingTransactionGroup(
@@ -422,7 +448,6 @@ export async function findMatchingTransactionGroup(
 ): Promise<number | null> {
   if (!companyId) return null;
   const userId = await getUserIdOrThrow();
-  const halfAmountCents = Math.round(amountCents / 2);
 
   // Find transactions from same company within ±3 days
   const rows = await query<{
@@ -443,20 +468,31 @@ export async function findMatchingTransactionGroup(
 
   if (rows.length < 2) return null;
 
-  // Check if original amounts (pre-shared) sum to the invoice total
-  const totalOriginalCents = rows.reduce((sum, r) => sum + (r.OriginalAmountCents ?? r.AmountCents), 0);
+  // Un-halved total. Every write path stores the whole invoice in "OriginalAmountCents" when it
+  // halves a shared expense, so that column is the figure to compare; the SharedDivisor fallback
+  // only covers a legacy row that was halved without one (the schema allows the NULL).
+  const totalOriginalCents = rows.reduce(
+    (sum, r) =>
+      sum +
+      (r.OriginalAmountCents ??
+        (r.SharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR ? r.AmountCents * r.SharedDivisor : r.AmountCents)),
+    0,
+  );
 
-  // Allow ±1 cent tolerance for rounding
-  const matchesExact = Math.abs(totalOriginalCents - amountCents) <= 1;
-  const matchesShared = Math.abs(totalOriginalCents - halfAmountCents) <= 1;
-
-  if (!matchesExact && !matchesShared) return null;
+  // Allow ±1 cent tolerance for rounding. Only the exact total matches: comparing against half the
+  // invoice would apply the shared correction a second time and accept a set of movements whose
+  // real total is half of what the document says.
+  if (Math.abs(totalOriginalCents - amountCents) > 1) return null;
 
   // If transactions already share a group, return it
   const existingGroupId = rows.find((r) => r.TransactionGroupID != null)?.TransactionGroupID;
   if (existingGroupId && rows.every((r) => r.TransactionGroupID === existingGroupId)) {
     return existingGroupId;
   }
+
+  // Never re-group a movement that already belongs to a group: groups are user-made and another
+  // fiscal document may point at one, so stealing a row would silently shrink its amount.
+  if (rows.some((r) => r.TransactionGroupID != null)) return null;
 
   // Create a new group and assign all transactions to it
   const groupRows = await query<{ TransactionGroupID: number }>(

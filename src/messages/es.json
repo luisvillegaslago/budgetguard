@@ -1144,6 +1144,7 @@
       },
       "empty-hint": "Sube tu primer documento para empezar",
       "errors": {
+        "batch-failed": "No se pudo subir este lote de archivos",
         "tax-amount-invalid": "Introduce un importe válido (0 o mayor)",
         "upload-failed": "No se pudo subir el documento"
       },
@@ -2583,6 +2584,7 @@
       "unsupported-file-type": "Formato de archivo no soportado. Sube un PDF o una imagen (JPG, PNG, GIF o WEBP).",
       "file-required": "Se requiere un archivo",
       "metadata-required": "Se requieren los metadatos del documento",
+      "bulk-item-invalid": "El nombre del archivo no aporta datos válidos del documento. Renómbralo o rellena los metadatos a mano.",
       "extraction-failed": "No se pudo analizar el documento",
       "detection-failed": "No se ha podido analizar el documento",
       "download-failed": "No se pudo descargar el documento",

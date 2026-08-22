@@ -564,6 +564,17 @@ The one that is not is the *a compensar* split:
 Putting the annual aggregate in 97 — which this code did — mismatches the 4T 303 by the whole of
 the rest of the year, and that mismatch is exactly what triggers a requerimiento.
 
+The second box worth stating explicitly is **casilla 108, *total volumen de operaciones*** (art. 121
+LIVA): the whole of the entregas y prestaciones of the year. The app books income into two buckets —
+bases under régimen general (the ones carrying Spanish IVA) and operations not subject by
+localisation rules (casilla 120, summed into casilla 110) — so **108 is the sum of both**, and 110
+is only one of its terms.
+
+Setting 108 = 110, which this code did, is invisible to a taxpayer whose clients are all abroad and
+zeroes the volumen de operaciones the day a single domestic invoice is issued. A total that equals
+one of its own addends is the shape of this bug; the golden master pins `108 = 110 + domestic base`
+so it cannot come back.
+
 ---
 
 ## Modelo 100 — Renta
@@ -1267,6 +1278,7 @@ be one too many.
 | All income enters the view; only coded expenses do | `vw_FiscalQuarterly` WHERE clause | Uncoded invoices vanish from 130/390/100 |
 | Casilla 05 prefers the filed amount | `settledAmountCents()` | Drift propagates through the rest of the year |
 | Casilla 97 = last period only | `getModelo390Summary()` | 390 mismatches the 4T 303 |
+| Casilla 108 is the sum of its buckets, 110 only one of them | `deduction-split-golden-master.test.ts` asserts `108 = 110 + domestic base` | The volumen de operaciones drops every invoice carrying Spanish IVA |
 | Every Modelo 100 casilla is one casilla 218 sums | `modelo100-category-map.test.ts` | Expenses filed into a box that does not exist |
 | The VAT pool opening is stored, not derived | `FiscalProfiles.VatPoolOpeningCents` | The app's pool diverges from AEAT's registry |
 | Pension caps applied per bucket, 30% on the sum | `computePensionReductionCents()` | An illegal reduction is projected |

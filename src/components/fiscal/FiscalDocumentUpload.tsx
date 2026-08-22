@@ -10,7 +10,7 @@ import { Check, Loader2, Upload, X, Zap } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { FiscalExtractionConfirm } from '@/components/fiscal/FiscalExtractionConfirm';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, OCR_ERROR_CODE } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, OCR_ERROR_CODE } from '@/constants/finance';
 import { useDeleteFiscalDocument, useExtractDocument, useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { ExtractedInvoiceData } from '@/types/finance';
@@ -99,7 +99,8 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
       onClose();
     } catch (err) {
       setStep('idle');
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      // The mutation throws an i18n key (extractApiErrorKey), so it must be translated before display.
+      setError(t(err instanceof Error ? err.message : API_ERROR.MUTATION.UPLOAD.FISCAL_DOCUMENT));
     }
   };
 

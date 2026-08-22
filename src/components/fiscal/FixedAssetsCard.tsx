@@ -266,7 +266,7 @@ function AssetTable({ rows, year, expandedId, onToggle, onDelete, deletingId, on
               {row.asset.transactionId === null && (
                 <tr>
                   <td colSpan={8} className="px-3 pb-3">
-                    <UnlinkedPurchaseNotice asset={row.asset} onLinked={onLinked} />
+                    <UnlinkedPurchaseNotice layout="table" asset={row.asset} onLinked={onLinked} />
                   </td>
                 </tr>
               )}
@@ -326,7 +326,9 @@ function AssetCards({ rows, year, expandedId, onToggle, onDelete, deletingId, on
             </div>
           </div>
 
-          {row.asset.transactionId === null && <UnlinkedPurchaseNotice asset={row.asset} onLinked={onLinked} />}
+          {row.asset.transactionId === null && (
+            <UnlinkedPurchaseNotice layout="cards" asset={row.asset} onLinked={onLinked} />
+          )}
 
           {expandedId === row.asset.assetId && (
             <div id={`asset-schedule-cards-${row.asset.assetId}`}>

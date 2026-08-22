@@ -9,6 +9,7 @@
 import { CheckCircle, Upload, X, XCircle } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
+import { FISCAL_DOCUMENT_TYPE } from '@/constants/finance';
 import { useBulkUploadDocuments } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
 import { type ParsedFileMetadata, parseDocumentFilename } from '@/utils/fiscalFileParser';
@@ -22,6 +23,9 @@ interface FileWithMetadata {
   file: File;
   metadata: ParsedFileMetadata;
 }
+
+/** i18n key stored in the result list; translated once where the failures are rendered. */
+const BATCH_FAILED_KEY = 'fiscal.documents.errors.batch-failed';
 
 const BATCH_SIZE = 10;
 
@@ -74,8 +78,10 @@ export function FiscalBulkUpload({ onClose }: FiscalBulkUploadProps) {
         });
         allResults.push(...result.results);
       } catch {
+        // The key, not the translated text: every error in this list is translated once at render,
+        // and the server's per-file errors already arrive as keys.
         batch.forEach((f) => {
-          allResults.push({ fileName: f.file.name, success: false, error: 'Batch failed' });
+          allResults.push({ fileName: f.file.name, success: false, error: BATCH_FAILED_KEY });
         });
       }
 
@@ -154,7 +160,7 @@ export function FiscalBulkUpload({ onClose }: FiscalBulkUploadProps) {
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-foreground truncate">{item.file.name}</span>
                     <span className="text-xs text-guard-muted shrink-0">
-                      {item.metadata.documentType === 'modelo'
+                      {item.metadata.documentType === FISCAL_DOCUMENT_TYPE.MODELO
                         ? `M${item.metadata.modeloType}${item.metadata.fiscalQuarter ? ` Q${item.metadata.fiscalQuarter}` : ''} ${item.metadata.fiscalYear ?? '?'}`
                         : t('fiscal.documents.types.factura')}
                     </span>
@@ -212,7 +218,7 @@ export function FiscalBulkUpload({ onClose }: FiscalBulkUploadProps) {
                     .filter((r) => !r.success)
                     .map((r) => (
                       <p key={r.fileName} className="text-xs text-guard-danger break-words">
-                        {r.fileName}: {r.error}
+                        {r.fileName}: {r.error ? t(r.error) : ''}
                       </p>
                     ))}
                 </div>

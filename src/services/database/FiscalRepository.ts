@@ -725,6 +725,7 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
 
   const rows = await loadFiscalRows(userId, year);
 
+  let totalC07 = 0;
   let totalC09 = 0;
   let totalC28 = 0;
   let totalC29 = 0;
@@ -739,6 +740,10 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
 
     if (isProfessionalIncome(row)) {
       if (row.VatPercent > 0) {
+        // The base travels with its cuota: casilla 108 is the whole volumen de operaciones
+        // (art. 121 LIVA), so the régimen general base has to be accumulated too and not
+        // only the VAT charged on it.
+        totalC07 += baseCents;
         totalC09 += ivaCents;
       } else {
         totalC120 += baseCents;
@@ -782,7 +787,9 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
     casilla97Cents: casilla97,
     casilla662Cents: casilla662,
     casilla110Cents: totalC120,
-    casilla108Cents: totalC120,
+    // Total volumen de operaciones: the domestic bases plus the ones not subject by localization
+    // rules. Reporting only the latter zeroed out every invoice that carried Spanish IVA.
+    casilla108Cents: totalC07 + totalC120,
   };
 }
 

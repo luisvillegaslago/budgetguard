@@ -67,6 +67,22 @@ const mockFinalizedInvoice: Invoice = {
   status: INVOICE_STATUS.FINALIZED,
 };
 
+/**
+ * Discriminating draft for the archived amount: base, VAT, retention and total are all different,
+ * so an assertion on "TaxAmountCents" can only pass for the taxable base (120000) and never for
+ * what the client pays (127200).
+ */
+const mockVatRetentionInvoice: Invoice = {
+  ...mockDraftInvoice,
+  invoiceId: 3,
+  baseCents: 120000,
+  vatPercent: 21,
+  vatCents: 25200,
+  retentionPercent: 15,
+  retentionCents: 18000,
+  totalCents: 127200,
+};
+
 const mockPdfBuffer = Buffer.from('mock-pdf-bytes');
 
 // ============================================================
@@ -108,6 +124,7 @@ jest.mock('@/services/database/InvoiceRepository', () => ({
   getInvoiceById: jest.fn(async (id: number) => {
     if (id === 1) return mockDraftInvoice;
     if (id === 2) return mockFinalizedInvoice;
+    if (id === 3) return mockVatRetentionInvoice;
     return null;
   }),
   assignInvoiceNumber: jest.fn(async () => 'INV-01'),
@@ -133,6 +150,13 @@ jest.mock('@/utils/invoicePdf', () => ({
         invoice: { ...mockDraftInvoice, invoiceNumber: 'INV-01', billerName: 'Updated Biller' },
         pdfBuffer: mockPdfBuffer,
         fileName: 'invoice_INV-01.pdf',
+      };
+    }
+    if (id === 3) {
+      return {
+        invoice: { ...mockVatRetentionInvoice, invoiceNumber: 'INV-03', billerName: 'Updated Biller' },
+        pdfBuffer: mockPdfBuffer,
+        fileName: 'invoice_INV-03.pdf',
       };
     }
     throw new Error(API_ERROR.NOT_FOUND.INVOICE);
@@ -278,11 +302,15 @@ describe('InvoiceFinalizeService', () => {
       expect(insertQuery.params).toContain(10); // companyId from mockDraftInvoice
     });
 
-    it('should include total cents as tax amount', async () => {
-      await finalizeInvoice(1);
+    // "TaxAmountCents" archives the taxable base, never what the client pays: the total is net of
+    // the IRPF withheld and gross of the VAT charged, neither of which belongs in that column.
+    // Invoice 3 keeps base (120000) and total (127200) apart, so the assertion cannot pass for both.
+    it('should record the taxable base, not what the client pays, as the tax amount', async () => {
+      await finalizeInvoice(3);
 
       const insertQuery = capturedTransactionQueries[1]!;
-      expect(insertQuery.params).toContain(120000);
+      expect(insertQuery.params[11]).toBe(mockVatRetentionInvoice.baseCents);
+      expect(insertQuery.params[11]).not.toBe(mockVatRetentionInvoice.totalCents);
     });
 
     it('should update invoice status to finalized', async () => {

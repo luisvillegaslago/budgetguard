@@ -700,7 +700,7 @@ export interface Modelo390Summary {
   casilla97Cents: number; // A compensar del ÚLTIMO periodo (lo que la AEAT cruza contra el 4T 303)
   casilla662Cents: number; // Cuotas a compensar generadas en los demás trimestres del año
   casilla110Cents: number; // Op. no sujetas por reglas de localización (sum of C120)
-  casilla108Cents: number; // Total volumen operaciones (= C110)
+  casilla108Cents: number; // Total volumen operaciones (bases régimen general + C110)
 }
 
 /**

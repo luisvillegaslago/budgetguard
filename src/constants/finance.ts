@@ -1011,6 +1011,17 @@ export const FISCAL_DOCUMENT_TYPE = {
 
 export type FiscalDocumentType = (typeof FISCAL_DOCUMENT_TYPE)[keyof typeof FISCAL_DOCUMENT_TYPE];
 
+/**
+ * The sign of the movement a fiscal document can be auto-matched against: a received invoice is
+ * paid (expense), an issued one is collected (income), and a modelo to pay leaves the account too.
+ * Matching a document against the opposite sign is never right.
+ */
+export const FISCAL_DOCUMENT_TRANSACTION_TYPE: Record<FiscalDocumentType, TransactionType> = {
+  [FISCAL_DOCUMENT_TYPE.MODELO]: TRANSACTION_TYPE.EXPENSE,
+  [FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA]: TRANSACTION_TYPE.EXPENSE,
+  [FISCAL_DOCUMENT_TYPE.FACTURA_EMITIDA]: TRANSACTION_TYPE.INCOME,
+};
+
 // Modelo Types
 export const MODELO_TYPE = {
   M303: '303',
@@ -1502,6 +1513,7 @@ export const API_ERROR = {
     UNSUPPORTED_FILE_TYPE: 'api-error.fiscal.unsupported-file-type',
     FILE_REQUIRED: 'api-error.fiscal.file-required',
     METADATA_REQUIRED: 'api-error.fiscal.metadata-required',
+    BULK_ITEM_INVALID: 'api-error.fiscal.bulk-item-invalid',
     EXTRACTION_FAILED: 'api-error.fiscal.extraction-failed',
     DETECTION_FAILED: 'api-error.fiscal.detection-failed',
     DOWNLOAD_FAILED: 'api-error.fiscal.download-failed',

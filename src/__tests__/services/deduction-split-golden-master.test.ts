@@ -14,9 +14,11 @@
  * So the figures asserted here are the figures the app produced before the split existed, and they
  * must be produced unchanged after it.
  *
- * It was written and run green BEFORE the implementation changed. If a run ever forces one of
- * these expectations to be edited, the change is wrong — the whole point of the null fallback is
- * that not one cent moves until somebody sets a VAT share explicitly.
+ * It was written and run green BEFORE the implementation changed. No expectation here may move as
+ * a consequence of the deduction split — the whole point of the null fallback is that not one cent
+ * moves until somebody sets a VAT share explicitly. (That is a guarantee about the split, not a
+ * claim that every figure below was tax-correct the day it was written: a genuine defect in a
+ * casilla is still a defect, and fixing it changes the expectation and the implementation together.)
  *
  * The fixture is shaped like the live case that forced the split:
  *   - home-office supplies (Internet, Luz, Calefacción) coded at 7,5 % — 30 % of the 25 %
@@ -526,6 +528,9 @@ describe('Modelo 130', () => {
 
 // ── Modelo 390 ──
 
+/** Régimen-general base of the year: the two domestic invoices, 1.000,00 € each net of their 21 %. */
+const DOMESTIC_BASE_CENTS = 200_000;
+
 describe('Modelo 390', () => {
   it('should sum the year exactly as it did before the split', async () => {
     const summary = await getModelo390Summary(2026);
@@ -547,8 +552,16 @@ describe('Modelo 390', () => {
       casilla97Cents: 1_050,
       casilla662Cents: 315,
       casilla110Cents: 1_500_000,
-      casilla108Cents: 1_500_000,
+      // 108 is the whole volumen de operaciones of art. 121 LIVA and 110 only one of its terms:
+      // 200.000 of régimen-general base (the two domestic invoices) + 1.500.000 of casilla 120
+      casilla108Cents: 1_700_000,
     });
+  });
+
+  it('should keep casilla 108 equal to the volume it sums', async () => {
+    const summary = await getModelo390Summary(2026);
+
+    expect(summary.casilla108Cents).toBe(summary.casilla110Cents + DOMESTIC_BASE_CENTS);
   });
 });
 

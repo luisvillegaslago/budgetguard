@@ -9,6 +9,7 @@ import { API_ERROR, VALIDATION_KEY } from '@/constants/finance';
 import { coefficientFitsGroup, UpdateFixedAssetSchema } from '@/schemas/fixed-asset';
 import { validateRequest } from '@/schemas/transaction';
 import { deleteFixedAsset, getFixedAssetById, updateFixedAsset } from '@/services/database/FixedAssetRepository';
+import { getTransactionById } from '@/services/database/TransactionRepository';
 import type { FixedAssetSchedule, FixedAssetUpdateInput } from '@/types/finance';
 import { computeAmortizationSchedule } from '@/utils/amortization';
 import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
@@ -52,6 +53,16 @@ export const PUT = withApiHandler(async (request, { params }) => {
     })
   ) {
     return validationError({ coefficientPercent: [VALIDATION_KEY.INVALID_AMORTIZATION_COEFFICIENT] });
+  }
+
+  // Linking the purchase happens through this field (there is no second write path onto the
+  // column), so this is the only place the id can be checked. A non-null id that is not a movement
+  // of this user would still be written: the asset then stops being reported as unlinked while
+  // getAssetTransactionIds() excludes the wrong row, so the real purchase keeps being deducted as a
+  // period expense on top of its dotación — the double deduction the module exists to catch.
+  if (rest.transactionId !== undefined && rest.transactionId !== null) {
+    const purchase = await getTransactionById(rest.transactionId);
+    if (!purchase) return notFound(API_ERROR.NOT_FOUND.TRANSACTION);
   }
 
   // Only the two wire-shaped fields need converting; the rest already carry their domain type.

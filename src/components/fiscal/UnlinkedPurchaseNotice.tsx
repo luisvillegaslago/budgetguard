@@ -114,11 +114,17 @@ function CandidateRow({ candidate, onLink, isLinking, isDisabled }: CandidateRow
 
 interface UnlinkedPurchaseNoticeProps {
   asset: FixedAsset;
+  /**
+   * Which of the two layouts is rendering. The card mounts both — one is hidden by CSS, not
+   * unmounted — so a panel id built from the assetId alone appears twice in the document and
+   * aria-controls resolves to whichever comes first, which on a phone is the display:none copy.
+   */
+  layout: 'table' | 'cards';
   /** Fires once the purchase is written, so the card can confirm it after this panel is gone */
   onLinked: () => void;
 }
 
-export function UnlinkedPurchaseNotice({ asset, onLinked }: UnlinkedPurchaseNoticeProps) {
+export function UnlinkedPurchaseNotice({ asset, layout, onLinked }: UnlinkedPurchaseNoticeProps) {
   const { t } = useTranslate();
   const [areCandidatesOpen, setAreCandidatesOpen] = useState(false);
   const [linkingTransactionId, setLinkingTransactionId] = useState<number | null>(null);
@@ -130,7 +136,7 @@ export function UnlinkedPurchaseNotice({ asset, onLinked }: UnlinkedPurchaseNoti
   // Linking is an ordinary field update, not a mutation of its own — see useFixedAssets.ts
   const linkPurchase = useUpdateFixedAsset();
 
-  const candidatesId = `asset-purchase-candidates-${asset.assetId}`;
+  const candidatesId = `asset-purchase-candidates-${layout}-${asset.assetId}`;
 
   const handleLink = (transactionId: number) => {
     setLinkingTransactionId(transactionId);

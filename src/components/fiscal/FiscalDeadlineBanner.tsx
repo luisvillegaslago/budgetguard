@@ -14,7 +14,7 @@ import { useUpcomingDeadlines } from '@/hooks/useFiscalDeadlines';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useIsFiscalPanelCollapsed, useToggleFiscalPanel } from '@/stores/useFinanceStore';
 import type { FiscalDeadline } from '@/types/finance';
-import { cn } from '@/utils/helpers';
+import { cn, formatDate } from '@/utils/helpers';
 
 function getModeloLabel(modeloType: string, quarter: number | null): string {
   const label = `Modelo ${modeloType}`;
@@ -23,7 +23,7 @@ function getModeloLabel(modeloType: string, quarter: number | null): string {
 }
 
 function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
 
   const isOverdue = deadline.status === FILING_STATUS.OVERDUE;
   const isDue = deadline.status === FILING_STATUS.DUE;
@@ -47,7 +47,7 @@ function DeadlineItem({ deadline }: { deadline: FiscalDeadline }) {
           {getModeloLabel(deadline.modeloType, deadline.fiscalQuarter)} {deadline.fiscalYear}
         </span>
         <span className="text-guard-muted whitespace-nowrap">
-          {t('fiscal.deadlines.due-date', { date: deadline.endDate })}
+          {t('fiscal.deadlines.due-date', { date: formatDate(deadline.endDate, 'numeric', locale) })}
         </span>
         {/*
           The Modelo 100 window is set by an Orden ministerial every year, and until it is published

@@ -3,13 +3,14 @@
  * Validates upload metadata, status updates, bulk upload, and settings schemas.
  */
 
-import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE } from '@/constants/finance';
+import { FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, MODELO_TYPE, TRANSACTION_TYPE } from '@/constants/finance';
 import {
   BulkUploadItemSchema,
   FiscalDeadlineSettingsSchema,
   FiscalDocumentStatusSchema,
   FiscalDocumentsFiltersSchema,
   FiscalDocumentUploadSchema,
+  LinkTransactionSchema,
 } from '@/schemas/fiscal-document';
 
 describe('FiscalDocumentUploadSchema', () => {
@@ -173,6 +174,126 @@ describe('BulkUploadItemSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  // The bulk schema must carry the same invariants as the single upload: CK_FiscalDoc_Quarter
+  // rejects a quarterless 303/130, and bulkCreateDocuments is one multi-row INSERT, so a row the
+  // schema lets through aborts the whole batch instead of failing that single file.
+  it('should reject a quarterly modelo (303) without quarter — "303 2025.pdf"', () => {
+    const result = BulkUploadItemSchema.safeParse({
+      documentType: FISCAL_DOCUMENT_TYPE.MODELO,
+      modeloType: MODELO_TYPE.M303,
+      fiscalYear: 2025,
+      fiscalQuarter: null,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject a quarterly modelo (130) without quarter', () => {
+    const result = BulkUploadItemSchema.safeParse({
+      documentType: FISCAL_DOCUMENT_TYPE.MODELO,
+      modeloType: MODELO_TYPE.M130,
+      fiscalYear: 2025,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept an annual modelo (390) without quarter', () => {
+    const result = BulkUploadItemSchema.safeParse({
+      documentType: FISCAL_DOCUMENT_TYPE.MODELO,
+      modeloType: MODELO_TYPE.M390,
+      fiscalYear: 2024,
+      fiscalQuarter: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject an annual modelo (100) with quarter', () => {
+    const result = BulkUploadItemSchema.safeParse({
+      documentType: FISCAL_DOCUMENT_TYPE.MODELO,
+      modeloType: MODELO_TYPE.M100,
+      fiscalYear: 2024,
+      fiscalQuarter: 1,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject a modelo without modeloType', () => {
+    const result = BulkUploadItemSchema.safeParse({
+      documentType: FISCAL_DOCUMENT_TYPE.MODELO,
+      fiscalYear: 2024,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject a factura carrying a modeloType', () => {
+    const result = BulkUploadItemSchema.safeParse({
+      documentType: FISCAL_DOCUMENT_TYPE.FACTURA_RECIBIDA,
+      modeloType: MODELO_TYPE.M303,
+      fiscalYear: 2024,
+      fiscalQuarter: 1,
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('LinkTransactionSchema', () => {
+  const validLink = {
+    categoryId: 3,
+    amountCents: 100000,
+    transactionDate: '2025-03-14',
+    type: TRANSACTION_TYPE.EXPENSE,
+  };
+
+  it('should accept a valid link payload', () => {
+    expect(LinkTransactionSchema.safeParse(validLink).success).toBe(true);
+  });
+
+  // 100000 cents at 21% is 82645 base + 17355 IVA. A 500% share would deduct 413225 cents of
+  // base and 86775 cents of input VAT that never existed on the invoice.
+  it('should reject a deductionPercent above 100', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, deductionPercent: 500 }).success).toBe(false);
+  });
+
+  it('should reject a negative deductionPercent', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, deductionPercent: -10 }).success).toBe(false);
+  });
+
+  it('should reject a vatPercent above 100', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, vatPercent: 200 }).success).toBe(false);
+  });
+
+  it('should accept the 0 and 100 bounds of both shares', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, vatPercent: 0, deductionPercent: 0 }).success).toBe(true);
+    expect(LinkTransactionSchema.safeParse({ ...validLink, vatPercent: 100, deductionPercent: 100 }).success).toBe(
+      true,
+    );
+  });
+
+  it('should keep null deductionPercent / vatPercent (no share recorded)', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, vatPercent: null, deductionPercent: null }).success).toBe(
+      true,
+    );
+  });
+
+  // A failed OCR read pre-fills the amount with 0: it must not reach the DB as a filed document
+  // with TaxAmountCents = 0, nor as a negative expense that subtracts from casillas 28/29.
+  it('should reject amountCents of 0 (unread OCR total)', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, amountCents: 0 }).success).toBe(false);
+  });
+
+  it('should reject a negative amountCents', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, amountCents: -10000 }).success).toBe(false);
+  });
+
+  it('should reject a non-integer amountCents', () => {
+    expect(LinkTransactionSchema.safeParse({ ...validLink, amountCents: 1000.5 }).success).toBe(false);
   });
 });
 

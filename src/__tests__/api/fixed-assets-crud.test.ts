@@ -53,6 +53,7 @@ const mockGetFixedAssetById = jest.fn();
 const mockCreateFixedAsset = jest.fn();
 const mockUpdateFixedAsset = jest.fn();
 const mockDeleteFixedAsset = jest.fn();
+const mockGetTransactionById = jest.fn();
 
 jest.mock('@/services/database/FixedAssetRepository', () => ({
   getFixedAssets: (year?: number) => mockGetFixedAssets(year),
@@ -60,6 +61,10 @@ jest.mock('@/services/database/FixedAssetRepository', () => ({
   createFixedAsset: (input: FixedAssetInput) => mockCreateFixedAsset(input),
   updateFixedAsset: (assetId: number, input: FixedAssetUpdateInput) => mockUpdateFixedAsset(assetId, input),
   deleteFixedAsset: (assetId: number) => mockDeleteFixedAsset(assetId),
+}));
+
+jest.mock('@/services/database/TransactionRepository', () => ({
+  getTransactionById: (transactionId: number) => mockGetTransactionById(transactionId),
 }));
 
 jest.mock('next/server', () => ({
@@ -265,6 +270,7 @@ describe('PUT /api/fiscal/assets/[id]', () => {
     jest.clearAllMocks();
     mockGetFixedAssetById.mockResolvedValue(LENOVO);
     mockUpdateFixedAsset.mockResolvedValue(LENOVO);
+    mockGetTransactionById.mockResolvedValue({ transactionId: 3489 });
   });
 
   it('should convert an updated base to cents and leave omitted fields undefined', async () => {
@@ -321,6 +327,48 @@ describe('PUT /api/fiscal/assets/[id]', () => {
 
     expect(response.status).toBe(400);
     expect(mockUpdateFixedAsset).not.toHaveBeenCalled();
+  });
+
+  it('should reject a transactionId that is not a movement of this user', async () => {
+    // Linking the purchase is an ordinary field update, so this is the only gate on the column.
+    // A wrong non-null id makes the asset stop being reported as unlinked while
+    // getAssetTransactionIds() excludes the wrong row: the real purchase keeps being deducted as a
+    // period expense on top of the dotación — the Lenovo deducted twice, 718,18 € and 373,45 €
+    // in 2026 instead of 373,45 €.
+    mockGetTransactionById.mockResolvedValue(null);
+
+    const response = await PUT(
+      createMockRequest('http://localhost:3000', { transactionId: 9999 }) as never,
+      context('1') as never,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toBe(API_ERROR.NOT_FOUND.TRANSACTION);
+    expect(mockGetTransactionById).toHaveBeenCalledWith(9999);
+    expect(mockUpdateFixedAsset).not.toHaveBeenCalled();
+  });
+
+  it('should write a transactionId that resolves to a movement of this user', async () => {
+    const response = await PUT(
+      createMockRequest('http://localhost:3000', { transactionId: 3489 }) as never,
+      context('1') as never,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockUpdateFixedAsset).toHaveBeenCalledWith(1, { transactionId: 3489 });
+  });
+
+  it('should not look up anything when the link is being cleared', async () => {
+    // Null is an explicit unlink, not an id: ON DELETE SET NULL writes the same value
+    const response = await PUT(
+      createMockRequest('http://localhost:3000', { transactionId: null }) as never,
+      context('1') as never,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockGetTransactionById).not.toHaveBeenCalled();
+    expect(mockUpdateFixedAsset).toHaveBeenCalledWith(1, { transactionId: null });
   });
 
   it('should return 404 before validating ownership-dependent state', async () => {

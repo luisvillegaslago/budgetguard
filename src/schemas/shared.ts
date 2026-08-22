@@ -8,10 +8,12 @@ import { MODELO_100_CASILLA, VALIDATION_KEY } from '@/constants/finance';
 const MODELO_100_CASILLA_CODES = Object.values(MODELO_100_CASILLA);
 
 /**
- * A Modelo 100 expense casilla, checked against the official form rather than by length.
- * `z.string().max(4)` used to accept '0196', a box that does not exist: anything filed there
- * lands in no casilla of the sum. Optional and nullable — a category with no casilla falls back
- * to MODELO_100_DEFAULT_CASILLA at report time.
+ * A Modelo 100 expense casilla, checked against MODELO_100_CASILLA rather than by length.
+ * `z.string().max(4)` accepted any four characters, so an invented code passed validation and
+ * then landed in no casilla of the sum. '0196' is not one of those: it is a real box AEAT added
+ * for ejercicio 2025 (Regularización cuotas RETA), see docs/FISCAL_DOMAIN.md § Modelo 100 —
+ * Renta. Optional and nullable — a category with no casilla falls back to
+ * MODELO_100_DEFAULT_CASILLA at report time.
  */
 export function modelo100CasillaField() {
   return z

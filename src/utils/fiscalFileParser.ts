@@ -24,8 +24,8 @@ const ANNUAL_MODELO_PATTERN = /(?:modelo\s*)?(\d{3})\s+(\d{4})/i;
 // Pattern for quarter: "1T", "Q1", "T1", etc.
 const QUARTER_PATTERN = /([1-4])[tTqQ]|[tTqQ]([1-4])/;
 
-// Pattern for year: 4-digit year between 2019-2099
-const YEAR_PATTERN = /\b(20[12]\d)\b/;
+// Pattern for year: 4-digit year between 2010-2099 (the 2019+ lower bound is enforced by the Zod schemas)
+const YEAR_PATTERN = /\b(20[1-9]\d)\b/;
 
 const VALID_MODELO_TYPES = new Set([MODELO_TYPE.M303, MODELO_TYPE.M130, MODELO_TYPE.M390, MODELO_TYPE.M100]);
 

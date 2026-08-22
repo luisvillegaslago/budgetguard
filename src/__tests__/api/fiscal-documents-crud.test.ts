@@ -84,8 +84,18 @@ jest.mock('@/services/database/FiscalDocumentRepository', () => ({
         fileName: '303 1T 2025.pdf',
         contentType: 'application/pdf',
       };
+    if (id === 3)
+      return {
+        blobUrl: 'https://blob.vercel-storage.com/fiscal/3/hostile.pdf',
+        fileName: 'fact"ura\r\nX-Injected: 1.pdf',
+        contentType: 'application/pdf',
+      };
     return null;
   }),
+}));
+
+jest.mock('@/utils/blobFetch', () => ({
+  fetchBlob: jest.fn(async () => ({ ok: true, body: null })),
 }));
 
 jest.mock('@/services/database/TransactionRepository', () => ({
@@ -97,11 +107,20 @@ jest.mock('@vercel/blob', () => ({
 }));
 
 jest.mock('next/server', () => ({
-  NextResponse: {
-    json: (data: unknown, options?: { status?: number }) => ({
-      status: options?.status ?? 200,
-      json: async () => data,
-    }),
+  NextResponse: class {
+    status: number;
+    headers: Map<string, string>;
+    body: unknown;
+
+    constructor(body?: unknown, init?: { status?: number; headers?: Record<string, string> }) {
+      this.body = body;
+      this.status = init?.status ?? 200;
+      this.headers = new Map(Object.entries(init?.headers ?? {}));
+    }
+
+    static json(data: unknown, options?: { status?: number }) {
+      return { status: options?.status ?? 200, json: async () => data };
+    }
   },
 }));
 
@@ -109,6 +128,7 @@ jest.mock('next/server', () => ({
 // Import routes AFTER mocks
 // ============================================================
 
+import { GET as GET_DOWNLOAD } from '@/app/api/fiscal/documents/[id]/download/route';
 import { DELETE, GET as GET_ONE, PATCH } from '@/app/api/fiscal/documents/[id]/route';
 import { GET as GET_LIST } from '@/app/api/fiscal/documents/route';
 
@@ -260,5 +280,36 @@ describe('DELETE /api/fiscal/documents/[id]', () => {
     const response = await DELETE(request as never, createMockParams('999'));
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe('GET /api/fiscal/documents/[id]/download', () => {
+  it('should not percent-encode the plain filename parameter of Content-Disposition', async () => {
+    const request = createMockRequest('http://localhost:3000/api/fiscal/documents/1/download');
+    const response = (await GET_DOWNLOAD(request as never, createMockParams('1'))) as unknown as {
+      status: number;
+      headers: Map<string, string>;
+    };
+
+    expect(response.status).toBe(200);
+    // '303 1T 2025.pdf' must reach the browser with real spaces, not '303%201T%202025.pdf'
+    expect(response.headers.get('Content-Disposition')).toBe(
+      `attachment; filename="303 1T 2025.pdf"; filename*=UTF-8''303%201T%202025.pdf`,
+    );
+  });
+
+  it('should strip quotes and CRLF from the plain filename to avoid header injection', async () => {
+    const request = createMockRequest('http://localhost:3000/api/fiscal/documents/3/download');
+    const response = (await GET_DOWNLOAD(request as never, createMockParams('3'))) as unknown as {
+      status: number;
+      headers: Map<string, string>;
+    };
+
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    expect(disposition).toContain('attachment; filename="facturaX-Injected: 1.pdf"');
+    expect(disposition).not.toContain('\r');
+    expect(disposition).not.toContain('\n');
+    // the ext-value keeps the full name, percent-encoded
+    expect(disposition).toContain(`filename*=UTF-8''fact%22ura%0D%0AX-Injected%3A%201.pdf`);
   });
 });

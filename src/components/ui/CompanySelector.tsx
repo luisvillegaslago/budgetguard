@@ -24,9 +24,11 @@ interface CompanySelectorProps {
   value: number | null;
   onChange: (companyId: number | null) => void;
   disabled?: boolean;
+  /** Accessible name for the trigger. The combobox is a div, so htmlFor cannot label it. */
+  ariaLabel?: string;
 }
 
-export function CompanySelector({ value, onChange, disabled }: CompanySelectorProps) {
+export function CompanySelector({ value, onChange, disabled, ariaLabel }: CompanySelectorProps) {
   const { t } = useTranslate();
   const { data: companies } = useCompanies();
   const quickCreate = useQuickCreateCompany();
@@ -127,6 +129,7 @@ export function CompanySelector({ value, onChange, disabled }: CompanySelectorPr
         }}
         tabIndex={disabled ? -1 : 0}
         role="combobox"
+        aria-label={ariaLabel}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >

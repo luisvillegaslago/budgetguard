@@ -4,7 +4,6 @@
  * Updates the document's TaxAmountCents with the confirmed amount.
  */
 
-import type { TransactionType } from '@/constants/finance';
 import { API_ERROR, SHARED_EXPENSE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { LinkTransactionSchema } from '@/schemas/fiscal-document';
@@ -43,7 +42,7 @@ export const POST = withApiHandler(async (request, { params }) => {
     amountCents: effectiveAmount,
     description: data.description ?? undefined,
     transactionDate: new Date(data.transactionDate),
-    type: data.type as TransactionType,
+    type: data.type,
     sharedDivisor,
     originalAmountCents: isShared ? data.amountCents : null,
     vatPercent: data.vatPercent ?? null,

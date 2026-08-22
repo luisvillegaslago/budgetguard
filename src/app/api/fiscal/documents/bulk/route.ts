@@ -56,7 +56,10 @@ export const POST = withApiHandler(async (request) => {
         // Validate
         const validation = BulkUploadItemSchema.safeParse(merged);
         if (!validation.success) {
-          results.push({ fileName: file.name, success: false, error: validation.error.message });
+          // Zod's message is an untranslated JSON blob: keep it in the server log, return an i18n key
+          // biome-ignore lint/suspicious/noConsole: bulk item validation logging
+          console.error('POST /api/fiscal/documents/bulk validation error:', file.name, validation.error.issues);
+          results.push({ fileName: file.name, success: false, error: API_ERROR.FISCAL.BULK_ITEM_INVALID });
           return;
         }
 
@@ -96,10 +99,12 @@ export const POST = withApiHandler(async (request) => {
           },
         });
       } catch (err) {
+        // biome-ignore lint/suspicious/noConsole: bulk item failure logging
+        console.error('POST /api/fiscal/documents/bulk error:', file.name, err);
         results.push({
           fileName: file.name,
           success: false,
-          error: err instanceof Error ? err.message : 'Unknown error',
+          error: API_ERROR.INTERNAL,
         });
       }
     }),

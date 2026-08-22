@@ -111,14 +111,16 @@ export function FiscalExtractionConfirm({
         if (found.defaultVatPercent != null && !vatPercent) {
           setVatPercent(String(found.defaultVatPercent));
         }
-        if (found.defaultDeductionPercent != null) {
-          setDeductionPercent(String(found.defaultDeductionPercent));
-        }
+        // Both shares are written unconditionally: a category without a default has to reset the
+        // field, not inherit the number the previously selected category left behind. '100' and ''
+        // are what useFiscalDefaults resolves a missing default to (100 for IRPF,
+        // VAT_DEDUCTION_INHERITS_IRPF for IVA), so both flows agree.
+        setDeductionPercent(found.defaultDeductionPercent != null ? String(found.defaultDeductionPercent) : '100');
         // Carried alongside the IRPF one on purpose: a category that deducts a share of the expense
         // and none of its input VAT (art. 95 LIVA) has to arrive here as both figures, not one.
-        if (found.defaultVatDeductionPercent != null) {
-          setVatDeductionPercent(String(found.defaultVatDeductionPercent));
-        }
+        setVatDeductionPercent(
+          found.defaultVatDeductionPercent != null ? String(found.defaultVatDeductionPercent) : '',
+        );
       }
     },
     [categories, vatPercent],
@@ -238,6 +240,7 @@ export function FiscalExtractionConfirm({
                 id="ext-amount"
                 type="number"
                 step="0.01"
+                min="0.01"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -276,9 +279,9 @@ export function FiscalExtractionConfirm({
           {/* Vendor + Invoice Number (side by side on desktop) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="ext-vendor" className="block text-sm font-medium text-foreground mb-1.5">
-                {t('fiscal.form.vendor-name')}
-              </label>
+              {/* Not a <label>: CompanySelector renders a role="combobox" div, which htmlFor cannot
+                  target. The control carries the same text as its aria-label instead. */}
+              <span className="block text-sm font-medium text-foreground mb-1.5">{t('fiscal.form.vendor-name')}</span>
               {detectedVendor && !autoMatchedCompany && (
                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
                   <p className="min-w-0 break-words text-xs text-guard-warning">
@@ -301,7 +304,11 @@ export function FiscalExtractionConfirm({
                   </button>
                 </div>
               )}
-              <CompanySelector value={companyId} onChange={(id) => setCompanyId(id)} />
+              <CompanySelector
+                value={companyId}
+                onChange={(id) => setCompanyId(id)}
+                ariaLabel={t('fiscal.form.vendor-name')}
+              />
               {detectedVendor && autoMatchedCompany && (
                 <p className="text-xs text-guard-success mt-1.5">
                   {t('fiscal.extraction.matched-vendor')}: {detectedVendor}
@@ -388,9 +395,9 @@ export function FiscalExtractionConfirm({
           </label>
 
           {/* Error */}
-          {linkMutation.isError && (
+          {linkMutation.errorMessage && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
-              <p className="text-sm text-guard-danger">{linkMutation.error.message}</p>
+              <p className="text-sm text-guard-danger">{linkMutation.errorMessage}</p>
             </div>
           )}
 

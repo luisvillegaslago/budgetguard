@@ -1771,7 +1771,7 @@ export interface Modelo390Summary {
   casilla97Cents: number;           // A compensar del ÚLTIMO periodo — what AEAT crosses against the 4T 303
   casilla662Cents: number;          // A compensar generado en los DEMÁS trimestres
   casilla110Cents: number;          // No sujetas por localización (Σ C120)
-  casilla108Cents: number;          // Total volumen operaciones (= C110)
+  casilla108Cents: number;          // Total volumen operaciones (bases régimen general + C110)
 }
 
 // Modelo 100 — economic activities section only (Estimación Directa Simplificada)

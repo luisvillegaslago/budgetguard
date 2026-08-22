@@ -16,6 +16,7 @@
 import { MODELO_100_CASILLA, MODELO_100_CASILLA_OPTIONS, MODELO_100_DEFAULT_CASILLA } from '@/constants/finance';
 import en from '@/messages/en.json';
 import es from '@/messages/es.json';
+import { modelo100CasillaField } from '@/schemas/shared';
 
 /**
  * Casilla 218 is defined on the form as:
@@ -86,6 +87,29 @@ describe('MODELO_100_CASILLA_OPTIONS', () => {
 
   it('offers the fallback, so a category can be set to it explicitly', () => {
     expect(MODELO_100_CASILLA_OPTIONS).toContain(MODELO_100_DEFAULT_CASILLA);
+  });
+});
+
+describe('modelo100CasillaField', () => {
+  const field = modelo100CasillaField();
+
+  it('accepts 0196 — a real box since ejercicio 2025, not an invented code', () => {
+    expect(field.safeParse(MODELO_100_CASILLA.C0196).success).toBe(true);
+  });
+
+  it('accepts every code casilla 218 sums', () => {
+    Object.values(MODELO_100_CASILLA).forEach((code) => {
+      expect(field.safeParse(code).success).toBe(true);
+    });
+  });
+
+  it('rejects a four-character code that is not a casilla', () => {
+    expect(field.safeParse('0197').success).toBe(false);
+  });
+
+  it('accepts an unassigned casilla, which falls back at report time', () => {
+    expect(field.safeParse(null).success).toBe(true);
+    expect(field.safeParse(undefined).success).toBe(true);
   });
 });
 

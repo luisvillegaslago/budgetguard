@@ -1144,6 +1144,7 @@
       },
       "empty-hint": "Upload your first document to get started",
       "errors": {
+        "batch-failed": "Could not upload this batch of files",
         "tax-amount-invalid": "Enter a valid amount (0 or greater)",
         "upload-failed": "Could not upload the document"
       },
@@ -2583,6 +2584,7 @@
       "unsupported-file-type": "Unsupported file type. Upload a PDF or an image (JPG, PNG, GIF or WEBP).",
       "file-required": "A file is required",
       "metadata-required": "Document metadata is required",
+      "bulk-item-invalid": "The file name does not carry valid document data. Rename it or fill in the metadata by hand.",
       "extraction-failed": "Could not analyze the document",
       "detection-failed": "Could not analyse the document",
       "download-failed": "Could not download the document",

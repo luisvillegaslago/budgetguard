@@ -22,11 +22,15 @@ export const GET = withApiHandler(async (_request, { params }) => {
     return NextResponse.json({ success: false, error: API_ERROR.FISCAL.DOWNLOAD_FAILED }, { status: 502 });
   }
 
+  // RFC 6266: the plain filename parameter must NOT be percent-encoded (agents disagree on decoding it),
+  // so it carries the raw name stripped of header-injection characters and filename* carries the encoded one.
+  const safeFileName = doc.fileName.replace(/["\r\n]/g, '');
+
   return new NextResponse(blobResponse.body, {
     status: 200,
     headers: {
       'Content-Type': doc.contentType,
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(doc.fileName)}"`,
+      'Content-Disposition': `attachment; filename="${safeFileName}"; filename*=UTF-8''${encodeURIComponent(doc.fileName)}`,
       'Cache-Control': 'private, max-age=3600',
     },
   });

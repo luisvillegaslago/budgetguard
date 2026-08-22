@@ -68,23 +68,39 @@ export function formatCompactCurrency(cents: number): string {
   return formatCurrency(cents);
 }
 
+/** A single separator trailed by exactly three digits and nothing else: "1.234", "1,234". */
+const LONE_GROUPING_PATTERN = /^-?\d{1,3}[.,]\d{3}$/;
+
 /**
  * Parse user input string to cents
- * Handles both comma and period as decimal separators
+ * Handles both comma and period as decimal separators, and strips the
+ * thousands separator: whichever of '.' and ',' appears last is treated as
+ * the decimal separator, the other one as grouping.
  *
- * @param input - User input string (e.g., "419,28" or "419.28")
+ * One separator followed by exactly three digits is read as grouping in either
+ * convention ("1.234" and "1,234" are both 1.234,00 €). Money carries two
+ * decimals, so a lone three-digit tail is never one — reading it as a decimal
+ * used to turn 1.234 € into 1,23 €.
+ *
+ * @param input - User input string (e.g., "419,28", "419.28" or "12.500,00 €")
  * @returns Amount in cents, or null if invalid
  */
 export function parseInputToCents(input: string): number | null {
   if (!input || input.trim() === '') return null;
 
-  // Remove spaces and replace comma with period
-  const normalized = input.trim().replace(/\s/g, '').replace(',', '.');
+  // Remove spaces and currency symbols first
+  const cleaned = input.trim().replace(/\s/g, '').replace(/[€$]/g, '');
 
-  // Remove any currency symbols
-  const cleaned = normalized.replace(/[€$]/g, '');
+  if (LONE_GROUPING_PATTERN.test(cleaned)) {
+    const grouped = Number.parseFloat(cleaned.replace(/[.,]/g, ''));
+    return Number.isNaN(grouped) ? null : eurosToCents(grouped);
+  }
 
-  const parsed = Number.parseFloat(cleaned);
+  // The separator that appears last is the decimal one; the other is grouping
+  const decimalIsComma = cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.');
+  const normalized = decimalIsComma ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned.replace(/,/g, '');
+
+  const parsed = Number.parseFloat(normalized);
 
   if (Number.isNaN(parsed)) return null;
 

@@ -155,6 +155,27 @@ describe('FixedAssetsCard — unlinked purchase', () => {
       expect(mockUseAssetPurchaseCandidates).toHaveBeenCalledWith(UNLINKED_LENOVO.assetId);
     });
 
+    it('gives each layout its own panel id, so aria-controls never resolves to the hidden copy', () => {
+      renderCard([UNLINKED_LENOVO]);
+
+      const toggles = screen.getAllByRole('button', { name: t(`${UNLINKED}.candidates-title`) });
+      expect(toggles).toHaveLength(2);
+
+      const panelIds = toggles.map((toggle) => toggle.getAttribute('aria-controls') ?? '');
+      expect(panelIds).toEqual([
+        `asset-purchase-candidates-table-${UNLINKED_LENOVO.assetId}`,
+        `asset-purchase-candidates-cards-${UNLINKED_LENOVO.assetId}`,
+      ]);
+
+      // Both panels open at once: each id must still point at exactly one element
+      toggles.forEach((toggle) => {
+        fireEvent.click(toggle);
+      });
+      panelIds.forEach((id) => {
+        expect(document.querySelectorAll(`#${id}`)).toHaveLength(1);
+      });
+    });
+
     it('leaves the linked asset of the same list alone', () => {
       renderCard([LENOVO, UNLINKED_LENOVO]);
 

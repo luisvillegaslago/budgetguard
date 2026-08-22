@@ -4,7 +4,7 @@
  */
 
 import { put } from '@vercel/blob';
-import { API_ERROR, FISCAL_DOCUMENT_TYPE } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TYPE, FISCAL_STATUS } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { FiscalDocumentsFiltersSchema, FiscalDocumentUploadSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
@@ -67,7 +67,7 @@ export const POST = withApiHandler(async (request) => {
     modeloType: validation.data.modeloType ?? null,
     fiscalYear: validation.data.fiscalYear,
     fiscalQuarter: validation.data.fiscalQuarter ?? null,
-    status: validation.data.status ?? 'pending',
+    status: validation.data.status ?? FISCAL_STATUS.PENDING,
     blobUrl: blob.url,
     blobPathname: blob.pathname,
     fileName: finalFileName,

@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { API_ERROR, OCR_ERROR_CODE } from '@/constants/finance';
+import { API_ERROR, FISCAL_DOCUMENT_TRANSACTION_TYPE, OCR_ERROR_CODE } from '@/constants/finance';
 import type { Locale } from '@/libs/i18n';
 import { DEFAULT_LOCALE, isValidLocale } from '@/libs/i18n';
 import {
@@ -59,7 +59,11 @@ export const POST = withApiHandler(async (request, { params }) => {
     let matchedGroupId: number | null = null;
 
     if (extractedData.date && extractedData.totalAmountCents) {
-      matchedTransactionId = await findMatchingTransaction(extractedData.totalAmountCents, extractedData.date);
+      matchedTransactionId = await findMatchingTransaction(
+        extractedData.totalAmountCents,
+        extractedData.date,
+        FISCAL_DOCUMENT_TRANSACTION_TYPE[document.documentType],
+      );
       if (matchedTransactionId) {
         await linkTransaction(documentId, matchedTransactionId);
         const quarter = Math.ceil((new Date(extractedData.date).getUTCMonth() + 1) / 3);
