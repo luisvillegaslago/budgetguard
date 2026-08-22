@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.63.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.62.0...v0.63.0) (2026-08-22)
+
+
+### Features
+
+* **fiscal:** key the IRPF figures by year, and warn when an asset has no linked purchase ([c2b012e](https://github.com/luisvillegaslago/budgetguard/commit/c2b012eb866818a9e432a3518ae9157c605bcb50))
+* **fiscal:** separate the IRPF deduction share from the deductible VAT share ([cd76f61](https://github.com/luisvillegaslago/budgetguard/commit/cd76f61900df0876b7aa48b2256a4a8aa6893c55))
+* **fiscal:** show the VAT deduction share where it diverges from the IRPF one ([4bf29f2](https://github.com/luisvillegaslago/budgetguard/commit/4bf29f2833fb5fa5481cf64712f8347b51e9c822))
+
+
+### Bug Fixes
+
+* **fiscal:** eleven defects found reviewing the module end to end ([fed5235](https://github.com/luisvillegaslago/budgetguard/commit/fed52350e78cbc485a95a1b18ed960e56914106f))
+* **fiscal:** twenty-four defects from a second review pass over the module ([10200ba](https://github.com/luisvillegaslago/budgetguard/commit/10200bafc80bdb34180e9975be393062df5f4972))
+
 ## [0.62.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.61.1...v0.62.0) (2026-08-18)
 
 
