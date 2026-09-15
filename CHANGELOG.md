@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.64.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.63.0...v0.64.0) (2026-09-15)
+
+
+### Features
+
+* **vouchers:** edit and delete consumptions from the voucher detail ([83107ef](https://github.com/luisvillegaslago/budgetguard/commit/83107efd231fc42f85f4cdd8b9bc02748569cc13))
+
 ## [0.63.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.62.0...v0.63.0) (2026-08-22)
 
 
