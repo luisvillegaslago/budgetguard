@@ -3,11 +3,11 @@
 /**
  * BudgetGuard Voucher ("bono") Detail
  * Shows remaining balance (€ + units), a progress bar and the list of linked
- * consumptions. Allows editing or deleting the voucher.
+ * consumptions. Allows editing or deleting the voucher and each consumption.
  */
 
 import { AlertTriangle, ArrowUpRight, Link2, Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -15,9 +15,9 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
 import { useToast } from '@/components/ui/Toast';
-import { SORT_DIRECTION, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import { SHARED_EXPENSE, SORT_DIRECTION, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
-import { useCreateTransaction } from '@/hooks/useTransactions';
+import { useCreateTransaction, useDeleteTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteVoucher, useReconcileVoucherConsumption, useVoucher } from '@/hooks/useVouchers';
 import type { Transaction, Voucher } from '@/types/finance';
@@ -28,6 +28,8 @@ const CONSUME_INPUT_CLASS = cn(
   'w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm',
   ' transition-colors',
 );
+
+const ROW_ACTION_CLASS = 'p-1.5 rounded-lg text-guard-muted hover:bg-muted transition-colors';
 
 interface VoucherDetailModalProps {
   voucherId: number;
@@ -42,27 +44,60 @@ function formatUnits(value: number): string {
 
 interface VoucherConsumeFormProps {
   voucher: Voucher;
+  /** Existing consumption to edit; omit it to log a new one. */
+  consumption?: Transaction;
   onDone: () => void;
   onCancel: () => void;
 }
 
+/** i18n keys per form mode, so logging and editing a consumption share one form. */
+const CONSUME_FORM_COPY = {
+  create: {
+    title: 'vouchers.use.title',
+    submit: 'vouchers.use.submit',
+    saving: 'vouchers.use.saving',
+    success: 'vouchers.use.success',
+    error: 'vouchers.use.error',
+  },
+  edit: {
+    title: 'vouchers.consumption.edit-title',
+    submit: 'vouchers.consumption.save',
+    saving: 'vouchers.consumption.saving',
+    success: 'vouchers.consumption.update-success',
+    error: 'vouchers.consumption.update-error',
+  },
+} as const;
+
 /**
- * Quick-consume form embedded in the detail modal: logs an expense transaction
- * linked to this voucher. Date defaults to today and units to 1 (editable).
+ * Consumption form embedded in the detail modal. Without `consumption` it logs a
+ * new expense transaction linked to this voucher (date defaults to today, units
+ * to 1); with it, it edits that transaction prefilled with its current values.
  * Unit-based vouchers prorate the amount; unit-less vouchers ask for the amount.
  */
-function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormProps) {
+function VoucherConsumeForm({ voucher, consumption, onDone, onCancel }: VoucherConsumeFormProps) {
   const { t } = useTranslate();
   const toast = useToast();
   const createTransaction = useCreateTransaction();
+  const updateTransaction = useUpdateTransaction();
+  const fieldId = useId();
+
+  const copy = consumption ? CONSUME_FORM_COPY.edit : CONSUME_FORM_COPY.create;
+  const mutation = consumption ? updateTransaction : createTransaction;
 
   const today = new Date().toISOString().split('T')[0];
   const hasUnits = voucher.totalUnits != null && voucher.totalUnits > 0;
   const unitPriceCents = hasUnits ? voucher.totalAmountCents / (voucher.totalUnits as number) : null;
 
-  const [date, setDate] = useState(today);
-  const [units, setUnits] = useState('1');
-  const [amount, setAmount] = useState('');
+  // Full (pre-split) amount of the consumption being edited.
+  const initialAmountCents = consumption ? (consumption.originalAmountCents ?? consumption.amountCents) : null;
+  // Consumptions logged without units fall back to the units their amount pays for.
+  const initialUnits =
+    consumption?.voucherUnits ??
+    (initialAmountCents != null && unitPriceCents ? Number((initialAmountCents / unitPriceCents).toFixed(2)) : 1);
+
+  const [date, setDate] = useState(consumption ? consumption.transactionDate.slice(0, 10) : today);
+  const [units, setUnits] = useState(String(initialUnits));
+  const [amount, setAmount] = useState(initialAmountCents != null ? String(centsToEuros(initialAmountCents)) : '');
 
   const unitsNum = Number(units);
   // Unit-based vouchers prorate the price; otherwise fall back to the typed amount.
@@ -72,38 +107,49 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+    const fields = {
+      amount: centsToEuros(amountCents),
+      transactionDate: new Date(`${date}T00:00:00Z`),
+      voucherUnits: hasUnits ? unitsNum : null,
+    };
     try {
-      await createTransaction.mutateAsync({
-        categoryId: voucher.categoryId,
-        amount: centsToEuros(amountCents),
-        description: '',
-        transactionDate: new Date(`${date}T00:00:00Z`),
-        type: TRANSACTION_TYPE.EXPENSE,
-        isShared: false,
-        status: TRANSACTION_STATUS.PAID,
-        voucherId: voucher.voucherId,
-        voucherUnits: hasUnits ? unitsNum : null,
-      });
-      toast.success(t('vouchers.use.success'));
+      if (consumption) {
+        await updateTransaction.mutateAsync({
+          id: consumption.transactionId,
+          // Resend the split: the API recomputes the shared half from the full amount.
+          data: { ...fields, isShared: consumption.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR },
+        });
+      } else {
+        await createTransaction.mutateAsync({
+          ...fields,
+          categoryId: voucher.categoryId,
+          description: '',
+          type: TRANSACTION_TYPE.EXPENSE,
+          isShared: false,
+          status: TRANSACTION_STATUS.PAID,
+          voucherId: voucher.voucherId,
+        });
+      }
+      toast.success(t(copy.success));
       onDone();
     } catch (_error) {
-      // Error surfaced via toast + createTransaction.errorMessage
-      toast.error(createTransaction.errorMessage ?? t('vouchers.use.error'));
+      // Error surfaced via toast + mutation.errorMessage
+      toast.error(mutation.errorMessage ?? t(copy.error));
     }
   };
 
   return (
     <div className="rounded-lg border border-guard-primary/40 bg-guard-primary/5 p-4 space-y-3 animate-fade-in">
-      <p className="text-sm font-semibold text-foreground">{t('vouchers.use.title')}</p>
+      <p className="text-sm font-semibold text-foreground">{t(copy.title)}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 items-end gap-3">
         {/* Consumption date (defaults to today) */}
         <div>
-          <label htmlFor="consume-date" className="block text-xs font-medium text-guard-muted mb-1">
+          <label htmlFor={`${fieldId}-date`} className="block text-xs font-medium text-guard-muted mb-1">
             {t('vouchers.use.date')}
           </label>
           <input
-            id="consume-date"
+            id={`${fieldId}-date`}
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -114,12 +160,12 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
         {/* Units (prorated) or raw amount for unit-less vouchers */}
         {hasUnits ? (
           <div>
-            <label htmlFor="consume-units" className="block text-xs font-medium text-guard-muted mb-1">
+            <label htmlFor={`${fieldId}-units`} className="block text-xs font-medium text-guard-muted mb-1">
               {t('vouchers.use.units')}
               {voucher.unitLabel ? ` (${voucher.unitLabel})` : ''}
             </label>
             <input
-              id="consume-units"
+              id={`${fieldId}-units`}
               type="number"
               min="0"
               step="any"
@@ -130,11 +176,11 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
           </div>
         ) : (
           <div>
-            <label htmlFor="consume-amount" className="block text-xs font-medium text-guard-muted mb-1">
+            <label htmlFor={`${fieldId}-amount`} className="block text-xs font-medium text-guard-muted mb-1">
               {t('vouchers.use.amount')}
             </label>
             <input
-              id="consume-amount"
+              id={`${fieldId}-amount`}
               type="number"
               min="0"
               step="0.01"
@@ -157,7 +203,7 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!canSubmit || createTransaction.isPending}
+          disabled={!canSubmit || mutation.isPending}
           className={cn(
             'w-full sm:flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors',
             'bg-guard-primary text-white hover:bg-guard-primary/90',
@@ -165,12 +211,12 @@ function VoucherConsumeForm({ voucher, onDone, onCancel }: VoucherConsumeFormPro
           )}
         >
           <Ticket className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          {createTransaction.isPending ? t('vouchers.use.saving') : t('vouchers.use.submit')}
+          {mutation.isPending ? t(copy.saving) : t(copy.submit)}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          disabled={createTransaction.isPending}
+          disabled={mutation.isPending}
           className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-muted px-4 py-2.5 font-medium text-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
         >
           {t('common.buttons.cancel')}
@@ -186,10 +232,14 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
   const { data, isLoading, isError, refetch } = useVoucher(voucherId);
   const deleteVoucher = useDeleteVoucher();
   const reconcileConsumption = useReconcileVoucherConsumption();
+  const deleteTransaction = useDeleteTransaction();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [consumeOpen, setConsumeOpen] = useState(false);
   // Tx being reconciled right now, to scope the pending state to its own row.
   const [reconcilingId, setReconcilingId] = useState<number | null>(null);
+  // Consumption row being edited inline, and the one awaiting delete confirmation.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
 
   // Consumptions with no linked skydiving activity, for quick lookup per row.
   const unlinkedSet = useMemo(() => new Set(data?.unlinkedConsumptions ?? []), [data?.unlinkedConsumptions]);
@@ -204,6 +254,18 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
       toast.error(reconcileConsumption.errorMessage ?? t('vouchers.reconcile.error'));
     } finally {
       setReconcilingId(null);
+    }
+  };
+
+  const handleConfirmDeleteConsumption = async () => {
+    if (!pendingDelete) return;
+    try {
+      await deleteTransaction.mutateAsync(pendingDelete.transactionId);
+      toast.success(t('vouchers.consumption.delete-success'));
+      setPendingDelete(null);
+    } catch (_error) {
+      // Error surfaced via toast + deleteTransaction.errorMessage (kept dialog open)
+      toast.error(deleteTransaction.errorMessage ?? t('vouchers.consumption.delete-error'));
     }
   };
 
@@ -379,6 +441,23 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                   {sortedConsumptions.map((tx) => {
                     const isUnlinked = unlinkedSet.has(tx.transactionId);
                     const isReconciling = reconcilingId === tx.transactionId && reconcileConsumption.isPending;
+                    // A skydive consumption tied to a jump/session belongs to that activity: editing it
+                    // here would desync the activity's PriceCents, so it is managed from /skydiving.
+                    const isActivityLinked = data?.reconcileActivityType != null && !isUnlinked;
+
+                    if (editingId === tx.transactionId) {
+                      return (
+                        <li key={tx.transactionId} className="p-3">
+                          <VoucherConsumeForm
+                            voucher={voucher}
+                            consumption={tx}
+                            onDone={() => setEditingId(null)}
+                            onCancel={() => setEditingId(null)}
+                          />
+                        </li>
+                      );
+                    }
+
                     return (
                       <li key={tx.transactionId} className="px-3 py-2.5">
                         <div className="flex items-center justify-between gap-3">
@@ -388,14 +467,41 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                             </p>
                             <p className="text-xs text-guard-muted tabular-nums">
                               {formatDate(tx.transactionDate, 'short')}
-                              {tx.voucherUnits != null && voucher.unitLabel
-                                ? ` · ${formatUnits(tx.voucherUnits)} ${voucher.unitLabel}`
+                              {tx.voucherUnits != null
+                                ? ` · ${formatUnits(tx.voucherUnits)} ${voucher.unitLabel || t('vouchers.consumption.units-fallback')}`
                                 : ''}
                             </p>
                           </div>
-                          <span className="flex flex-shrink-0 items-center gap-1 text-sm font-semibold text-guard-danger tabular-nums">
-                            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tx.amountCents)}
-                          </span>
+                          <div className="flex flex-shrink-0 items-center gap-1">
+                            <span className="flex items-center gap-1 text-sm font-semibold text-guard-danger tabular-nums">
+                              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{formatCurrency(tx.amountCents)}
+                            </span>
+                            {isActivityLinked ? (
+                              <span className="p-1.5 text-guard-muted" title={t('vouchers.consumption.linked-hint')}>
+                                <Link2 className="h-4 w-4" aria-hidden="true" />
+                                <span className="sr-only">{t('vouchers.consumption.linked-hint')}</span>
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingId(tx.transactionId)}
+                                  className={cn(ROW_ACTION_CLASS, 'hover:text-foreground')}
+                                  aria-label={t('vouchers.consumption.edit')}
+                                >
+                                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDelete(tx)}
+                                  className={cn(ROW_ACTION_CLASS, 'hover:text-guard-danger')}
+                                  aria-label={t('vouchers.consumption.delete')}
+                                >
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                         {isUnlinked && (
                           <div className="mt-2 flex items-center justify-between gap-2">
@@ -481,6 +587,19 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
         isLoading={deleteVoucher.isPending}
         onConfirm={handleConfirmDelete}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete != null}
+        title={t('vouchers.consumption.delete-title')}
+        message={t('vouchers.consumption.delete-message', {
+          amount: formatCurrency(pendingDelete?.amountCents ?? 0),
+        })}
+        confirmLabel={t('common.buttons.delete')}
+        variant="danger"
+        isLoading={deleteTransaction.isPending}
+        onConfirm={handleConfirmDeleteConsumption}
+        onCancel={() => setPendingDelete(null)}
       />
     </ModalBackdrop>
   );

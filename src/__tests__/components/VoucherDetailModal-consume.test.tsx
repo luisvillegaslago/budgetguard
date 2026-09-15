@@ -75,6 +75,8 @@ jest.mock('@/hooks/useTransactions', () => ({
     isPending: false,
     errorMessage: null,
   }),
+  useUpdateTransaction: () => ({ mutateAsync: jest.fn(), isPending: false, errorMessage: null }),
+  useDeleteTransaction: () => ({ mutateAsync: jest.fn(), isPending: false, errorMessage: null }),
 }));
 
 const DICT: Record<string, string> = {

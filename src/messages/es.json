@@ -275,6 +275,21 @@
       "success": "Consumo registrado",
       "error": "No se pudo registrar el consumo"
     },
+    "consumption": {
+      "edit": "Editar consumo",
+      "delete": "Eliminar consumo",
+      "edit-title": "Editar consumo",
+      "save": "Guardar cambios",
+      "saving": "Guardando...",
+      "update-success": "Consumo actualizado",
+      "update-error": "No se pudo actualizar el consumo",
+      "delete-title": "¿Eliminar consumo?",
+      "delete-message": "Se borrará el gasto de {amount} y ese saldo volverá al bono. Esta acción no se puede deshacer.",
+      "delete-success": "Consumo eliminado",
+      "delete-error": "No se pudo eliminar el consumo",
+      "linked-hint": "Vinculado a una actividad de paracaidismo: se edita desde Paracaidismo",
+      "units-fallback": "ud."
+    },
     "row": {
       "aria": "Ver detalle del bono {name}"
     },

@@ -275,6 +275,21 @@
       "success": "Consumption logged",
       "error": "Could not log the consumption"
     },
+    "consumption": {
+      "edit": "Edit consumption",
+      "delete": "Delete consumption",
+      "edit-title": "Edit consumption",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "update-success": "Consumption updated",
+      "update-error": "Could not update the consumption",
+      "delete-title": "Delete consumption?",
+      "delete-message": "The {amount} expense will be deleted and that balance returns to the voucher. This action cannot be undone.",
+      "delete-success": "Consumption deleted",
+      "delete-error": "Could not delete the consumption",
+      "linked-hint": "Linked to a skydiving activity: edit it from Skydiving",
+      "units-fallback": "u."
+    },
     "row": {
       "aria": "View voucher details for {name}"
     },
