@@ -1,27 +1,33 @@
 'use client';
 
 /**
- * Table displaying tunnel sessions with search and pagination
+ * Table displaying tunnel sessions with search, pagination and multi-select to
+ * pay several sessions from a voucher at once
  */
 
 import { Pencil, Plus, Trash2, Upload, Wind } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { SkydiveVoucherAssignBar } from '@/components/skydiving/SkydiveVoucherAssignBar';
+import { VoucherPaidIcon } from '@/components/skydiving/VoucherPaidIcon';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataState } from '@/components/ui/DataState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { SortableHeader } from '@/components/ui/SortableHeader';
 import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { SORT_DIRECTION } from '@/constants/finance';
+import { SKYDIVE_ACTIVITY_TYPE, SORT_DIRECTION } from '@/constants/finance';
+import type { IdSelection } from '@/hooks/useIdSelection';
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useDeleteTunnelSession, useTunnelSessions } from '@/hooks/useTunnelSessions';
 import type { TunnelSession } from '@/types/skydive';
 import { formatDate } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
+import type { VoucherAssignItem } from '@/utils/skydiveVoucher';
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +43,7 @@ interface TunnelSessionTableProps {
   onNewSession: () => void;
   onEditSession: (session: TunnelSession) => void;
   onImport: () => void;
+  selection: IdSelection;
   filters?: { year?: number; location?: string };
 }
 
@@ -56,7 +63,13 @@ function matchesSearch(session: TunnelSession, query: string): boolean {
   );
 }
 
-export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filters }: TunnelSessionTableProps) {
+export function TunnelSessionTable({
+  onNewSession,
+  onEditSession,
+  onImport,
+  selection,
+  filters,
+}: TunnelSessionTableProps) {
   const { t } = useTranslate();
   const toast = useToast();
   const { data: sessions, isLoading, isError, refetch } = useTunnelSessions(filters);
@@ -77,9 +90,27 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
     initial: { key: 'date', direction: SORT_DIRECTION.DESC },
   });
 
+  // Selected sessions across all pages; a session draws its minutes from a unit voucher.
+  const selectedItems = useMemo<VoucherAssignItem[]>(
+    () =>
+      (sessions ?? [])
+        .filter((session) => selection.selectedIds.has(session.sessionId))
+        .map((session) => ({
+          id: session.sessionId,
+          units: session.durationSec / 60,
+          priceCents: session.priceCents,
+          voucherId: session.voucherId,
+        })),
+    [sessions, selection.selectedIds],
+  );
+
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
   const pageItems = sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+  const pageIds = pageItems.map((session) => session.sessionId);
+  const selectedOnPage = pageIds.filter((id) => selection.isSelected(id)).length;
+  const allPageSelected = pageIds.length > 0 && selectedOnPage === pageIds.length;
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -97,6 +128,9 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
       toast.error(deleteSession.errorMessage ?? t('skydiving.tunnel.form.errors.delete'));
     }
   };
+
+  const rowSelectLabel = (session: TunnelSession) =>
+    t('skydiving.voucher-assign.select-row', { label: formatDate(session.sessionDate, 'long') });
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -124,6 +158,13 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
           </button>
         </div>
       </div>
+
+      {/* Bulk voucher assignment for the selected sessions */}
+      <SkydiveVoucherAssignBar
+        activityType={SKYDIVE_ACTIVITY_TYPE.TUNNEL}
+        selectedItems={selectedItems}
+        onClear={selection.clear}
+      />
 
       {/* Search */}
       {sessions && sessions.length > 0 && (
@@ -163,6 +204,14 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-guard-muted uppercase tracking-wider border-b border-border">
+                      <th className="pl-4 pr-0 py-2 w-8">
+                        <SelectionCheckbox
+                          checked={allPageSelected}
+                          indeterminate={selectedOnPage > 0 && !allPageSelected}
+                          onChange={() => selection.setMany(pageIds, !allPageSelected)}
+                          label={t('skydiving.voucher-assign.select-page')}
+                        />
+                      </th>
                       <th className="px-4 py-2 font-semibold">
                         <SortableHeader
                           label={t('sort.fields.date')}
@@ -203,7 +252,17 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                   </thead>
                   <tbody className="divide-y divide-border">
                     {pageItems.map((session) => (
-                      <tr key={session.sessionId} className="hover:bg-muted/50 transition-colors">
+                      <tr
+                        key={session.sessionId}
+                        className={`hover:bg-muted/50 transition-colors ${selection.isSelected(session.sessionId) ? 'bg-guard-primary/5' : ''}`}
+                      >
+                        <td className="pl-4 pr-0 py-2.5">
+                          <SelectionCheckbox
+                            checked={selection.isSelected(session.sessionId)}
+                            onChange={() => selection.toggle(session.sessionId)}
+                            label={rowSelectLabel(session)}
+                          />
+                        </td>
                         <td className="px-4 py-2.5 text-foreground whitespace-nowrap">
                           {formatDate(session.sessionDate, 'long')}
                         </td>
@@ -221,8 +280,11 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                           {formatDuration(session.durationSec)}
                         </td>
                         <td className="px-4 py-2.5 text-guard-danger whitespace-nowrap">
-                          {/* Expense: minus sign is the secondary cue beyond color (DESIGN.md). */}
-                          {session.priceCents ? `−${formatCurrency(session.priceCents)}` : '—'}
+                          <span className="inline-flex items-center gap-1.5">
+                            {/* Expense: minus sign is the secondary cue beyond color (DESIGN.md). */}
+                            {session.priceCents ? `−${formatCurrency(session.priceCents)}` : '—'}
+                            {session.voucherId != null && <VoucherPaidIcon voucherId={session.voucherId} />}
+                          </span>
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1">
@@ -254,13 +316,24 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-border">
               {pageItems.map((session) => (
-                <div key={session.sessionId} className="p-4 space-y-2">
+                <div
+                  key={session.sessionId}
+                  className={`p-4 space-y-2 ${selection.isSelected(session.sessionId) ? 'bg-guard-primary/5' : ''}`}
+                >
                   <div className="flex items-center justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">{formatDate(session.sessionDate, 'long')}</p>
-                      <OverflowTooltip content={session.location ?? ''}>
-                        <p className="text-xs text-guard-muted truncate">{session.location ?? '—'}</p>
-                      </OverflowTooltip>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <SelectionCheckbox
+                        checked={selection.isSelected(session.sessionId)}
+                        onChange={() => selection.toggle(session.sessionId)}
+                        label={rowSelectLabel(session)}
+                        className="h-5 w-5 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">{formatDate(session.sessionDate, 'long')}</p>
+                        <OverflowTooltip content={session.location ?? ''}>
+                          <p className="text-xs text-guard-muted truncate">{session.location ?? '—'}</p>
+                        </OverflowTooltip>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -287,6 +360,7 @@ export function TunnelSessionTable({ onNewSession, onEditSession, onImport, filt
                     {session.priceCents ? (
                       <span className="text-guard-danger">{`−${formatCurrency(session.priceCents)}`}</span>
                     ) : null}
+                    {session.voucherId != null && <VoucherPaidIcon voucherId={session.voucherId} />}
                   </div>
                 </div>
               ))}

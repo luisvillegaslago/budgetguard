@@ -3703,11 +3703,13 @@ matching expense transaction and links it, atomically.
 |--------|----------|-------------|
 | GET / POST | `/api/skydiving/jumps` | List (paginated: `?page=&limit=`) / create |
 | GET / PUT / DELETE | `/api/skydiving/jumps/:id` | Single jump |
-| POST | `/api/skydiving/jumps/import` | Bulk CSV import, deduped by `(JumpNumber, UserID)` |
+| POST | `/api/skydiving/jumps/import` | Bulk CSV import, deduped by `(JumpNumber, UserID)`; returns `insertedIds` |
+| POST | `/api/skydiving/jumps/assign-voucher` | Pay several jumps from one voucher (`{ ids, voucherId }`), atomically |
 | GET | `/api/skydiving/jumps/dropzones` | Distinct dropzones (autocomplete) |
 | GET / POST | `/api/skydiving/tunnel` | List (paginated) / create |
 | PUT / DELETE | `/api/skydiving/tunnel/:id` | Single session |
-| POST | `/api/skydiving/tunnel/import` | Bulk CSV import, deduped by date + location + duration |
+| POST | `/api/skydiving/tunnel/import` | Bulk CSV import, deduped by date + location + duration; returns `insertedIds` |
+| POST | `/api/skydiving/tunnel/assign-voucher` | Pay several tunnel sessions from one voucher (`{ ids, voucherId }`), atomically |
 | GET | `/api/skydiving/tunnel/locations` | Distinct locations (autocomplete) |
 | GET | `/api/skydiving/stats` | Aggregated stats (`vw_SkydivingStats`, by type, by year) |
 | GET | `/api/skydiving/categories` | Skydiving category + subcategory IDs used for linked expenses |

@@ -13,6 +13,7 @@ import { SkydiveStatsCards } from '@/components/skydiving/SkydiveStatsCards';
 import { TunnelSessionForm } from '@/components/skydiving/TunnelSessionForm';
 import { TunnelSessionTable } from '@/components/skydiving/TunnelSessionTable';
 import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
+import { useIdSelection } from '@/hooks/useIdSelection';
 import { useImportJumps, useSkydiveJumps } from '@/hooks/useSkydiveJumps';
 import { useSkydiveStats } from '@/hooks/useSkydiveStats';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -35,6 +36,12 @@ export default function SkydivingPage() {
   const importTunnelSessions = useImportTunnelSessions();
   const { data: jumps } = useSkydiveJumps();
 
+  // Row selection lives here so an import can preselect the rows it just created.
+  const jumpSelection = useIdSelection();
+  const tunnelSelection = useIdSelection();
+  const { replace: selectJumps } = jumpSelection;
+  const { replace: selectTunnelSessions } = tunnelSelection;
+
   // Preload stats for summary tab
   useSkydiveStats();
 
@@ -44,17 +51,20 @@ export default function SkydivingPage() {
   const handleImportJumps = useCallback(
     async (rows: Record<string, unknown>[]) => {
       const result = await importJumps.mutateAsync(rows);
+      // New jumps often come from a voucher: leave them selected, ready to assign.
+      if (result.insertedIds.length > 0) selectJumps(result.insertedIds);
       return { inserted: result.inserted, skipped: result.skipped };
     },
-    [importJumps],
+    [importJumps, selectJumps],
   );
 
   const handleImportTunnel = useCallback(
     async (rows: Record<string, unknown>[]) => {
       const result = await importTunnelSessions.mutateAsync(rows);
+      if (result.insertedIds.length > 0) selectTunnelSessions(result.insertedIds);
       return { inserted: result.inserted, skipped: result.skipped };
     },
-    [importTunnelSessions],
+    [importTunnelSessions, selectTunnelSessions],
   );
 
   const tabs: TabBarItem<TabId>[] = [
@@ -97,6 +107,7 @@ export default function SkydivingPage() {
               setShowJumpForm(true);
             }}
             onImport={() => setImportType('jumps')}
+            selection={jumpSelection}
           />
         </div>
       )}
@@ -110,6 +121,7 @@ export default function SkydivingPage() {
               setShowTunnelForm(true);
             }}
             onImport={() => setImportType('tunnel')}
+            selection={tunnelSelection}
           />
         </div>
       )}

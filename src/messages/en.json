@@ -2451,6 +2451,7 @@
       "importing": "Importing...",
       "result": "{inserted} imported, {skipped} skipped",
       "result-with-updated": "{inserted} imported, {updated} updated, {skipped} skipped",
+      "selected-hint": "The new records stay selected in the table so you can assign them to a voucher.",
       "errors": {
         "invalid-file": "Invalid file format",
         "no-valid-rows": "No valid rows found ({total} rows read). Detected columns: {headers}",
@@ -2469,6 +2470,21 @@
       "select-placeholder": "Select a voucher",
       "amount-auto": "{amount} will be deducted from the voucher",
       "price-from-voucher": "The amount is calculated automatically from the voucher"
+    },
+    "voucher-assign": {
+      "selected": "{count} selected",
+      "select-row": "Select {label}",
+      "select-page": "Select all on this page",
+      "assign": "Assign to voucher",
+      "assigning": "Assigning...",
+      "clear": "Clear selection",
+      "no-vouchers": "No vouchers with balance for this activity",
+      "over-units": "The voucher has {remaining} {unit} left and the selection uses {needed}",
+      "over-amount": "The voucher has {remaining} left and the selection adds up to {needed}",
+      "units-fallback": "units",
+      "success": "{count} assigned to the voucher",
+      "paid-with-voucher": "Paid with a voucher",
+      "paid-with-named-voucher": "Paid with the voucher \"{name}\""
     },
     "pagination": {
       "showing": "{from}–{to} of {total}",
@@ -2609,7 +2625,8 @@
     "skydive": {
       "not-voucher-consumption": "This transaction is not a voucher consumption",
       "not-skydive-consumption": "This transaction is not a skydiving consumption",
-      "category-not-reconcilable": "This transaction's category cannot be reconciled to an activity"
+      "category-not-reconcilable": "This transaction's category cannot be reconciled to an activity",
+      "voucher-category-mismatch": "This voucher does not match this kind of activity"
     },
     "crypto": {
       "unsafe-permissions": "The API key has unsafe permissions. Create a new key with \"Enable Reading\" only.",
@@ -2665,6 +2682,7 @@
         "trip-expense": "Error updating trip expense",
         "jump": "Error updating jump",
         "tunnel-session": "Error updating tunnel session",
+        "skydive-voucher-assignment": "Error assigning the voucher",
         "voucher": "Error updating voucher",
         "fiscal-status": "Error updating document status",
         "fiscal-settings": "Error updating fiscal settings",

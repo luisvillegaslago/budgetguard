@@ -218,6 +218,9 @@ export function ImportPanel({ onImport, onClose, parseRow }: ImportPanelProps) {
                     skipped: result.skipped,
                   })
                 : t('skydiving.import.result', { inserted: result.inserted, skipped: result.skipped })}
+              {result.inserted > 0 && (
+                <p className="mt-1 font-normal text-foreground">{t('skydiving.import.selected-hint')}</p>
+              )}
             </div>
           )}
 

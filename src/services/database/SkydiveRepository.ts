@@ -14,8 +14,9 @@ import {
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { ImportJumpRow, ImportTunnelRow } from '@/schemas/skydive';
-import type { Category } from '@/types/finance';
+import type { Category, Voucher } from '@/types/finance';
 import type {
+  AssignVoucherResult,
   ImportResult,
   JumpsByType,
   JumpsByYear,
@@ -27,6 +28,7 @@ import type {
 } from '@/types/skydive';
 import { NotFoundError, ValidationError } from '@/utils/apiErrors';
 import { toDateString } from '@/utils/helpers';
+import { isUnitVoucher } from '@/utils/skydiveVoucher';
 import { getPool, query } from './connection';
 import { getVoucherById } from './VoucherRepository';
 
@@ -185,25 +187,33 @@ interface VoucherConsumption {
   voucherUnits: number | null;
 }
 
+// Transaction Description prefixes for jump/session expenses. Also used to
+// recover the Dropzone/Location when reconciling a consumption.
+const JUMP_DESCRIPTION_PREFIX = 'Salto – ';
+const TUNNEL_DESCRIPTION_PREFIX = 'Túnel – ';
+
+function jumpTransactionDescription(dropzone: string | null | undefined): string {
+  return dropzone ? `${JUMP_DESCRIPTION_PREFIX}${dropzone}` : 'Salto paracaidismo';
+}
+
+function tunnelTransactionDescription(location: string | null | undefined): string {
+  return location ? `${TUNNEL_DESCRIPTION_PREFIX}${location}` : 'Túnel de viento';
+}
+
 /**
- * Resolve how a jump/session paid with a voucher ("bono") consumes its balance.
+ * How a jump/session paid with a voucher ("bono") consumes its balance.
  * - Unit vouchers (TotalUnits set): consume `units` (1 per jump, minutes for tunnel)
  *   and prorate the amount from the voucher's unit price.
  * - Monetary vouchers: deduct the manually entered price; no units consumed.
  * The resulting CategoryID is always the voucher's category so the linked
  * transaction matches vw_VoucherBalance.
  */
-async function resolveVoucherConsumption(
-  voucherId: number,
+function computeVoucherConsumption(
+  voucher: Voucher,
   opts: { units: number; manualPriceCents: number | null },
-): Promise<VoucherConsumption> {
-  const voucher = await getVoucherById(voucherId);
-  if (!voucher) {
-    throw new Error(`Voucher ${voucherId} not found`);
-  }
-
-  if (voucher.totalUnits != null && voucher.totalUnits > 0) {
-    const unitPriceCents = voucher.totalAmountCents / voucher.totalUnits;
+): VoucherConsumption {
+  if (isUnitVoucher(voucher)) {
+    const unitPriceCents = voucher.totalAmountCents / (voucher.totalUnits ?? 1);
     return {
       categoryId: voucher.categoryId,
       priceCents: Math.round(unitPriceCents * opts.units),
@@ -216,6 +226,17 @@ async function resolveVoucherConsumption(
     priceCents: opts.manualPriceCents ?? 0,
     voucherUnits: null,
   };
+}
+
+async function resolveVoucherConsumption(
+  voucherId: number,
+  opts: { units: number; manualPriceCents: number | null },
+): Promise<VoucherConsumption> {
+  const voucher = await getVoucherById(voucherId);
+  if (!voucher) {
+    throw new Error(`Voucher ${voucherId} not found`);
+  }
+  return computeVoucherConsumption(voucher, opts);
 }
 
 // Minimal structural client type shared by Neon and pg pool clients.
@@ -488,7 +509,7 @@ export async function createJump(data: {
     const jumpRow = jumpResult.rows[0];
     if (!jumpRow) throw new Error('Failed to create jump');
 
-    const description = data.dropzone ? `Salto – ${data.dropzone}` : 'Salto paracaidismo';
+    const description = jumpTransactionDescription(data.dropzone);
     const jumpDate = typeof data.jumpDate === 'string' ? data.jumpDate : toDateString(data.jumpDate);
 
     const txResult = await client.query<{ TransactionID: number }>(
@@ -616,7 +637,7 @@ export async function updateJump(
 
     // 2. Reconcile the linked expense transaction.
     const dropzone = data.dropzone !== undefined ? data.dropzone : existing.dropzone;
-    const description = dropzone ? `Salto – ${dropzone}` : 'Salto paracaidismo';
+    const description = jumpTransactionDescription(dropzone);
     const jumpDateVal = data.jumpDate !== undefined ? data.jumpDate : existing.jumpDate;
     const transactionDate = typeof jumpDateVal === 'string' ? jumpDateVal : toDateString(jumpDateVal);
 
@@ -670,7 +691,7 @@ export async function getDistinctDropzones(): Promise<string[]> {
 export async function bulkCreateJumps(rows: ImportJumpRow[]): Promise<ImportResult> {
   const userId = await getUserIdOrThrow();
 
-  if (rows.length === 0) return { inserted: 0, skipped: 0, total: 0 };
+  if (rows.length === 0) return { inserted: 0, skipped: 0, total: 0, insertedIds: [] };
 
   const values: string[] = [];
   const params: unknown[] = [];
@@ -708,7 +729,7 @@ export async function bulkCreateJumps(rows: ImportJumpRow[]): Promise<ImportResu
   );
 
   const inserted = result.length;
-  return { inserted, skipped: rows.length - inserted, total: rows.length };
+  return { inserted, skipped: rows.length - inserted, total: rows.length, insertedIds: result.map((r) => r.JumpID) };
 }
 
 // ============================================================
@@ -866,7 +887,7 @@ export async function createTunnelSession(data: {
     const sessionRow = sessionResult.rows[0];
     if (!sessionRow) throw new Error('Failed to create tunnel session');
 
-    const description = data.location ? `Túnel – ${data.location}` : 'Túnel de viento';
+    const description = tunnelTransactionDescription(data.location);
     const sessionDate = typeof data.sessionDate === 'string' ? data.sessionDate : toDateString(data.sessionDate);
 
     const txResult = await client.query<{ TransactionID: number }>(
@@ -984,7 +1005,7 @@ export async function updateTunnelSession(
 
     // 2. Reconcile the linked expense transaction.
     const location = data.location !== undefined ? data.location : existing.location;
-    const description = location ? `Túnel – ${location}` : 'Túnel de viento';
+    const description = tunnelTransactionDescription(location);
     const sessionDateVal = data.sessionDate !== undefined ? data.sessionDate : existing.sessionDate;
     const transactionDate = typeof sessionDateVal === 'string' ? sessionDateVal : toDateString(sessionDateVal);
 
@@ -1047,7 +1068,7 @@ export async function bulkCreateTunnelSessions(
 ): Promise<ImportResult> {
   const userId = await getUserIdOrThrow();
 
-  if (rows.length === 0) return { inserted: 0, skipped: 0, total: 0 };
+  if (rows.length === 0) return { inserted: 0, skipped: 0, total: 0, insertedIds: [] };
 
   const values: string[] = [];
   const params: unknown[] = [];
@@ -1094,7 +1115,7 @@ export async function bulkCreateTunnelSessions(
     const sessionsNeedingTx = result.filter((r) => r.PriceCents != null && r.PriceCents > 0 && r.TransactionID == null);
     await Promise.all(
       sessionsNeedingTx.map(async (session) => {
-        const description = session.Location ? `Túnel – ${session.Location}` : 'Túnel de viento';
+        const description = tunnelTransactionDescription(session.Location);
         const txResult = await query<{ TransactionID: number }>(
           `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "UserID")
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -1121,9 +1142,15 @@ export async function bulkCreateTunnelSessions(
     );
   }
 
-  const inserted = result.filter((r) => !r.was_updated).length;
-  const updated = result.filter((r) => r.was_updated).length;
-  return { inserted, skipped: rows.length - result.length, updated, total: rows.length };
+  const insertedIds = result.filter((r) => !r.was_updated).map((r) => r.SessionID);
+  const updated = result.length - insertedIds.length;
+  return {
+    inserted: insertedIds.length,
+    skipped: rows.length - result.length,
+    updated,
+    total: rows.length,
+    insertedIds,
+  };
 }
 
 // ============================================================
@@ -1236,11 +1263,6 @@ export async function getSkydiveCategories(): Promise<Category[]> {
 // ============================================================
 // Voucher Consumption Reconciliation (user-scoped)
 // ============================================================
-
-// Transaction Description prefixes written by createJump/createTunnelSession.
-// Used to recover the Dropzone/Location when reconciling a consumption.
-const JUMP_DESCRIPTION_PREFIX = 'Salto – ';
-const TUNNEL_DESCRIPTION_PREFIX = 'Túnel – ';
 
 interface ConsumptionTxRow {
   TransactionID: number;
@@ -1470,4 +1492,178 @@ export async function reconcileConsumptionToActivity(transactionId: number): Pro
   } finally {
     client.release();
   }
+}
+
+// ============================================================
+// Bulk Voucher Assignment (user-scoped)
+// ============================================================
+
+interface VoucherAssignableActivity {
+  id: number;
+  transactionId: number | null;
+  priceCents: number | null;
+  units: number;
+  description: string;
+  date: string;
+}
+
+interface AssignableActivityConfig {
+  // Controlled constants (never user input), safe to interpolate into SQL.
+  table: string;
+  idColumn: string;
+  subcategoryName: string;
+  notFoundKey: string;
+}
+
+const JUMP_ASSIGNMENT: AssignableActivityConfig = {
+  table: '"SkydiveJumps"',
+  idColumn: '"JumpID"',
+  subcategoryName: SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS,
+  notFoundKey: API_ERROR.NOT_FOUND.JUMP,
+};
+
+const TUNNEL_ASSIGNMENT: AssignableActivityConfig = {
+  table: '"TunnelSessions"',
+  idColumn: '"SessionID"',
+  subcategoryName: SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL,
+  notFoundKey: API_ERROR.NOT_FOUND.TUNNEL_SESSION,
+};
+
+/**
+ * Pay several jumps/sessions from one voucher in a single BEGIN/COMMIT. Each
+ * activity gets its linked expense transaction created or re-pointed at the
+ * voucher with the prorated amount — the same reconciliation updateJump and
+ * updateTunnelSession run for one activity, so a cash expense already linked is
+ * converted, never duplicated. Throws NotFoundError when an activity or the
+ * voucher is missing and ValidationError when the voucher belongs to another
+ * subcategory; withApiHandler maps those to 404/400.
+ */
+async function assignActivitiesToVoucher(
+  activities: VoucherAssignableActivity[],
+  requestedIds: number[],
+  voucherId: number,
+  userId: number,
+  config: AssignableActivityConfig,
+): Promise<AssignVoucherResult> {
+  if (activities.length !== new Set(requestedIds).size) {
+    throw new NotFoundError(config.notFoundKey, `Some ${config.table} rows were not found`);
+  }
+
+  const voucher = await getVoucherById(voucherId);
+  if (!voucher) {
+    throw new NotFoundError(API_ERROR.NOT_FOUND.VOUCHER, `Voucher ${voucherId} not found`);
+  }
+  if (voucher.categoryName !== config.subcategoryName) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.VOUCHER_CATEGORY_MISMATCH,
+      `Voucher ${voucherId} is not a "${config.subcategoryName}" voucher`,
+    );
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Sequential on purpose: a single client cannot run statements concurrently.
+    await activities.reduce(async (previous, activity) => {
+      await previous;
+      const consumption = computeVoucherConsumption(voucher, {
+        units: activity.units,
+        manualPriceCents: activity.priceCents,
+      });
+      const transactionId = await syncLinkedExpenseTransaction(client, {
+        existingTxId: activity.transactionId,
+        shouldHaveTx: true,
+        categoryId: consumption.categoryId,
+        priceCents: consumption.priceCents,
+        description: activity.description,
+        transactionDate: activity.date,
+        voucherId,
+        voucherUnits: consumption.voucherUnits,
+        userId,
+      });
+      await client.query(
+        `UPDATE ${config.table}
+         SET "PriceCents" = $1, "TransactionID" = $2, "UpdatedAt" = NOW()
+         WHERE ${config.idColumn} = $3 AND "UserID" = $4`,
+        [consumption.priceCents, transactionId, activity.id, userId],
+      );
+    }, Promise.resolve());
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return { assigned: activities.length };
+}
+
+export async function assignJumpsToVoucher(jumpIds: number[], voucherId: number): Promise<AssignVoucherResult> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<{
+    JumpID: number;
+    TransactionID: number | null;
+    PriceCents: number | null;
+    Dropzone: string | null;
+    JumpDate: Date;
+  }>(
+    `SELECT "JumpID", "TransactionID", "PriceCents", "Dropzone", "JumpDate"
+     FROM "SkydiveJumps"
+     WHERE "UserID" = $1 AND "JumpID" = ANY($2::int[])
+     ORDER BY "JumpNumber"`,
+    [userId, jumpIds],
+  );
+
+  const activities = rows.map(
+    (row): VoucherAssignableActivity => ({
+      id: row.JumpID,
+      transactionId: row.TransactionID,
+      priceCents: row.PriceCents,
+      units: 1, // A jump always draws one unit
+      description: jumpTransactionDescription(row.Dropzone),
+      date: toDateString(row.JumpDate),
+    }),
+  );
+
+  return assignActivitiesToVoucher(activities, jumpIds, voucherId, userId, JUMP_ASSIGNMENT);
+}
+
+export async function assignTunnelSessionsToVoucher(
+  sessionIds: number[],
+  voucherId: number,
+): Promise<AssignVoucherResult> {
+  const userId = await getUserIdOrThrow();
+
+  const rows = await query<{
+    SessionID: number;
+    TransactionID: number | null;
+    PriceCents: number | null;
+    Location: string | null;
+    SessionDate: Date;
+    DurationSec: number;
+  }>(
+    `SELECT "SessionID", "TransactionID", "PriceCents", "Location", "SessionDate", "DurationSec"
+     FROM "TunnelSessions"
+     WHERE "UserID" = $1 AND "SessionID" = ANY($2::int[])
+     ORDER BY "SessionDate", "SessionID"`,
+    [userId, sessionIds],
+  );
+
+  const activities = rows.map(
+    (row): VoucherAssignableActivity => ({
+      id: row.SessionID,
+      transactionId: row.TransactionID,
+      priceCents: row.PriceCents,
+      units: row.DurationSec / 60, // A session draws its minutes
+      description: tunnelTransactionDescription(row.Location),
+      date: toDateString(row.SessionDate),
+    }),
+  );
+
+  return assignActivitiesToVoucher(activities, sessionIds, voucherId, userId, TUNNEL_ASSIGNMENT);
 }

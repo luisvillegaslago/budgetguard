@@ -31,6 +31,7 @@ const mockImportResult: ImportResult = {
   inserted: 3,
   skipped: 1,
   total: 4,
+  insertedIds: [1, 2, 3],
 };
 
 // Mock auth

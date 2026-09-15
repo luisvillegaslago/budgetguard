@@ -2451,6 +2451,7 @@
       "importing": "Importando...",
       "result": "{inserted} importados, {skipped} omitidos",
       "result-with-updated": "{inserted} importados, {updated} actualizados, {skipped} omitidos",
+      "selected-hint": "Los registros nuevos quedan seleccionados en la tabla para que puedas asignarlos a un bono.",
       "errors": {
         "invalid-file": "Formato de archivo inválido",
         "no-valid-rows": "No se encontraron filas válidas ({total} filas leídas). Columnas detectadas: {headers}",
@@ -2469,6 +2470,21 @@
       "select-placeholder": "Selecciona un bono",
       "amount-auto": "Se descontará {amount} del bono",
       "price-from-voucher": "El importe se calcula automáticamente desde el bono"
+    },
+    "voucher-assign": {
+      "selected": "{count} seleccionados",
+      "select-row": "Seleccionar {label}",
+      "select-page": "Seleccionar todos los de esta página",
+      "assign": "Asignar a bono",
+      "assigning": "Asignando...",
+      "clear": "Quitar selección",
+      "no-vouchers": "No hay bonos con saldo para esta actividad",
+      "over-units": "Quedan {remaining} {unit} en el bono y la selección consume {needed}",
+      "over-amount": "Quedan {remaining} en el bono y la selección suma {needed}",
+      "units-fallback": "unidades",
+      "success": "{count} asignados al bono",
+      "paid-with-voucher": "Pagado con bono",
+      "paid-with-named-voucher": "Pagado con el bono «{name}»"
     },
     "pagination": {
       "showing": "{from}–{to} de {total}",
@@ -2609,7 +2625,8 @@
     "skydive": {
       "not-voucher-consumption": "Esta transacción no es un consumo de bono",
       "not-skydive-consumption": "Esta transacción no es un consumo de paracaidismo",
-      "category-not-reconcilable": "La categoría de esta transacción no se puede reconciliar con una actividad"
+      "category-not-reconcilable": "La categoría de esta transacción no se puede reconciliar con una actividad",
+      "voucher-category-mismatch": "El bono no corresponde a este tipo de actividad"
     },
     "crypto": {
       "unsafe-permissions": "La API key tiene permisos peligrosos. Crea una nueva key con SOLO \"Enable Reading\".",
@@ -2665,6 +2682,7 @@
         "trip-expense": "Error al actualizar el gasto de viaje",
         "jump": "Error al actualizar el salto",
         "tunnel-session": "Error al actualizar la sesión de túnel",
+        "skydive-voucher-assignment": "Error al asignar el bono",
         "voucher": "Error al actualizar el bono",
         "fiscal-status": "Error al actualizar el estado del documento",
         "fiscal-settings": "Error al actualizar los ajustes fiscales",

@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/Select';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Voucher } from '@/types/finance';
 import { formatCurrency } from '@/utils/money';
+import { formatVoucherOptionLabel } from '@/utils/skydiveVoucher';
 
 interface SkydiveVoucherSelectProps {
   vouchers: Voucher[];
@@ -74,8 +75,7 @@ export function SkydiveVoucherSelect({ vouchers, value, onChange, units, disable
             <option value="">{t('skydiving.voucher.select-placeholder')}</option>
             {vouchers.map((v) => (
               <option key={v.voucherId} value={v.voucherId}>
-                {(v.description || v.categoryName || t('vouchers.untitled')) +
-                  ` · ${formatCurrency(Math.max(0, v.remainingCents))}`}
+                {formatVoucherOptionLabel(v, t('vouchers.untitled'))}
               </option>
             ))}
           </Select>

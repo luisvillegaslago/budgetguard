@@ -112,4 +112,13 @@ export interface ImportResult {
   skipped: number;
   updated?: number;
   total: number;
+  // IDs of the newly inserted rows (updated/skipped rows excluded)
+  insertedIds: number[];
+}
+
+/**
+ * Result of assigning several jumps/sessions to a voucher in one operation
+ */
+export interface AssignVoucherResult {
+  assigned: number;
 }

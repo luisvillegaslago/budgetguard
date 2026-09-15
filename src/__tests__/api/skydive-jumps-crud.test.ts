@@ -58,6 +58,7 @@ const mockImportResult: ImportResult = {
   inserted: 5,
   skipped: 2,
   total: 7,
+  insertedIds: [1, 2, 3, 4, 5],
 };
 
 const mockCategories: Category[] = [

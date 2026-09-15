@@ -1,26 +1,32 @@
 'use client';
 
 /**
- * Sortable table displaying skydive jump log with search and pagination
+ * Sortable table displaying skydive jump log with search, pagination and
+ * multi-select to pay several jumps from a voucher at once
  */
 
 import { Cloud, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { SkydiveVoucherAssignBar } from '@/components/skydiving/SkydiveVoucherAssignBar';
+import { VoucherPaidIcon } from '@/components/skydiving/VoucherPaidIcon';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataState } from '@/components/ui/DataState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
+import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { SortableHeader } from '@/components/ui/SortableHeader';
 import { useToast } from '@/components/ui/Toast';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { SORT_DIRECTION } from '@/constants/finance';
+import { SKYDIVE_ACTIVITY_TYPE, SORT_DIRECTION } from '@/constants/finance';
+import type { IdSelection } from '@/hooks/useIdSelection';
 import { useDeleteJump, useSkydiveJumps } from '@/hooks/useSkydiveJumps';
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { SkydiveJump } from '@/types/skydive';
 import { formatDate } from '@/utils/helpers';
+import type { VoucherAssignItem } from '@/utils/skydiveVoucher';
 
 const PAGE_SIZE = 20;
 
@@ -36,6 +42,7 @@ interface JumpLogTableProps {
   onNewJump: () => void;
   onEditJump: (jump: SkydiveJump) => void;
   onImport: () => void;
+  selection: IdSelection;
   filters?: { year?: number; dropzone?: string };
 }
 
@@ -64,7 +71,7 @@ function matchesSearch(jump: SkydiveJump, query: string): boolean {
   );
 }
 
-export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpLogTableProps) {
+export function JumpLogTable({ onNewJump, onEditJump, onImport, selection, filters }: JumpLogTableProps) {
   const { t, locale } = useTranslate();
   const toast = useToast();
   const { data: jumps, isLoading, isError, refetch } = useSkydiveJumps(filters);
@@ -85,9 +92,22 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
     initial: { key: 'date', direction: SORT_DIRECTION.DESC },
   });
 
+  // Selected jumps across all pages; a jump always draws one voucher unit.
+  const selectedItems = useMemo<VoucherAssignItem[]>(
+    () =>
+      (jumps ?? [])
+        .filter((jump) => selection.selectedIds.has(jump.jumpId))
+        .map((jump) => ({ id: jump.jumpId, units: 1, priceCents: jump.priceCents, voucherId: jump.voucherId })),
+    [jumps, selection.selectedIds],
+  );
+
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
   const pageItems = sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+  const pageIds = pageItems.map((jump) => jump.jumpId);
+  const selectedOnPage = pageIds.filter((id) => selection.isSelected(id)).length;
+  const allPageSelected = pageIds.length > 0 && selectedOnPage === pageIds.length;
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -105,6 +125,9 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
       toast.error(deleteJump.errorMessage ?? t('skydiving.jumps.form.errors.delete'));
     }
   };
+
+  const rowSelectLabel = (jump: SkydiveJump) =>
+    t('skydiving.voucher-assign.select-row', { label: `#${jump.jumpNumber}` });
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -132,6 +155,13 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
           </button>
         </div>
       </div>
+
+      {/* Bulk voucher assignment for the selected jumps */}
+      <SkydiveVoucherAssignBar
+        activityType={SKYDIVE_ACTIVITY_TYPE.JUMP}
+        selectedItems={selectedItems}
+        onClear={selection.clear}
+      />
 
       {/* Search */}
       {jumps && jumps.length > 0 && (
@@ -171,6 +201,14 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-guard-muted uppercase tracking-wider border-b border-border">
+                      <th className="pl-4 pr-0 py-2 w-8">
+                        <SelectionCheckbox
+                          checked={allPageSelected}
+                          indeterminate={selectedOnPage > 0 && !allPageSelected}
+                          onChange={() => selection.setMany(pageIds, !allPageSelected)}
+                          label={t('skydiving.voucher-assign.select-page')}
+                        />
+                      </th>
                       <th className="px-4 py-2 font-semibold">
                         <SortableHeader
                           label={t('skydiving.jumps.columns.number')}
@@ -212,8 +250,23 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
                   </thead>
                   <tbody className="divide-y divide-border">
                     {pageItems.map((jump) => (
-                      <tr key={jump.jumpId} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-4 py-2.5 font-mono font-semibold text-foreground">{jump.jumpNumber}</td>
+                      <tr
+                        key={jump.jumpId}
+                        className={`hover:bg-muted/50 transition-colors ${selection.isSelected(jump.jumpId) ? 'bg-guard-primary/5' : ''}`}
+                      >
+                        <td className="pl-4 pr-0 py-2.5">
+                          <SelectionCheckbox
+                            checked={selection.isSelected(jump.jumpId)}
+                            onChange={() => selection.toggle(jump.jumpId)}
+                            label={rowSelectLabel(jump)}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 font-mono font-semibold text-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            {jump.jumpNumber}
+                            {jump.voucherId != null && <VoucherPaidIcon voucherId={jump.voucherId} />}
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5 text-foreground whitespace-nowrap">
                           {String(jump.jumpDate).startsWith(PLACEHOLDER_DATE) ? (
                             <span className="text-guard-muted italic">{t('skydiving.jumps.prior-jump')}</span>
@@ -270,10 +323,20 @@ export function JumpLogTable({ onNewJump, onEditJump, onImport, filters }: JumpL
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-border">
               {pageItems.map((jump) => (
-                <div key={jump.jumpId} className="p-4 space-y-2">
+                <div
+                  key={jump.jumpId}
+                  className={`p-4 space-y-2 ${selection.isSelected(jump.jumpId) ? 'bg-guard-primary/5' : ''}`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                      <SelectionCheckbox
+                        checked={selection.isSelected(jump.jumpId)}
+                        onChange={() => selection.toggle(jump.jumpId)}
+                        label={rowSelectLabel(jump)}
+                        className="h-5 w-5"
+                      />
                       <span className="font-mono font-semibold text-foreground">#{jump.jumpNumber}</span>
+                      {jump.voucherId != null && <VoucherPaidIcon voucherId={jump.voucherId} />}
                       <span className="text-sm text-guard-muted">
                         {String(jump.jumpDate).startsWith(PLACEHOLDER_DATE) ? (
                           <span className="italic">{t('skydiving.jumps.prior-jump')}</span>

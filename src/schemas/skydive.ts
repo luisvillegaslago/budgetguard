@@ -93,3 +93,16 @@ export const ImportTunnelRowSchema = z.object({
 });
 
 export type ImportTunnelRow = z.infer<typeof ImportTunnelRowSchema>;
+
+// Upper bound for a single bulk voucher assignment request
+export const MAX_VOUCHER_ASSIGNMENT_IDS = 500;
+
+/**
+ * Schema for assigning several jumps/tunnel sessions to a voucher ("bono") at once
+ */
+export const AssignVoucherSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(MAX_VOUCHER_ASSIGNMENT_IDS),
+  voucherId: z.number().int().positive(),
+});
+
+export type AssignVoucherInput = z.infer<typeof AssignVoucherSchema>;
