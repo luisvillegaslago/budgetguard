@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.66.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.65.0...v0.66.0) (2026-09-16)
+
+
+### Features
+
+* **ui:** subtract values in the amount calculator ([f920ca6](https://github.com/luisvillegaslago/budgetguard/commit/f920ca6ec09e30c907386ebb376d949b01e0024b))
+
 ## [0.65.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.64.0...v0.65.0) (2026-09-15)
 
 
