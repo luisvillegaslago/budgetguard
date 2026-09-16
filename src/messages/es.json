@@ -64,12 +64,13 @@
       "empty-title": "No hay datos para mostrar"
     },
     "amount-sum": {
-      "open": "Sumar varios importes",
-      "title": "Sumar importes",
+      "open": "Sumar o restar varios importes",
+      "title": "Calcular importe",
       "add": "Añadir",
+      "subtract": "Restar",
       "apply": "Aplicar",
       "remove": "Quitar valor",
-      "empty": "Añade valores para sumarlos"
+      "empty": "Añade o resta valores para calcular"
     },
     "months-short": {
       "1": "Ene",

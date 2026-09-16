@@ -2,13 +2,13 @@
 
 /**
  * BudgetGuard Amount Sum Popover
- * Small Σ helper next to an amount input: add individual values one by one,
- * see the running list and total, then apply the total back to the field.
+ * Small calculator next to an amount input: add or subtract individual values one
+ * by one, see the running list and total, then apply the total back to the field.
  * Values live only in local state (never persisted to the DB).
  * Uses fixed positioning to escape overflow containers (e.g. modals).
  */
 
-import { Calculator, Plus, X } from 'lucide-react';
+import { Calculator, Minus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslate } from '@/hooks/useTranslations';
 import { cn } from '@/utils/helpers';
@@ -23,8 +23,11 @@ interface PopoverPosition {
 
 interface SumValue {
   id: number;
+  // Signed: negative values are subtractions
   cents: number;
 }
+
+type Operation = 1 | -1;
 
 type TriggerSize = 'sm' | 'md';
 
@@ -88,9 +91,11 @@ export function AmountSumPopover({ onApply, disabled, size = 'sm' }: AmountSumPo
     }
   };
 
-  const handleAdd = () => {
-    const cents = parseInputToCents(draft);
-    if (cents === null || cents <= 0) return;
+  // Buttons force the sign; Enter keeps whatever sign was typed ("-5" subtracts)
+  const addValue = (operation?: Operation) => {
+    const parsed = parseInputToCents(draft);
+    if (parsed === null || parsed === 0) return;
+    const cents = operation ? operation * Math.abs(parsed) : parsed;
     setValues((prev) => [...prev, { id: idRef.current++, cents }]);
     setDraft('');
     inputRef.current?.focus();
@@ -115,7 +120,7 @@ export function AmountSumPopover({ onApply, disabled, size = 'sm' }: AmountSumPo
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleAdd();
+      addValue();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       setIsOpen(false);
@@ -174,7 +179,15 @@ export function AmountSumPopover({ onApply, disabled, size = 'sm' }: AmountSumPo
             />
             <button
               type="button"
-              onClick={handleAdd}
+              onClick={() => addValue(-1)}
+              aria-label={t('common.amount-sum.subtract')}
+              className="flex items-center justify-center shrink-0 h-[34px] w-9 rounded-md border border-input text-foreground hover:bg-muted transition-colors"
+            >
+              <Minus className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => addValue(1)}
               aria-label={t('common.amount-sum.add')}
               className="flex items-center justify-center shrink-0 h-[34px] w-9 rounded-md bg-guard-primary text-white hover:bg-guard-primary/90 transition-colors"
             >
@@ -190,7 +203,9 @@ export function AmountSumPopover({ onApply, disabled, size = 'sm' }: AmountSumPo
                   key={value.id}
                   className="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-muted/50 text-sm"
                 >
-                  <span className="tabular-nums text-foreground">{formatCurrency(value.cents)}</span>
+                  <span className={cn('tabular-nums', value.cents < 0 ? 'text-guard-danger' : 'text-foreground')}>
+                    {value.cents < 0 ? `− ${formatCurrency(-value.cents)}` : formatCurrency(value.cents)}
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleRemove(value.id)}

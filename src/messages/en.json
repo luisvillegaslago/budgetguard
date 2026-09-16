@@ -64,12 +64,13 @@
       "empty-title": "No data to display"
     },
     "amount-sum": {
-      "open": "Sum multiple amounts",
-      "title": "Sum amounts",
+      "open": "Add or subtract multiple amounts",
+      "title": "Calculate amount",
       "add": "Add",
+      "subtract": "Subtract",
       "apply": "Apply",
       "remove": "Remove value",
-      "empty": "Add values to sum them"
+      "empty": "Add or subtract values to calculate"
     },
     "months-short": {
       "1": "Jan",
