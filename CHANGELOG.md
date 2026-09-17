@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.67.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.66.0...v0.67.0) (2026-09-17)
+
+
+### Features
+
+* **vouchers:** create the missing jump or tunnel session from a prefilled form ([aff1153](https://github.com/luisvillegaslago/budgetguard/commit/aff1153e4b4714b9420a36151e7c1aad2b0da335))
+
 ## [0.66.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.65.0...v0.66.0) (2026-09-16)
 
 
