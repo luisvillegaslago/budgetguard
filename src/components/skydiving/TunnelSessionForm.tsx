@@ -21,9 +21,12 @@ import { CreateTunnelSessionSchema } from '@/schemas/skydive';
 import type { TunnelSession } from '@/types/skydive';
 import { cn, toDateString, toNullableNumber } from '@/utils/helpers';
 import { centsToEuros } from '@/utils/money';
+import type { TunnelSessionPrefill } from '@/utils/skydiveVoucher';
 
 interface TunnelSessionFormProps {
   session?: TunnelSession | null;
+  /** Create mode only: start from a voucher consumption that has no session yet. */
+  prefill?: TunnelSessionPrefill | null;
   onClose: () => void;
 }
 
@@ -34,7 +37,7 @@ const inputClass = (hasError: boolean) =>
     hasError ? 'border-guard-danger' : 'border-input',
   );
 
-export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) {
+export function TunnelSessionForm({ session, prefill, onClose }: TunnelSessionFormProps) {
   const { t } = useTranslate();
   const createSession = useCreateTunnelSession();
   const updateSession = useUpdateTunnelSession();
@@ -60,15 +63,27 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
           price: session.priceCents != null ? centsToEuros(session.priceCents) : null,
           voucherId: session.voucherId,
         }
-      : {
-          sessionDate: toDateString(new Date()) as unknown as Date,
-        },
+      : prefill
+        ? {
+            sessionDate: prefill.sessionDate as unknown as Date,
+            location: prefill.location,
+            durationMin: prefill.durationMin ?? undefined,
+            price: prefill.price,
+            voucherId: prefill.voucherId,
+            transactionId: prefill.transactionId,
+          }
+        : {
+            sessionDate: toDateString(new Date()) as unknown as Date,
+          },
   });
 
   // Voucher ("bono") payment — only vouchers in the "Túnel de viento" subcategory.
   const watchedVoucherId = useWatch({ control, name: 'voucherId' });
   const watchedDurationMin = useWatch({ control, name: 'durationMin' });
-  const tunnelVouchers = useSkydiveVouchers(SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL, session?.voucherId ?? null);
+  const tunnelVouchers = useSkydiveVouchers(
+    SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL,
+    session?.voucherId ?? prefill?.voucherId ?? null,
+  );
   const selectedVoucher = tunnelVouchers.find((v) => v.voucherId === watchedVoucherId) ?? null;
   // Unit vouchers (e.g. "60 minutos") prorate the amount, so the manual price is hidden.
   const isUnitsVoucherSelected = selectedVoucher?.totalUnits != null && selectedVoucher.totalUnits > 0;
@@ -205,7 +220,8 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
             value={watchedVoucherId ?? null}
             onChange={(id) => setValue('voucherId', id, { shouldValidate: true })}
             units={typeof watchedDurationMin === 'number' ? watchedDurationMin : 0}
-            disabled={isSubmitting}
+            // An adopted consumption stays on its voucher
+            disabled={isSubmitting || !!prefill}
           />
 
           {/* Notes */}
@@ -220,7 +236,8 @@ export function TunnelSessionForm({ session, onClose }: TunnelSessionFormProps) 
           {mutation.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
               <p className="text-sm text-guard-danger">
-                {isEditing ? t('skydiving.tunnel.form.errors.update') : t('skydiving.tunnel.form.errors.create')}
+                {mutation.errorMessage ??
+                  (isEditing ? t('skydiving.tunnel.form.errors.update') : t('skydiving.tunnel.form.errors.create'))}
               </p>
             </div>
           )}

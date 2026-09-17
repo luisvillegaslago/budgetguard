@@ -331,6 +331,21 @@ describe('UpdateJumpSchema', () => {
   });
 });
 
+describe('UpdateJumpSchema — adoption', () => {
+  // Adopting a consumption only happens on create: an update never re-links a transaction.
+  it('should drop transactionId on update', () => {
+    const result = UpdateJumpSchema.safeParse({ transactionId: 5 });
+    expect(result.success).toBe(true);
+    expect(result.data).not.toHaveProperty('transactionId');
+  });
+
+  it('should keep transactionId on create', () => {
+    const result = CreateJumpSchema.safeParse({ jumpNumber: 10, jumpDate: '2026-04-01', transactionId: 5 });
+    expect(result.success).toBe(true);
+    expect(result.data?.transactionId).toBe(5);
+  });
+});
+
 // ============================
 // CreateTunnelSessionSchema
 // ============================
@@ -520,6 +535,23 @@ describe('UpdateTunnelSessionSchema', () => {
   it('should still reject invalid sessionDate when provided', () => {
     const result = UpdateTunnelSessionSchema.safeParse({ sessionDate: 'nope' });
     expect(result.success).toBe(false);
+  });
+
+  // Adopting a consumption only happens on create: an update never re-links a transaction.
+  it('should drop transactionId', () => {
+    const result = UpdateTunnelSessionSchema.safeParse({ transactionId: 5 });
+    expect(result.success).toBe(true);
+    expect(result.data).not.toHaveProperty('transactionId');
+  });
+
+  it('should keep transactionId on create', () => {
+    const result = CreateTunnelSessionSchema.safeParse({
+      sessionDate: '2026-04-01',
+      durationMin: 15,
+      transactionId: 5,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.transactionId).toBe(5);
   });
 });
 

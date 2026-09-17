@@ -5,7 +5,6 @@
 
 import {
   API_ERROR,
-  RECONCILE_ACTION,
   SHARED_EXPENSE,
   SKYDIVE_ACTIVITY_TYPE,
   SKYDIVE_CATEGORY,
@@ -20,7 +19,6 @@ import type {
   ImportResult,
   JumpsByType,
   JumpsByYear,
-  ReconcileConsumptionResult,
   SkydiveActivityType,
   SkydiveJump,
   SkydiveStats,
@@ -28,7 +26,7 @@ import type {
 } from '@/types/skydive';
 import { NotFoundError, ValidationError } from '@/utils/apiErrors';
 import { toDateString } from '@/utils/helpers';
-import { isUnitVoucher } from '@/utils/skydiveVoucher';
+import { isUnitVoucher, JUMP_DESCRIPTION_PREFIX, TUNNEL_DESCRIPTION_PREFIX } from '@/utils/skydiveVoucher';
 import { getPool, query } from './connection';
 import { getVoucherById } from './VoucherRepository';
 
@@ -186,11 +184,6 @@ interface VoucherConsumption {
   priceCents: number;
   voucherUnits: number | null;
 }
-
-// Transaction Description prefixes for jump/session expenses. Also used to
-// recover the Dropzone/Location when reconciling a consumption.
-const JUMP_DESCRIPTION_PREFIX = 'Salto – ';
-const TUNNEL_DESCRIPTION_PREFIX = 'Túnel – ';
 
 function jumpTransactionDescription(dropzone: string | null | undefined): string {
   return dropzone ? `${JUMP_DESCRIPTION_PREFIX}${dropzone}` : 'Salto paracaidismo';
@@ -420,6 +413,7 @@ export async function createJump(data: {
   comment?: string | null;
   priceCents?: number | null;
   voucherId?: number | null;
+  transactionId?: number | null;
 }): Promise<SkydiveJump> {
   const userId = await getUserIdOrThrow();
 
@@ -443,6 +437,9 @@ export async function createJump(data: {
 
   const shouldLinkTransaction =
     voucherId != null || (effectivePriceCents != null && effectivePriceCents > 0 && categoryId != null);
+
+  const adoptedTxId = data.transactionId ?? null;
+  assertAdoptionKeepsVoucher(adoptedTxId, voucherId);
 
   // Simple insert when no transaction linking is needed
   if (!shouldLinkTransaction) {
@@ -475,11 +472,21 @@ export async function createJump(data: {
     return rowToJump(row);
   }
 
-  // Atomic transaction: insert jump + linked expense transaction
+  // Atomic transaction: insert jump + linked expense transaction (new, or the adopted consumption)
   const pool = getPool();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    if (adoptedTxId != null) {
+      await assertAdoptableConsumption(client, {
+        transactionId: adoptedTxId,
+        userId,
+        subcategoryName: SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS,
+        voucherId,
+        voucherUnits,
+      });
+    }
 
     const jumpResult = await client.query<JumpRow>(
       `INSERT INTO "SkydiveJumps" ("JumpNumber", "Title", "JumpDate", "Dropzone", "Canopy", "Wingsuit",
@@ -509,28 +516,18 @@ export async function createJump(data: {
     const jumpRow = jumpResult.rows[0];
     if (!jumpRow) throw new Error('Failed to create jump');
 
-    const description = jumpTransactionDescription(data.dropzone);
-    const jumpDate = typeof data.jumpDate === 'string' ? data.jumpDate : toDateString(data.jumpDate);
+    const txId = await syncLinkedExpenseTransaction(client, {
+      existingTxId: adoptedTxId,
+      shouldHaveTx: true,
+      categoryId,
+      priceCents: effectivePriceCents,
+      description: jumpTransactionDescription(data.dropzone),
+      transactionDate: typeof data.jumpDate === 'string' ? data.jumpDate : toDateString(data.jumpDate),
+      voucherId,
+      voucherUnits,
+      userId,
+    });
 
-    const txResult = await client.query<{ TransactionID: number }>(
-      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "VoucherID", "VoucherUnits", "UserID")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING "TransactionID"`,
-      [
-        categoryId,
-        effectivePriceCents,
-        description,
-        jumpDate,
-        TRANSACTION_TYPE.EXPENSE,
-        SHARED_EXPENSE.DEFAULT_DIVISOR,
-        TRANSACTION_STATUS.PAID,
-        voucherId,
-        voucherUnits,
-        userId,
-      ],
-    );
-
-    const txId = txResult.rows[0]?.TransactionID;
     if (txId) {
       await client.query('UPDATE "SkydiveJumps" SET "TransactionID" = $1 WHERE "JumpID" = $2', [txId, jumpRow.JumpID]);
       jumpRow.TransactionID = txId;
@@ -816,6 +813,7 @@ export async function createTunnelSession(data: {
   notes?: string | null;
   priceCents?: number | null;
   voucherId?: number | null;
+  transactionId?: number | null;
 }): Promise<TunnelSession> {
   const userId = await getUserIdOrThrow();
 
@@ -840,6 +838,9 @@ export async function createTunnelSession(data: {
   const shouldLinkTransaction =
     voucherId != null || (effectivePriceCents != null && effectivePriceCents > 0 && categoryId != null);
 
+  const adoptedTxId = data.transactionId ?? null;
+  assertAdoptionKeepsVoucher(adoptedTxId, voucherId);
+
   // Simple insert when no transaction linking is needed
   if (!shouldLinkTransaction) {
     const result = await query<TunnelRow>(
@@ -862,11 +863,21 @@ export async function createTunnelSession(data: {
     return rowToTunnelSession(row);
   }
 
-  // Atomic transaction: insert session + linked expense transaction
+  // Atomic transaction: insert session + linked expense transaction (new, or the adopted consumption)
   const pool = getPool();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    if (adoptedTxId != null) {
+      await assertAdoptableConsumption(client, {
+        transactionId: adoptedTxId,
+        userId,
+        subcategoryName: SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL,
+        voucherId,
+        voucherUnits,
+      });
+    }
 
     const sessionResult = await client.query<TunnelRow>(
       `INSERT INTO "TunnelSessions" ("SessionDate", "Location", "SessionType", "DurationSec", "Notes", "PriceCents", "UserID")
@@ -887,28 +898,18 @@ export async function createTunnelSession(data: {
     const sessionRow = sessionResult.rows[0];
     if (!sessionRow) throw new Error('Failed to create tunnel session');
 
-    const description = tunnelTransactionDescription(data.location);
-    const sessionDate = typeof data.sessionDate === 'string' ? data.sessionDate : toDateString(data.sessionDate);
+    const txId = await syncLinkedExpenseTransaction(client, {
+      existingTxId: adoptedTxId,
+      shouldHaveTx: true,
+      categoryId,
+      priceCents: effectivePriceCents,
+      description: tunnelTransactionDescription(data.location),
+      transactionDate: typeof data.sessionDate === 'string' ? data.sessionDate : toDateString(data.sessionDate),
+      voucherId,
+      voucherUnits,
+      userId,
+    });
 
-    const txResult = await client.query<{ TransactionID: number }>(
-      `INSERT INTO "Transactions" ("CategoryID", "AmountCents", "Description", "TransactionDate", "Type", "SharedDivisor", "Status", "VoucherID", "VoucherUnits", "UserID")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING "TransactionID"`,
-      [
-        categoryId,
-        effectivePriceCents,
-        description,
-        sessionDate,
-        TRANSACTION_TYPE.EXPENSE,
-        SHARED_EXPENSE.DEFAULT_DIVISOR,
-        TRANSACTION_STATUS.PAID,
-        voucherId,
-        voucherUnits,
-        userId,
-      ],
-    );
-
-    const txId = txResult.rows[0]?.TransactionID;
     if (txId) {
       await client.query('UPDATE "TunnelSessions" SET "TransactionID" = $1 WHERE "SessionID" = $2', [
         txId,
@@ -926,6 +927,101 @@ export async function createTunnelSession(data: {
     throw error;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * Guard for a new jump/session adopting an existing transaction. The consumption
+ * must belong to this user, be drawn from the SAME voucher the activity is paid
+ * with, sit in that activity's skydiving subcategory, consume the same units, and
+ * have no jump or tunnel session linked yet — otherwise the adoption would move it
+ * to another voucher, rewrite its balance, or leave two activities sharing (and
+ * later deleting) one transaction.
+ *
+ * The row is locked first and the link checked in a separate statement: under READ
+ * COMMITTED each statement takes a fresh snapshot, so a request that waited on the
+ * lock sees the link the winner just committed.
+ */
+async function assertAdoptableConsumption(
+  client: TxClient,
+  opts: {
+    transactionId: number;
+    userId: number;
+    subcategoryName: string;
+    voucherId: number | null;
+    voucherUnits: number | null;
+  },
+) {
+  const { transactionId, userId } = opts;
+
+  const { rows } = await client.query<{
+    VoucherID: number | null;
+    VoucherUnits: number | string | null;
+    CategoryName: string;
+    ParentCategoryName: string | null;
+  }>(
+    `SELECT t."VoucherID", t."VoucherUnits", c."Name" AS "CategoryName", parent."Name" AS "ParentCategoryName"
+     FROM "Transactions" t
+     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+     WHERE t."TransactionID" = $1 AND t."UserID" = $2
+     FOR UPDATE OF t`,
+    [transactionId, userId],
+  );
+
+  const row = rows[0];
+  if (!row) {
+    throw new NotFoundError(API_ERROR.NOT_FOUND.TRANSACTION, `Transaction ${transactionId} not found`);
+  }
+  if (row.VoucherID == null) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.NOT_VOUCHER_CONSUMPTION,
+      `Transaction ${transactionId} is not a voucher consumption`,
+    );
+  }
+  if (row.VoucherID !== opts.voucherId) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.CONSUMPTION_VOUCHER_MISMATCH,
+      `Transaction ${transactionId} belongs to voucher ${row.VoucherID}, not ${opts.voucherId}`,
+    );
+  }
+  if (row.ParentCategoryName !== SKYDIVE_CATEGORY.NAME || row.CategoryName !== opts.subcategoryName) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.VOUCHER_CATEGORY_MISMATCH,
+      `Transaction ${transactionId} category "${row.CategoryName}" is not "${opts.subcategoryName}"`,
+    );
+  }
+  const txUnits = row.VoucherUnits != null ? Number(row.VoucherUnits) : null;
+  if (txUnits != null && opts.voucherUnits != null && txUnits !== opts.voucherUnits) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.CONSUMPTION_UNITS_MISMATCH,
+      `Transaction ${transactionId} consumed ${txUnits} units, the activity ${opts.voucherUnits}`,
+    );
+  }
+
+  const linked = await client.query<{ IsLinked: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM "SkydiveJumps" WHERE "TransactionID" = $1 AND "UserID" = $2)
+         OR EXISTS (SELECT 1 FROM "TunnelSessions" WHERE "TransactionID" = $1 AND "UserID" = $2) AS "IsLinked"`,
+    [transactionId, userId],
+  );
+  if (linked.rows[0]?.IsLinked) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.CONSUMPTION_ALREADY_LINKED,
+      `Transaction ${transactionId} is already linked to an activity`,
+    );
+  }
+}
+
+/**
+ * An adopted consumption stays drawn from its voucher: without one the activity would
+ * turn it into a cash expense or, with no price, delete it.
+ */
+function assertAdoptionKeepsVoucher(adoptedTxId: number | null, voucherId: number | null) {
+  if (adoptedTxId != null && voucherId == null) {
+    throw new ValidationError(
+      API_ERROR.SKYDIVE.CONSUMPTION_VOUCHER_MISMATCH,
+      `Activity adopting transaction ${adoptedTxId} is not paid from a voucher`,
+    );
   }
 }
 
@@ -1261,30 +1357,8 @@ export async function getSkydiveCategories(): Promise<Category[]> {
 }
 
 // ============================================================
-// Voucher Consumption Reconciliation (user-scoped)
+// Voucher Consumptions Without Activity (user-scoped)
 // ============================================================
-
-interface ConsumptionTxRow {
-  TransactionID: number;
-  VoucherID: number | null;
-  VoucherUnits: number | string | null;
-  AmountCents: number;
-  Description: string | null;
-  TransactionDate: Date | string;
-  CategoryName: string;
-  ParentCategoryName: string | null;
-}
-
-/**
- * Recover the free-text label (Dropzone/Location) embedded in a consumption's
- * Description, e.g. "Salto – Empuriabrava" -> "Empuriabrava". Returns null when
- * the description does not match the expected prefix.
- */
-function parseActivityLabel(description: string | null, prefix: string): string | null {
-  if (!description || !description.startsWith(prefix)) return null;
-  const label = description.slice(prefix.length).trim();
-  return label.length > 0 ? label : null;
-}
 
 /**
  * Given a voucher, return the consumption transactions that have NO linked
@@ -1330,168 +1404,6 @@ export async function getUnlinkedSkydiveConsumptions(
   );
 
   return { transactionIds: rows.map((r) => r.TransactionID), activityType };
-}
-
-/**
- * Reconcile a voucher consumption transaction to a skydiving activity (Option A,
- * link-or-create). Idempotent: if the transaction is already linked to an
- * activity of its type, no change is made. Otherwise an existing unlinked
- * activity on the same date is linked, or a new activity is created against the
- * SAME transaction (never re-consuming the voucher). All steps run in one
- * BEGIN/COMMIT. Throws NotFoundError when the transaction is missing and
- * ValidationError when it is not a skydive voucher consumption; withApiHandler
- * maps those to 404/400.
- */
-export async function reconcileConsumptionToActivity(transactionId: number): Promise<ReconcileConsumptionResult> {
-  const userId = await getUserIdOrThrow();
-
-  // 1. Load + validate the consumption transaction (with category + parent).
-  const txRows = await query<ConsumptionTxRow>(
-    `SELECT t."TransactionID", t."VoucherID", t."VoucherUnits", t."AmountCents",
-            t."Description", t."TransactionDate",
-            c."Name" AS "CategoryName", parent."Name" AS "ParentCategoryName"
-     FROM "Transactions" t
-     INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
-     LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
-     WHERE t."TransactionID" = $1 AND t."UserID" = $2`,
-    [transactionId, userId],
-  );
-
-  const tx = txRows[0];
-  if (!tx) {
-    throw new NotFoundError(API_ERROR.NOT_FOUND.TRANSACTION, `Transaction ${transactionId} not found`);
-  }
-  if (tx.VoucherID == null) {
-    throw new ValidationError(
-      API_ERROR.SKYDIVE.NOT_VOUCHER_CONSUMPTION,
-      `Transaction ${transactionId} is not a voucher consumption`,
-    );
-  }
-  if (tx.ParentCategoryName !== SKYDIVE_CATEGORY.NAME) {
-    throw new ValidationError(
-      API_ERROR.SKYDIVE.NOT_SKYDIVE_CONSUMPTION,
-      `Transaction ${transactionId} is not a skydiving consumption`,
-    );
-  }
-
-  const isTunnel = tx.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.TUNNEL;
-  const isJump = tx.CategoryName === SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS;
-  if (!isTunnel && !isJump) {
-    throw new ValidationError(
-      API_ERROR.SKYDIVE.CATEGORY_NOT_RECONCILABLE,
-      `Transaction ${transactionId} category "${tx.CategoryName}" is not reconcilable`,
-    );
-  }
-
-  // 2. Resolve the activity type and shared derived values.
-  const activityType = isTunnel ? SKYDIVE_ACTIVITY_TYPE.TUNNEL : SKYDIVE_ACTIVITY_TYPE.JUMP;
-  const transactionDate = toDateString(tx.TransactionDate);
-  const amountCents = tx.AmountCents;
-  const voucherUnits = tx.VoucherUnits != null ? Number(tx.VoucherUnits) : 0;
-
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    let result: ReconcileConsumptionResult;
-
-    if (isTunnel) {
-      // 3. Already linked to a tunnel session? Idempotent no-op.
-      const linked = await client.query<{ SessionID: number }>(
-        'SELECT "SessionID" FROM "TunnelSessions" WHERE "TransactionID" = $1 AND "UserID" = $2 LIMIT 1',
-        [transactionId, userId],
-      );
-      const linkedId = linked.rows[0]?.SessionID;
-      if (linkedId != null) {
-        result = { activityType, action: RECONCILE_ACTION.ALREADY_LINKED, id: linkedId };
-      } else {
-        // 4. Link an existing unlinked session on the same date, if any.
-        const existing = await client.query<{ SessionID: number }>(
-          `SELECT "SessionID" FROM "TunnelSessions"
-           WHERE "UserID" = $1 AND "SessionDate" = $2::date AND "TransactionID" IS NULL
-           ORDER BY "SessionID" LIMIT 1`,
-          [userId, transactionDate],
-        );
-        const existingId = existing.rows[0]?.SessionID;
-        if (existingId != null) {
-          await client.query(
-            `UPDATE "TunnelSessions"
-             SET "TransactionID" = $1, "PriceCents" = COALESCE("PriceCents", $2), "UpdatedAt" = NOW()
-             WHERE "SessionID" = $3 AND "UserID" = $4`,
-            [transactionId, amountCents, existingId, userId],
-          );
-          result = { activityType, action: RECONCILE_ACTION.LINKED, id: existingId };
-        } else {
-          // 5. Create a new session linked to the existing transaction.
-          const location = parseActivityLabel(tx.Description, TUNNEL_DESCRIPTION_PREFIX);
-          const durationSec = voucherUnits > 0 ? Math.round(voucherUnits * 60) : 0;
-          const created = await client.query<{ SessionID: number }>(
-            `INSERT INTO "TunnelSessions" ("SessionDate", "Location", "DurationSec", "PriceCents", "TransactionID", "UserID")
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING "SessionID"`,
-            [transactionDate, location, durationSec, amountCents, transactionId, userId],
-          );
-          const createdId = created.rows[0]?.SessionID;
-          if (createdId == null) throw new Error('Failed to create tunnel session');
-          result = { activityType, action: RECONCILE_ACTION.CREATED, id: createdId };
-        }
-      }
-    } else {
-      // 3. Already linked to a jump? Idempotent no-op.
-      const linked = await client.query<{ JumpID: number }>(
-        'SELECT "JumpID" FROM "SkydiveJumps" WHERE "TransactionID" = $1 AND "UserID" = $2 LIMIT 1',
-        [transactionId, userId],
-      );
-      const linkedId = linked.rows[0]?.JumpID;
-      if (linkedId != null) {
-        result = { activityType, action: RECONCILE_ACTION.ALREADY_LINKED, id: linkedId };
-      } else {
-        // 4. Link an existing unlinked jump on the same date, if any.
-        const existing = await client.query<{ JumpID: number }>(
-          `SELECT "JumpID" FROM "SkydiveJumps"
-           WHERE "UserID" = $1 AND "JumpDate" = $2::date AND "TransactionID" IS NULL
-           ORDER BY "JumpID" LIMIT 1`,
-          [userId, transactionDate],
-        );
-        const existingId = existing.rows[0]?.JumpID;
-        if (existingId != null) {
-          await client.query(
-            `UPDATE "SkydiveJumps"
-             SET "TransactionID" = $1, "PriceCents" = COALESCE("PriceCents", $2), "UpdatedAt" = NOW()
-             WHERE "JumpID" = $3 AND "UserID" = $4`,
-            [transactionId, amountCents, existingId, userId],
-          );
-          result = { activityType, action: RECONCILE_ACTION.LINKED, id: existingId };
-        } else {
-          // 5. Create a new jump linked to the existing transaction.
-          const dropzone = parseActivityLabel(tx.Description, JUMP_DESCRIPTION_PREFIX);
-          const nextNumber = await client.query<{ NextNumber: number }>(
-            'SELECT COALESCE(MAX("JumpNumber"), 0) + 1 AS "NextNumber" FROM "SkydiveJumps" WHERE "UserID" = $1',
-            [userId],
-          );
-          const jumpNumber = Number(nextNumber.rows[0]?.NextNumber ?? 1);
-          const created = await client.query<{ JumpID: number }>(
-            `INSERT INTO "SkydiveJumps" ("JumpNumber", "JumpDate", "Dropzone", "PriceCents", "TransactionID", "UserID")
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING "JumpID"`,
-            [jumpNumber, transactionDate, dropzone, amountCents, transactionId, userId],
-          );
-          const createdId = created.rows[0]?.JumpID;
-          if (createdId == null) throw new Error('Failed to create jump');
-          result = { activityType, action: RECONCILE_ACTION.CREATED, id: createdId };
-        }
-      }
-    }
-
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 // ============================================================

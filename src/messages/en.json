@@ -208,11 +208,11 @@
     "consumptions": "Consumptions",
     "no-consumptions": "No consumptions for this voucher yet",
     "reconcile": {
-      "unlinked-badge": "No linked session",
-      "create-button": "Create / link",
-      "banner": "{count} consumption(s) with no skydiving activity",
-      "success": "Session reconciled",
-      "error": "Could not reconcile the consumption"
+      "unlinked-session-badge": "No linked session",
+      "unlinked-jump-badge": "No linked jump",
+      "create-session-button": "Create session",
+      "create-jump-button": "Create jump",
+      "banner": "{count} consumption(s) with no skydiving activity"
     },
     "errors": {
       "load": "Error loading vouchers"
@@ -2625,9 +2625,10 @@
     },
     "skydive": {
       "not-voucher-consumption": "This transaction is not a voucher consumption",
-      "not-skydive-consumption": "This transaction is not a skydiving consumption",
-      "category-not-reconcilable": "This transaction's category cannot be reconciled to an activity",
-      "voucher-category-mismatch": "This voucher does not match this kind of activity"
+      "voucher-category-mismatch": "This voucher does not match this kind of activity",
+      "consumption-already-linked": "This consumption already has a linked activity",
+      "consumption-voucher-mismatch": "The activity must be paid from the same voucher as the consumption",
+      "consumption-units-mismatch": "The units do not match the consumption: adjust the consumption before creating the activity"
     },
     "crypto": {
       "unsafe-permissions": "The API key has unsafe permissions. Create a new key with \"Enable Reading\" only.",
@@ -2653,7 +2654,6 @@
       "not-available-in-prod": "This feature is not available in production"
     },
     "mutation": {
-      "reconcile-voucher": "Error reconciling the voucher consumption",
       "create": {
         "transaction": "Error creating transaction",
         "category": "Error creating category",

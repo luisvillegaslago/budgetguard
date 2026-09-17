@@ -1,13 +1,19 @@
 /**
  * Unit Tests: skydiving voucher ("bono") assignment helpers + contract
- * Covers AssignVoucherSchema, isUnitVoucher, getVoucherShortfall and
- * formatVoucherOptionLabel.
+ * Covers AssignVoucherSchema, isUnitVoucher, getVoucherShortfall,
+ * formatVoucherOptionLabel, buildTunnelSessionPrefill, buildJumpPrefill and
+ * getNextJumpNumber.
  */
 
+import { SHARED_EXPENSE, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
 import { AssignVoucherSchema, MAX_VOUCHER_ASSIGNMENT_IDS } from '@/schemas/skydive';
-import type { Voucher } from '@/types/finance';
+import type { Transaction, Voucher } from '@/types/finance';
+import type { SkydiveJump } from '@/types/skydive';
 import {
+  buildJumpPrefill,
+  buildTunnelSessionPrefill,
   formatVoucherOptionLabel,
+  getNextJumpNumber,
   getVoucherName,
   getVoucherShortfall,
   isUnitVoucher,
@@ -148,5 +154,106 @@ describe('formatVoucherOptionLabel', () => {
     expect(
       formatVoucherOptionLabel({ ...unitVoucher, description: null, categoryName: null }, 'Bono').startsWith('Bono · '),
     ).toBe(true);
+  });
+});
+
+describe('buildTunnelSessionPrefill', () => {
+  const consumption: Transaction = {
+    transactionId: 321,
+    categoryId: 31,
+    amountCents: 3000,
+    description: 'Túnel – Windoor Empuriabrava',
+    transactionDate: '2026-09-12',
+    type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
+    sharedDivisor: SHARED_EXPENSE.DEFAULT_DIVISOR,
+    originalAmountCents: null,
+    recurringExpenseId: null,
+    transactionGroupId: null,
+    tripId: null,
+    tripName: null,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
+    invoiceNumber: null,
+    companyId: null,
+    fiscalDocumentId: null,
+    voucherId: 51,
+    voucherUnits: 15,
+    createdAt: '2026-09-12T00:00:00Z',
+    updatedAt: '2026-09-12T00:00:00Z',
+  };
+
+  it('starts the session from the consumption it adopts: date, minutes, location, price and voucher', () => {
+    expect(buildTunnelSessionPrefill(consumption)).toEqual({
+      transactionId: 321,
+      sessionDate: '2026-09-12',
+      durationMin: 15,
+      location: 'Windoor Empuriabrava',
+      price: 30,
+      voucherId: 51,
+    });
+  });
+
+  it('leaves location and minutes empty when the consumption does not carry them', () => {
+    const prefill = buildTunnelSessionPrefill({ ...consumption, description: 'Sesión con coach', voucherUnits: null });
+
+    expect(prefill.location).toBeNull();
+    expect(prefill.durationMin).toBeNull();
+  });
+});
+
+describe('buildJumpPrefill', () => {
+  const consumption: Transaction = {
+    transactionId: 654,
+    categoryId: 30,
+    amountCents: 2000,
+    description: 'Salto – Skydive Empuriabrava',
+    transactionDate: '2026-09-13',
+    type: TRANSACTION_TYPE.EXPENSE,
+    status: TRANSACTION_STATUS.PAID,
+    sharedDivisor: SHARED_EXPENSE.DEFAULT_DIVISOR,
+    originalAmountCents: null,
+    recurringExpenseId: null,
+    transactionGroupId: null,
+    tripId: null,
+    tripName: null,
+    vatPercent: null,
+    deductionPercent: null,
+    vendorName: null,
+    invoiceNumber: null,
+    companyId: null,
+    fiscalDocumentId: null,
+    voucherId: 50,
+    voucherUnits: 1,
+    createdAt: '2026-09-13T00:00:00Z',
+    updatedAt: '2026-09-13T00:00:00Z',
+  };
+
+  it('starts the jump from the consumption it adopts: date, dropzone, price and voucher', () => {
+    expect(buildJumpPrefill(consumption)).toEqual({
+      transactionId: 654,
+      jumpDate: '2026-09-13',
+      dropzone: 'Skydive Empuriabrava',
+      priceCents: 2000,
+      voucherId: 50,
+    });
+  });
+
+  it('leaves the dropzone empty when the description does not carry it', () => {
+    expect(buildJumpPrefill({ ...consumption, description: 'Salto tándem' }).dropzone).toBeNull();
+  });
+});
+
+describe('getNextJumpNumber', () => {
+  const jumpNumbered = (jumpNumber: number) => ({ jumpNumber }) as SkydiveJump;
+
+  it('follows the highest logged jump, whatever the order', () => {
+    expect(getNextJumpNumber([jumpNumbered(7), jumpNumbered(152), jumpNumbered(40)])).toBe(153);
+  });
+
+  it('starts at 1 with no jumps or while the log is loading', () => {
+    expect(getNextJumpNumber([])).toBe(1);
+    expect(getNextJumpNumber(undefined)).toBe(1);
   });
 });

@@ -57,11 +57,14 @@ export function useCreateTunnelSession() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
+    // A session paid from a voucher (or adopting one of its consumptions) changes its balance.
     onSuccess: () =>
       invalidateQueryKeys(queryClient, [
         QUERY_KEY.TUNNEL_SESSIONS,
         QUERY_KEY.SKYDIVE_STATS,
         QUERY_KEY.TUNNEL_LOCATIONS,
+        QUERY_KEY.VOUCHERS,
+        QUERY_KEY.TRANSACTIONS,
       ]),
   });
 }

@@ -26,6 +26,9 @@ export const CreateJumpSchema = z.object({
   priceCents: z.number().int().min(0).optional().nullable(),
   // When set, the jump is paid from a prepaid voucher ("bono") instead of cash.
   voucherId: z.number().int().positive().optional().nullable(),
+  // Create only: an existing voucher consumption with no jump yet. The jump adopts
+  // it (the transaction is updated, not duplicated), so the voucher is not consumed twice.
+  transactionId: z.number().int().positive().optional().nullable(),
 });
 
 export type CreateJumpInput = z.infer<typeof CreateJumpSchema>;
@@ -33,7 +36,7 @@ export type CreateJumpInput = z.infer<typeof CreateJumpSchema>;
 /**
  * Schema for updating an existing jump
  */
-export const UpdateJumpSchema = CreateJumpSchema.partial();
+export const UpdateJumpSchema = CreateJumpSchema.omit({ transactionId: true }).partial();
 
 export type UpdateJumpInput = z.infer<typeof UpdateJumpSchema>;
 
@@ -49,6 +52,9 @@ export const CreateTunnelSessionSchema = z.object({
   price: z.number().min(0).optional().nullable(),
   // When set, the session is paid from a prepaid voucher ("bono") instead of cash.
   voucherId: z.number().int().positive().optional().nullable(),
+  // Create only: an existing voucher consumption with no session yet. The session adopts
+  // it (the transaction is updated, not duplicated), so the voucher is not consumed twice.
+  transactionId: z.number().int().positive().optional().nullable(),
 });
 
 export type CreateTunnelSessionInput = z.infer<typeof CreateTunnelSessionSchema>;
@@ -56,7 +62,7 @@ export type CreateTunnelSessionInput = z.infer<typeof CreateTunnelSessionSchema>
 /**
  * Schema for updating an existing tunnel session
  */
-export const UpdateTunnelSessionSchema = CreateTunnelSessionSchema.partial();
+export const UpdateTunnelSessionSchema = CreateTunnelSessionSchema.omit({ transactionId: true }).partial();
 
 export type UpdateTunnelSessionInput = z.infer<typeof UpdateTunnelSessionSchema>;
 

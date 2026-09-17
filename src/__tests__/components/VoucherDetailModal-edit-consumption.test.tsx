@@ -2,8 +2,9 @@
  * Integration Tests: VoucherDetailModal — editing and deleting consumptions
  * Covers the per-row actions of the consumptions list: units shown even when the
  * voucher has no unit label, inline edit (prefilled, re-prorated, shared split
- * kept), delete behind a confirmation, and consumptions owned by a skydiving
- * activity staying read-only.
+ * kept), delete behind a confirmation, consumptions owned by a skydiving
+ * activity staying read-only, and an unlinked one opening its activity form
+ * prefilled in place of the detail.
  */
 
 import '@testing-library/jest-dom';
@@ -72,7 +73,6 @@ const mockToastError = jest.fn();
 jest.mock('@/hooks/useVouchers', () => ({
   useVoucher: () => ({ data: mockVoucherData, isLoading: false, isError: false, refetch: jest.fn() }),
   useDeleteVoucher: () => ({ mutateAsync: jest.fn(), isPending: false, errorMessage: null }),
-  useReconcileVoucherConsumption: () => ({ mutateAsync: jest.fn(), isPending: false, errorMessage: null }),
 }));
 
 jest.mock('@/hooks/useTransactions', () => ({
@@ -104,6 +104,8 @@ const DICT: Record<string, string> = {
   'common.buttons.delete': 'Eliminar',
   'common.buttons.close': 'Cerrar',
   'common.buttons.cancel': 'Cancelar',
+  'vouchers.reconcile.create-jump-button': 'Crear salto',
+  'vouchers.reconcile.create-session-button': 'Crear sesión',
 };
 
 jest.mock('@/hooks/useTranslations', () => ({
@@ -180,6 +182,26 @@ jest.mock('@/utils/money', () => ({
   formatCurrency: (cents: number) => `${(cents / 100).toFixed(2)} €`,
   centsToEuros: (cents: number) => cents / 100,
   eurosToCents: (euros: number) => Math.round(euros * 100),
+}));
+
+// The activity forms stand in as their prefill, which is what the detail hands them.
+jest.mock('@/components/skydiving/JumpForm', () => ({
+  JumpForm: ({ prefill, onClose }: { prefill: unknown; onClose: () => void }) => (
+    <form aria-label="jump-form">
+      <pre>{JSON.stringify(prefill)}</pre>
+      <button type="button" onClick={onClose}>
+        close-form
+      </button>
+    </form>
+  ),
+}));
+
+jest.mock('@/components/skydiving/TunnelSessionForm', () => ({
+  TunnelSessionForm: ({ prefill }: { prefill: unknown }) => (
+    <form aria-label="tunnel-form">
+      <pre>{JSON.stringify(prefill)}</pre>
+    </form>
+  ),
 }));
 
 import { VoucherDetailModal } from '@/components/vouchers/VoucherDetailModal';
@@ -309,5 +331,66 @@ describe('VoucherDetailModal — editing and deleting consumptions', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Eliminar' }));
 
     return waitFor(() => expect(mockDeleteMutateAsync).toHaveBeenCalledWith(2));
+  });
+});
+
+describe('VoucherDetailModal — consumption with no skydiving activity', () => {
+  const renderModal = () => render(<VoucherDetailModal voucherId={7} onClose={jest.fn()} onEdit={jest.fn()} />);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('opens the jump form prefilled from the consumption, replacing the detail until it closes', () => {
+    mockVoucherData = {
+      voucher,
+      consumptions: [
+        makeConsumption({
+          transactionId: 9,
+          description: 'Salto – Skydive Madrid',
+          voucherUnits: 1,
+          amountCents: 3700,
+        }),
+      ],
+      unlinkedConsumptions: [9],
+      reconcileActivityType: SKYDIVE_ACTIVITY_TYPE.JUMP,
+    };
+    renderModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear salto' }));
+
+    const form = screen.getByRole('form', { name: 'jump-form' });
+    expect(JSON.parse(form.querySelector('pre')?.textContent ?? '')).toEqual({
+      transactionId: 9,
+      jumpDate: '2026-09-14',
+      dropzone: 'Skydive Madrid',
+      priceCents: 3700,
+      voucherId: 7,
+    });
+    expect(screen.queryByText('Consumos (1)')).not.toBeInTheDocument();
+
+    fireEvent.click(within(form).getByRole('button', { name: 'close-form' }));
+    expect(screen.queryByRole('form')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crear salto' })).toBeInTheDocument();
+  });
+
+  it('opens the tunnel session form for a tunnel voucher', () => {
+    mockVoucherData = {
+      voucher,
+      consumptions: [makeConsumption({ transactionId: 4, description: 'Túnel – Madrid Fly', voucherUnits: 15 })],
+      unlinkedConsumptions: [4],
+      reconcileActivityType: SKYDIVE_ACTIVITY_TYPE.TUNNEL,
+    };
+    renderModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear sesión' }));
+
+    const form = screen.getByRole('form', { name: 'tunnel-form' });
+    expect(JSON.parse(form.querySelector('pre')?.textContent ?? '')).toMatchObject({
+      transactionId: 4,
+      sessionDate: '2026-09-14',
+      durationMin: 15,
+      location: 'Madrid Fly',
+    });
   });
 });

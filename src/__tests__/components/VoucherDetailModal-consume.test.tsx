@@ -62,11 +62,6 @@ jest.mock('@/hooks/useVouchers', () => ({
     isPending: false,
     errorMessage: null,
   }),
-  useReconcileVoucherConsumption: () => ({
-    mutateAsync: jest.fn(),
-    isPending: false,
-    errorMessage: null,
-  }),
 }));
 
 jest.mock('@/hooks/useTransactions', () => ({

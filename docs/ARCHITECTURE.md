@@ -151,7 +151,7 @@ src/
 │   │   └── CreateTripForm.tsx         # New trip creation form
 │   ├── vouchers/
 │   │   ├── VoucherFormModal.tsx       # Create/Edit voucher
-│   │   └── VoucherDetailModal.tsx     # Balance + consumptions + reconciliation
+│   │   └── VoucherDetailModal.tsx     # Balance + consumptions + create missing activity
 │   ├── crypto/
 │   │   ├── CryptoSyncPanel.tsx        # Credentials + sync job progress
 │   │   ├── CryptoCsvUploader.tsx      # Multi-exchange CSV upload
@@ -230,7 +230,7 @@ src/
 │   ├── useFiscalProfile.ts           # Per-year fiscal profile query/mutation
 │   ├── useFixedAssets.ts             # Inmovilizado CRUD + useAssetPurchaseCandidates
 │   ├── useVouchers.ts                # Voucher CRUD + balance
-│   ├── useSkydiveVouchers.ts         # Voucher reconciliation for skydive activity
+│   ├── useSkydiveVouchers.ts         # Vouchers usable to pay a jump/tunnel session
 │   ├── useCryptoSync.ts              # Sync job trigger + polling
 │   ├── useCryptoCredentials.ts       # Exchange key management
 │   ├── useCryptoFiscal.ts            # Modelo 100 boxes, disposals, recompute
@@ -1322,8 +1322,11 @@ rather than destroying the expense history.
 | GET | `/api/vouchers/:id` | Voucher + its consumptions + unlinked skydive candidates |
 | PUT / DELETE | `/api/vouchers/:id` | Update / delete (consumptions are unlinked, not removed) |
 
-`GET /api/vouchers/:id` also returns `unlinkedConsumptions` — skydive activity that looks like it
-belongs to this voucher but carries no `VoucherID` — so the UI can offer to reconcile it.
+`GET /api/vouchers/:id` also returns `unlinkedConsumptions` — consumptions of a skydive voucher
+that no jump/tunnel session is linked to. The detail offers to create that activity: it swaps in
+`JumpForm`/`TunnelSessionForm` prefilled from the consumption (`buildJumpPrefill` /
+`buildTunnelSessionPrefill`), and the create request carries its `transactionId` so the activity
+adopts the consumption instead of drawing from the voucher again.
 
 ### 13. Crypto Module (Exchange Ingestion → FIFO → Modelo 100)
 

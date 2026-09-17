@@ -3,8 +3,9 @@
  * prepaid voucher ("bono"). Shared by the repository and the assignment UI.
  */
 
-import type { Voucher } from '@/types/finance';
-import { formatCurrency } from '@/utils/money';
+import type { Transaction, Voucher } from '@/types/finance';
+import type { SkydiveJump } from '@/types/skydive';
+import { centsToEuros, formatCurrency } from '@/utils/money';
 
 /**
  * A jump or tunnel session as seen by a voucher assignment.
@@ -25,6 +26,22 @@ export interface VoucherShortfall {
   unitBased: boolean;
   remaining: number;
   needed: number;
+}
+
+// Transaction Description prefixes for jump/session expenses. Also used to
+// recover the Dropzone/Location from a consumption that has no activity yet.
+export const JUMP_DESCRIPTION_PREFIX = 'Salto – ';
+export const TUNNEL_DESCRIPTION_PREFIX = 'Túnel – ';
+
+/**
+ * Recover the free-text label (Dropzone/Location) embedded in a consumption's
+ * Description, e.g. "Salto – Empuriabrava" -> "Empuriabrava". Returns null when
+ * the description does not match the expected prefix.
+ */
+export function parseActivityLabel(description: string | null, prefix: string): string | null {
+  if (!description || !description.startsWith(prefix)) return null;
+  const label = description.slice(prefix.length).trim();
+  return label.length > 0 ? label : null;
 }
 
 export function isUnitVoucher(voucher: Voucher): boolean {
@@ -62,4 +79,61 @@ export function getVoucherName(voucher: Voucher, untitledLabel: string): string 
  */
 export function formatVoucherOptionLabel(voucher: Voucher, untitledLabel: string): string {
   return `${getVoucherName(voucher, untitledLabel)} · ${formatCurrency(Math.max(0, voucher.remainingCents))}`;
+}
+
+/**
+ * Initial values for a tunnel session created from a voucher consumption that has
+ * none yet: its date, the minutes it consumed, the location recovered from its
+ * description and its voucher. `transactionId` makes the session adopt that
+ * consumption instead of drawing from the voucher again.
+ */
+export interface TunnelSessionPrefill {
+  transactionId: number;
+  sessionDate: string;
+  durationMin: number | null;
+  location: string | null;
+  price: number | null;
+  voucherId: number | null;
+}
+
+export function buildTunnelSessionPrefill(consumption: Transaction): TunnelSessionPrefill {
+  return {
+    transactionId: consumption.transactionId,
+    sessionDate: consumption.transactionDate.slice(0, 10),
+    durationMin: consumption.voucherUnits != null && consumption.voucherUnits > 0 ? consumption.voucherUnits : null,
+    location: parseActivityLabel(consumption.description, TUNNEL_DESCRIPTION_PREFIX),
+    price: centsToEuros(consumption.amountCents),
+    voucherId: consumption.voucherId,
+  };
+}
+
+/**
+ * Initial values for a jump created from a voucher consumption that has none yet:
+ * its date, the dropzone recovered from its description and its voucher.
+ * `transactionId` makes the jump adopt that consumption instead of drawing from
+ * the voucher again.
+ */
+export interface JumpPrefill {
+  transactionId: number;
+  jumpDate: string;
+  dropzone: string | null;
+  priceCents: number | null;
+  voucherId: number | null;
+}
+
+export function buildJumpPrefill(consumption: Transaction): JumpPrefill {
+  return {
+    transactionId: consumption.transactionId,
+    jumpDate: consumption.transactionDate.slice(0, 10),
+    dropzone: parseActivityLabel(consumption.description, JUMP_DESCRIPTION_PREFIX),
+    priceCents: consumption.amountCents,
+    voucherId: consumption.voucherId,
+  };
+}
+
+/**
+ * The number the next logged jump takes: one past the highest, or 1 for the first.
+ */
+export function getNextJumpNumber(jumps: SkydiveJump[] | undefined): number {
+  return jumps && jumps.length > 0 ? Math.max(...jumps.map((j) => j.jumpNumber)) + 1 : 1;
 }

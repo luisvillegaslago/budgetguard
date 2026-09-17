@@ -3689,8 +3689,9 @@ with every field optional.
 }
 ```
 
-`unlinkedConsumptions` lists skydive activity that looks like it belongs to this voucher but carries
-no `VoucherID`, so the UI can offer to reconcile it via `POST /api/skydiving/reconcile-voucher`.
+`unlinkedConsumptions` lists this voucher's consumptions that no jump (or tunnel session, per
+`reconcileActivityType`) is linked to. The UI opens that activity's create form prefilled from the
+consumption and sends its `transactionId`, so the new activity adopts it (see Skydiving below).
 
 ---
 
@@ -3698,6 +3699,14 @@ no `VoucherID`, so the UI can offer to reconcile it via `POST /api/skydiving/rec
 
 Jump logbook and wind-tunnel sessions. Creating either with `priceCents > 0` also creates the
 matching expense transaction and links it, atomically.
+
+Creating either with `transactionId` adopts that existing voucher consumption instead: the
+transaction is rewritten to match the activity (date, amount, description) and linked, so the
+voucher is not consumed twice. All 400s under `api-error.skydive.*`: it must be a voucher
+consumption of the user (`not-voucher-consumption`) paid from the same `voucherId`
+(`consumption-voucher-mismatch`), in the activity's subcategory (`voucher-category-mismatch`),
+consuming the same units (`consumption-units-mismatch`), with no jump or tunnel session linked yet
+(`consumption-already-linked`). `PUT` ignores `transactionId`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -3713,7 +3722,6 @@ matching expense transaction and links it, atomically.
 | GET | `/api/skydiving/tunnel/locations` | Distinct locations (autocomplete) |
 | GET | `/api/skydiving/stats` | Aggregated stats (`vw_SkydivingStats`, by type, by year) |
 | GET | `/api/skydiving/categories` | Skydiving category + subcategory IDs used for linked expenses |
-| POST | `/api/skydiving/reconcile-voucher` | Link — or create — an activity for a voucher consumption that has none |
 
 Both import endpoints are idempotent: re-running one inserts zero duplicates.
 

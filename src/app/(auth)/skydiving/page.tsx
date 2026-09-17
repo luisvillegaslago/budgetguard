@@ -14,7 +14,7 @@ import { TunnelSessionForm } from '@/components/skydiving/TunnelSessionForm';
 import { TunnelSessionTable } from '@/components/skydiving/TunnelSessionTable';
 import { TabBar, type TabBarItem } from '@/components/ui/TabBar';
 import { useIdSelection } from '@/hooks/useIdSelection';
-import { useImportJumps, useSkydiveJumps } from '@/hooks/useSkydiveJumps';
+import { useImportJumps } from '@/hooks/useSkydiveJumps';
 import { useSkydiveStats } from '@/hooks/useSkydiveStats';
 import { useTranslate } from '@/hooks/useTranslations';
 import { useImportTunnelSessions } from '@/hooks/useTunnelSessions';
@@ -34,7 +34,6 @@ export default function SkydivingPage() {
 
   const importJumps = useImportJumps();
   const importTunnelSessions = useImportTunnelSessions();
-  const { data: jumps } = useSkydiveJumps();
 
   // Row selection lives here so an import can preselect the rows it just created.
   const jumpSelection = useIdSelection();
@@ -44,9 +43,6 @@ export default function SkydivingPage() {
 
   // Preload stats for summary tab
   useSkydiveStats();
-
-  // Next jump number = max existing + 1
-  const nextJumpNumber = jumps && jumps.length > 0 ? Math.max(...jumps.map((j) => j.jumpNumber)) + 1 : 1;
 
   const handleImportJumps = useCallback(
     async (rows: Record<string, unknown>[]) => {
@@ -130,7 +126,6 @@ export default function SkydivingPage() {
       {showJumpForm && (
         <JumpForm
           jump={editingJump}
-          nextJumpNumber={nextJumpNumber}
           onClose={() => {
             setShowJumpForm(false);
             setEditingJump(null);

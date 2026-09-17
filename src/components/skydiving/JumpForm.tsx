@@ -6,13 +6,14 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
+import { useEffect } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { SkydiveVoucherSelect } from '@/components/skydiving/SkydiveVoucherSelect';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { StringSuggestionCombobox } from '@/components/ui/StringSuggestionCombobox';
 import { SKYDIVE_CATEGORY } from '@/constants/finance';
-import { useCreateJump, useUpdateJump } from '@/hooks/useSkydiveJumps';
+import { useCreateJump, useSkydiveJumps, useUpdateJump } from '@/hooks/useSkydiveJumps';
 import { useDropzones } from '@/hooks/useSkydiveSuggestions';
 import { useSkydiveVouchers } from '@/hooks/useSkydiveVouchers';
 import { useTranslate } from '@/hooks/useTranslations';
@@ -21,10 +22,12 @@ import { CreateJumpSchema } from '@/schemas/skydive';
 import type { SkydiveJump } from '@/types/skydive';
 import { cn, toDateString, toNullableNumber } from '@/utils/helpers';
 import { centsToEuros, eurosToCents } from '@/utils/money';
+import { getNextJumpNumber, type JumpPrefill } from '@/utils/skydiveVoucher';
 
 interface JumpFormProps {
   jump?: SkydiveJump | null;
-  nextJumpNumber?: number;
+  /** Create mode only: start from a voucher consumption that has no jump yet. */
+  prefill?: JumpPrefill | null;
   onClose: () => void;
 }
 
@@ -35,11 +38,13 @@ const inputClass = (hasError: boolean) =>
     hasError ? 'border-guard-danger' : 'border-input',
   );
 
-export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
+export function JumpForm({ jump, prefill, onClose }: JumpFormProps) {
   const { t } = useTranslate();
   const createJump = useCreateJump();
   const updateJump = useUpdateJump();
   const { data: dropzones } = useDropzones();
+  const { data: jumps } = useSkydiveJumps();
+  const nextJumpNumber = getNextJumpNumber(jumps);
   const isEditing = !!jump;
   const mutation = isEditing ? updateJump : createJump;
 
@@ -48,7 +53,7 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
     register,
     handleSubmit,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<CreateJumpInput>({
     resolver: zodResolver(CreateJumpSchema),
     defaultValues: jump
@@ -70,13 +75,26 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
         }
       : {
           jumpNumber: nextJumpNumber,
-          jumpDate: toDateString(new Date()) as unknown as Date,
+          jumpDate: (prefill?.jumpDate ?? toDateString(new Date())) as unknown as Date,
+          dropzone: prefill?.dropzone ?? null,
+          priceCents: prefill?.priceCents ?? null,
+          voucherId: prefill?.voucherId ?? null,
+          transactionId: prefill?.transactionId ?? null,
         },
   });
 
+  // Opened outside /skydiving the jump log may still be loading: take the number once it
+  // arrives, unless it was already typed by hand.
+  useEffect(() => {
+    if (!isEditing && !dirtyFields.jumpNumber) setValue('jumpNumber', nextJumpNumber);
+  }, [isEditing, nextJumpNumber, dirtyFields.jumpNumber, setValue]);
+
   // Voucher ("bono") payment — only vouchers in the "Saltos" subcategory.
   const watchedVoucherId = useWatch({ control, name: 'voucherId' });
-  const jumpVouchers = useSkydiveVouchers(SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS, jump?.voucherId ?? null);
+  const jumpVouchers = useSkydiveVouchers(
+    SKYDIVE_CATEGORY.SUBCATEGORY.JUMPS,
+    jump?.voucherId ?? prefill?.voucherId ?? null,
+  );
   const selectedVoucher = jumpVouchers.find((v) => v.voucherId === watchedVoucherId) ?? null;
   // Unit vouchers (e.g. "10 saltos") prorate the amount, so the manual price is hidden.
   const isUnitsVoucherSelected = selectedVoucher?.totalUnits != null && selectedVoucher.totalUnits > 0;
@@ -269,7 +287,8 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
             value={watchedVoucherId ?? null}
             onChange={(id) => setValue('voucherId', id, { shouldValidate: true })}
             units={1}
-            disabled={isSubmitting}
+            // An adopted consumption stays on its voucher
+            disabled={isSubmitting || !!prefill}
           />
 
           {/* Comment */}
@@ -284,7 +303,8 @@ export function JumpForm({ jump, nextJumpNumber, onClose }: JumpFormProps) {
           {mutation.isError && (
             <div role="alert" className="p-3 rounded-lg bg-guard-danger/10 border border-guard-danger/20">
               <p className="text-sm text-guard-danger">
-                {isEditing ? t('skydiving.jumps.form.errors.update') : t('skydiving.jumps.form.errors.create')}
+                {mutation.errorMessage ??
+                  (isEditing ? t('skydiving.jumps.form.errors.update') : t('skydiving.jumps.form.errors.create'))}
               </p>
             </div>
           )}

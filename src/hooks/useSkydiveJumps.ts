@@ -57,8 +57,15 @@ export function useCreateJump() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Unknown error');
       return data.data;
     },
+    // A jump paid from a voucher (or adopting one of its consumptions) changes its balance.
     onSuccess: () =>
-      invalidateQueryKeys(queryClient, [QUERY_KEY.SKYDIVE_JUMPS, QUERY_KEY.SKYDIVE_STATS, QUERY_KEY.SKYDIVE_DROPZONES]),
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.SKYDIVE_JUMPS,
+        QUERY_KEY.SKYDIVE_STATS,
+        QUERY_KEY.SKYDIVE_DROPZONES,
+        QUERY_KEY.VOUCHERS,
+        QUERY_KEY.TRANSACTIONS,
+      ]),
   });
 }
 

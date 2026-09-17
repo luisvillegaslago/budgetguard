@@ -196,7 +196,6 @@ export const API_ENDPOINT = {
   TUNNEL_LOCATIONS: '/api/skydiving/tunnel/locations',
   SKYDIVE_STATS: '/api/skydiving/stats',
   SKYDIVE_CATEGORIES: '/api/skydiving/categories',
-  SKYDIVE_RECONCILE: '/api/skydiving/reconcile-voucher',
   SKYDIVE_JUMPS_ASSIGN_VOUCHER: '/api/skydiving/jumps/assign-voucher',
   TUNNEL_SESSIONS_ASSIGN_VOUCHER: '/api/skydiving/tunnel/assign-voucher',
   VOUCHERS: '/api/vouchers',
@@ -256,13 +255,6 @@ export const SKYDIVE_CATEGORY = {
 export const SKYDIVE_ACTIVITY_TYPE = {
   JUMP: 'jump',
   TUNNEL: 'tunnel',
-} as const;
-
-// Outcome of reconciling a voucher consumption transaction to a skydiving activity
-export const RECONCILE_ACTION = {
-  LINKED: 'linked',
-  CREATED: 'created',
-  ALREADY_LINKED: 'already_linked',
 } as const;
 
 // Why a vision/OCR call failed — the provider's fault, never ours
@@ -1524,9 +1516,10 @@ export const API_ERROR = {
   },
   SKYDIVE: {
     NOT_VOUCHER_CONSUMPTION: 'api-error.skydive.not-voucher-consumption',
-    NOT_SKYDIVE_CONSUMPTION: 'api-error.skydive.not-skydive-consumption',
-    CATEGORY_NOT_RECONCILABLE: 'api-error.skydive.category-not-reconcilable',
     VOUCHER_CATEGORY_MISMATCH: 'api-error.skydive.voucher-category-mismatch',
+    CONSUMPTION_ALREADY_LINKED: 'api-error.skydive.consumption-already-linked',
+    CONSUMPTION_VOUCHER_MISMATCH: 'api-error.skydive.consumption-voucher-mismatch',
+    CONSUMPTION_UNITS_MISMATCH: 'api-error.skydive.consumption-units-mismatch',
   },
   CRYPTO: {
     UNSAFE_PERMISSIONS: 'api-error.crypto.unsafe-permissions',
@@ -1631,9 +1624,6 @@ export const API_ERROR = {
     },
     SYNC: {
       CRYPTO: 'api-error.mutation.sync.crypto',
-    },
-    RECONCILE: {
-      VOUCHER: 'api-error.mutation.reconcile-voucher',
     },
   },
 } as const;

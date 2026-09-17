@@ -208,11 +208,11 @@
     "consumptions": "Consumos",
     "no-consumptions": "Todavía no hay consumos de este bono",
     "reconcile": {
-      "unlinked-badge": "Sin sesión asociada",
-      "create-button": "Crear / vincular",
-      "banner": "{count} consumo(s) sin actividad en paracaidismo",
-      "success": "Consumo reconciliado",
-      "error": "No se pudo reconciliar el consumo"
+      "unlinked-session-badge": "Sin sesión asociada",
+      "unlinked-jump-badge": "Sin salto asociado",
+      "create-session-button": "Crear sesión",
+      "create-jump-button": "Crear salto",
+      "banner": "{count} consumo(s) sin actividad en paracaidismo"
     },
     "errors": {
       "load": "Error al cargar los bonos"
@@ -2625,9 +2625,10 @@
     },
     "skydive": {
       "not-voucher-consumption": "Esta transacción no es un consumo de bono",
-      "not-skydive-consumption": "Esta transacción no es un consumo de paracaidismo",
-      "category-not-reconcilable": "La categoría de esta transacción no se puede reconciliar con una actividad",
-      "voucher-category-mismatch": "El bono no corresponde a este tipo de actividad"
+      "voucher-category-mismatch": "El bono no corresponde a este tipo de actividad",
+      "consumption-already-linked": "Este consumo ya tiene una actividad asociada",
+      "consumption-voucher-mismatch": "La actividad debe pagarse con el mismo bono del consumo",
+      "consumption-units-mismatch": "Las unidades no coinciden con las del consumo: ajusta el consumo antes de crear la actividad"
     },
     "crypto": {
       "unsafe-permissions": "La API key tiene permisos peligrosos. Crea una nueva key con SOLO \"Enable Reading\".",
@@ -2653,7 +2654,6 @@
       "not-available-in-prod": "Esta función no está disponible en producción"
     },
     "mutation": {
-      "reconcile-voucher": "Error al reconciliar el consumo del bono",
       "create": {
         "transaction": "Error al crear la transacción",
         "category": "Error al crear la categoría",

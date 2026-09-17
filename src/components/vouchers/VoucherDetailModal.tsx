@@ -8,6 +8,8 @@
 
 import { AlertTriangle, ArrowUpRight, Link2, Pencil, Receipt, Ticket, Trash2, X } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
+import { JumpForm } from '@/components/skydiving/JumpForm';
+import { TunnelSessionForm } from '@/components/skydiving/TunnelSessionForm';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -15,14 +17,21 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { SortControl, type SortControlOption } from '@/components/ui/SortControl';
 import { useToast } from '@/components/ui/Toast';
-import { SHARED_EXPENSE, SORT_DIRECTION, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  SHARED_EXPENSE,
+  SKYDIVE_ACTIVITY_TYPE,
+  SORT_DIRECTION,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useCreateTransaction, useDeleteTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useDeleteVoucher, useReconcileVoucherConsumption, useVoucher } from '@/hooks/useVouchers';
+import { useDeleteVoucher, useVoucher } from '@/hooks/useVouchers';
 import type { Transaction, Voucher } from '@/types/finance';
 import { cn, formatDate } from '@/utils/helpers';
 import { centsToEuros, eurosToCents, formatCurrency } from '@/utils/money';
+import { buildJumpPrefill, buildTunnelSessionPrefill } from '@/utils/skydiveVoucher';
 
 const CONSUME_INPUT_CLASS = cn(
   'w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm',
@@ -231,31 +240,18 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
   const toast = useToast();
   const { data, isLoading, isError, refetch } = useVoucher(voucherId);
   const deleteVoucher = useDeleteVoucher();
-  const reconcileConsumption = useReconcileVoucherConsumption();
   const deleteTransaction = useDeleteTransaction();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [consumeOpen, setConsumeOpen] = useState(false);
-  // Tx being reconciled right now, to scope the pending state to its own row.
-  const [reconcilingId, setReconcilingId] = useState<number | null>(null);
   // Consumption row being edited inline, and the one awaiting delete confirmation.
   const [editingId, setEditingId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null);
+  // A skydive consumption with no jump/session opens that activity's form prefilled from it.
+  const [activityConsumption, setActivityConsumption] = useState<Transaction | null>(null);
+  const isTunnelVoucher = data?.reconcileActivityType === SKYDIVE_ACTIVITY_TYPE.TUNNEL;
 
   // Consumptions with no linked skydiving activity, for quick lookup per row.
   const unlinkedSet = useMemo(() => new Set(data?.unlinkedConsumptions ?? []), [data?.unlinkedConsumptions]);
-
-  const handleReconcile = async (transactionId: number) => {
-    setReconcilingId(transactionId);
-    try {
-      await reconcileConsumption.mutateAsync({ transactionId });
-      toast.success(t('vouchers.reconcile.success'));
-    } catch (_error) {
-      // Error surfaced via toast + reconcileConsumption.errorMessage
-      toast.error(reconcileConsumption.errorMessage ?? t('vouchers.reconcile.error'));
-    } finally {
-      setReconcilingId(null);
-    }
-  };
 
   const handleConfirmDeleteConsumption = async () => {
     if (!pendingDelete) return;
@@ -316,6 +312,17 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
   const isDepleted = voucher ? voucher.remainingCents <= 0 : false;
   // Overconsumed: linked expenses exceeded the prepaid balance (negative remaining).
   const isExceeded = voucher ? voucher.remainingCents < 0 : false;
+
+  // Swapped in for the detail instead of stacked on it, so Escape and the focus trap stay
+  // with one dialog; closing it returns to the refreshed detail.
+  if (activityConsumption) {
+    const closeActivityForm = () => setActivityConsumption(null);
+    return isTunnelVoucher ? (
+      <TunnelSessionForm prefill={buildTunnelSessionPrefill(activityConsumption)} onClose={closeActivityForm} />
+    ) : (
+      <JumpForm prefill={buildJumpPrefill(activityConsumption)} onClose={closeActivityForm} />
+    );
+  }
 
   return (
     <ModalBackdrop onClose={onClose} labelledBy="voucher-detail-title">
@@ -440,7 +447,6 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                 <ul className="divide-y divide-border rounded-lg border border-border">
                   {sortedConsumptions.map((tx) => {
                     const isUnlinked = unlinkedSet.has(tx.transactionId);
-                    const isReconciling = reconcilingId === tx.transactionId && reconcileConsumption.isPending;
                     // A skydive consumption tied to a jump/session belongs to that activity: editing it
                     // here would desync the activity's PriceCents, so it is managed from /skydiving.
                     const isActivityLinked = data?.reconcileActivityType != null && !isUnlinked;
@@ -507,12 +513,13 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                           <div className="mt-2 flex items-center justify-between gap-2">
                             <span className="inline-flex items-center gap-1 rounded-full bg-guard-warning/10 px-2 py-0.5 text-xs font-medium text-guard-warning">
                               <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                              {t('vouchers.reconcile.unlinked-badge')}
+                              {isTunnelVoucher
+                                ? t('vouchers.reconcile.unlinked-session-badge')
+                                : t('vouchers.reconcile.unlinked-jump-badge')}
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleReconcile(tx.transactionId)}
-                              disabled={isReconciling}
+                              onClick={() => setActivityConsumption(tx)}
                               className={cn(
                                 'inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                                 'bg-guard-primary/10 text-guard-primary hover:bg-guard-primary/20',
@@ -520,7 +527,9 @@ export function VoucherDetailModal({ voucherId, onClose, onEdit }: VoucherDetail
                               )}
                             >
                               <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-                              {t('vouchers.reconcile.create-button')}
+                              {isTunnelVoucher
+                                ? t('vouchers.reconcile.create-session-button')
+                                : t('vouchers.reconcile.create-jump-button')}
                             </button>
                           </div>
                         )}
