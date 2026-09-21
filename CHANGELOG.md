@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.68.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.67.0...v0.68.0) (2026-09-21)
+
+
+### Features
+
+* **dashboard:** add a month/year lens to the summary section ([b73e0a6](https://github.com/luisvillegaslago/budgetguard/commit/b73e0a6a4347eb5227f50da20867ac7412160bc5))
+
 ## [0.67.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.66.0...v0.67.0) (2026-09-17)
 
 
