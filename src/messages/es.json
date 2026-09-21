@@ -85,7 +85,8 @@
       "10": "Oct",
       "11": "Nov",
       "12": "Dic"
-    }
+    },
+    "current-year": "Este año"
   },
   "navigation": {
     "previous-month": "Mes anterior",
@@ -112,14 +113,18 @@
       "documents": "Documentos",
       "crypto": "Criptomonedas",
       "settings": "Ajustes"
-    }
+    },
+    "year-picker": "Selector de año",
+    "previous-years": "Años anteriores",
+    "next-years": "Años siguientes"
   },
   "dashboard": {
     "title": "Panel",
     "footer": "BudgetGuard - Control de gastos familiar — v{version}",
     "sections": {
       "monthly": "Resumen del mes",
-      "historical": "Histórico"
+      "historical": "Histórico",
+      "yearly": "Resumen del año"
     },
     "widgets": {
       "top-vendors-title": "Top comercios",
@@ -158,7 +163,9 @@
       "daily-average": "Gasto medio diario",
       "vs-previous-month": "vs mes anterior",
       "no-previous-data": "Sin datos del mes anterior",
-      "no-data": "Sin datos suficientes"
+      "no-data": "Sin datos suficientes",
+      "vs-previous-year": "vs año anterior",
+      "no-previous-data-year": "Sin datos del año anterior"
     },
     "charts": {
       "cashflow-title": "Flujo de dinero",
@@ -193,6 +200,10 @@
       "expenses-count": "{count} gastos · {total}",
       "expenses-modal-title": "Gastos del viaje",
       "view-trip": "Ver viaje completo"
+    },
+    "granularity": {
+      "month": "Mes",
+      "year": "Año"
     }
   },
   "vouchers": {
@@ -1251,7 +1262,7 @@
           "fraccion-total": "El total del plazo no coincide con la suma de su principal, su recargo y sus intereses.",
           "fraccion-sequence": "Las fracciones no van numeradas de 1 a N: falta alguna, sobra alguna o está repetida.",
           "due-date-order": "Los vencimientos no van en orden creciente, o alguno cae antes de la fecha de intereses.",
-          "interest-accrual": "Los intereses de esta fracci\u00f3n no cuadran con los d\u00edas que devengan: base \u00d7 tipo \u00d7 d\u00edas / 365 (art. 53 RGR)."
+          "interest-accrual": "Los intereses de esta fracción no cuadran con los días que devengan: base × tipo × días / 365 (art. 53 RGR)."
         }
       },
       "parts": {
@@ -2651,7 +2662,8 @@
       "invalid-month": "Formato de mes inválido. Usa YYYY-MM",
       "category-id-required": "Se requiere el ID de categoría",
       "name-required": "El nombre es requerido",
-      "not-available-in-prod": "Esta función no está disponible en producción"
+      "not-available-in-prod": "Esta función no está disponible en producción",
+      "invalid-year": "Formato de año inválido. Usa YYYY"
     },
     "mutation": {
       "create": {

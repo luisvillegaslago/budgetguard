@@ -85,7 +85,8 @@
       "10": "Oct",
       "11": "Nov",
       "12": "Dec"
-    }
+    },
+    "current-year": "This year"
   },
   "navigation": {
     "previous-month": "Previous month",
@@ -112,14 +113,18 @@
       "documents": "Documents",
       "crypto": "Crypto",
       "settings": "Settings"
-    }
+    },
+    "year-picker": "Year selector",
+    "previous-years": "Previous years",
+    "next-years": "Next years"
   },
   "dashboard": {
     "title": "Dashboard",
     "footer": "BudgetGuard - Family expense tracker — v{version}",
     "sections": {
       "monthly": "This month",
-      "historical": "Historical"
+      "historical": "Historical",
+      "yearly": "This year"
     },
     "widgets": {
       "top-vendors-title": "Top vendors",
@@ -158,7 +163,9 @@
       "daily-average": "Avg. daily spend",
       "vs-previous-month": "vs last month",
       "no-previous-data": "No data for previous month",
-      "no-data": "Not enough data"
+      "no-data": "Not enough data",
+      "vs-previous-year": "vs last year",
+      "no-previous-data-year": "No data for previous year"
     },
     "charts": {
       "cashflow-title": "Cash flow",
@@ -193,6 +200,10 @@
       "expenses-count": "{count} expenses · {total}",
       "expenses-modal-title": "Trip Expenses",
       "view-trip": "View full trip"
+    },
+    "granularity": {
+      "month": "Month",
+      "year": "Year"
     }
   },
   "vouchers": {
@@ -1251,7 +1262,7 @@
           "fraccion-total": "The instalment total does not match its own principal, surcharge and interest.",
           "fraccion-sequence": "The instalments are not numbered 1 to N: one is missing, extra or repeated.",
           "due-date-order": "The due dates do not run forward, or one falls before the interest start date.",
-          "interest-accrual": "This instalment's interest does not match the days it accrues over: base \u00d7 rate \u00d7 days / 365 (art. 53 RGR)."
+          "interest-accrual": "This instalment's interest does not match the days it accrues over: base × rate × days / 365 (art. 53 RGR)."
         }
       },
       "parts": {
@@ -2651,7 +2662,8 @@
       "invalid-month": "Invalid month format. Use YYYY-MM",
       "category-id-required": "Category ID is required",
       "name-required": "Name is required",
-      "not-available-in-prod": "This feature is not available in production"
+      "not-available-in-prod": "This feature is not available in production",
+      "invalid-year": "Invalid year format. Use YYYY"
     },
     "mutation": {
       "create": {

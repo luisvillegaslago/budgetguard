@@ -13,10 +13,12 @@ import type {
   MonthlySummary,
   MonthlySummaryTrends,
   MonthlyTrendPoint,
+  PeriodSummaryTotals,
   SubcategorySummary,
   Transaction,
   TransactionStatus,
   TransactionType,
+  YearlySummary,
 } from '@/types/finance';
 import { buildMonthSequence, toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
@@ -504,6 +506,31 @@ export async function updateTransactionStatus(
 }
 
 /**
+ * Map summary view rows to the domain type.
+ * PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
+ */
+function toCategorySummaries(rows: SummaryRow[]): CategorySummary[] {
+  return rows.map((row) => ({
+    categoryId: row.CategoryID,
+    categoryName: row.CategoryName,
+    categoryIcon: row.CategoryIcon,
+    categoryColor: row.CategoryColor,
+    type: row.Type,
+    totalCents: Number(row.TotalCents),
+    transactionCount: Number(row.TransactionCount),
+  }));
+}
+
+function toPeriodTotals(balance: BalanceRow | undefined, categoryRows: SummaryRow[]): PeriodSummaryTotals {
+  return {
+    incomeCents: Number(balance?.IncomeCents ?? 0),
+    expenseCents: Number(balance?.ExpenseCents ?? 0),
+    balanceCents: Number(balance?.BalanceCents ?? 0),
+    byCategory: toCategorySummaries(categoryRows),
+  };
+}
+
+/**
  * Get monthly summary using database views (user-scoped)
  */
 export async function getMonthlySummary(month: string): Promise<MonthlySummary> {
@@ -529,25 +556,47 @@ export async function getMonthlySummary(month: string): Promise<MonthlySummary> 
     [month, userId],
   );
 
-  const balance = balanceRows[0];
-  // PG returns SUM()/bigint columns as strings; coerce so downstream maths never concatenates.
-  const categories: CategorySummary[] = categoryRows.map((row) => ({
-    categoryId: row.CategoryID,
-    categoryName: row.CategoryName,
-    categoryIcon: row.CategoryIcon,
-    categoryColor: row.CategoryColor,
-    type: row.Type,
-    totalCents: Number(row.TotalCents),
-    transactionCount: Number(row.TransactionCount),
-  }));
+  return { month, ...toPeriodTotals(balanceRows[0], categoryRows) };
+}
 
-  return {
-    month,
-    incomeCents: Number(balance?.IncomeCents ?? 0),
-    expenseCents: Number(balance?.ExpenseCents ?? 0),
-    balanceCents: Number(balance?.BalanceCents ?? 0),
-    byCategory: categories,
-  };
+/**
+ * Get yearly summary by rolling up the same monthly views over the twelve months
+ * of a year (user-scoped). No yearly view is needed: "Month" is a 'YYYY-MM' text
+ * column, so a year is the range 'YYYY-01'..'YYYY-12'. Kept as a range rather than
+ * LEFT("Month", 4) so the predicate stays sargable, like getMonthlyTrends'.
+ */
+export async function getYearlySummary(year: string): Promise<YearlySummary> {
+  const userId = await getUserIdOrThrow();
+
+  const balanceRows = await query<BalanceRow>(
+    `
+    SELECT $1 AS "Month",
+           SUM("IncomeCents") AS "IncomeCents",
+           SUM("ExpenseCents") AS "ExpenseCents",
+           SUM("BalanceCents") AS "BalanceCents"
+    FROM "vw_MonthlyBalance"
+    WHERE "Month" BETWEEN $1 || '-01' AND $1 || '-12' AND "UserID" = $2
+  `,
+    [year, userId],
+  );
+
+  const categoryRows = await query<SummaryRow>(
+    `
+    SELECT $1 AS "Month", "Type", "CategoryID",
+           MAX("CategoryName") AS "CategoryName",
+           MAX("CategoryIcon") AS "CategoryIcon",
+           MAX("CategoryColor") AS "CategoryColor",
+           SUM("TotalCents") AS "TotalCents",
+           SUM("TransactionCount") AS "TransactionCount"
+    FROM "vw_MonthlySummary"
+    WHERE "Month" BETWEEN $1 || '-01' AND $1 || '-12' AND "UserID" = $2
+    GROUP BY "Type", "CategoryID"
+    ORDER BY "Type", SUM("TotalCents") DESC
+  `,
+    [year, userId],
+  );
+
+  return { year, ...toPeriodTotals(balanceRows[0], categoryRows) };
 }
 
 /**

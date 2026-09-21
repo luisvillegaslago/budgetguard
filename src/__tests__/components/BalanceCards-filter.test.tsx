@@ -1,7 +1,9 @@
 /**
  * Component Tests: BalanceCards — Card actions
- * Clicking Income/Expense cards opens a transactions popup for that type;
- * the Balance card remains non-interactive.
+ * Through the monthly lens, clicking Income/Expense opens a transactions popup for
+ * that type; the Balance card remains non-interactive. Through the yearly lens there
+ * is no popup (the modal is month-bound), so those cards become links to the
+ * movements page and the deltas compare against the previous year.
  */
 
 import '@testing-library/jest-dom';
@@ -14,7 +16,7 @@ jest.mock('@/components/dashboard/charts/TypeTransactionsModal', () => ({
 jest.mock('@/hooks/useFormattedSummary', () => ({
   useFormattedSummary: () => ({
     formatted: {
-      month: '2025-01',
+      period: '2025-01',
       income: '2.975,00 €',
       incomeValue: 2975,
       expense: '1.523,75 €',
@@ -37,6 +39,8 @@ jest.mock('@/hooks/useTranslations', () => ({
         'dashboard.balance-cards.expenses': 'Expenses',
         'dashboard.balance-cards.balance': 'Balance',
         'dashboard.default-currency': '0,00 €',
+        'dashboard.kpi.vs-previous-month': 'vs last month',
+        'dashboard.kpi.vs-previous-year': 'vs last year',
       };
       return translations[key] ?? key;
     },
@@ -45,8 +49,11 @@ jest.mock('@/hooks/useTranslations', () => ({
   }),
 }));
 
+const mockPeriod = { granularity: 'month', value: '2025-01' };
+
 jest.mock('@/stores/useFinanceStore', () => ({
-  useSelectedMonth: () => '2025-01',
+  useSummaryPeriod: () => mockPeriod,
+  useSetFilters: () => jest.fn(),
 }));
 
 jest.mock('@/utils/helpers', () => {
@@ -71,6 +78,17 @@ jest.mock('@/utils/helpers', () => {
 });
 
 import { BalanceCards } from '@/components/dashboard/BalanceCards';
+import { SUMMARY_GRANULARITY } from '@/constants/finance';
+
+/** Switch the lens the mocked store reports for the next render. */
+function setLens(granularity: string, value: string) {
+  mockPeriod.granularity = granularity;
+  mockPeriod.value = value;
+}
+
+beforeEach(() => {
+  setLens(SUMMARY_GRANULARITY.MONTH, '2025-01');
+});
 
 describe('BalanceCards — Card Element Types', () => {
   it('renders Income and Expense cards as buttons and Balance card as a div', () => {
@@ -120,5 +138,50 @@ describe('BalanceCards — Balance Card Non-Interactive', () => {
     const allButtons = screen.getAllByRole('button');
     const balanceButton = allButtons.filter((btn) => btn.textContent?.includes('Balance'));
     expect(balanceButton).toHaveLength(0);
+  });
+});
+
+describe('BalanceCards — Yearly lens', () => {
+  beforeEach(() => {
+    setLens(SUMMARY_GRANULARITY.YEAR, '2025');
+  });
+
+  it('renders Income and Expense as links to the movements page', () => {
+    render(<BalanceCards />);
+
+    const income = screen.getByRole('link', { name: /income/i });
+    const expenses = screen.getByRole('link', { name: /expenses/i });
+
+    expect(income).toHaveAttribute('href', '/movements');
+    expect(expenses).toHaveAttribute('href', '/movements');
+  });
+
+  it('does not open the month-bound transactions popup', () => {
+    render(<BalanceCards />);
+
+    fireEvent.click(screen.getByRole('link', { name: /income/i }));
+
+    expect(screen.queryByTestId('type-modal')).not.toBeInTheDocument();
+  });
+
+  it('never leaves the month-bound popup open across a lens switch', () => {
+    setLens(SUMMARY_GRANULARITY.MONTH, '2025-01');
+    const { rerender } = render(<BalanceCards />);
+
+    fireEvent.click(screen.getByRole('button', { name: /income/i }));
+    expect(screen.getByTestId('type-modal')).toBeInTheDocument();
+
+    // Back/forward or the toggle itself can flip the lens while the popup is open.
+    setLens(SUMMARY_GRANULARITY.YEAR, '2025');
+    rerender(<BalanceCards />);
+
+    expect(screen.queryByTestId('type-modal')).not.toBeInTheDocument();
+  });
+
+  it('compares the deltas against the previous year', () => {
+    render(<BalanceCards />);
+
+    expect(screen.getAllByText(/vs last year/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/vs last month/i)).not.toBeInTheDocument();
   });
 });

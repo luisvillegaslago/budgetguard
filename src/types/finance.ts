@@ -24,6 +24,7 @@ import type {
   OccurrenceStatus,
   PaymentMethod,
   RecurringFrequency,
+  SummaryGranularity,
   TransactionStatus,
   TransactionType,
 } from '@/constants/finance';
@@ -344,14 +345,37 @@ export interface CategorySummary {
 }
 
 /**
- * Raw monthly summary data (cents - for internal use)
+ * Totals shared by every summary lens (month, year). The period label is what
+ * differs, so each lens adds its own.
  */
-export interface MonthlySummary {
-  month: string; // "2025-01"
+export interface PeriodSummaryTotals {
   incomeCents: number;
   expenseCents: number;
   balanceCents: number;
   byCategory: CategorySummary[];
+}
+
+/**
+ * Raw monthly summary data (cents - for internal use)
+ */
+export interface MonthlySummary extends PeriodSummaryTotals {
+  month: string; // "2025-01"
+}
+
+/**
+ * Raw yearly summary data (cents - for internal use)
+ */
+export interface YearlySummary extends PeriodSummaryTotals {
+  year: string; // "2025"
+}
+
+/**
+ * The period a dashboard summary is looked at through: a month ("2025-01")
+ * or a whole year ("2025").
+ */
+export interface SummaryPeriod {
+  granularity: SummaryGranularity;
+  value: string;
 }
 
 /**
@@ -367,7 +391,7 @@ export interface FormattedCategorySummary extends CategorySummary {
  * Formatted monthly summary for UI display
  */
 export interface FormattedSummary {
-  month: string;
+  period: string; // "2025-01" (month lens) or "2025" (year lens)
   income: string; // Formatted: "447,70"
   incomeValue: number; // Euros: 447.70
   expense: string; // Formatted: "2.697,16"

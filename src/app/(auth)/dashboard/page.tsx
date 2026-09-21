@@ -4,6 +4,11 @@
  * BudgetGuard Dashboard
  * Money-flow analytics at a glance: KPIs, cash-flow trend, category distribution,
  * year-to-date balance and top spending categories.
+ *
+ * The summary section is read through one of two lenses, a month or a year. The
+ * yearly one hides the fixed-vs-variable, top-vendors and fiscal widgets: the first
+ * two read raw transactions from the month-bound /api/transactions, and the fiscal
+ * report is quarterly by nature.
  */
 
 import { useState } from 'react';
@@ -14,6 +19,7 @@ import { CategoryDistributionCard } from '@/components/dashboard/charts/Category
 import { CategoryTrendsCard } from '@/components/dashboard/charts/CategoryTrendsCard';
 import { PeriodSelector } from '@/components/dashboard/charts/PeriodSelector';
 import { YtdBalanceCard } from '@/components/dashboard/charts/YtdBalanceCard';
+import { GranularityToggle } from '@/components/dashboard/GranularityToggle';
 import { FiscalSummaryCard } from '@/components/dashboard/widgets/FiscalSummaryCard';
 import { FixedVsVariableCard } from '@/components/dashboard/widgets/FixedVsVariableCard';
 import { TopVendorsWidget } from '@/components/dashboard/widgets/TopVendorsWidget';
@@ -23,9 +29,17 @@ import { ActiveTripBanner, type TripExpenseTarget } from '@/components/trips/Act
 import { TripExpenseForm } from '@/components/trips/TripExpenseForm';
 import { AnimatedHeight } from '@/components/ui/AnimatedHeight';
 import { MonthPicker } from '@/components/ui/MonthPicker';
+import { YearPicker } from '@/components/ui/YearPicker';
+import { SUMMARY_GRANULARITY } from '@/constants/finance';
 import { useDashboardUrlSync } from '@/hooks/useDashboardUrlSync';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useMonthNavigation, useSelectedMonth, useTrendPeriod } from '@/stores/useFinanceStore';
+import {
+  useMonthNavigation,
+  useSelectedMonth,
+  useSummaryGranularity,
+  useSummaryPeriod,
+  useTrendPeriod,
+} from '@/stores/useFinanceStore';
 import { getCurrentMonth } from '@/utils/helpers';
 
 function MobileTodayButton() {
@@ -49,21 +63,29 @@ function MobileTodayButton() {
 
 export default function DashboardPage() {
   const { t } = useTranslate();
-  const selectedMonth = useSelectedMonth();
+  const granularity = useSummaryGranularity();
+  const period = useSummaryPeriod();
   const trendPeriod = useTrendPeriod();
   const [tripExpenseTarget, setTripExpenseTarget] = useState<TripExpenseTarget | null>(null);
 
-  // Bidirectional sync: URL ↔ Zustand (month, type filter)
+  // Bidirectional sync: URL ↔ Zustand (month, year, lens, type filter)
   useDashboardUrlSync();
+
+  const isYearLens = granularity === SUMMARY_GRANULARITY.YEAR;
+  // Every monthly widget re-animates when either the lens or the period changes.
+  const periodTrigger = `${period.granularity}-${period.value}`;
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Month Picker + Quick Actions */}
+      {/* Period picker (month or year) + lens toggle + Quick Actions */}
       <div className="flex flex-col items-center sm:flex-row sm:justify-between gap-3 mb-8">
-        <MonthPicker />
+        <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3">
+          {isYearLens ? <YearPicker /> : <MonthPicker />}
+          <GranularityToggle />
+        </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <MobileTodayButton />
+          {!isYearLens && <MobileTodayButton />}
           <QuickExpenseActions className="justify-end" />
         </div>
       </div>
@@ -75,30 +97,33 @@ export default function DashboardPage() {
         {/* Active trip banner */}
         <ActiveTripBanner onAddExpense={setTripExpenseTarget} />
 
-        {/* ── Month-based section (driven by the month picker) ── */}
+        {/* ── Period-based section (driven by the month/year picker and the lens toggle) ── */}
         <section className="space-y-4">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-guard-muted">
-            {t('dashboard.sections.monthly')}
+            {isYearLens ? t('dashboard.sections.yearly') : t('dashboard.sections.monthly')}
           </h2>
 
-          {/* Each monthly widget fades + animates its height as the month changes, so nothing jumps */}
+          {/* Each widget fades + animates its height as the period changes, so nothing jumps */}
           <BalanceCards />
 
-          <AnimatedHeight trigger={selectedMonth}>
+          <AnimatedHeight trigger={periodTrigger}>
             <CategoryDistributionCard />
           </AnimatedHeight>
 
-          <AnimatedHeight
-            trigger={selectedMonth}
-            contentClassName="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8 items-stretch"
-          >
-            <FixedVsVariableCard />
-            <TopVendorsWidget />
-            <FiscalSummaryCard />
-          </AnimatedHeight>
+          {/* Month-only widgets: they read month-bound sources (see the file header) */}
+          {!isYearLens && (
+            <AnimatedHeight
+              trigger={periodTrigger}
+              contentClassName="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8 items-stretch"
+            >
+              <FixedVsVariableCard />
+              <TopVendorsWidget />
+              <FiscalSummaryCard />
+            </AnimatedHeight>
+          )}
         </section>
 
-        {/* ── Historical section (independent of the selected month) ── */}
+        {/* ── Historical section (independent of the selected period) ── */}
         <section className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-guard-muted">

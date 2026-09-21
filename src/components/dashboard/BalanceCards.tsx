@@ -2,9 +2,12 @@
 
 /**
  * BudgetGuard Balance Cards
- * KPI cards: Income, Expenses, Net Balance — each with month-over-month delta —
- * plus Savings Rate and Average Daily Spend.
- * Clicking Income or Expense opens a popup with that type's transactions for the month.
+ * KPI cards: Income, Expenses, Net Balance — each with a delta against the previous
+ * period — plus Savings Rate and Average Daily Spend.
+ * Through the monthly lens, clicking Income or Expense opens a popup with that
+ * type's transactions. Through the yearly one there is no such popup (the
+ * transactions modal is month-bound), so the cards link to the movements page
+ * with the type filter already applied.
  */
 
 import {
@@ -21,12 +24,12 @@ import {
 import { useState } from 'react';
 import { AnimatedHeight } from '@/components/ui/AnimatedHeight';
 import { SUMMARY_COLORS, SummaryCard, SummaryCardSkeleton } from '@/components/ui/SummaryCard';
-import { TRANSACTION_TYPE, type TransactionType } from '@/constants/finance';
+import { APP_ROUTE, SUMMARY_GRANULARITY, TRANSACTION_TYPE, type TransactionType } from '@/constants/finance';
 import { useFormattedSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useSelectedMonth } from '@/stores/useFinanceStore';
-import { addMonths, getCurrentMonth, getMonthDateRange } from '@/utils/helpers';
+import { useSetFilters, useSummaryPeriod } from '@/stores/useFinanceStore';
 import { formatCurrency } from '@/utils/money';
+import { dailyAverageDivisor, previousPeriod } from '@/utils/summaryPeriod';
 import { TypeTransactionsModal } from './charts/TypeTransactionsModal';
 
 /**
@@ -38,28 +41,12 @@ function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / Math.abs(previous)) * 100);
 }
 
-/**
- * Number of days to divide the month's spend by for the daily average.
- * - Past months: the full calendar length.
- * - Current month: days elapsed up to today (so the average is not diluted by
- *   days that have not happened yet).
- * - Future months: null (no elapsed days → the average is not meaningful).
- */
-function dailyAverageDivisor(selectedMonth: string): number | null {
-  const currentMonth = getCurrentMonth();
-
-  if (selectedMonth > currentMonth) return null;
-  if (selectedMonth === currentMonth) return new Date().getDate();
-
-  return getMonthDateRange(selectedMonth).end.getDate();
-}
-
 interface DeltaBadgeProps {
   change: number | null;
   favorableWhenUp: boolean;
   noDataLabel: string;
   suffix: string;
-  /** Previous-month comparison still loading: show a placeholder instead of the "no data" text. */
+  /** Previous-period comparison still loading: show a placeholder instead of the "no data" text. */
   loading?: boolean;
 }
 
@@ -92,10 +79,13 @@ function DeltaBadge({ change, favorableWhenUp, noDataLabel, suffix, loading }: D
 
 export function BalanceCards() {
   const { t } = useTranslate();
-  const selectedMonth = useSelectedMonth();
-  const { formatted, isPending, isError, refetch } = useFormattedSummary(selectedMonth);
-  const { formatted: previous, isPending: isPreviousPending } = useFormattedSummary(addMonths(selectedMonth, -1));
+  const period = useSummaryPeriod();
+  const setFilters = useSetFilters();
+  const { formatted, isPending, isError, refetch } = useFormattedSummary(period);
+  const { formatted: previous, isPending: isPreviousPending } = useFormattedSummary(previousPeriod(period));
   const [modalType, setModalType] = useState<TransactionType | null>(null);
+
+  const isYearLens = period.granularity === SUMMARY_GRANULARITY.YEAR;
 
   if (isError) {
     return (
@@ -115,22 +105,32 @@ export function BalanceCards() {
   const balanceValue = formatted?.balanceValue ?? 0;
   const isBalancePositive = balanceValue >= 0;
   const defaultCurrency = t('dashboard.default-currency');
-  const vsPrev = t('dashboard.kpi.vs-previous-month');
-  const noPrev = t('dashboard.kpi.no-previous-data');
+  const vsPrev = isYearLens ? t('dashboard.kpi.vs-previous-year') : t('dashboard.kpi.vs-previous-month');
+  const noPrev = isYearLens ? t('dashboard.kpi.no-previous-data-year') : t('dashboard.kpi.no-previous-data');
 
   // Savings rate: share of income kept as balance.
   const savingsRate = incomeValue > 0 ? Math.round((balanceValue / incomeValue) * 100) : null;
 
-  // Average daily spend across the relevant days of the selected month
-  // (elapsed days for the current month, full month for past months, n/a for future).
-  const averageDivisor = dailyAverageDivisor(selectedMonth);
+  // Average daily spend across the relevant days of the selected period
+  // (elapsed days for the running one, full length for past ones, n/a for future).
+  const averageDivisor = dailyAverageDivisor(period);
   const dailyAverageCents =
     averageDivisor && averageDivisor > 0 ? Math.round((expenseValue * 100) / averageDivisor) : null;
 
+  // The transactions modal only knows how to list a month, so the yearly lens
+  // hands the drill-down over to the movements page instead.
+  const typeCardProps = (type: TransactionType) =>
+    isYearLens
+      ? { href: APP_ROUTE.MOVEMENTS, onClick: () => setFilters({ type }) }
+      : { onClick: () => setModalType(type) };
+
   return (
     <>
-      {/* Fade + height animation as the month changes; the skeleton lives inside so loading never flashes blank */}
-      <AnimatedHeight trigger={selectedMonth} contentClassName="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* Fade + height animation as the period changes; the skeleton lives inside so loading never flashes blank */}
+      <AnimatedHeight
+        trigger={`${period.granularity}-${period.value}`}
+        contentClassName="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+      >
         {isPending ? (
           [1, 2, 3, 4, 5].map((i) => <SummaryCardSkeleton key={i} />)
         ) : (
@@ -141,7 +141,7 @@ export function BalanceCards() {
               icon={<ArrowDownLeft className="h-5 w-5" aria-hidden="true" />}
               colors={SUMMARY_COLORS.success}
               staggerClass="stagger-1"
-              onClick={() => setModalType(TRANSACTION_TYPE.INCOME)}
+              {...typeCardProps(TRANSACTION_TYPE.INCOME)}
               footer={
                 <DeltaBadge
                   change={pctChange(incomeValue, previous?.incomeValue ?? 0)}
@@ -159,7 +159,7 @@ export function BalanceCards() {
               icon={<ArrowUpRight className="h-5 w-5" aria-hidden="true" />}
               colors={SUMMARY_COLORS.danger}
               staggerClass="stagger-2"
-              onClick={() => setModalType(TRANSACTION_TYPE.EXPENSE)}
+              {...typeCardProps(TRANSACTION_TYPE.EXPENSE)}
               footer={
                 <DeltaBadge
                   change={pctChange(expenseValue, previous?.expenseValue ?? 0)}
@@ -215,7 +215,11 @@ export function BalanceCards() {
         )}
       </AnimatedHeight>
 
-      {modalType && <TypeTransactionsModal type={modalType} month={selectedMonth} onClose={() => setModalType(null)} />}
+      {/* Guarded by the lens: a switch (or a back/forward) while the popup is open would
+          otherwise hand it a year where it expects a month. */}
+      {!isYearLens && modalType && (
+        <TypeTransactionsModal type={modalType} month={period.value} onClose={() => setModalType(null)} />
+      )}
     </>
   );
 }

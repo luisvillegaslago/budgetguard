@@ -5,6 +5,7 @@
  * Used by BalanceCards (dashboard) and DocumentsPage (fiscal documents).
  */
 
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 import { cn } from '@/utils/helpers';
@@ -23,6 +24,8 @@ interface SummaryCardProps {
   colors: SummaryCardColorScheme;
   isActive?: boolean;
   onClick?: () => void;
+  /** Renders the card as a link instead of a button; onClick still runs on navigation. */
+  href?: string;
   staggerClass?: string;
   className?: string;
   footer?: ReactNode;
@@ -37,6 +40,7 @@ export function SummaryCard({
   colors,
   isActive,
   onClick,
+  href,
   staggerClass,
   className,
   footer,
@@ -64,6 +68,19 @@ export function SummaryCard({
   );
 
   const baseClass = cn('balance-card border-l-4 animate-slide-up', colors.border, staggerClass, className);
+  const interactiveClass = cn(
+    baseClass,
+    'text-left w-full block cursor-pointer transition-all duration-200 ease-out-quart',
+  );
+
+  // A real anchor, not router.push(), so the route progress bar picks the navigation up.
+  if (href) {
+    return (
+      <Link href={href} onClick={onClick} className={interactiveClass}>
+        {content}
+      </Link>
+    );
+  }
 
   if (onClick) {
     return (

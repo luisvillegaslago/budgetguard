@@ -6,6 +6,7 @@
  * This store handles: selected month, filters, modal states
  */
 
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -14,11 +15,14 @@ import {
   type FilterType,
   STATUS_FILTER,
   type StatusFilter,
+  SUMMARY_GRANULARITY,
+  type SummaryGranularity,
   TREND_PERIOD,
   type TrendPeriod,
 } from '@/constants/finance';
 import { useIsLargeScreen } from '@/hooks/useMediaQuery';
 import { addMonths, getCurrentMonth } from '@/utils/helpers';
+import { getCurrentYear, resolvePeriod } from '@/utils/summaryPeriod';
 
 interface FinanceFilters {
   type: FilterType;
@@ -29,6 +33,13 @@ interface FinanceFilters {
 interface FinanceUIState {
   // Selected month for viewing
   selectedMonth: string; // "2025-01"
+
+  // Selected year for the yearly lens; independent of selectedMonth, so switching
+  // lenses back and forth never rewrites the other selection
+  selectedYear: string; // "2025"
+
+  // Which lens the dashboard summary section is read through
+  summaryGranularity: SummaryGranularity;
 
   // Transaction filters
   filters: FinanceFilters;
@@ -53,10 +64,15 @@ interface FinanceUIState {
 
   // Actions
   setSelectedMonth: (month: string) => void;
+  setSelectedYear: (year: string) => void;
+  setSummaryGranularity: (granularity: SummaryGranularity) => void;
   setTrendPeriod: (period: TrendPeriod) => void;
   goToPreviousMonth: () => void;
   goToNextMonth: () => void;
   goToCurrentMonth: () => void;
+  goToPreviousYear: () => void;
+  goToNextYear: () => void;
+  goToCurrentYear: () => void;
   setFilters: (filters: Partial<FinanceFilters>) => void;
   resetFilters: () => void;
   togglePendingPanel: () => void;
@@ -79,8 +95,22 @@ function getStoredBoolean(key: string, fallback: boolean): boolean {
   return stored !== null ? stored === 'true' : fallback;
 }
 
+/**
+ * The lens remembered from a previous visit. Read on demand (never at store creation)
+ * so the server and the first client render always agree on the monthly default —
+ * this one swaps the whole header control, so a hydration mismatch would be visible.
+ */
+export function getStoredGranularity(): SummaryGranularity {
+  if (typeof window === 'undefined') return SUMMARY_GRANULARITY.MONTH;
+  return localStorage.getItem('bg-summary-granularity') === SUMMARY_GRANULARITY.YEAR
+    ? SUMMARY_GRANULARITY.YEAR
+    : SUMMARY_GRANULARITY.MONTH;
+}
+
 export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   selectedMonth: getCurrentMonth(),
+  selectedYear: getCurrentYear(),
+  summaryGranularity: SUMMARY_GRANULARITY.MONTH,
   filters: defaultFilters,
   isPendingPanelCollapsed: true,
   isRecurringPanelCollapsed: true,
@@ -91,6 +121,22 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
   trendPeriod: TREND_PERIOD.ONE_YEAR,
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
+  setSelectedYear: (year) => set({ selectedYear: year }),
+
+  // Switching to the yearly lens seeds the year from the month on screen, so the
+  // jump lands where the user was looking instead of on the current year.
+  setSummaryGranularity: (granularity) => {
+    // Outside the updater: set() takes a pure function, and localStorage is absent server-side.
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bg-summary-granularity', granularity);
+    }
+    set((state) =>
+      granularity === SUMMARY_GRANULARITY.YEAR
+        ? { summaryGranularity: granularity, selectedYear: state.selectedMonth.slice(0, 4) }
+        : { summaryGranularity: granularity },
+    );
+  },
+
   setTrendPeriod: (period) => set({ trendPeriod: period }),
 
   goToPreviousMonth: () => {
@@ -105,6 +151,18 @@ export const useFinanceStore = create<FinanceUIState>((set, get) => ({
 
   goToCurrentMonth: () => {
     set({ selectedMonth: getCurrentMonth() });
+  },
+
+  goToPreviousYear: () => {
+    set({ selectedYear: String(Number(get().selectedYear) - 1) });
+  },
+
+  goToNextYear: () => {
+    set({ selectedYear: String(Number(get().selectedYear) + 1) });
+  },
+
+  goToCurrentYear: () => {
+    set({ selectedYear: getCurrentYear() });
   },
 
   setFilters: (newFilters) => {
@@ -192,6 +250,32 @@ export const useSidebarExpanded = () => {
 
 export const useGroupByMonth = () => useFinanceStore((s) => s.groupByMonth);
 export const useToggleGroupByMonth = () => useFinanceStore((s) => s.toggleGroupByMonth);
+
+export const useSelectedYear = () => useFinanceStore((s) => s.selectedYear);
+export const useSetSelectedYear = () => useFinanceStore((s) => s.setSelectedYear);
+
+export const useYearNavigation = () =>
+  useFinanceStore(
+    useShallow((s) => ({
+      goToPreviousYear: s.goToPreviousYear,
+      goToNextYear: s.goToNextYear,
+      goToCurrentYear: s.goToCurrentYear,
+    })),
+  );
+
+export const useSummaryGranularity = () => useFinanceStore((s) => s.summaryGranularity);
+export const useSetSummaryGranularity = () => useFinanceStore((s) => s.setSummaryGranularity);
+
+/** The period the dashboard summary widgets read, resolved from the active lens. */
+export const useSummaryPeriod = () => {
+  const granularity = useFinanceStore((s) => s.summaryGranularity);
+  const selectedMonth = useFinanceStore((s) => s.selectedMonth);
+  const selectedYear = useFinanceStore((s) => s.selectedYear);
+  return useMemo(
+    () => resolvePeriod(granularity, selectedMonth, selectedYear),
+    [granularity, selectedMonth, selectedYear],
+  );
+};
 
 export const useTrendPeriod = () => useFinanceStore((s) => s.trendPeriod);
 export const useSetTrendPeriod = () => useFinanceStore((s) => s.setTrendPeriod);

@@ -24,13 +24,19 @@ async function fetchMonthlySummary(month: string): Promise<MonthlySummary> {
   return data.data;
 }
 
+interface SummaryQueryOptions {
+  /** Off while the dashboard is looking through the yearly lens. */
+  enabled?: boolean;
+}
+
 /**
  * Hook to fetch monthly summary (raw cents data)
  */
-export function useMonthlySummary(month: string) {
+export function useMonthlySummary(month: string, options?: SummaryQueryOptions) {
   return useQuery({
     queryKey: [QUERY_KEY.SUMMARY, month],
     queryFn: () => fetchMonthlySummary(month),
     staleTime: CACHE_TIME.FIVE_MINUTES,
+    enabled: options?.enabled ?? true,
   });
 }

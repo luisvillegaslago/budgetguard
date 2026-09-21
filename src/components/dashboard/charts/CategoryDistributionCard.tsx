@@ -3,17 +3,20 @@
 /**
  * BudgetGuard Category Distribution Card
  * Single card combining the expense donut with a clickable category ranking
- * (the ranking doubles as the donut legend). Clicking a category opens its
- * transactions popup for the selected month.
+ * (the ranking doubles as the donut legend). Through the monthly lens, clicking a
+ * category opens its transactions popup for that month; through the yearly one it
+ * links to the category tab of the movements page, which browses a whole range.
  */
 
 import { Ellipsis } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { APP_ROUTE, SUMMARY_GRANULARITY } from '@/constants/finance';
 import { useExpenseSummary } from '@/hooks/useFormattedSummary';
 import { useTranslate } from '@/hooks/useTranslations';
-import { useSelectedMonth } from '@/stores/useFinanceStore';
+import { useSummaryPeriod } from '@/stores/useFinanceStore';
 import type { FormattedCategorySummary } from '@/types/finance';
 import { CategoryTransactionsModal } from './CategoryTransactionsModal';
 import { ChartCard } from './ChartCard';
@@ -49,10 +52,11 @@ function DonutTooltip({ active, payload }: DonutTooltipProps) {
 
 export function CategoryDistributionCard() {
   const { t } = useTranslate();
-  const selectedMonth = useSelectedMonth();
-  const { expenseCategories, totalExpense, totalExpenseValue, isPending, isError, refetch } =
-    useExpenseSummary(selectedMonth);
+  const period = useSummaryPeriod();
+  const { expenseCategories, totalExpense, totalExpenseValue, isPending, isError, refetch } = useExpenseSummary(period);
   const [selectedCategory, setSelectedCategory] = useState<FormattedCategorySummary | null>(null);
+
+  const isYearLens = period.granularity === SUMMARY_GRANULARITY.YEAR;
 
   const slices = useMemo((): Slice[] => {
     if (expenseCategories.length === 0) return [];
@@ -153,18 +157,22 @@ export function CategoryDistributionCard() {
               </>
             );
 
+            const rowClass =
+              'flex w-full items-center gap-3 -mx-2 px-2 py-1 rounded-lg hover:bg-muted/30 transition-colors text-left cursor-pointer';
+
             return (
               <li key={slice.name}>
-                {slice.category ? (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory(slice.category)}
-                    className="flex w-full items-center gap-3 -mx-2 px-2 py-1 rounded-lg hover:bg-muted/30 transition-colors text-left cursor-pointer"
-                  >
+                {slice.category === null ? (
+                  <div className="flex items-center gap-3 px-0 py-1">{row}</div>
+                ) : isYearLens ? (
+                  // The transactions modal is month-bound; the movements category tab is not.
+                  <Link href={`${APP_ROUTE.MOVEMENTS}?category=${slice.category.categoryId}`} className={rowClass}>
+                    {row}
+                  </Link>
+                ) : (
+                  <button type="button" onClick={() => setSelectedCategory(slice.category)} className={rowClass}>
                     {row}
                   </button>
-                ) : (
-                  <div className="flex items-center gap-3 px-0 py-1">{row}</div>
                 )}
               </li>
             );
@@ -178,7 +186,7 @@ export function CategoryDistributionCard() {
           categoryName={selectedCategory.categoryName}
           categoryIcon={selectedCategory.categoryIcon}
           categoryColor={selectedCategory.categoryColor}
-          month={selectedMonth}
+          month={period.value}
           onClose={() => setSelectedCategory(null)}
         />
       )}

@@ -1,20 +1,30 @@
 /**
  * BudgetGuard Formatted Summary Hook
- * Middleware wrapper that transforms cents to formatted currency strings
+ * Middleware wrapper that transforms cents to formatted currency strings.
+ * Takes a period, so the same widgets render either lens (a month or a year):
+ * both hooks are always called, one of them disabled, and the payload shape is
+ * identical either way.
  */
 
 import { useMemo } from 'react';
-import { TRANSACTION_TYPE } from '@/constants/finance';
-import type { FormattedCategorySummary, FormattedSummary } from '@/types/finance';
+import { SUMMARY_GRANULARITY, TRANSACTION_TYPE } from '@/constants/finance';
+import type { FormattedCategorySummary, FormattedSummary, SummaryPeriod } from '@/types/finance';
 import { calculatePercentage, centsToEuros, formatCurrency } from '@/utils/money';
 import { useMonthlySummary } from './useMonthlySummary';
+import { useYearlySummary } from './useYearlySummary';
 
 /**
  * Hook that provides formatted summary data ready for UI display
  * Transforms cents to euros and adds formatted currency strings
  */
-export function useFormattedSummary(month: string) {
-  const query = useMonthlySummary(month);
+export function useFormattedSummary(period: SummaryPeriod) {
+  const isYear = period.granularity === SUMMARY_GRANULARITY.YEAR;
+
+  // The disabled branch still registers a key, so it gets an empty one rather than a
+  // value of the wrong shape sitting in the other lens's namespace.
+  const monthly = useMonthlySummary(isYear ? '' : period.value, { enabled: !isYear });
+  const yearly = useYearlySummary(isYear ? period.value : '', { enabled: isYear });
+  const query = isYear ? yearly : monthly;
 
   const formatted = useMemo((): FormattedSummary | null => {
     if (!query.data) return null;
@@ -33,7 +43,7 @@ export function useFormattedSummary(month: string) {
     });
 
     return {
-      month,
+      period: period.value,
       income: formatCurrency(incomeCents),
       incomeValue: centsToEuros(incomeCents),
       expense: formatCurrency(expenseCents),
@@ -42,7 +52,7 @@ export function useFormattedSummary(month: string) {
       balanceValue: centsToEuros(balanceCents),
       byCategory: formattedCategories,
     };
-  }, [query.data, month]);
+  }, [query.data, period.value]);
 
   return {
     ...query,
@@ -53,8 +63,8 @@ export function useFormattedSummary(month: string) {
 /**
  * Get only expense categories from formatted summary
  */
-export function useExpenseSummary(month: string) {
-  const { formatted, ...query } = useFormattedSummary(month);
+export function useExpenseSummary(period: SummaryPeriod) {
+  const { formatted, ...query } = useFormattedSummary(period);
 
   const expenseCategories = useMemo(() => {
     if (!formatted) return [];
@@ -74,8 +84,8 @@ export function useExpenseSummary(month: string) {
 /**
  * Get only income categories from formatted summary
  */
-export function useIncomeSummary(month: string) {
-  const { formatted, ...query } = useFormattedSummary(month);
+export function useIncomeSummary(period: SummaryPeriod) {
+  const { formatted, ...query } = useFormattedSummary(period);
 
   const incomeCategories = useMemo(() => {
     if (!formatted) return [];

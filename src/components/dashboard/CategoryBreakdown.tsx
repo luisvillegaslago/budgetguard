@@ -21,6 +21,7 @@ import { useSelectedMonth } from '@/stores/useFinanceStore';
 import type { FormattedCategorySummary, SubcategorySummary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { calculatePercentage, formatCurrency } from '@/utils/money';
+import { monthPeriod } from '@/utils/summaryPeriod';
 
 interface SubcategoryRowProps {
   subcategory: SubcategorySummary;
@@ -201,7 +202,10 @@ function CategoryRow({ category, index, isExpanded, onToggle, month }: CategoryR
 export function CategoryBreakdown() {
   const { t } = useTranslate();
   const selectedMonth = useSelectedMonth();
-  const { expenseCategories, totalExpense, isLoading, isError, refetch } = useExpenseSummary(selectedMonth);
+  // The movements page is month-bound, so this breakdown always reads the monthly lens.
+  const { expenseCategories, totalExpense, isLoading, isError, refetch } = useExpenseSummary(
+    monthPeriod(selectedMonth),
+  );
   const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null);
 
   const handleToggle = (categoryId: number) => {

@@ -4,7 +4,9 @@
  */
 
 import { renderHook } from '@testing-library/react';
-import { FILTER_TYPE } from '@/constants/finance';
+import { FILTER_TYPE, SUMMARY_GRANULARITY, type SummaryGranularity } from '@/constants/finance';
+
+const CURRENT_YEAR = String(new Date().getFullYear());
 
 const mockReplace = jest.fn();
 let mockSearchParams = new URLSearchParams();
@@ -17,16 +19,30 @@ jest.mock('next/navigation', () => ({
 // Track store state and actions
 const mockSetSelectedMonth = jest.fn();
 const mockSetFilters = jest.fn();
-let mockStoreState = {
-  selectedMonth: '2025-01',
-  filters: { type: FILTER_TYPE.ALL, categoryId: null },
-  setSelectedMonth: mockSetSelectedMonth,
-  setFilters: mockSetFilters,
-};
+const mockSetSelectedYear = jest.fn();
+const mockSetSummaryGranularity = jest.fn();
+
+function buildStoreState() {
+  return {
+    selectedMonth: '2025-01',
+    selectedYear: CURRENT_YEAR,
+    summaryGranularity: SUMMARY_GRANULARITY.MONTH as SummaryGranularity,
+    filters: { type: FILTER_TYPE.ALL, categoryId: null },
+    setSelectedMonth: mockSetSelectedMonth,
+    setFilters: mockSetFilters,
+    setSelectedYear: mockSetSelectedYear,
+    setSummaryGranularity: mockSetSummaryGranularity,
+  };
+}
+
+let mockStoreState = buildStoreState();
 
 const subscribers: Array<(state: typeof mockStoreState, prev: typeof mockStoreState) => void> = [];
 
+let storedGranularity: SummaryGranularity = SUMMARY_GRANULARITY.MONTH;
+
 jest.mock('@/stores/useFinanceStore', () => ({
+  getStoredGranularity: () => storedGranularity,
   useFinanceStore: {
     getState: () => mockStoreState,
     subscribe: (fn: (state: typeof mockStoreState, prev: typeof mockStoreState) => void) => {
@@ -50,14 +66,12 @@ describe('useDashboardUrlSync', () => {
     mockReplace.mockClear();
     mockSetSelectedMonth.mockClear();
     mockSetFilters.mockClear();
+    mockSetSelectedYear.mockClear();
+    mockSetSummaryGranularity.mockClear();
     mockSearchParams = new URLSearchParams();
     subscribers.length = 0;
-    mockStoreState = {
-      selectedMonth: '2025-01',
-      filters: { type: FILTER_TYPE.ALL, categoryId: null },
-      setSelectedMonth: mockSetSelectedMonth,
-      setFilters: mockSetFilters,
-    };
+    storedGranularity = SUMMARY_GRANULARITY.MONTH;
+    mockStoreState = buildStoreState();
   });
 
   describe('URL → Zustand (on mount)', () => {
@@ -107,6 +121,64 @@ describe('useDashboardUrlSync', () => {
 
       // Falls back to ALL — same as store, no call
       expect(mockSetFilters).not.toHaveBeenCalled();
+    });
+
+    it('switches to the yearly lens with view=year', () => {
+      mockSearchParams = new URLSearchParams('view=year');
+
+      renderHook(() => useDashboardUrlSync());
+
+      expect(mockSetSummaryGranularity).toHaveBeenCalledWith(SUMMARY_GRANULARITY.YEAR);
+    });
+
+    it('falls back to the remembered lens when the URL names none', () => {
+      storedGranularity = SUMMARY_GRANULARITY.YEAR;
+
+      renderHook(() => useDashboardUrlSync());
+
+      expect(mockSetSummaryGranularity).toHaveBeenCalledWith(SUMMARY_GRANULARITY.YEAR);
+    });
+
+    it('does not overwrite the remembered lens with the monthly default', () => {
+      // A bare /dashboard visit must leave the stored preference alone.
+      renderHook(() => useDashboardUrlSync());
+
+      expect(mockSetSummaryGranularity).not.toHaveBeenCalled();
+    });
+
+    it('lets an explicit view param override the remembered lens', () => {
+      storedGranularity = SUMMARY_GRANULARITY.YEAR;
+      mockStoreState.summaryGranularity = SUMMARY_GRANULARITY.YEAR;
+      mockSearchParams = new URLSearchParams('view=month');
+
+      renderHook(() => useDashboardUrlSync());
+
+      expect(mockSetSummaryGranularity).toHaveBeenCalledWith(SUMMARY_GRANULARITY.MONTH);
+    });
+
+    it('stays on the monthly lens for an unknown view param', () => {
+      mockSearchParams = new URLSearchParams('view=decade');
+
+      renderHook(() => useDashboardUrlSync());
+
+      expect(mockSetSummaryGranularity).not.toHaveBeenCalled();
+    });
+
+    it('sets the year from the URL param', () => {
+      mockSearchParams = new URLSearchParams('view=year&year=2023');
+
+      renderHook(() => useDashboardUrlSync());
+
+      expect(mockSetSelectedYear).toHaveBeenCalledWith('2023');
+    });
+
+    it('ignores an invalid year format', () => {
+      mockSearchParams = new URLSearchParams('year=20x3');
+
+      renderHook(() => useDashboardUrlSync());
+
+      // Falls back to the current year — same as the store, so no call
+      expect(mockSetSelectedYear).not.toHaveBeenCalled();
     });
 
     it('validates month regex strictly', () => {

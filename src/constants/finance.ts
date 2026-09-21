@@ -172,6 +172,11 @@ export const DB_POOL = {
   IDLE_TIMEOUT_MS: 30_000,
 } as const;
 
+// In-app routes linked to from widgets (the sidebar keeps its own list in navConfig)
+export const APP_ROUTE = {
+  MOVEMENTS: '/movements',
+} as const;
+
 // API Endpoints
 export const API_ENDPOINT = {
   CATEGORIES: '/api/categories',
@@ -285,6 +290,15 @@ export const BANK_FEE_CATEGORY = {
   SORT_ORDER: 6,
   DEDUCTION_PERCENT: 100,
 } as const;
+
+// Dashboard summary lens: the KPI cards and the category donut read either a
+// single month or a whole year. Both lenses share the same payload shape.
+export const SUMMARY_GRANULARITY = {
+  MONTH: 'month',
+  YEAR: 'year',
+} as const;
+
+export type SummaryGranularity = (typeof SUMMARY_GRANULARITY)[keyof typeof SUMMARY_GRANULARITY];
 
 // Trend chart period presets (dashboard cash-flow + cumulative charts)
 export const TREND_PERIOD = {
@@ -1440,6 +1454,9 @@ export const BINANCE_GENESIS_DATE = '2017-07-14T00:00:00Z';
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
 
+// Year format regex (yearly summary lens)
+export const YEAR_FORMAT_REGEX = /^\d{4}$/;
+
 // ============================================================
 // API ERROR CODES (i18n keys — backend returns these, frontend translates)
 // ============================================================
@@ -1540,6 +1557,7 @@ export const API_ERROR = {
   },
   VALIDATION: {
     INVALID_MONTH: 'api-error.validation.invalid-month',
+    INVALID_YEAR: 'api-error.validation.invalid-year',
     CATEGORY_ID_REQUIRED: 'api-error.validation.category-id-required',
     NAME_REQUIRED: 'api-error.validation.name-required',
     NOT_AVAILABLE_IN_PROD: 'api-error.validation.not-available-in-prod',
