@@ -74,11 +74,15 @@ describe('migration file names', () => {
 });
 
 describe('ledger', () => {
-  it('numbers its rows uniquely and without gaps', () => {
+  it('never lists a number twice', () => {
+    // Uniqueness, deliberately NOT contiguity. A migration that gets written and then
+    // abandoned leaves its number burned, and that is harmless: the next author still
+    // reads `Last applied` and takes the one after it, so nothing is reused. Failing
+    // the build on a gap would make the obvious fix "invent a filler migration", which
+    // is worse than the gap it papers over. Reuse is the damage; this is what catches it.
     const rows = ledgerRowNumbers();
     expect(rows.length).toBeGreaterThan(0);
-    // A gap means a number was burned without a file, so the next author reuses it.
-    expect(rows).toEqual(Array.from({ length: rows.length }, (_, index) => index + 1));
+    expect([...new Set(rows)]).toEqual(rows);
   });
 
   it('declares Last applied as the highest row', () => {
@@ -87,7 +91,11 @@ describe('ledger', () => {
   });
 
   it('has exactly one row per migration file', () => {
-    // Catches both directions: a file nobody recorded, and a row whose file was deleted.
+    // Both directions are errors HERE because every migration in this repo is committed
+    // and kept: a file nobody recorded, and a row whose file was deleted. practice-hub
+    // runs the same ledger and cannot assert this — their pre-091 migrations were never
+    // committed, so 58 rows against 25 files is their normal state. Do not copy this
+    // assertion to a repo where the ledger outlives the files it describes.
     expect(ledgerRowNumbers().length).toBe(sqlFiles.length);
   });
 
