@@ -19,7 +19,10 @@ old convention, so their file names do not follow the numbering scheme.
 - Next number = `Last applied` below, plus one. **Re-read this ledger immediately
   before creating the file**: several sessions work this repo at once, and two that
   read the same number will both write it. That collision is the failure mode this
-  ledger exists to prevent, and nothing else catches it.
+  ledger exists to prevent. `src/__tests__/services/migrations-ledger.test.ts` fails
+  on it, on a file with no row, on a row with no file, and on a `Last applied` that
+  does not match the highest row — but it runs after the fact, so re-reading first
+  is still the habit that avoids the wasted work.
 - Add the row when you **write** the migration, not when it is applied, and commit
   the row together with the `.sql`.
 - The Description column records **why**, not what. "Add column X" is already
