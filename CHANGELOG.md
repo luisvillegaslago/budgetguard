@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.69.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.0...v0.69.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **graphify:** anchor curated community names to membership, not hubs ([dbd4104](https://github.com/luisvillegaslago/budgetguard/commit/dbd41040d7a292fca4bf394c57dc10719aef004b))
+
 ## [0.69.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.68.2...v0.69.0) (2026-09-22)
 
 
