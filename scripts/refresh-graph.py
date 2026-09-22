@@ -78,22 +78,32 @@ def semantic_node_count(graph_file: Path) -> int:
     return sum(1 for n in g.get("nodes", []) if n.get("_origin") != "ast")
 
 
-ANCHOR_SIZE = 5
-MIN_OVERLAP = 2
+MIN_SIMILARITY = 0.25
+MAX_ANCHOR_MEMBERS = 250
 
 
 def anchor_of(G, members: list[str]) -> list[str]:
-    """The community's top members by degree, as a stable fingerprint.
+    """The community's membership, as its fingerprint.
 
-    A single hub is too brittle to anchor a curated name to: measured here, a
-    rebuild that changed the graph by one node moved 199 communities to 205 and
-    orphaned 6 of 25 curated names, because a community that splits or absorbs a
-    neighbour gets a different highest-degree member. A set survives that — the
-    label follows wherever most of its characteristic nodes ended up.
+    Deliberately NOT the top members by degree. That was tried and it misattached
+    names: the highest-degree nodes are god-nodes — `types/finance.ts` at degree 340,
+    `useApiMutation()`, `invalidateQueryKeys()` — and a god-node belongs to every
+    community equally, so anchoring on one anchors on nothing. The result was
+    "Fiscal & Trips Screens" sitting on a community that was 61/64 hooks: a correct
+    name over foreign content, which reads as an answer and is worse than no name.
+
+    Whole membership, compared by Jaccard below, uses the entire signal instead of
+    five nodes that happen to be hubs.
     """
-    present = [n for n in members if n in G]
-    present.sort(key=lambda n: (-G.degree(n), n))
-    return present[:ANCHOR_SIZE]
+    present = sorted(n for n in members if n in G)
+    return present[:MAX_ANCHOR_MEMBERS]
+
+
+def similarity(stored: list[str], candidate: list[str]) -> float:
+    """Jaccard overlap between a stored membership and a community's current one."""
+    a, b = set(stored), set(candidate)
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
 
 
 def load_curated(G, communities: dict[int, list[str]]) -> dict[str, str]:
@@ -193,24 +203,21 @@ def main() -> None:
 
     # Re-attach curated names by hub, then let graphify name whatever is left.
     curated = load_curated(G, communities)
-    member_index: dict[str, int] = {}
-    for cid, members in communities.items():
-        for n in members:
-            member_index[n] = cid
 
-    # Score every curated name against every community by anchor overlap, then
-    # assign from the strongest match down, so two names never compete for the same
-    # community and the better-supported one wins.
-    scored: list[tuple[int, str, int]] = []
-    for name, anchor in curated.items():
-        for cid, hits in Counter(member_index[n] for n in anchor if n in member_index).items():
-            if hits >= MIN_OVERLAP:
-                scored.append((hits, name, cid))
+    # Score every curated name against every community by membership similarity, then
+    # assign from the strongest match down. A name whose best community is taken still
+    # gets its next-best, so two names never deadlock over one community.
+    scored: list[tuple[float, str, int]] = []
+    for name, stored in curated.items():
+        for cid, members in communities.items():
+            score = similarity(stored, members)
+            if score >= MIN_SIMILARITY:
+                scored.append((score, name, cid))
     scored.sort(key=lambda t: (-t[0], t[1]))
 
     labels: dict[int, str] = {}
     placed: set[str] = set()
-    for _hits, name, cid in scored:
+    for _score, name, cid in scored:
         if cid in labels or name in placed:
             continue
         labels[cid] = name
@@ -296,7 +303,7 @@ def main() -> None:
     print(f"communities  : {len(communities)}")
     print(f"_origin      : {dict(origins)}")
     print(f"semantic     : {now_semantic}" + (f"  (was {previous_semantic})" if previous_semantic else ""))
-    print(f"curated names: {curated_applied} re-attached by hub, {len(labels) - curated_applied} auto")
+    print(f"curated names: {curated_applied} re-attached by membership, {len(labels) - curated_applied} auto")
     if orphaned:
         print()
         print(f"DROPPED {len(orphaned)} curated name(s) whose hub no longer leads a community:")
