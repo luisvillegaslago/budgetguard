@@ -11,6 +11,14 @@ allowed-tools:
 
 # Money Check — Financial Code Auditor
 
+> **Why this lives in the product repo and not in the dev-notes repo.** It is a lint
+> rule for this codebase, not a tool for how the work is run: it names `eurosToCents`,
+> `centsToEuros`, `formatCurrency`, `vw_MonthlySummary`, `vw_MonthlyBalance`,
+> `TRANSACTION_TYPE`, `QUERY_KEY` and the `Cents` column suffix, so it goes stale the
+> moment any of them is renamed, and anyone cloning this repo should get it. Skills
+> about the workflow around a project (billing, planning, scheduling) belong in the
+> dev-notes repo; skills about whether this product is correct belong here.
+
 Scans the BudgetGuard codebase for violations of the money-as-integers (cents) pattern. All monetary values must be stored and transmitted as integers (cents), converted to display units only at the presentation layer.
 
 ## Audit Procedure
