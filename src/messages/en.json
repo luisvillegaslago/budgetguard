@@ -2368,7 +2368,7 @@
           "jump-type": "Type",
           "type-placeholder": "e.g., Belly, Freefly",
           "freefall-time": "Freefall (sec)",
-          "altitude": "Exit altitude (m)",
+          "altitude": "Exit altitude (ft)",
           "aircraft": "Aircraft",
           "aircraft-placeholder": "e.g., Cessna 208",
           "canopy": "Canopy",
