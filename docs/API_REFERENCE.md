@@ -3773,19 +3773,19 @@ Compare local and remote database schemas and data to compute a diff.
 
 #### `POST /api/sync/execute`
 
-Execute database synchronization. Returns a Server-Sent Events (SSE) stream with progress updates.
+Execute a one-way database backup (primary → backup). Returns a Server-Sent Events (SSE) stream with progress updates.
+
+Development only: returns `403` when `NODE_ENV !== 'development'`.
 
 **Request Body:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `direction` | `SYNC_DIRECTION.PUSH` \| `SYNC_DIRECTION.PULL` | Yes | Sync direction (`push` = local to remote, `pull` = remote to local) |
 | `includeDeletes` | boolean | Yes | Whether to propagate deletions |
 
 **Example Request:**
 ```json
 {
-  "direction": "push",
   "includeDeletes": false
 }
 ```
