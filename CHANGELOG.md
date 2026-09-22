@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.68.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.68.1...v0.68.2) (2026-09-22)
+
+
+### Bug Fixes
+
+* **sync:** reject unknown fields in the backup execute request ([357a97a](https://github.com/luisvillegaslago/budgetguard/commit/357a97a806617186df502f565f4ae99abcc58857))
+
 ## [0.68.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.68.0...v0.68.1) (2026-09-22)
 
 
