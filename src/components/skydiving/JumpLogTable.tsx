@@ -26,6 +26,7 @@ import { type SortableField, useSortableData } from '@/hooks/useSortableData';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { SkydiveJump } from '@/types/skydive';
 import { formatDate } from '@/utils/helpers';
+import { formatAltitude } from '@/utils/skydiveAltitude';
 import type { VoucherAssignItem } from '@/utils/skydiveVoucher';
 
 const PAGE_SIZE = 20;
@@ -49,12 +50,6 @@ interface JumpLogTableProps {
 function formatFreefall(sec: number | null): string {
   if (sec === null) return '—';
   return `${sec}s`;
-}
-
-// Exit altitude is stored in feet (DB column ExitAltitudeFt); keep label/suffix consistent with the unit.
-function formatAltitude(feet: number | null, locale: string): string {
-  if (feet === null) return '—';
-  return `${feet.toLocaleString(locale)} ft`;
 }
 
 const PLACEHOLDER_DATE = '1900-01-01';
