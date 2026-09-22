@@ -7,6 +7,14 @@
  *
  * Expected header (aliases in Spanish are accepted, case-insensitive):
  *   title,subItems,description,hours,hourlyRate,amount
+ *
+ * This header is a contract with a producer that lives OUTSIDE this repository:
+ * the `budgetguard-csv` Claude skill, versioned in `practice-hub-dev-notes` under
+ * `doc/dev/claude/skills/`, writes files for this parser from a billing report.
+ * It restates the column order, the 0.5-hour rounding, the `|` sub-item separator
+ * and the rule that hourlyRate is left empty so the billing profile's rate applies.
+ * Changing any of those here breaks it silently, from a repo that has no reason to
+ * be looked at. Update the skill in the same sitting.
  */
 
 import {
