@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.69.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.68.2...v0.69.0) (2026-09-22)
+
+
+### Features
+
+* **skydiving:** show exit altitude in both metres and feet ([adbdb7e](https://github.com/luisvillegaslago/budgetguard/commit/adbdb7e329f13da084754e0b53815949b0485113))
+
 ## [0.68.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.68.1...v0.68.2) (2026-09-22)
 
 
