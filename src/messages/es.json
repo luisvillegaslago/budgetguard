@@ -592,12 +592,12 @@
       "confirm-all-month": "Confirmar todos de {month}",
       "confirm-all": "Confirmar todos ({count})",
       "modify": "Modificar monto",
-      "modified-amount": "Nuevo monto (€)",
+      "modified-amount": "Nuevo importe completo (€)",
       "processing": "Procesando...",
       "error": "Error al procesar ocurrencia",
       "amount-placeholder": "Importe",
       "confirm-all-short": "Confirmar todo",
-      "original-amount": "Importe original: {amount}",
+      "original-amount": "Importe completo: {amount}",
       "title-count": "Gastos recurrentes pendientes ({count})",
       "toast": {
         "confirmed": "Gasto registrado",
@@ -931,7 +931,8 @@
       "casilla97": "A compensar (4T)",
       "casilla110": "Op. no sujetas por reglas de localización",
       "casilla108": "Total vol. operaciones",
-      "casilla662": "Generado en los demás trimestres"
+      "casilla662": "Pendiente de los demás trimestres",
+      "refund-caveat": "Las casillas 97 y 662 solo valen si no pediste la devolución en el 303 del 4T. Si la pediste, las dos van a 0 y el saldo se declara en la casilla 98."
     },
     "modelo100": {
       "title": "Modelo 100 — IRPF anual",
@@ -1399,6 +1400,13 @@
       "matched-vendor": "Coincide",
       "add-vendor": "Añadir",
       "create-transaction": "Crear Transacción",
+      "auto-match": {
+        "title": "Esta factura ya está vinculada a una transacción",
+        "hint": "Se ha vinculado automáticamente porque el importe y la fecha coinciden. Comprueba que es el mismo gasto antes de continuar.",
+        "keep": "Mantener vínculo",
+        "create-new": "No es esta, crear una nueva",
+        "replacing": "La factura se vinculará a la nueva transacción. La anterior no se borra."
+      },
       "errors": {
         "category-required": "Selecciona una categoría",
         "extraction-failed": "No se pudo analizar el documento. Puedes introducir los datos manualmente.",
@@ -1778,6 +1786,7 @@
       "export-csv-hint": "Descarga el detalle de transmisiones del año para guardarlo como justificante ante AEAT.",
       "incomplete-warning": "Hay {count} transmisiones donde no se cubrió toda la cantidad con lotes históricos. Revisa la pestaña Movimientos por si te falta algún sync.",
       "needs-review-warning": "Hay {count} transmisiones con valoraciones a revisar: precio de transmisión sin resolver (0 €), o coste de adquisición tomado de un lote sin precio o de una transferencia recibida valorada a precio de mercado. Verifícalas antes de declarar.",
+      "unresolved-income-warning": "Hay {count} ingresos sin precio de mercado sumados a 0 €: el importe puede quedarse corto. Revisa su valor el día en que los recibiste antes de declarar.",
       "row-count": "{count} operaciones",
       "elements-title": "Desglose por moneda (Elemento patrimonial)",
       "elements-subtitle": "Un \"Elemento patrimonial\" por moneda y clave. Transcribe cada fila a Renta Web: la casilla 1804 ya va neta de gastos de venta y la 1806 incluye los gastos de compra.",
@@ -1832,6 +1841,8 @@
       "subtitle": "Sigue estos pasos en la AEAT con los importes calculados arriba.",
       "disclaimer": "Herramienta informativa. Los cálculos se basan en la normativa actual de criptomonedas (Modelo 100 IRPF). Revisa con tu asesor fiscal antes de presentar la declaración.",
       "amount-to-enter": "Importe a introducir:",
+      "unresolved-badge": "Revisar importe",
+      "unresolved-warning": "Este importe puede quedarse corto: incluye {count} ingresos sin precio de mercado sumados a 0 €. Antes de copiarlo en Renta Web, añade el valor de cada uno el día en que lo recibiste.",
       "fields": {
         "box-1804": "1804 — Valor de transmisión (neto de gastos)",
         "box-1806": "1806 — Valor de adquisición"
@@ -1921,11 +1932,19 @@
         "running": "En curso",
         "completed": "Completado",
         "failed": "Fallido",
-        "cancelled": "Cancelado"
+        "cancelled": "Cancelado",
+        "completed-with-gaps": "Completado con huecos"
       },
       "stop": "Detener",
       "stop-confirm": "¿Detener la sincronización en curso? Los datos ya importados se conservan.",
-      "error-details": "Detalles técnicos"
+      "error-details": "Detalles técnicos",
+      "gaps": {
+        "title": "Hay datos que no se han podido descargar y que volver a sincronizar tampoco traerá:",
+        "history-truncated": "demasiadas operaciones para recorrerlas con la API de Binance. Importa un CSV de Binance que cubra estos pares.",
+        "endpoint-not-permitted": "Binance no da acceso a estos datos con esta clave API. Impórtalos con un CSV de Binance.",
+        "resumable-title": "Faltan datos que la próxima sincronización incremental seguirá descargando:",
+        "history-resumes-next-run": "hay más operaciones de las que caben en una sincronización. Las descargadas ya están guardadas y la próxima sincronización incremental sigue a partir de la última."
+      }
     },
     "events": {
       "title": "Movimientos",
@@ -2610,7 +2629,8 @@
       "prefix-exists": "Ya existe una serie con este prefijo",
       "future-occurrence": "No se puede procesar una ocurrencia futura",
       "deferral-expediente-exists": "Ya existe un aplazamiento con ese número de expediente",
-      "deferral-nothing-to-cancel": "Este aplazamiento no tiene fracciones pendientes, así que no queda nada que cancelar."
+      "deferral-nothing-to-cancel": "Este aplazamiento no tiene fracciones pendientes, así que no queda nada que cancelar.",
+      "document-already-linked": "Este documento ya está vinculado a una transacción. Puedes ver ese vínculo en la lista de documentos."
     },
     "invoice": {
       "category-required-for-paid": "Se requiere una categoría de ingreso para marcar como pagada",

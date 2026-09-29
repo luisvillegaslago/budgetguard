@@ -135,6 +135,7 @@ jest.mock('@/libs/auth', () => ({
 }));
 
 import {
+  getFiscalExpenses,
   getModelo100Summary,
   getModelo130Summary,
   getModelo303Summary,
@@ -176,6 +177,19 @@ describe('Fiscal models read the accrual view', () => {
     // Invoice rows carry CategoryID 0 and match no category: an INNER JOIN would drop them.
     expect(executedSql[0]).toContain('LEFT JOIN "Categories"');
     expect(executedSql[0]).not.toContain('INNER JOIN "Categories"');
+  });
+
+  it("pins the company and the category of each row to the row's own user", async () => {
+    await getFiscalExpenses(2026, 1);
+    await getModelo100Summary(2026);
+
+    // A movement can point at another user's company or category: the foreign keys only check
+    // that they exist. Without the predicate, that user's NIF comes back as "companyTaxId" and
+    // that user's casilla code decides where this user's expense is declared.
+    const companyJoin = executedSql.find((sql) => sql.includes('LEFT JOIN "Companies"'));
+    const categoryJoin = executedSql.find((sql) => sql.includes('LEFT JOIN "Categories"'));
+    expect(companyJoin).toMatch(/LEFT JOIN "Companies" co ON [^\n]*AND co\."UserID" = v\."UserID"/);
+    expect(categoryJoin).toMatch(/LEFT JOIN "Categories" cat ON [^\n]*AND cat\."UserID" = v\."UserID"/);
   });
 });
 
@@ -454,7 +468,32 @@ describe('Modelo 303 and 100', () => {
     const summary = await getModelo390Summary(2026);
 
     expect(summary.casilla97Cents).toBe(0);
-    expect(summary.casilla662Cents).toBe(21000);
+    // And the 2.100,00 € the 4T owes are settled first against the 210,00 € the 2T left: nothing
+    // generated in the year is pending at 31 December. This used to pin the gross 21000, which
+    // declared as pending a quota the 4T 303 had already applied.
+    expect(summary.casilla662Cents).toBe(0);
+  });
+
+  it('declares in casilla 662 only what a later quarter did not consume', async () => {
+    // 21,00 € to compensate in 1T, then 10,50 € of output VAT above the deductible in 2T
+    extraRows = [expense(1, 12100, 21), income(2, 6050, 21)];
+
+    const summary = await getModelo390Summary(2026);
+
+    // 10,50 € of the 1T quota are still pending at year end, not the gross 21,00 €
+    expect(summary.casilla662Cents).toBe(1050);
+    expect(summary.casilla97Cents).toBe(0);
+  });
+
+  it('settles a quarter against the balance carried into the year before the quotas of the year', async () => {
+    // 10,00 € carried in from earlier years absorb the first 10,00 € the 2T owes
+    vatPoolOpeningCents = 1000;
+    extraRows = [expense(1, 12100, 21), income(2, 6050, 21)];
+
+    const summary = await getModelo390Summary(2026);
+
+    // Only the other 0,50 € reaches the 1T quota: 21,00 − 0,50 = 20,50 € still pending
+    expect(summary.casilla662Cents).toBe(2050);
   });
 
   it('carries the whole year of invoice income into Modelo 390', async () => {

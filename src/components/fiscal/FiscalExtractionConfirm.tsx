@@ -4,10 +4,14 @@
  * OCR Extraction Confirmation Modal
  * Shows extracted invoice data with editable fields for review before creating a transaction.
  * Reuses CategorySelector for consistent category selection behavior.
+ *
+ * When the extract already auto-linked a movement, that link is shown first: the form only opens
+ * if the user rejects it, and its submit then asks the server to replace the link explicitly.
  */
 
 import { AlertTriangle, FileText, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AutoMatchReview } from '@/components/fiscal/AutoMatchReview';
 import { ConfidenceBadge } from '@/components/fiscal/ConfidenceBadge';
 import { CategorySelector } from '@/components/transactions/CategorySelector';
 import { CompanySelector } from '@/components/ui/CompanySelector';
@@ -23,16 +27,20 @@ import { useCategories } from '@/hooks/useCategories';
 import { useCompanies, useQuickCreateCompany } from '@/hooks/useCompanies';
 import { useLinkTransaction } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
-import type { ExtractedInvoiceData } from '@/types/finance';
+import type { ExtractedInvoiceData, ExtractionAutoMatch } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { centsToEuros, eurosToCents } from '@/utils/money';
 
 interface FiscalExtractionConfirmProps {
   documentId: number;
   extractedData: ExtractedInvoiceData;
+  /** The link the extract already stored, if any */
+  autoMatch?: ExtractionAutoMatch;
   onClose: () => void;
   onSuccess: () => void;
 }
+
+const NO_AUTO_MATCH: ExtractionAutoMatch = {};
 
 const INPUT_CLASSES = cn(
   'w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground',
@@ -42,11 +50,16 @@ const INPUT_CLASSES = cn(
 export function FiscalExtractionConfirm({
   documentId,
   extractedData,
+  autoMatch = NO_AUTO_MATCH,
   onClose,
   onSuccess,
 }: FiscalExtractionConfirmProps) {
   const { t } = useTranslate();
   const linkMutation = useLinkTransaction();
+
+  const isAutoLinked = autoMatch.matchedTransactionId != null || autoMatch.matchedGroupId != null;
+  const [isReplacingMatch, setIsReplacingMatch] = useState(false);
+  const showMatchReview = isAutoLinked && !isReplacingMatch;
 
   // Editable form state (amounts in euros for display)
   const [amount, setAmount] = useState(centsToEuros(extractedData.totalAmountCents).toString());
@@ -156,31 +169,47 @@ export function FiscalExtractionConfirm({
         invoiceNumber: invoiceNumber || null,
         companyId: companyId ?? null,
         isShared,
+        // The form of an auto-linked document only opens after the user rejected that match
+        replaceExistingLink: isAutoLinked,
       },
     });
 
     onSuccess();
   };
 
+  const header = (
+    <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center gap-2">
+        <FileText className="h-5 w-5 text-guard-primary" aria-hidden="true" />
+        <h2 id="extraction-confirm-title" className="text-xl font-bold text-foreground">
+          {t('fiscal.extraction.confirm-title')}
+        </h2>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+      >
+        <X className="h-5 w-5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+
+  if (showMatchReview) {
+    return (
+      <ModalBackdrop onClose={onClose} labelledBy="extraction-confirm-title">
+        <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
+          {header}
+          <AutoMatchReview autoMatch={autoMatch} onKeep={onSuccess} onCreateNew={() => setIsReplacingMatch(true)} />
+        </div>
+      </ModalBackdrop>
+    );
+  }
+
   return (
     <ModalBackdrop onClose={onClose} labelledBy="extraction-confirm-title">
       <div className="card w-full max-w-md lg:max-w-lg animate-modal-in max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-guard-primary" aria-hidden="true" />
-            <h2 id="extraction-confirm-title" className="text-xl font-bold text-foreground">
-              {t('fiscal.extraction.confirm-title')}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 text-guard-muted hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+        {header}
 
         {/* Low confidence warning */}
         {lowConfidence && (
@@ -393,6 +422,10 @@ export function FiscalExtractionConfirm({
             />
             <span className="text-sm text-foreground">{t('transactions.form.fields.shared')}</span>
           </label>
+
+          {isReplacingMatch && (
+            <p className="text-xs text-guard-muted">{t('fiscal.extraction.auto-match.replacing')}</p>
+          )}
 
           {/* Error */}
           {linkMutation.errorMessage && (

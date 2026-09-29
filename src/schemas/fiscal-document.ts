@@ -225,6 +225,12 @@ export const LinkTransactionSchema = z.object({
   invoiceNumber: z.string().nullable().optional(),
   companyId: z.number().int().positive().nullable().optional(),
   isShared: z.boolean().optional(),
+  /**
+   * True only when the user rejected the movement the OCR auto-linked ("not this one, create a new
+   * one"). Without it, a document that already has a link answers 409 instead of gaining a second
+   * movement for the same invoice.
+   */
+  replaceExistingLink: z.boolean().optional(),
 });
 
 export type LinkTransactionInput = z.infer<typeof LinkTransactionSchema>;

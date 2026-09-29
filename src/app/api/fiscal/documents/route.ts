@@ -9,6 +9,7 @@ import { getUserIdOrThrow } from '@/libs/auth';
 import { FiscalDocumentsFiltersSchema, FiscalDocumentUploadSchema } from '@/schemas/fiscal-document';
 import { validateRequest } from '@/schemas/transaction';
 import { createDocument, getDocuments } from '@/services/database/FiscalDocumentRepository';
+import { assertOwnedReferences } from '@/services/database/ownership';
 import { validationError, withApiHandler } from '@/utils/apiHandler';
 import { buildModeloFileName } from '@/utils/fiscalFileParser';
 
@@ -45,6 +46,14 @@ export const POST = withApiHandler(async (request) => {
   const metadata = JSON.parse(metadataJson);
   const validation = validateRequest(FiscalDocumentUploadSchema, metadata);
   if (!validation.success) return validationError(validation.errors);
+
+  // The document stores these ids as given and joins the company into its display name, so a
+  // foreign one would expose another user's data. Checked before the blob is written.
+  await assertOwnedReferences(userId, {
+    companyId: validation.data.companyId,
+    transactionId: validation.data.transactionId,
+    transactionGroupId: validation.data.transactionGroupId,
+  });
 
   // Normalize filename for modelos: "130 1T 2026.pdf" / "390 2026.pdf"
   const finalFileName =

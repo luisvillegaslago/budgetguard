@@ -284,7 +284,10 @@ export function CategorySelector({
     setSelectedParent(null);
   }
 
-  // Pre-select category when editing and categories are loaded
+  // Pre-select category when editing and categories are loaded.
+  // Restoring the stored category is not a category choice, so the shared default is left
+  // alone: the record's own shared flag is what the form must keep, and the PUT recomputes
+  // the stored amount from it. The default applies only when the user picks a category.
   const initializedRef = useRef(false);
   useEffect(() => {
     if (!initialCategoryId || !categories?.length || initializedRef.current) return;
@@ -310,13 +313,8 @@ export function CategorySelector({
       setSelectedParent(foundParent);
       setSelectedSubcategoryId(foundSubId);
       onCategoryChange(initialCategoryId);
-      onSharedDefaultChange(
-        foundSubId
-          ? ((foundParent as Category).subcategories?.find((s) => s.categoryId === foundSubId)?.defaultShared ?? false)
-          : (foundParent as Category).defaultShared,
-      );
     }
-  }, [categories, initialCategoryId, onCategoryChange, onSharedDefaultChange]);
+  }, [categories, initialCategoryId, onCategoryChange]);
 
   const handleParentChange = (id: number | '') => {
     setSelectedSubcategoryId('');

@@ -39,7 +39,12 @@ import type {
   Modelo303Summary,
   Modelo390Summary,
 } from '@/types/finance';
-import { calcGastosDificilCents, computeFiscalFields, rollVatPoolCents } from '@/utils/fiscal';
+import {
+  calcGastosDificilCents,
+  computeFiscalFields,
+  pendingVatQuotasByQuarterCents,
+  rollVatPoolCents,
+} from '@/utils/fiscal';
 import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { toDateString } from '@/utils/helpers';
 import {
@@ -122,9 +127,14 @@ const FISCAL_VIEW_COLUMNS = `v."FiscalYear", v."FiscalQuarter", v."Type", v."Tra
            v."RetentionCents",
            co."TaxId" AS "CompanyTaxId"`;
 
+// The company is pinned to the row's own user. Since migration 008 the foreign key on
+// "Transactions"."CompanyID" includes the owner, so no stored movement points at another user's
+// company; the predicate restates it here so another user's NIF could never come back as
+// "CompanyTaxId". The "Transactions" join needs no such pin: it is by primary key, so it can only
+// reach the view row's own transaction.
 const FISCAL_FROM = `FROM "vw_FiscalAccrual" v
     LEFT JOIN "Transactions" t2 ON v."TransactionID" = t2."TransactionID"
-    LEFT JOIN "Companies" co ON t2."CompanyID" = co."CompanyID"`;
+    LEFT JOIN "Companies" co ON t2."CompanyID" = co."CompanyID" AND co."UserID" = v."UserID"`;
 
 const FISCAL_VIEW_COLUMNS_SIMPLE = `"FiscalYear", "FiscalQuarter", "Type", "TransactionID", "CategoryID",
            "CategoryName", "ParentCategoryName", "TransactionDate",
@@ -723,7 +733,9 @@ export async function getIrpfProjection(
 export async function getModelo390Summary(year: number): Promise<Modelo390Summary> {
   const userId = await getUserIdOrThrow();
 
-  const rows = await loadFiscalRows(userId, year);
+  // The profile carries the pool the year opened with, which a positive quarter settles against
+  // before it touches any quota of the year — see casilla 662 below.
+  const [rows, profile] = await Promise.all([loadFiscalRows(userId, year), getFiscalProfileForUser(userId, year)]);
 
   let totalC07 = 0;
   let totalC09 = 0;
@@ -765,13 +777,19 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   // Casillas 97 and 662 split the year's "a compensar" by period, which is what the AEAT
   // reconciles against the quarterly 303s: 97 carries ONLY the last period's own result —
   // the form says "si el resultado de la autoliquidación del último periodo es a compensar" —
-  // and 662 the amounts generated in the other quarters. Putting the annual aggregate in 97,
-  // as this did, mismatches the 4T 303 by the whole of the rest of the year.
-  const quarterCompensations = ALL_QUARTER_NUMBERS.map((quarter) =>
-    Math.max(0, -modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter)))),
+  // and 662 the quotas the other quarters generated that are STILL PENDING at 31 December.
+  // A later quarter a ingresar consumes part of them, so their gross sum would overstate it.
+  //
+  // Both assume no refund was requested in the 4T 303. With a refund, 97 and 662 are 0 and the
+  // balance goes to casilla 98 instead; nothing stored says whether it was requested, so the
+  // card warns rather than guess.
+  const quarterResults = ALL_QUARTER_NUMBERS.map((quarter) =>
+    modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter))),
   );
-  const casilla97 = quarterCompensations[ALL_QUARTERS - 1] ?? 0;
-  const casilla662 = quarterCompensations.slice(0, ALL_QUARTERS - 1).reduce((sum, cents) => sum + cents, 0);
+  const pendingByQuarter = pendingVatQuotasByQuarterCents(profile.vatPoolOpeningCents, quarterResults);
+  // Nothing comes after the last quarter, so its pending quota is its own result a compensar.
+  const casilla97 = pendingByQuarter[ALL_QUARTERS - 1] ?? 0;
+  const casilla662 = pendingByQuarter.slice(0, ALL_QUARTERS - 1).reduce((sum, cents) => sum + cents, 0);
 
   return {
     fiscalYear: year,
@@ -802,6 +820,9 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
   type Modelo100Row = FiscalViewRow & { Modelo100CasillaCode: string | null };
 
   // LEFT JOIN, not INNER: invoice rows carry no category, and an inner join would drop them.
+  // Pinned to the row's user for the same reason as the company in FISCAL_FROM: a movement can
+  // point at another user's category, whose casilla code must not decide where this user's
+  // expense is declared. Such a row falls back to the default casilla and shows as unmapped.
   const [rows, amortization, assetTransactionIds] = await Promise.all([
     query<Modelo100Row>(
       `SELECT v."FiscalYear", v."FiscalQuarter", v."Type", v."TransactionID", v."CategoryID",
@@ -811,7 +832,7 @@ export async function getModelo100Summary(year: number): Promise<Modelo100Sectio
             v."RetentionCents",
             NULL AS "CompanyTaxId", cat."Modelo100CasillaCode"
      FROM "vw_FiscalAccrual" v
-     LEFT JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID"
+     LEFT JOIN "Categories" cat ON v."CategoryID" = cat."CategoryID" AND cat."UserID" = v."UserID"
      WHERE v."FiscalYear" = $1 AND v."UserID" = $2`,
       [year, userId],
     ),

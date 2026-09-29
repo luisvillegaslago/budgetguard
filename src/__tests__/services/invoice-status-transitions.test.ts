@@ -125,8 +125,17 @@ function selectsModelo(sql: string, params: readonly unknown[], modelo: FiscalMo
   return params.includes(modelo.fiscalQuarter);
 }
 
+// Categories the test user owns; any other id belongs to someone else.
+const OWN_CATEGORY_IDS: readonly number[] = [5];
+const FOREIGN_CATEGORY_ID = 99;
+
 const client = {
   query: jest.fn(async (sql: string, params?: unknown[]) => {
+    // The ownership guard: return only the requested category ids this user owns.
+    if (sql.includes('AS "Check"') && sql.includes('FROM "Categories"')) {
+      const requested = (params?.[1] as number[] | undefined) ?? [];
+      return { rows: requested.filter((id) => OWN_CATEGORY_IDS.includes(id)).map((id) => ({ Check: 0, Id: id })) };
+    }
     if (sql.includes('FROM "Invoices"') && sql.includes('FOR UPDATE')) return { rows: [invoiceRow()] };
     if (sql.includes('FROM "InvoiceLineItems"')) return { rows: [] };
     // Order matters: the DELETE also reads `FROM "FiscalDocuments"`.
@@ -352,5 +361,26 @@ describe('reverting an invoice whose fiscal period is already filed', () => {
     expect(await attempt(INVOICE_STATUS.FINALIZED, INVOICE_STATUS.CANCELLED, { filed: [FILED_SAME_QUARTER] })).toBe(
       'allowed',
     );
+  });
+});
+
+describe('marking an invoice paid', () => {
+  beforeEach(() => {
+    client.query.mockClear();
+    fiscalModelos = [];
+  });
+
+  it("refuses another user's category and books no income", async () => {
+    currentStatus = INVOICE_STATUS.FINALIZED;
+    currentNumber = ASSIGNED_NUMBER;
+
+    const outcome = await updateInvoiceStatus(1, INVOICE_STATUS.PAID, { categoryId: FOREIGN_CATEGORY_ID }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(errorKeyOf(outcome)).toBe(API_ERROR.NOT_FOUND.CATEGORY);
+    expect(executedSql()).not.toContain('INSERT INTO "Transactions"');
+    expect(executedSql()).toContain('ROLLBACK');
   });
 });

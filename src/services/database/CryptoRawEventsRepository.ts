@@ -10,6 +10,12 @@
 
 import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, type CryptoEventType, type CryptoExchange } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
+import {
+  CURRENT_REWARD_ID_PATTERN,
+  isRewardEventType,
+  REWARD_ID_EVENT_TYPES,
+  rewardExternalId,
+} from '@/services/exchanges/shared/rewardExternalId';
 import { splitSymbol } from '@/utils/cryptoSymbol';
 import { query } from './connection';
 
@@ -62,23 +68,38 @@ function rowToEvent(row: RawEventRow): CryptoRawEvent {
 /**
  * Bulk insert raw events for the authenticated user. Returns the number of
  * rows actually inserted (excluding duplicates skipped by ON CONFLICT).
- *
- * Uses a single multi-row INSERT — the largest payload of the sync worker.
- * Caller must batch upstream when input.length > 500 to keep parameter count
- * under PostgreSQL's 65k limit (6 cols/row × 500 = 3000 params).
  */
 export async function bulkInsertRawEvents(inputs: RawEventInput[], jobId: number): Promise<number> {
   const userId = await getUserIdOrThrow();
   return bulkInsertRawEventsForUser(userId, inputs, jobId);
 }
 
+// 7 bind parameters per row: 500 rows are 3,500, far below PostgreSQL's
+// 65,535-parameter ceiling. A single symbol's spot history can run to tens of
+// thousands of fills, and one statement over the ceiling is rejected whole.
+const RAW_EVENT_INSERT_CHUNK = 500;
+
+/**
+ * Inserts in chunks of RAW_EVENT_INSERT_CHUNK rows, one after another so a
+ * large history does not take every pool connection at once. Each chunk is
+ * idempotent on its own; if one fails the error propagates and a re-run skips
+ * the chunks already stored.
+ */
 export async function bulkInsertRawEventsForUser(
   userId: number,
   inputs: RawEventInput[],
   jobId: number,
 ): Promise<number> {
-  if (inputs.length === 0) return 0;
+  const chunks = Array.from({ length: Math.ceil(inputs.length / RAW_EVENT_INSERT_CHUNK) }, (_, i) =>
+    inputs.slice(i * RAW_EVENT_INSERT_CHUNK, (i + 1) * RAW_EVENT_INSERT_CHUNK),
+  );
+  return chunks.reduce<Promise<number>>(
+    async (total, chunk) => (await total) + (await insertRawEventChunk(userId, chunk, jobId)),
+    Promise.resolve(0),
+  );
+}
 
+async function insertRawEventChunk(userId: number, inputs: RawEventInput[], jobId: number): Promise<number> {
   const COLS_PER_ROW = 7;
   const placeholders = inputs
     .map((_, i) => {
@@ -121,8 +142,53 @@ export async function bulkInsertRawEventsForUser(
 // granularity. Every other type shares the exact second.
 const DAY_GRANULARITY_TYPES = new Set<string>([CRYPTO_EVENT_TYPE.DEPOSIT, CRYPTO_EVENT_TYPE.WITHDRAW]);
 
+// The CSV export books every Earn, staking and airdrop credit as a `dividend`
+// row, while the API spreads the same credits over five endpoints. Matching
+// them as one family is what lets a CSV "Simple Earn Flexible Interest" row
+// recognise the reward the API stored as `earn_flex`, and the other way round.
+const REWARD_EVENT_TYPES = new Set<string>([
+  CRYPTO_EVENT_TYPE.DIVIDEND,
+  CRYPTO_EVENT_TYPE.EARN_FLEX,
+  CRYPTO_EVENT_TYPE.EARN_LOCKED,
+  CRYPTO_EVENT_TYPE.STAKING_INTEREST,
+  CRYPTO_EVENT_TYPE.ETH_STAKING,
+]);
+const REWARD_IDENTITY_FAMILY = 'reward';
+
+// Payload keys the identity reads. The index query ships only these keys of the
+// stored rows, so stored rows and incoming candidates go through the same
+// extraction in TypeScript instead of a SQL copy of it that can drift.
+const IDENTITY_PAYLOAD_KEYS = [
+  'symbol',
+  'asset',
+  'coin',
+  'fromAsset',
+  'detail',
+  'qty',
+  'quoteQty',
+  'amount',
+  'fromAmount',
+  'rewards',
+  'distributeAmount',
+  'transactionFee',
+  'isBuyer',
+  'csvSource',
+  'baseAsset',
+  'quoteAsset',
+] as const;
+
+// The index reads each of those keys as a column of its own, one direct
+// lookup per key. Expanding every payload with jsonb_each and aggregating the
+// matches back, or building the subset with jsonb_build_object, costs about
+// twice as much per row (measured on 100k spot payloads, local PostgreSQL 17,
+// 2026-09-29). The keys are the constants above, never user input.
+const PAYLOAD_COLUMN_PREFIX = 'payload_';
+const IDENTITY_PAYLOAD_COLUMNS_SQL = IDENTITY_PAYLOAD_KEYS.map(
+  (key) => `"RawPayload"->'${key}' AS "${PAYLOAD_COLUMN_PREFIX}${key}"`,
+).join(',\n            ');
+
 interface EventIdentity {
-  bucket: string; // EventType|asset|side|timeKey
+  bucket: string; // identityType|asset|side|timeKey
   // Candidate amounts. Withdrawals carry both the net and the gross (net + fee)
   // because the CSV stores the gross while the API stores the net + fee apart.
   amounts: number[];
@@ -132,9 +198,10 @@ interface EventIdentity {
  * Build the cross-source identity used to recognise the SAME real operation
  * imported via different sources (CSV vs API), which carry different ExternalIDs.
  * Returns null when there is nothing to match on (then it is never a duplicate).
+ * `identityType` is the EventType, or the reward family for reward types.
  */
 function buildIdentity(
-  eventType: string,
+  identityType: string,
   asset: string | null,
   amount: number | null,
   side: string,
@@ -142,27 +209,35 @@ function buildIdentity(
   occurredAt: Date,
 ): EventIdentity | null {
   if (asset === null || amount === null || !Number.isFinite(amount)) return null;
-  const timeKey = DAY_GRANULARITY_TYPES.has(eventType)
+  const timeKey = DAY_GRANULARITY_TYPES.has(identityType)
     ? occurredAt.toISOString().slice(0, 10) // YYYY-MM-DD (UTC)
     : String(Math.floor(occurredAt.getTime() / 1000));
   const gross = Number.isFinite(fee) && fee > 0 ? amount + fee : amount;
   const amounts = gross !== amount ? [amount, gross] : [amount];
-  return { bucket: `${eventType}|${asset}|${side}|${timeKey}`, amounts };
+  return { bucket: `${identityType}|${asset}|${side}|${timeKey}`, amounts };
 }
 
-/** Identity from a raw payload (a candidate event being imported). */
+/**
+ * Identity of a raw payload, for a stored row and for a candidate alike.
+ * Reward endpoints name the credited quantity differently: `rewards` (Simple
+ * Earn Flexible), `distributeAmount` (ETH staking, where `amount` is the ETH
+ * staked) and `amount` (everything else, including the CSV `dividend` rows).
+ */
 function identityFromPayload(
   eventType: string,
   payload: Record<string, unknown>,
   occurredAt: Date,
 ): EventIdentity | null {
   const detail = payload.detail as Record<string, unknown> | undefined;
+  const isReward = REWARD_EVENT_TYPES.has(eventType);
   const assetRaw = payload.symbol ?? payload.asset ?? payload.coin ?? payload.fromAsset ?? detail?.fromAsset ?? null;
-  const amountRaw = payload.qty ?? payload.amount ?? payload.fromAmount ?? detail?.amount ?? null;
+  const amountRaw = isReward
+    ? (payload.rewards ?? payload.distributeAmount ?? payload.amount ?? null)
+    : (payload.qty ?? payload.amount ?? payload.fromAmount ?? detail?.amount ?? null);
   const side = payload.isBuyer == null ? '' : String(payload.isBuyer);
   const fee = Number(payload.transactionFee ?? 0);
   return buildIdentity(
-    eventType,
+    isReward ? REWARD_IDENTITY_FAMILY : eventType,
     assetRaw == null ? null : String(assetRaw),
     amountRaw == null ? null : Number(amountRaw),
     side,
@@ -171,115 +246,312 @@ function identityFromPayload(
   );
 }
 
-interface ExistingKeyRow {
-  EventType: string;
-  asset: string | null;
-  amount: number | null;
-  quote: number | null;
-  fee: number | null;
-  side: string | null;
-  ms: string;
-}
-
 /** Numeric closeness with relative tolerance (robust to float representation). */
 function closeAmount(a: number, b: number): boolean {
   return Math.abs(a - b) <= Math.max(Math.abs(a), 1) * 1e-9;
 }
 
+/** Every CSV importer stamps `csvSource: true`; API payloads never carry it. */
+function isCsvPayload(payload: Record<string, unknown>): boolean {
+  return payload.csvSource === true;
+}
+
 /**
- * Drop candidate raw events that already exist for the user under a different
- * source/ExternalID (e.g. a CSV row whose operation was already imported via
- * the API). Matches on EventType + asset + side, a per-type timestamp (exact
- * second, or same UTC day for deposit/withdraw) and the amount (allowing the
- * withdrawal network fee). Returns the events to keep plus how many were
- * skipped as cross-source duplicates.
+ * The market spellings a spot fill is filed and looked up under, per second.
+ * A CSV importer knows both coins but writes the acquired one first, so a sell
+ * reads inverted (PLNBTC for a BTCPLN sell): it is filed under both orders. An
+ * API fill is filed under its market symbol as Binance spells it, with no need
+ * to split it into coins (a quote missing from the known suffixes would not
+ * split). Two markets that share a second and a size stay apart. A fill with
+ * neither is never matched by second: it is kept.
+ */
+function spotSecondKeys(occurredAt: Date, payload: Record<string, unknown>): string[] {
+  const second = Math.floor(occurredAt.getTime() / 1000);
+  const { baseAsset, quoteAsset, symbol } = payload;
+  const spellings =
+    typeof baseAsset === 'string' && typeof quoteAsset === 'string'
+      ? [`${baseAsset}${quoteAsset}`, `${quoteAsset}${baseAsset}`]
+      : typeof symbol === 'string'
+        ? [symbol]
+        : [];
+  return Array.from(new Set(spellings), (spelling) => `${second}|${spelling}`);
+}
+
+/** qty and quoteQty of a spot payload, skipping the ones that are absent. */
+function spotQuantities(payload: Record<string, unknown>): number[] {
+  return [payload.qty, payload.quoteQty]
+    .filter((value) => value != null && value !== '')
+    .map(Number)
+    .filter(Number.isFinite);
+}
+
+/**
+ * One stored row, as the cross-source filter sees it. Every key the row is
+ * filed under (its bucket and each of its spot second keys) refers to this
+ * same object, so a candidate paired with it through any key uses it up for
+ * all of them: one stored row absorbs at most one candidate.
+ */
+interface StoredOperation {
+  fromCsv: boolean;
+  consumed: boolean;
+}
+
+// A stored row under one key, with the amounts that key compares: the
+// identity amounts in a bucket, qty and quoteQty under a spot second key.
+interface FiledOperation {
+  operation: StoredOperation;
+  amounts: number[];
+}
+
+/**
+ * What the user already has stored, keyed for cross-source matching. Load it
+ * once per CSV import or sync job with `loadCrossSourceIndex` and pass every
+ * batch of candidates through `dropCrossSourceDuplicates`. Filtering marks
+ * the stored rows it pairs with candidates, so an index serves one job only.
+ */
+export interface CrossSourceIndex {
+  byBucket: Map<string, FiledOperation[]>;
+  // second|market -> spot fills stored in that second, to catch a CSV spot
+  // trade exported with the INVERTED symbol (base↔quote swapped) that
+  // duplicates an API order at the same second — its symbol/side differ so the
+  // bucket misses it. See spotSecondKeys for how each side is filed.
+  spotBySecond: Map<string, FiledOperation[]>;
+  // `EventType|ExternalID` of every stored row. A candidate with one of these
+  // ids is that row, which the UNIQUE key absorbs on insert.
+  storedIds: Map<string, StoredOperation>;
+  // `EventType|ExternalID` that today's reward id builder gives to rewards
+  // stored under an earlier, position-based id. The API sends those rewards
+  // again under the current id, which the UNIQUE constraint cannot relate to
+  // the stored one.
+  rewardsStoredUnderOtherId: Map<string, StoredOperation>;
+  // `EventType|ExternalID` of every candidate already filtered with this
+  // index, and whether it was kept.
+  decided: Map<string, boolean>;
+}
+
+interface IndexRow {
+  EventType: string;
+  ExternalID: string;
+  ms: string;
+  // Only for rewards stored under an id today's builder would not give them.
+  RewardPayload: Record<string, unknown> | null;
+  // One `payload_<key>` column per IDENTITY_PAYLOAD_KEYS entry.
+  [payloadColumn: string]: unknown;
+}
+
+/**
+ * The identity keys of a stored row, as an object. A key the payload lacks, or
+ * holds as JSON null, is left out: the identity reads both as absent.
+ */
+function payloadOf(row: IndexRow): Record<string, unknown> {
+  return Object.fromEntries(
+    IDENTITY_PAYLOAD_KEYS.map((key): [string, unknown] => [key, row[`${PAYLOAD_COLUMN_PREFIX}${key}`]]).filter(
+      ([, value]) => value != null,
+    ),
+  );
+}
+
+function idKey(eventType: string, externalId: string): string {
+  return `${eventType}|${externalId}`;
+}
+
+function fileOperation(map: Map<string, FiledOperation[]>, key: string, filed: FiledOperation): void {
+  const entries = map.get(key);
+  if (entries) entries.push(filed);
+  else map.set(key, [filed]);
+}
+
+export async function loadCrossSourceIndex(userId: number): Promise<CrossSourceIndex> {
+  // The full payload of a reward is only read to recompute the id of one
+  // stored under an earlier id, so rows whose ExternalID already has today's
+  // format are filtered out in SQL instead of shipped on every job.
+  const rows = await query<IndexRow>(
+    `SELECT "EventType",
+            "ExternalID",
+            ${IDENTITY_PAYLOAD_COLUMNS_SQL},
+            (EXTRACT(EPOCH FROM "OccurredAt") * 1000)::bigint::text AS ms,
+            CASE WHEN "EventType" = ANY($2::text[])
+                  AND ("EventType" || ':' || "ExternalID") !~ $3
+                 THEN "RawPayload" END AS "RewardPayload"
+       FROM "CryptoRawEvents"
+      WHERE "UserID" = $1`,
+    [userId, REWARD_ID_EVENT_TYPES, CURRENT_REWARD_ID_PATTERN],
+  );
+
+  const index: CrossSourceIndex = {
+    byBucket: new Map(),
+    spotBySecond: new Map(),
+    storedIds: new Map(),
+    rewardsStoredUnderOtherId: new Map(),
+    decided: new Map(),
+  };
+  rows.forEach((row) => {
+    const payload = payloadOf(row);
+    const occurredAt = new Date(Number(row.ms));
+    const operation: StoredOperation = { fromCsv: isCsvPayload(payload), consumed: false };
+    index.storedIds.set(idKey(row.EventType, row.ExternalID), operation);
+    if (row.EventType === CRYPTO_EVENT_TYPE.SPOT_TRADE) {
+      const amounts = spotQuantities(payload);
+      spotSecondKeys(occurredAt, payload).forEach((key) => {
+        fileOperation(index.spotBySecond, key, { operation, amounts });
+      });
+    }
+    const identity = identityFromPayload(row.EventType, payload, occurredAt);
+    if (identity !== null) fileOperation(index.byBucket, identity.bucket, { operation, amounts: identity.amounts });
+    if (isRewardEventType(row.EventType) && row.RewardPayload !== null) {
+      const currentId = rewardExternalId(row.EventType, row.RewardPayload);
+      if (currentId !== row.ExternalID) index.rewardsStoredUnderOtherId.set(idKey(row.EventType, currentId), operation);
+    }
+  });
+  return index;
+}
+
+/**
+ * The answer for a candidate the index knows by its id, before any amount is
+ * compared; undefined when it does not know it.
+ * - Filtered earlier with this index: the same answer again. A later task of
+ *   the job that fetches the same event must neither store what was dropped
+ *   nor use up a second stored row.
+ * - An API reward stored under its earlier id: dropped, since the UNIQUE key
+ *   cannot relate the two ids. It uses that row up.
+ * - Stored under its own id: kept, for the UNIQUE key to absorb. It uses its
+ *   row up, so no other candidate is paired with it.
+ */
+function decisionById(index: CrossSourceIndex, input: RawEventInput): boolean | undefined {
+  const key = idKey(input.eventType, input.externalId);
+  const earlier = index.decided.get(key);
+  if (earlier !== undefined) return earlier;
+  const stored = index.storedIds.get(key);
+  const storedUnderOtherId =
+    !isCsvPayload(input.rawPayload) && isRewardEventType(input.eventType)
+      ? index.rewardsStoredUnderOtherId.get(key)
+      : undefined;
+  [stored, storedUnderOtherId].forEach((operation) => {
+    if (operation) operation.consumed = true;
+  });
+  if (storedUnderOtherId) return false;
+  return stored ? true : undefined;
+}
+
+/**
+ * Whether a candidate may be paired with a stored row still unused. A CSV
+ * candidate is compared with every stored row: an overlapping export gives
+ * the fills of a busy second other position-based ids, and only the amounts
+ * recognise them. An API candidate is compared with CSV rows only: two API
+ * fills of one second, side and size are two trades with two ids, and the
+ * UNIQUE key already absorbs a re-fetch.
+ */
+function mayPair(operation: StoredOperation, candidateFromCsv: boolean): boolean {
+  return !operation.consumed && (candidateFromCsv || operation.fromCsv);
+}
+
+function matchesAny(stored: number[], amounts: number[]): boolean {
+  return amounts.some((amount) => stored.some((existing) => closeAmount(existing, amount)));
+}
+
+/**
+ * Uses up the first stored row the candidate may be paired with whose amounts
+ * match, looked up through the candidate's bucket and then, for a spot fill,
+ * through its second keys. Returns whether one was found.
+ */
+function claimStoredTwin(index: CrossSourceIndex, input: RawEventInput): boolean {
+  const fromCsv = isCsvPayload(input.rawPayload);
+  const identity = identityFromPayload(input.eventType, input.rawPayload, input.occurredAt);
+  const lookups: Array<{ filed: FiledOperation[] | undefined; amounts: number[] }> =
+    identity === null ? [] : [{ filed: index.byBucket.get(identity.bucket), amounts: identity.amounts }];
+  if (input.eventType === CRYPTO_EVENT_TYPE.SPOT_TRADE) {
+    const quantities = spotQuantities(input.rawPayload);
+    spotSecondKeys(input.occurredAt, input.rawPayload).forEach((key) => {
+      lookups.push({ filed: index.spotBySecond.get(key), amounts: quantities });
+    });
+  }
+  const twin = lookups.reduce<StoredOperation | undefined>(
+    (found, { filed, amounts }) =>
+      found ??
+      filed?.find((entry) => mayPair(entry.operation, fromCsv) && matchesAny(entry.amounts, amounts))?.operation,
+    undefined,
+  );
+  if (twin === undefined) return false;
+  twin.consumed = true;
+  return true;
+}
+
+/**
+ * Drop candidates whose operation is already stored under a different
+ * source/ExternalID: a CSV row the API sync already brought in, the other way
+ * round, or a fill an overlapping CSV export stored under another id. Matches
+ * on EventType (or the reward family) + asset + side, a per-type timestamp
+ * (exact second, or same UTC day for deposit/withdraw) and the amount
+ * (allowing the withdrawal network fee). An API reward is also dropped when
+ * the same reward is stored under its earlier position-based id, matched
+ * exactly on the id both would get today. Returns the events to keep plus how
+ * many were skipped as duplicates.
  *
- * Used by the CSV import path so re-importing a period already covered by the
- * API sync no longer double-counts trades, dividends, dust, deposits, etc.
+ * Matching is one-to-one: a stored row absorbs at most one candidate. Two
+ * fills of the same second, side and size are two trades, so a stored row
+ * that matches both stands for one of them and the other is kept. Candidates
+ * the index knows by id claim their own row first, before any amount is
+ * compared, so which candidate a stored row goes to does not depend on the
+ * order of the batch. A kept candidate is not added as a row later candidates
+ * could be paired with: two alike candidates of one file are two fills, and an
+ * API candidate never pairs with API rows.
+ *
  * Dedup is intentionally source-agnostic: a Kraken/Coinbase CSV that overlaps
  * a Binance API window is matched on the operation identity, not the exchange.
  */
+export function dropCrossSourceDuplicates(
+  index: CrossSourceIndex,
+  inputs: RawEventInput[],
+): { kept: RawEventInput[]; skipped: number } {
+  const byId = inputs.map((input) => decisionById(index, input));
+  const kept = inputs.filter((input, position) => {
+    const key = idKey(input.eventType, input.externalId);
+    const keep = byId[position] ?? index.decided.get(key) ?? !claimStoredTwin(index, input);
+    index.decided.set(key, keep);
+    return keep;
+  });
+  return { kept, skipped: inputs.length - kept.length };
+}
+
+/** One-shot form for the CSV upload: load the index and filter one batch. */
 export async function filterCrossSourceDuplicates(
   userId: number,
   inputs: RawEventInput[],
 ): Promise<{ kept: RawEventInput[]; skipped: number }> {
   if (inputs.length === 0) return { kept: [], skipped: 0 };
+  return dropCrossSourceDuplicates(await loadCrossSourceIndex(userId), inputs);
+}
 
-  const rows = await query<ExistingKeyRow>(
-    `SELECT "EventType",
-       COALESCE("RawPayload"->>'symbol', "RawPayload"->>'asset', "RawPayload"->>'coin',
-                "RawPayload"->>'fromAsset', "RawPayload"->'detail'->>'fromAsset') AS asset,
-       COALESCE(("RawPayload"->>'qty')::numeric, ("RawPayload"->>'amount')::numeric,
-                ("RawPayload"->>'fromAmount')::numeric, ("RawPayload"->'detail'->>'amount')::numeric)::float8 AS amount,
-       ("RawPayload"->>'quoteQty')::float8 AS quote,
-       COALESCE(("RawPayload"->>'transactionFee')::numeric, 0)::float8 AS fee,
-       "RawPayload"->>'isBuyer' AS side,
-       (EXTRACT(EPOCH FROM "OccurredAt") * 1000)::bigint::text AS ms
-     FROM "CryptoRawEvents"
-     WHERE "UserID" = $1`,
-    [userId],
+/**
+ * Highest Binance trade id stored per spot symbol by the API sync, for an
+ * incremental sync to resume each myTrades walk right after it. One query for
+ * every symbol of the job.
+ *
+ * Only rows the API stored count: their payload is the myTrades fill, whose
+ * `id` is the symbol's trade sequence. CSV rows are excluded by `csvSource`
+ * (and carry no `id` today); an id from any other sequence would make the walk
+ * skip real fills. The regex keeps the numeric cast from failing on a payload
+ * that is not a myTrades fill.
+ */
+export async function loadLastApiTradeIds(userId: number): Promise<Map<string, number>> {
+  const rows = await query<{ Symbol: string; LastTradeID: string }>(
+    `SELECT "RawPayload"->>'symbol' AS "Symbol",
+            MAX(("RawPayload"->>'id')::numeric)::text AS "LastTradeID"
+       FROM "CryptoRawEvents"
+      WHERE "UserID" = $1
+        AND "EventType" = $2
+        AND "Source" = $3
+        AND ("RawPayload"->>'csvSource') IS DISTINCT FROM 'true'
+        AND "RawPayload"->>'symbol' IS NOT NULL
+        AND "RawPayload"->>'id' ~ '^[0-9]+$'
+      GROUP BY "RawPayload"->>'symbol'`,
+    [userId, CRYPTO_EVENT_TYPE.SPOT_TRADE, CRYPTO_EXCHANGE.BINANCE],
   );
-
-  // bucket -> amounts already present (net + gross), for tolerant numeric match.
-  const index = new Map<string, number[]>();
-  // second -> spot qty/quoteQty already present, to catch a CSV spot trade
-  // exported with the INVERTED symbol (base↔quote swapped) that duplicates an
-  // API order at the same second — its symbol/side differ so the bucket misses it.
-  const spotSecondIndex = new Map<number, number[]>();
-  rows.forEach((row) => {
-    if (row.EventType === CRYPTO_EVENT_TYPE.SPOT_TRADE) {
-      const second = Math.floor(Number(row.ms) / 1000);
-      const list = spotSecondIndex.get(second) ?? [];
-      if (row.amount != null) list.push(row.amount);
-      if (row.quote != null) list.push(row.quote);
-      spotSecondIndex.set(second, list);
-    }
-    const identity = buildIdentity(
-      row.EventType,
-      row.asset,
-      row.amount,
-      row.side ?? '',
-      row.fee ?? 0,
-      new Date(Number(row.ms)),
-    );
-    if (identity === null) return;
-    const list = index.get(identity.bucket) ?? [];
-    identity.amounts.forEach((amount) => {
-      list.push(amount);
-    });
-    index.set(identity.bucket, list);
-  });
-
-  const matchesExisting = (identity: EventIdentity): boolean => {
-    const list = index.get(identity.bucket);
-    if (!list) return false;
-    return identity.amounts.some((amount) => list.some((existing) => closeAmount(existing, amount)));
-  };
-
-  const isSpotCrossDuplicate = (input: RawEventInput): boolean => {
-    if (input.eventType !== CRYPTO_EVENT_TYPE.SPOT_TRADE) return false;
-    const list = spotSecondIndex.get(Math.floor(input.occurredAt.getTime() / 1000));
-    if (!list) return false;
-    const qty = Number(input.rawPayload.qty);
-    const quoteQty = Number(input.rawPayload.quoteQty);
-    return [qty, quoteQty].some((amount) => Number.isFinite(amount) && list.some((e) => closeAmount(e, amount)));
-  };
-
-  let skipped = 0;
-  const kept = inputs.filter((input) => {
-    const identity = identityFromPayload(input.eventType, input.rawPayload, input.occurredAt);
-    if (identity !== null && matchesExisting(identity)) {
-      skipped += 1;
-      return false;
-    }
-    if (isSpotCrossDuplicate(input)) {
-      skipped += 1;
-      return false;
-    }
-    return true;
-  });
-
-  return { kept, skipped };
+  return new Map(
+    rows
+      .map((row): [string, number] => [row.Symbol, Number(row.LastTradeID)])
+      .filter(([, id]) => Number.isSafeInteger(id)),
+  );
 }
 
 /**

@@ -146,7 +146,7 @@ CREATE TABLE "Companies" (
     "InvoiceLanguage" VARCHAR(5) NULL DEFAULT 'es',
     "Role" VARCHAR(10) NOT NULL DEFAULT 'client',
     "DefaultBankFeeCents" INT NULL,
-    "UserID" INT NULL,
+    "UserID" INT NOT NULL,
     "IsActive" BOOLEAN DEFAULT TRUE,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -373,7 +373,7 @@ CREATE TABLE "SkydiveJumps" (
     "Comment" TEXT NULL,
     "PriceCents" INT NULL,
     "TransactionID" INT NULL,
-    "UserID" INT NULL,
+    "UserID" INT NOT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FK_SkydiveJumps_Transaction"
@@ -393,7 +393,7 @@ CREATE TABLE "TunnelSessions" (
     "Notes" TEXT NULL,
     "PriceCents" INT NULL,
     "TransactionID" INT NULL,
-    "UserID" INT NULL,
+    "UserID" INT NOT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FK_TunnelSessions_Transaction"
@@ -421,7 +421,7 @@ CREATE TABLE "Vouchers" (
     "UnitLabel" VARCHAR(20) NULL,
     "PurchaseDate" DATE NOT NULL,
     "ExpiryDate" DATE NULL,
-    "UserID" INT NULL,
+    "UserID" INT NOT NULL,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -439,6 +439,9 @@ ADD CONSTRAINT "FK_Transactions_Voucher"
 -- ============================================================
 
 -- View: Monthly summary grouped by PARENT category (user-scoped)
+-- The category joins also match "UserID" (migration 007). Since 008 the foreign key includes the
+-- owner too, so no stored movement can point at another user's category; the predicate stays as the
+-- read-side statement of the same rule.
 CREATE VIEW "vw_MonthlySummary" AS
 SELECT
     t."UserID",
@@ -454,8 +457,8 @@ SELECT
     SUM(t."AmountCents") AS "TotalCents",
     COUNT(*) AS "TransactionCount"
 FROM "Transactions" t
-INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
-LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID" AND c."UserID" = t."UserID"
+LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID" AND parent."UserID" = t."UserID"
 LEFT JOIN "Trips" tr ON t."TripID" = tr."TripID"
 WHERE t."Status" = 'paid'
 GROUP BY
@@ -498,7 +501,7 @@ SELECT
     SUM(t."AmountCents") AS "TotalCents",
     COUNT(*) AS "TransactionCount"
 FROM "Transactions" t
-INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
+INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID" AND c."UserID" = t."UserID"
 LEFT JOIN "Trips" tr ON t."TripID" = tr."TripID"
 WHERE t."Status" = 'paid'
 GROUP BY
@@ -607,6 +610,7 @@ GROUP BY "UserID", EXTRACT(YEAR FROM "JumpDate")::INT;
 
 -- View: Voucher balance (user-scoped via Vouchers.UserID)
 -- Remaining = total - SUM(paid linked consumptions). ConsumedUnits sums VoucherUnits.
+-- Only the voucher owner's movements consume it (migration 007; since 008 the key enforces it too).
 CREATE VIEW "vw_VoucherBalance" AS
 SELECT
     v."VoucherID",
@@ -626,7 +630,7 @@ SELECT
     COUNT(t."TransactionID") AS "ConsumptionCount"
 FROM "Vouchers" v
 LEFT JOIN "Transactions" t
-    ON t."VoucherID" = v."VoucherID" AND t."Status" = 'paid'
+    ON t."VoucherID" = v."VoucherID" AND t."Status" = 'paid' AND t."UserID" = v."UserID"
 GROUP BY v."VoucherID";
 
 -- ============================================================
@@ -1510,6 +1514,89 @@ CREATE INDEX "IX_CryptoDisposals_UserAsset"
 CREATE TRIGGER "TR_CryptoDisposals_UpdatedAt"
     BEFORE UPDATE ON "CryptoDisposals"
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- OWNER-SCOPED FOREIGN KEYS
+-- Every reference between two user-owned tables resolves only to a row of the
+-- same user: each referenced table has UNIQUE (<id>, "UserID") and each key
+-- above is replaced by one on (<column>, "UserID"). Kept as a final pass,
+-- identical to migration 008, because several "UserID" columns are only added
+-- by the ALTER TABLE statements above. The list must match 008 row for row
+-- (src/__tests__/services/owner-scoped-foreign-keys.test.ts).
+-- ============================================================
+
+CREATE TEMP TABLE owner_refs (child text, col text, parent text, pk text, set_null boolean, name text);
+INSERT INTO owner_refs VALUES
+  ('Categories',        'ParentCategoryID',   'Categories',        'CategoryID',         false, 'FK_Categories_Parent_Owner'),
+  ('Transactions',      'CategoryID',         'Categories',        'CategoryID',         false, 'FK_Transactions_Category_Owner'),
+  ('RecurringExpenses', 'CategoryID',         'Categories',        'CategoryID',         false, 'FK_RecurringExpenses_Category_Owner'),
+  ('Vouchers',          'CategoryID',         'Categories',        'CategoryID',         false, 'FK_Vouchers_Category_Owner'),
+  ('Transactions',      'CompanyID',          'Companies',         'CompanyID',          true,  'FK_Transactions_Company_Owner'),
+  ('RecurringExpenses', 'CompanyID',          'Companies',         'CompanyID',          true,  'FK_RecurringExpenses_Company_Owner'),
+  ('InvoicePrefixes',   'CompanyID',          'Companies',         'CompanyID',          true,  'FK_InvoicePrefixes_Company_Owner'),
+  ('Invoices',          'CompanyID',          'Companies',         'CompanyID',          true,  'FK_Invoices_Company_Owner'),
+  ('FiscalDocuments',   'CompanyID',          'Companies',         'CompanyID',          true,  'FK_FiscalDocuments_Company_Owner'),
+  ('Transactions',      'VoucherID',          'Vouchers',          'VoucherID',          true,  'FK_Transactions_Voucher_Owner'),
+  ('Transactions',      'TripID',             'Trips',             'TripID',             false, 'FK_Transactions_Trip_Owner'),
+  ('Transactions',      'TransactionGroupID', 'TransactionGroups', 'TransactionGroupID', false, 'FK_Transactions_TransactionGroup_Owner'),
+  ('Transactions',      'RecurringExpenseID', 'RecurringExpenses', 'RecurringExpenseID', false, 'FK_Transactions_RecurringExpense_Owner'),
+  ('Transactions',      'DeferralID',         'Deferrals',         'DeferralID',         true,  'FK_Transactions_Deferral_Owner'),
+  ('Deferrals',         'FiscalDocumentID',   'FiscalDocuments',   'DocumentID',         true,  'FK_Deferrals_FiscalDocument_Owner'),
+  ('Invoices',          'PrefixID',           'InvoicePrefixes',   'PrefixID',           false, 'FK_Invoices_Prefix_Owner'),
+  ('SkydiveJumps',      'TransactionID',      'Transactions',      'TransactionID',      true,  'FK_SkydiveJumps_Transaction_Owner'),
+  ('TunnelSessions',    'TransactionID',      'Transactions',      'TransactionID',      true,  'FK_TunnelSessions_Transaction_Owner'),
+  ('Invoices',          'TransactionID',      'Transactions',      'TransactionID',      true,  'FK_Invoices_Transaction_Owner'),
+  ('FiscalDocuments',   'TransactionID',      'Transactions',      'TransactionID',      true,  'FK_FiscalDocuments_Transaction_Owner'),
+  ('FixedAssets',       'TransactionID',      'Transactions',      'TransactionID',      true,  'FK_FixedAssets_Transaction_Owner');
+
+-- 2. UNIQUE (<id>, "UserID") on every referenced table: a composite key needs one to point at.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN SELECT DISTINCT parent, pk FROM owner_refs LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'UQ_' || r.parent || '_Owner' AND conrelid = format('%I', r.parent)::regclass
+    ) THEN
+      EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (%I, "UserID")', r.parent, 'UQ_' || r.parent || '_Owner', r.pk);
+    END IF;
+  END LOOP;
+END $$;
+
+-- 3. Replace each single-column key with the owner-scoped one.
+DO $$
+DECLARE
+  r record;
+  old_name text;
+BEGIN
+  FOR r IN SELECT * FROM owner_refs LOOP
+    FOR old_name IN
+      SELECT con.conname
+      FROM pg_constraint con
+      WHERE con.contype = 'f'
+        AND con.conrelid = format('%I', r.child)::regclass
+        AND con.confrelid = format('%I', r.parent)::regclass
+        AND con.conkey = ARRAY[(
+          SELECT attnum FROM pg_attribute
+          WHERE attrelid = format('%I', r.child)::regclass AND attname = r.col
+        )]
+    LOOP
+      EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', r.child, old_name);
+    END LOOP;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = r.name AND conrelid = format('%I', r.child)::regclass
+    ) THEN
+      EXECUTE format(
+        'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (%I, "UserID") REFERENCES %I (%I, "UserID")%s',
+        r.child, r.name, r.col, r.parent, r.pk,
+        CASE WHEN r.set_null THEN format(' ON DELETE SET NULL (%I)', r.col) ELSE '' END);
+    END IF;
+  END LOOP;
+END $$;
+
+DROP TABLE owner_refs;
 
 -- ============================================================
 -- SCHEMA COMPLETE

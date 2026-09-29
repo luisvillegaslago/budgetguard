@@ -32,9 +32,13 @@ import {
   BINANCE_WEIGHT_LIMIT,
   BINANCE_WEIGHT_THRESHOLD,
   CRYPTO_EVENT_TYPE,
+  CRYPTO_SYNC_FAILURE_KIND,
+  CRYPTO_SYNC_TASK_FAILURE,
   type CryptoEventType,
+  type CryptoSyncFailureKind,
 } from '@/constants/finance';
 import type { RawEventInput } from '@/services/database/CryptoRawEventsRepository';
+import { rewardExternalId } from '@/services/exchanges/shared/rewardExternalId';
 
 export interface BinanceCredentials {
   apiKey: string;
@@ -67,6 +71,28 @@ export class BinanceClientError extends Error {
 }
 
 /**
+ * A spot-trade walk that ran out of pages. It carries the fills walked so far:
+ * every fill of the pair from the walk's start id up to its last page, in id
+ * order, with no hole. Storing them lets the next incremental sync resume after
+ * the newest one; dropping them left the pair walking the same pages into the
+ * same cap on every run. `newestWalkedId` is the trade id of the last of them.
+ */
+export class SpotHistoryTruncatedError extends BinanceClientError {
+  constructor(
+    public readonly walkedEvents: RawEventInput[],
+    public readonly newestWalkedId: number,
+  ) {
+    super(CRYPTO_SYNC_TASK_FAILURE.HISTORY_TRUNCATED);
+    this.name = 'SpotHistoryTruncatedError';
+  }
+}
+
+/** The events a failed task fetched before failing, to be stored like any others. */
+export function eventsFetchedBeforeFailure(error: unknown): RawEventInput[] {
+  return error instanceof SpotHistoryTruncatedError ? error.walkedEvents : [];
+}
+
+/**
  * Sentinel: thrown by fetch helpers when the called Binance endpoint reports
  * an "Invalid symbol" / "no permission to access symbol" 400. The caller
  * (BinanceSyncService) treats these as an empty result instead of a fatal
@@ -75,6 +101,15 @@ export class BinanceClientError extends Error {
 export const BINANCE_INVALID_SYMBOL_CODE = -1121;
 export const BINANCE_INVALID_PARAM_CODE = -1100;
 export const BINANCE_NO_TRADING_PERMISSION_CODE = -2010;
+
+/**
+ * "Invalid API-key, IP, or permissions for action." The SDK names this code
+ * in its own error enum (WS_ERROR_CODE.INVALID_API_KEY_OR_IP_OR_PERMISSIONS in
+ * binance/lib/util/websockets/enum.js). It covers three causes, so on its own
+ * it does not say the endpoint is off-limits: see classifyTaskFailure and
+ * isKeyAccepted for how the sync rules out the key and the IP.
+ */
+export const BINANCE_KEY_OR_PERMISSION_REJECTED_CODE = -2015;
 
 // ============================================================
 // WeightTracker — naive in-memory token bucket per BinanceClient instance
@@ -179,6 +214,22 @@ export class BinanceClient {
     });
   }
 
+  /**
+   * True while Binance accepts this key from this IP on a signed read-only
+   * call (GET /api/v3/account, the same call spot discovery makes before any
+   * task runs). A -2015 on another endpoint while this still succeeds is about
+   * that endpoint; once this fails too, the -2015 may be a revoked key or a new
+   * IP whitelist, which a later run can recover from.
+   */
+  async isKeyAccepted(): Promise<boolean> {
+    try {
+      await this.withRetry(() => this.client.getAccountInformation({}));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ----------------------------------------------------------
   // Phase 2 — discovery
   // ----------------------------------------------------------
@@ -224,62 +275,122 @@ export class BinanceClient {
   // ----------------------------------------------------------
 
   /**
-   * `GET /api/v3/myTrades` — fetch ALL trades for a symbol within [scopeFromMs,
-   * scopeToMs], paginating with `fromId` instead of striding 24h windows.
+   * `GET /api/v3/myTrades` — every fill of `symbol` within [scopeFromMs, scopeToMs].
    *
-   * Strategy:
-   *  1. First call: no `fromId`, no `startTime/endTime` → returns most recent
-   *     1000 trades (or empty for unused pairs / -1121).
-   *  2. While the latest page has 1000 entries AND its oldest trade is still
-   *     ≥ scopeFromMs, paginate backwards using `fromId = oldest.id - 1000`.
-   *  3. Filter the union by [scopeFromMs, scopeToMs] before returning.
+   * Binance semantics: without `fromId` the endpoint returns the most recent
+   * page; with `fromId` it returns fills with id >= fromId in ascending order.
+   * The id is the symbol's global trade sequence, so one user's fills are not
+   * consecutive and the history cannot be stepped backwards by subtracting a
+   * page size. startTime/endTime are capped at 24h per call, which would cost
+   * one call per day per candidate symbol.
    *
-   * This collapses the previous "240 symbols × N days" of windowed calls down
-   * to "1 call per inactive symbol + ⌈trades/1000⌉ calls per active symbol".
+   * Strategy without a stored fill:
+   *  1. One call without `fromId`. A short page is the whole history, which is
+   *     the usual answer for the hundreds of candidate symbols never traded.
+   *  2. A full page whose oldest fill is still inside the scope means older
+   *     fills may be in scope too: walk forward from fromId=0 with lastId+1
+   *     until reaching that page.
+   *  3. Deduplicate by trade id and keep only the fills inside the scope.
+   *
+   * With `lastStoredId` (the newest fill an earlier API sync stored for this
+   * symbol) every older fill is already stored, so the walk starts right after
+   * it: a busy pair costs the pages of its new fills, not its whole history,
+   * which would otherwise reach the page cap on every incremental run. Every
+   * fill after it up to `scopeToMs` is kept, including those older than
+   * `scopeFromMs`: they were never stored, and dropping them would leave a hole
+   * the next run starts after.
+   *
+   * A walk that runs out of pages throws SpotHistoryTruncatedError with the
+   * fills it walked (see walkTradesForward).
    */
-  async fetchSpotTrades(symbol: string, scopeFromMs: number, scopeToMs: number): Promise<RawEventInput[]> {
-    const allTrades: Array<Record<string, unknown>> = [];
-    let nextFromId: number | undefined;
-    const MAX_PAGES = 50; // Safety cap: 50 × 1000 = 50k trades per symbol
+  async fetchSpotTrades(
+    symbol: string,
+    scopeFromMs: number,
+    scopeToMs: number,
+    lastStoredId?: number,
+  ): Promise<RawEventInput[]> {
+    if (lastStoredId != null) return this.fetchSpotTradesAfter(symbol, lastStoredId, scopeToMs);
 
-    for (let page = 0; page < MAX_PAGES; page++) {
-      let pageTrades: Array<Record<string, unknown>> = [];
-      try {
-        const params: { symbol: string; limit: number; fromId?: number } = { symbol, limit: 1000 };
-        if (nextFromId != null) params.fromId = nextFromId;
-        const response = await this.withRetry(() => this.client.getAccountTradeList(params));
-        pageTrades = toRecords(response);
-      } catch (error) {
-        if (isInvalidSymbolError(error)) return [];
-        throw error;
-      }
-
-      if (pageTrades.length === 0) break;
-
-      allTrades.push(...pageTrades);
-
-      // Pagination only makes sense if the page is full AND the oldest
-      // trade in it is still inside the scope.
-      if (pageTrades.length < 1000) break;
-      const oldestId = Number(pageTrades[0]?.id ?? 0);
-      const oldestTime = Number(pageTrades[0]?.time ?? 0);
-      if (!Number.isFinite(oldestId) || oldestId <= 0) break;
-      if (oldestTime < scopeFromMs) break;
-
-      nextFromId = Math.max(oldestId - 1000, 0);
+    let recent: Array<Record<string, unknown>>;
+    try {
+      recent = await this.requestTradePage(symbol);
+    } catch (error) {
+      if (isInvalidSymbolError(error)) return [];
+      throw error;
     }
 
-    return allTrades
-      .filter((trade) => {
-        const t = Number(trade.time);
-        return t >= scopeFromMs && t <= scopeToMs;
-      })
-      .map((trade) => ({
-        eventType: CRYPTO_EVENT_TYPE.SPOT_TRADE,
-        externalId: `${symbol}-${String(trade.id)}`,
-        occurredAt: new Date(Number(trade.time)),
-        rawPayload: { symbol, ...trade },
-      }));
+    const byId = new Map<number, Record<string, unknown>>();
+    addTradesById(byId, recent);
+
+    const oldestRecent = recent.length >= MY_TRADES_PAGE_SIZE ? oldestTrade(recent) : null;
+    if (oldestRecent && oldestRecent.time >= scopeFromMs) {
+      const walked = await this.walkTradesForward(symbol, 0, oldestRecent.id, scopeToMs);
+      walked.forEach((trade, id) => {
+        byId.set(id, trade);
+      });
+    }
+
+    return spotTradeEvents(symbol, byId, (time) => time >= scopeFromMs && time <= scopeToMs);
+  }
+
+  private async fetchSpotTradesAfter(
+    symbol: string,
+    lastStoredId: number,
+    scopeToMs: number,
+  ): Promise<RawEventInput[]> {
+    let walked: Map<number, Record<string, unknown>>;
+    try {
+      walked = await this.walkTradesForward(symbol, lastStoredId + 1, Number.POSITIVE_INFINITY, scopeToMs);
+    } catch (error) {
+      // A delisted pair. Nothing was stored past lastStoredId, so a pair that
+      // comes back resumes from the same fill.
+      if (isInvalidSymbolError(error)) return [];
+      throw error;
+    }
+    return spotTradeEvents(symbol, walked, (time) => time <= scopeToMs);
+  }
+
+  private async requestTradePage(symbol: string, fromId?: number): Promise<Array<Record<string, unknown>>> {
+    const params: { symbol: string; limit: number; fromId?: number } = { symbol, limit: MY_TRADES_PAGE_SIZE };
+    if (fromId != null) params.fromId = fromId;
+    return toRecords(await this.withRetry(() => this.client.getAccountTradeList(params)));
+  }
+
+  /**
+   * Pages forward from `startId` until a short page, the page that reaches
+   * `stopBeforeId` (the oldest fill already fetched) or the page that passes
+   * `scopeToMs`, and returns the fills walked, by id.
+   *
+   * Running out of pages throws, so the task still reports the gap; returning
+   * normally would let the sync end as completed with part of the history
+   * missing. The error carries every fill walked, all of them and nothing
+   * else: each page starts right after the newest fill of the previous one, so
+   * they are the pair's fills from `startId` on with no hole, and the next
+   * incremental sync can resume after the newest. The fills fetched before the
+   * walk (the recent page) are left out, since storing them would move that
+   * resume point past the fills in between.
+   */
+  private async walkTradesForward(
+    symbol: string,
+    startId: number,
+    stopBeforeId: number,
+    scopeToMs: number,
+  ): Promise<Map<number, Record<string, unknown>>> {
+    const walked = new Map<number, Record<string, unknown>>();
+    let fromId = startId;
+    for (let page = 0; page < MY_TRADES_MAX_FORWARD_PAGES; page++) {
+      const trades = await this.requestTradePage(symbol, fromId);
+      addTradesById(walked, trades);
+      if (trades.length < MY_TRADES_PAGE_SIZE) return walked;
+      const newest = newestTrade(trades);
+      if (newest.id + 1 >= stopBeforeId || newest.time > scopeToMs) return walked;
+      fromId = newest.id + 1;
+    }
+    // fromId is one past the newest fill of the last full page.
+    throw new SpotHistoryTruncatedError(
+      spotTradeEvents(symbol, walked, () => true),
+      fromId - 1,
+    );
   }
 
   /**
@@ -338,9 +449,9 @@ export class BinanceClient {
       }),
     );
     const list = toRecords(toRecord(response).rows);
-    return list.map((reward, idx) => ({
+    return list.map((reward) => ({
       eventType: CRYPTO_EVENT_TYPE.EARN_FLEX,
-      externalId: `${reward.projectId ?? 'noproject'}-${String(reward.time)}-${reward.asset}-${idx}`,
+      externalId: rewardExternalId(CRYPTO_EVENT_TYPE.EARN_FLEX, reward),
       occurredAt: new Date(Number(reward.time)),
       rawPayload: reward,
     }));
@@ -355,9 +466,9 @@ export class BinanceClient {
       }),
     );
     const list = toRecords(toRecord(response).rows);
-    return list.map((reward, idx) => ({
+    return list.map((reward) => ({
       eventType: CRYPTO_EVENT_TYPE.EARN_LOCKED,
-      externalId: `${reward.positionId ?? 'noposition'}-${String(reward.time)}-${reward.asset}-${idx}`,
+      externalId: rewardExternalId(CRYPTO_EVENT_TYPE.EARN_LOCKED, reward),
       occurredAt: new Date(Number(reward.time)),
       rawPayload: reward,
     }));
@@ -372,9 +483,9 @@ export class BinanceClient {
       }),
     );
     const list = toRecords(toRecord(response).rows);
-    return list.map((reward, idx) => ({
+    return list.map((reward) => ({
       eventType: CRYPTO_EVENT_TYPE.ETH_STAKING,
-      externalId: `eth-${String(reward.time)}-${idx}`,
+      externalId: rewardExternalId(CRYPTO_EVENT_TYPE.ETH_STAKING, reward),
       occurredAt: new Date(Number(reward.time)),
       rawPayload: reward,
     }));
@@ -391,9 +502,9 @@ export class BinanceClient {
       }),
     );
     const list = toRecords(response);
-    return list.map((row, idx) => ({
+    return list.map((row) => ({
       eventType: CRYPTO_EVENT_TYPE.STAKING_INTEREST,
-      externalId: `staking-${String(row.time)}-${row.asset}-${idx}`,
+      externalId: rewardExternalId(CRYPTO_EVENT_TYPE.STAKING_INTEREST, row),
       occurredAt: new Date(Number(row.time)),
       rawPayload: row,
     }));
@@ -684,6 +795,63 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// myTrades returns at most 1000 fills per call.
+const MY_TRADES_PAGE_SIZE = 1000;
+// Forward pages allowed per symbol and run (100k fills). Reaching the cap fails
+// the task, handing over only the fills walked, which have no hole in them.
+const MY_TRADES_MAX_FORWARD_PAGES = 100;
+
+function addTradesById(byId: Map<number, Record<string, unknown>>, trades: Array<Record<string, unknown>>): void {
+  trades.forEach((trade) => {
+    byId.set(Number(trade.id), trade);
+  });
+}
+
+/** The collected fills whose time passes `keep`, in trade-id order, as raw events. */
+function spotTradeEvents(
+  symbol: string,
+  byId: Map<number, Record<string, unknown>>,
+  keep: (timeMs: number) => boolean,
+): RawEventInput[] {
+  return Array.from(byId.entries())
+    .filter(([, trade]) => keep(Number(trade.time)))
+    .sort(([a], [b]) => a - b)
+    .map(([id, trade]) => ({
+      eventType: CRYPTO_EVENT_TYPE.SPOT_TRADE,
+      externalId: `${symbol}-${String(id)}`,
+      occurredAt: new Date(Number(trade.time)),
+      rawPayload: { symbol, ...trade },
+    }));
+}
+
+interface TradeEdge {
+  id: number;
+  time: number;
+}
+
+/**
+ * Oldest or newest fill of a page by trade id, without trusting the order the
+ * page came in. A fill without a numeric id cannot anchor the next request, so
+ * it fails the task rather than ending the walk early with fills missing. It
+ * is a malformed answer, not a history too long to walk, so it has its own
+ * code and classifyTaskFailure leaves it transient.
+ */
+function tradeAtEdge(trades: Array<Record<string, unknown>>, isBetter: (a: number, b: number) => boolean): TradeEdge {
+  const edges = trades.map((trade) => ({ id: Number(trade.id), time: Number(trade.time) }));
+  if (edges.some((edge) => !Number.isFinite(edge.id))) {
+    throw new BinanceClientError(CRYPTO_SYNC_TASK_FAILURE.TRADE_WITHOUT_ID);
+  }
+  return edges.reduce((best, edge) => (isBetter(edge.id, best.id) ? edge : best));
+}
+
+function oldestTrade(trades: Array<Record<string, unknown>>): TradeEdge {
+  return tradeAtEdge(trades, (a, b) => a < b);
+}
+
+function newestTrade(trades: Array<Record<string, unknown>>): TradeEdge {
+  return tradeAtEdge(trades, (a, b) => a > b);
+}
+
 /**
  * Cast SDK responses to plain `Record<string, unknown>` shape.
  *
@@ -767,6 +935,53 @@ export function isInvalidSymbolError(error: unknown): boolean {
     error.binanceCode === BINANCE_INVALID_PARAM_CODE ||
     error.binanceCode === BINANCE_NO_TRADING_PERMISSION_CODE
   );
+}
+
+export interface TaskFailureClass {
+  kind: CryptoSyncFailureKind;
+  code: string;
+}
+
+/**
+ * What one failed sync task does to its job. PERMANENT only for failures the
+ * next run would repeat identically, because those let the job complete and the
+ * incremental anchor move past the gap:
+ *  - HISTORY_TRUNCATED with no fill walked: nothing is stored, so the next run
+ *    walks the same pages to the same cap.
+ *  - Binance -2015 on a task. On its own the code also means a bad key or an
+ *    IP outside the whitelist, but tasks only run after GET /api/v3/account
+ *    has accepted this key from this IP, and the sync asks again at the end
+ *    (isKeyAccepted) before trusting it. What is left is this endpoint being
+ *    closed to this key.
+ * RESUMABLE when the task stored part of its data and the next run continues
+ * after it: HISTORY_TRUNCATED with fills walked, reported as
+ * HISTORY_RESUMES_NEXT_RUN. The job completes as well, but the gap is not
+ * called permanent, because the next incremental sync walks on from there.
+ * Whether it really does depends on the fills already stored for the pair,
+ * which only the sync knows (confirmResumableWalk in BinanceSyncService).
+ * INVALID_SIGNATURE stays FATAL. Everything else is TRANSIENT: network errors,
+ * 5xx, 429/418 still limited after the retries, any other Binance code, a
+ * malformed answer (TRADE_WITHOUT_ID) and any non-Binance error, such as the
+ * database refusing an insert. The HTTP status is no help here: the SDK
+ * rethrows Binance errors as `{ code, message, body }` without it, so only the
+ * Binance code in the body tells them apart.
+ */
+export function classifyTaskFailure(error: unknown): TaskFailureClass {
+  if (!(error instanceof BinanceClientError)) {
+    return { kind: CRYPTO_SYNC_FAILURE_KIND.TRANSIENT, code: CRYPTO_SYNC_TASK_FAILURE.TASK_FAILED };
+  }
+  if (error.code === API_ERROR.CRYPTO.INVALID_SIGNATURE) {
+    return { kind: CRYPTO_SYNC_FAILURE_KIND.FATAL, code: error.code };
+  }
+  if (error.code === CRYPTO_SYNC_TASK_FAILURE.HISTORY_TRUNCATED) {
+    return eventsFetchedBeforeFailure(error).length > 0
+      ? { kind: CRYPTO_SYNC_FAILURE_KIND.RESUMABLE, code: CRYPTO_SYNC_TASK_FAILURE.HISTORY_RESUMES_NEXT_RUN }
+      : { kind: CRYPTO_SYNC_FAILURE_KIND.PERMANENT, code: error.code };
+  }
+  if (error.binanceCode === BINANCE_KEY_OR_PERMISSION_REJECTED_CODE) {
+    return { kind: CRYPTO_SYNC_FAILURE_KIND.PERMANENT, code: CRYPTO_SYNC_TASK_FAILURE.ENDPOINT_NOT_PERMITTED };
+  }
+  return { kind: CRYPTO_SYNC_FAILURE_KIND.TRANSIENT, code: error.code };
 }
 
 // Re-export for tests/consumers

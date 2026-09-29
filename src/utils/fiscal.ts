@@ -115,6 +115,48 @@ export function rollVatPoolCents(openingCents: number, quarterResultsCents: numb
 }
 
 /**
+ * What is still pending, at the close of the quarters given, of the quota each of them generated.
+ *
+ * The same walk as rollVatPoolCents(), but keeping the pool split by where each euro came from:
+ * the balance carried into the year first, then one entry per quarter. A positive quarter
+ * settles against the OLDEST quota first, which is the order in which art. 99.Cinco LIVA lets
+ * them expire, so a quarter's own quota is only touched once everything older is gone.
+ *
+ * Modelo 390 needs this split and not the plain total: casilla 662 declares the quotas generated
+ * in the year that are still pending at 31 December, apart from the ones in casilla 97. Summing
+ * each quarter's gross "a compensar" overstates it as soon as a later quarter consumed part of it.
+ *
+ * The entries always add up to rollVatPoolCents() minus what is left of the opening balance.
+ *
+ * @param openingCents - Pool carried into the year (casilla 110 of its first 303)
+ * @param quarterResultsCents - Each quarter's own result: negative = a compensar, positive = a ingresar
+ * @returns One entry per quarter: the part of its own quota still pending, 0 for a quarter a ingresar
+ */
+export function pendingVatQuotasByQuarterCents(openingCents: number, quarterResultsCents: number[]): number[] {
+  // Index 0 is the opening balance, index i + 1 the quota of quarter i: oldest first.
+  const settleOldestFirst = (tranches: number[], resultCents: number): number[] =>
+    tranches.reduce<{ leftCents: number; tranches: number[] }>(
+      (acc, cents) => {
+        const usedCents = Math.min(cents, acc.leftCents);
+        return { leftCents: acc.leftCents - usedCents, tranches: [...acc.tranches, cents - usedCents] };
+      },
+      { leftCents: resultCents, tranches: [] },
+    ).tranches;
+
+  const initial = [Math.max(0, openingCents), ...quarterResultsCents.map(() => 0)];
+
+  return quarterResultsCents
+    .reduce<number[]>(
+      (tranches, resultCents, index) =>
+        resultCents < 0
+          ? tranches.map((cents, position) => (position === index + 1 ? -resultCents : cents))
+          : settleOldestFirst(tranches, resultCents),
+      initial,
+    )
+    .slice(1);
+}
+
+/**
  * Calculate 5% gastos de difícil justificación (estimación directa simplificada)
  * Capped at GASTOS_DIFICIL.MAX_CENTS (2,000€) annually.
  *

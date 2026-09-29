@@ -175,6 +175,10 @@ jest.mock('@/services/database/connection', () => ({
 
 jest.mock('@/libs/auth', () => ({ getUserIdOrThrow: jest.fn(async () => 2) }));
 
+// Every row referenced here is the caller's; the ownership guard has its own suite
+// (foreign-reference-ownership.test.ts), and this fake cannot answer its query.
+jest.mock('@/services/database/ownership', () => ({ assertOwnedReferences: jest.fn(async () => undefined) }));
+
 import { createCategory, updateCategory } from '@/services/database/CategoryRepository';
 import {
   confirmOccurrence,

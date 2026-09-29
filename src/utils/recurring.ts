@@ -1,9 +1,9 @@
 /**
  * BudgetGuard Recurring Expense Utilities
- * Pure functions for calculating occurrence dates
+ * Pure functions for occurrence dates and the amounts a confirmed occurrence stores
  */
 
-import { RECURRING_FREQUENCY } from '@/constants/finance';
+import { RECURRING_FREQUENCY, SHARED_EXPENSE } from '@/constants/finance';
 import type { RecurringFrequency } from '@/types/finance';
 
 interface RecurringRule {
@@ -197,4 +197,40 @@ export function computeEndDateFromOccurrences(startDate: string, frequency: Recu
   }
 
   return formatDateISO(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}
+
+/** The three amount columns a movement carries: the user's part, the full bill and the split between them. */
+export interface OccurrenceAmounts {
+  amountCents: number;
+  originalAmountCents: number | null;
+  sharedDivisor: number;
+}
+
+/**
+ * The amounts the movement of a confirmed occurrence stores.
+ *
+ * Without a modified amount the rule's own figures are copied. A modified amount is the full bill,
+ * the same figure the transaction form asks for, so it is stored exactly as a movement typed by
+ * hand: on a shared rule the user's part is rounded up (101 -> 51) and the full bill is kept in
+ * originalAmountCents, which is the base the fiscal views read; on a personal rule it is the whole
+ * amount and there is no separate full bill.
+ */
+export function resolveOccurrenceAmounts(rule: OccurrenceAmounts, modifiedAmountCents?: number): OccurrenceAmounts {
+  if (modifiedAmountCents === undefined) {
+    return {
+      amountCents: rule.amountCents,
+      originalAmountCents: rule.originalAmountCents,
+      sharedDivisor: rule.sharedDivisor,
+    };
+  }
+
+  if (rule.sharedDivisor > SHARED_EXPENSE.DEFAULT_DIVISOR) {
+    return {
+      amountCents: Math.ceil(modifiedAmountCents / rule.sharedDivisor),
+      originalAmountCents: modifiedAmountCents,
+      sharedDivisor: rule.sharedDivisor,
+    };
+  }
+
+  return { amountCents: modifiedAmountCents, originalAmountCents: null, sharedDivisor: rule.sharedDivisor };
 }

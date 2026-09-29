@@ -34,6 +34,7 @@ import { ValidationError } from '@/utils/apiErrors';
 import { computeBadDebtWindows, hasBadDebtAttention, resolveBadDebtExclusion } from '@/utils/badDebt';
 import { computeInvoiceAmounts } from '@/utils/invoiceAmounts';
 import { getPool, query } from './connection';
+import { assertOwnedReferences } from './ownership';
 
 function toISOString(val: Date | string): string {
   if (typeof val === 'string') return val;
@@ -354,6 +355,8 @@ export async function createInvoicePrefix(data: {
   companyId?: number | null;
 }): Promise<InvoicePrefix> {
   const userId = await getUserIdOrThrow();
+  // The company key includes the owner (migration 008): a foreign company answers 404, not a 500.
+  await assertOwnedReferences(userId, { companyId: data.companyId });
 
   try {
     const result = await query<InvoicePrefixRow>(
@@ -378,6 +381,7 @@ export async function updateInvoicePrefix(
   data: { description?: string | null; nextNumber?: number; companyId?: number | null },
 ): Promise<InvoicePrefix | null> {
   const userId = await getUserIdOrThrow();
+  await assertOwnedReferences(userId, { companyId: data.companyId });
 
   const setClauses: string[] = [];
   const params: (string | number | null)[] = [prefixId, userId];
@@ -1011,6 +1015,7 @@ export async function updateInvoiceStatus(
     // (100% deductible, linked via CompanyID + InvoiceNumber for cancel cleanup).
     if (newStatus === INVOICE_STATUS.PAID) {
       if (!categoryId) throw new Error(API_ERROR.INVOICE.CATEGORY_REQUIRED_FOR_PAID);
+      await assertOwnedReferences(userId, { categoryId }, client);
 
       const paymentDate = toDateString(new Date());
       // AmountCents is TotalCents on purpose: this transaction is the money that lands in

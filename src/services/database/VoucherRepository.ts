@@ -8,6 +8,7 @@ import { getUserIdOrThrow } from '@/libs/auth';
 import type { Voucher } from '@/types/finance';
 import { toDateString } from '@/utils/helpers';
 import { query } from './connection';
+import { assertOwnedReferences } from './ownership';
 
 interface VoucherRow {
   VoucherID: number;
@@ -63,6 +64,9 @@ function rowToVoucher(row: VoucherRow): Voucher {
   };
 }
 
+// The category is joined only within the voucher's owner: a voucher stored with another user's
+// CategoryID before the ownership guard existed still lists (and can be moved back with PUT),
+// but shows none of that category's name, icon or colour.
 const SELECT_VOUCHER = `
   SELECT
     v."VoucherID", v."CategoryID", c."Name" AS "CategoryName",
@@ -72,7 +76,7 @@ const SELECT_VOUCHER = `
     v."ConsumedCents", v."RemainingCents", v."ConsumedUnits", v."ConsumptionCount",
     v."CreatedAt", v."UpdatedAt"
   FROM "vw_VoucherBalance" v
-  INNER JOIN "Categories" c ON v."CategoryID" = c."CategoryID"
+  LEFT JOIN "Categories" c ON v."CategoryID" = c."CategoryID" AND c."UserID" = v."UserID"
 `;
 
 /**
@@ -121,6 +125,9 @@ export async function createVoucher(data: {
   expiryDate?: Date | null;
 }): Promise<Voucher> {
   const userId = await getUserIdOrThrow();
+
+  // The owner-scoped key would refuse another user's category with a 500; this answers 404 first.
+  await assertOwnedReferences(userId, { categoryId: data.categoryId });
 
   const rows = await query<{ VoucherID: number }>(
     `
@@ -172,6 +179,9 @@ export async function updateVoucher(
   }>,
 ): Promise<Voucher | null> {
   const userId = await getUserIdOrThrow();
+
+  // Only a category being set needs checking; the voucher itself is scoped by the UPDATE below.
+  await assertOwnedReferences(userId, { categoryId: data.categoryId });
 
   const updates: string[] = [];
   const params: unknown[] = [];

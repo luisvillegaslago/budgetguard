@@ -17,12 +17,13 @@
  */
 
 import { after, NextResponse } from 'next/server';
-import { API_ERROR } from '@/constants/finance';
+import { API_ERROR, CRYPTO_CSV_IMPORT_PROGRESS_KEY } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import { CSV_MAX_BYTES, CsvImportExchangeSchema } from '@/schemas/crypto';
 import { bulkInsertRawEventsForUser, filterCrossSourceDuplicates } from '@/services/database/CryptoRawEventsRepository';
 import {
   createSyncJob,
+  findActiveJob,
   markJobCompleted,
   markJobFailed,
   markJobRunning,
@@ -32,7 +33,7 @@ import { CsvParseError } from '@/services/exchanges/binance/CsvImporter';
 import { normalizeForUser } from '@/services/exchanges/binance/NormalizationService';
 import { detectImporter, getImporterFor } from '@/services/exchanges/shared';
 import type { CsvImportResult, ExchangeCsvImporter } from '@/services/exchanges/shared/types';
-import { validationError, withApiHandler } from '@/utils/apiHandler';
+import { conflict, validationError, withApiHandler } from '@/utils/apiHandler';
 
 export const POST = withApiHandler(async (request) => {
   const userId = await getUserIdOrThrow();
@@ -61,6 +62,12 @@ export const POST = withApiHandler(async (request) => {
   }
   if (!importer) return validationError({ file: [API_ERROR.CRYPTO.CSV_UNRECOGNIZED] });
 
+  // An API sync loads its duplicate index once, when it starts: rows this upload
+  // inserts meanwhile are invisible to it, and its rows to this upload's check,
+  // so the same operation could be stored from both sources.
+  const active = await findActiveJob(importer.exchange);
+  if (active) return conflict(API_ERROR.CRYPTO.SYNC_ALREADY_RUNNING, { jobId: active.jobId });
+
   let mapResult: CsvImportResult;
   try {
     mapResult = importer.import(text, file.name);
@@ -87,41 +94,47 @@ export const POST = withApiHandler(async (request) => {
   });
   await markJobRunning(job.jobId);
 
-  // Drop rows whose operation already exists from a different source (e.g. the
-  // API sync already covered this period) — they carry a different ExternalID
-  // so the UNIQUE constraint wouldn't catch them, and would double-count.
-  const { kept, skipped: crossSourceSkipped } = await filterCrossSourceDuplicates(userId, mapResult.events);
-
-  // Insert raw rows synchronously — this is fast (a few hundred ms even
-  // for 10k rows) so the user gets the count back in the response.
+  // Until the job leaves "running" every other upload and API sync of this
+  // exchange answers 409, so a failure here must close it before it propagates.
   let inserted = 0;
-  if (kept.length > 0) {
-    const CHUNK_SIZE = 500;
-    const chunkCount = Math.ceil(kept.length / CHUNK_SIZE);
-    const chunkInserts = await Promise.all(
-      Array.from({ length: chunkCount }, (_, i) => {
-        const chunk = kept.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        return bulkInsertRawEventsForUser(userId, chunk, job.jobId);
-      }),
-    );
-    inserted = chunkInserts.reduce((acc, n) => acc + n, 0);
-  }
+  let keptCount = 0;
+  let crossSourceSkipped = 0;
+  try {
+    // Drop rows whose operation already exists from a different source (e.g. the
+    // API sync already covered this period) — they carry a different ExternalID
+    // so the UNIQUE constraint wouldn't catch them, and would double-count.
+    const filtered = await filterCrossSourceDuplicates(userId, mapResult.events);
+    crossSourceSkipped = filtered.skipped;
+    keptCount = filtered.kept.length;
 
-  // Stamp progress now so the UI can show "X rows ingested, normalizing…"
-  // immediately. The completedWindows stays at 0 (of 2) until normalize
-  // finishes — see sync orchestrator for the same pattern.
-  await updateJobProgress(
-    job.jobId,
-    {
-      'csv-import': {
-        fetched: mapResult.summary.rowsRead,
-        totalWindows: 2,
-        completedWindows: 1,
-        lastWindowEnd: new Date().toISOString(),
+    // Insert raw rows synchronously — this is fast (a few hundred ms even
+    // for 10k rows) so the user gets the count back in the response.
+    // The repository chunks below the bind-parameter limit, one chunk at a time.
+    inserted = filtered.kept.length > 0 ? await bulkInsertRawEventsForUser(userId, filtered.kept, job.jobId) : 0;
+
+    // Stamp progress now so the UI can show "X rows ingested, normalizing…"
+    // immediately. The completedWindows stays at 0 (of 2) until normalize
+    // finishes — see sync orchestrator for the same pattern.
+    await updateJobProgress(
+      job.jobId,
+      {
+        [CRYPTO_CSV_IMPORT_PROGRESS_KEY]: {
+          fetched: mapResult.summary.rowsRead,
+          totalWindows: 2,
+          completedWindows: 1,
+          lastWindowEnd: new Date().toISOString(),
+        },
       },
-    },
-    inserted,
-  );
+      inserted,
+    );
+  } catch (error) {
+    await markJobFailed(
+      job.jobId,
+      API_ERROR.CRYPTO.SYNC_FAILED,
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
 
   // Hand off normalization to the background. Doing it here would block
   // the response for minutes on a large backfill (4-10k rows × price
@@ -132,7 +145,7 @@ export const POST = withApiHandler(async (request) => {
       await updateJobProgress(
         job.jobId,
         {
-          'csv-import': {
+          [CRYPTO_CSV_IMPORT_PROGRESS_KEY]: {
             fetched: mapResult.summary.rowsRead,
             totalWindows: 2,
             completedWindows: 2,
@@ -165,7 +178,7 @@ export const POST = withApiHandler(async (request) => {
         rowsSkipped: mapResult.summary.rowsSkipped,
         skippedOperations: mapResult.summary.skippedOperations,
         eventsInserted: inserted,
-        eventsDuplicate: kept.length - inserted,
+        eventsDuplicate: keptCount - inserted,
         eventsCrossSourceSkipped: crossSourceSkipped,
         // The taxable count is filled by the background normalize — clients
         // poll GET /api/crypto/sync/:jobId for the final state.

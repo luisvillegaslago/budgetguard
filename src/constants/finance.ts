@@ -1397,6 +1397,53 @@ export const CRYPTO_SYNC_STATUS = {
 
 export type CryptoSyncStatus = (typeof CRYPTO_SYNC_STATUS)[keyof typeof CRYPTO_SYNC_STATUS];
 
+// Why one task of a sync job failed. Listed in the job's failure summary so the
+// user can tell a transient exchange error from data that never got stored.
+export const CRYPTO_SYNC_TASK_FAILURE = {
+  TASK_FAILED: 'task_failed',
+  INSERT_FAILED: 'insert_failed',
+  // The spot-trade walk hit its page cap before reaching the most recent fills,
+  // and no later run will continue it: it had no fill to store, or it stopped
+  // below fills an earlier run already stored.
+  HISTORY_TRUNCATED: 'history_truncated',
+  // The spot-trade walk hit its page cap; the fills it walked are stored and the
+  // next incremental sync resumes after the newest of them.
+  HISTORY_RESUMES_NEXT_RUN: 'history_resumes_next_run',
+  // A myTrades page held a fill without a numeric id, which cannot anchor the
+  // next page of the walk.
+  TRADE_WITHOUT_ID: 'trade_without_id',
+  // Binance answered -2015 for this endpoint to a key it accepts on /api/v3/account.
+  ENDPOINT_NOT_PERMITTED: 'endpoint_not_permitted',
+} as const;
+
+// What a failed task does to its job (see classifyTaskFailure). A TRANSIENT
+// failure ends the job failed, so the next incremental sync, which anchors on
+// the last completed job, fetches the same windows again. A PERMANENT one would
+// fail the same way on every run and freeze that anchor for good, so the job
+// completes and reports the gap instead. A RESUMABLE one stored part of its data
+// and the next incremental sync continues from there: failing the job would
+// only re-fetch every other window, so it completes and reports the gap too.
+// FATAL stops the job at once.
+export const CRYPTO_SYNC_FAILURE_KIND = {
+  FATAL: 'fatal',
+  PERMANENT: 'permanent',
+  RESUMABLE: 'resumable',
+  TRANSIENT: 'transient',
+} as const;
+
+export type CryptoSyncFailureKind = (typeof CRYPTO_SYNC_FAILURE_KIND)[keyof typeof CRYPTO_SYNC_FAILURE_KIND];
+
+// ErrorCode of a job that completed although some tasks failed permanently or
+// stored only part of their data (PERMANENT and RESUMABLE failures). It flags
+// the gaps listed in ErrorMessage and in each endpoint's Progress entry;
+// the job itself did not fail, so the code is not an i18n error key.
+export const CRYPTO_SYNC_COMPLETED_WITH_GAPS = 'completed_with_gaps';
+
+// Progress key of the synthetic job a CSV upload creates. It is how an API sync
+// tells those jobs apart: a CSV covers whatever its file holds, so it must never
+// become the anchor an incremental sync starts from.
+export const CRYPTO_CSV_IMPORT_PROGRESS_KEY = 'csv-import';
+
 // Modelo 100 crypto casillas
 export const MODELO_100_CRYPTO_CASILLA = {
   C1804: '1804', // Ganancias/pérdidas patrimoniales por transmisión de cripto
@@ -1450,6 +1497,25 @@ export const BINANCE_SYNC_CONCURRENCY = 3;
 // Earliest plausible Binance account creation. Used as fallback when we can
 // neither probe the first trade nor read account.createTime.
 export const BINANCE_GENESIS_DATE = '2017-07-14T00:00:00Z';
+
+// Status values, upper-cased, with which Binance reports a record that ended
+// without moving funds: cancelled, rejected, failed or refunded. The
+// normaliser emits no taxable leg for them. In-flight states are left out on
+// purpose (see `isFailedRecord` in EventNormalizer).
+export const BINANCE_FAILED_STATUS = {
+  C2C: ['CANCELLED', 'CANCELLED_BY_SYSTEM'], // c2c order history, orderStatus
+  FIAT_PAYMENT: ['FAILED', 'REFUNDED'], // fiat/payments, status
+  CONVERT: ['FAIL'], // convert/tradeFlow, orderStatus
+  WITHDRAW: ['1', '3', '5'], // capital/withdraw/history, status: cancelled, rejected, failure
+  DEPOSIT: ['2', '7'], // capital/deposit/hisrec, status: rejected, wrong deposit
+} as const;
+
+// `transactionType` of fiat/payments: '0' buys crypto with a card, '1' sells
+// crypto to the card.
+export const BINANCE_FIAT_PAYMENT_TYPE = {
+  BUY: '0',
+  SELL: '1',
+} as const;
 
 // Month format regex
 export const MONTH_FORMAT_REGEX = /^\d{4}-\d{2}$/;
@@ -1508,6 +1574,8 @@ export const API_ERROR = {
     FUTURE_OCCURRENCE: 'api-error.conflict.future-occurrence',
     DEFERRAL_EXPEDIENTE_EXISTS: 'api-error.conflict.deferral-expediente-exists',
     DEFERRAL_NOTHING_TO_CANCEL: 'api-error.conflict.deferral-nothing-to-cancel',
+    /** link-transaction over a document the OCR already linked, without an explicit replace */
+    DOCUMENT_ALREADY_LINKED: 'api-error.conflict.document-already-linked',
   },
   INVOICE: {
     CATEGORY_REQUIRED_FOR_PAID: 'api-error.invoice.category-required-for-paid',

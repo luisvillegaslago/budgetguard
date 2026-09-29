@@ -13,7 +13,7 @@
  * do I use?" popup maps every app bucket to the exact AEAT casillas.
  */
 
-import { ChevronDown, HelpCircle, Info, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, HelpCircle, Info, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { useCryptoModelo100Summary } from '@/hooks/useCryptoFiscal';
@@ -33,6 +33,8 @@ interface CasillaConfig {
   /** Function pulling the amount(s) from the API summary. Returns null when the section
    *  has multiple amounts that the steps will reference instead of a single headline figure. */
   amountCents: (summary: ModeloSummary) => number | { transmission: number; acquisition: number } | null;
+  /** Receipts in the box summed at 0 € because their price was never resolved. */
+  unresolvedCount?: (summary: ModeloSummary) => number;
 }
 
 type ModeloSummary = NonNullable<ReturnType<typeof useCryptoModelo100Summary>['data']>['summary'];
@@ -59,11 +61,13 @@ const CASILLAS: CasillaConfig[] = [
     keyPrefix: 'casilla-0304',
     stepCount: 4,
     amountCents: (s) => s.casilla0304Cents,
+    unresolvedCount: (s) => s.casilla0304UnresolvedCount,
   },
   {
     keyPrefix: 'casilla-0033',
     stepCount: 4,
     amountCents: (s) => s.casilla0033Cents,
+    unresolvedCount: (s) => s.casilla0033UnresolvedCount,
   },
 ];
 
@@ -114,6 +118,7 @@ export function CryptoAeatGuide({ year }: Props) {
               keyPrefix={c.keyPrefix}
               stepCount={c.stepCount}
               amount={amount}
+              unresolvedCount={c.unresolvedCount?.(data) ?? 0}
               isOpen={isOpen}
               onToggle={() => setOpenSection(isOpen ? null : c.keyPrefix)}
             />
@@ -128,11 +133,13 @@ interface AccordionProps {
   keyPrefix: CasillaConfig['keyPrefix'];
   stepCount: number;
   amount: number | { transmission: number; acquisition: number } | null;
+  /** When > 0 the amount is understated: flagged in the header, explained in the body. */
+  unresolvedCount: number;
   isOpen: boolean;
   onToggle: () => void;
 }
 
-function CasillaAccordion({ keyPrefix, stepCount, amount, isOpen, onToggle }: AccordionProps) {
+function CasillaAccordion({ keyPrefix, stepCount, amount, unresolvedCount, isOpen, onToggle }: AccordionProps) {
   const { t } = useTranslate();
   const titleKey = `crypto.aeat.${keyPrefix}.title`;
   const introKey = `crypto.aeat.${keyPrefix}.intro`;
@@ -157,6 +164,12 @@ function CasillaAccordion({ keyPrefix, stepCount, amount, isOpen, onToggle }: Ac
           {amount !== null && typeof amount === 'object' && (
             <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted shrink-0">
               {formatCurrency(amount.transmission)} / {formatCurrency(amount.acquisition)}
+            </span>
+          )}
+          {unresolvedCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-guard-warning/10 text-guard-warning shrink-0">
+              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+              {t('crypto.aeat.unresolved-badge')}
             </span>
           )}
         </div>
@@ -187,6 +200,13 @@ function CasillaAccordion({ keyPrefix, stepCount, amount, isOpen, onToggle }: Ac
             <div className="rounded-md bg-muted/40 p-3 flex justify-between text-xs font-mono">
               <span className="text-guard-muted">{t('crypto.aeat.amount-to-enter')}</span>
               <span className="text-foreground">{formatCurrency(amount)}</span>
+            </div>
+          )}
+
+          {unresolvedCount > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-guard-warning/30 bg-guard-warning/10 p-3 text-xs">
+              <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+              <p className="text-guard-warning">{t('crypto.aeat.unresolved-warning', { count: unresolvedCount })}</p>
             </div>
           )}
 

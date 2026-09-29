@@ -22,6 +22,7 @@ import type {
 } from '@/types/finance';
 import { buildMonthSequence, toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
+import { assertOwnedReferences } from './ownership';
 
 interface TransactionRow {
   TransactionID: number;
@@ -300,6 +301,15 @@ export async function createTransaction(data: {
 }): Promise<Transaction> {
   const userId = await getUserIdOrThrow();
 
+  // The owner-scoped keys would refuse another user's rows with a 500; this answers 404 first.
+  await assertOwnedReferences(userId, {
+    categoryId: data.categoryId,
+    companyId: data.companyId,
+    voucherId: data.voucherId,
+    transactionGroupId: data.transactionGroupId,
+    tripId: data.tripId,
+  });
+
   const rows = await query<{ TransactionID: number }>(
     `
     INSERT INTO "Transactions" (
@@ -375,6 +385,13 @@ export async function updateTransaction(
   }>,
 ): Promise<Transaction | null> {
   const userId = await getUserIdOrThrow();
+
+  // Null clears a reference and needs no check; any id given must be the caller's own.
+  await assertOwnedReferences(userId, {
+    categoryId: data.categoryId,
+    companyId: data.companyId,
+    voucherId: data.voucherId,
+  });
 
   const updates: string[] = [];
   const params: unknown[] = [];
@@ -788,8 +805,10 @@ export async function getCategoryHistoryTransactions(
       t."VatPercent", t."DeductionPercent", t."VatDeductionPercent", t."VendorName", t."InvoiceNumber",
       t."Status", t."CompanyID", t."CreatedAt", t."UpdatedAt"
     FROM "Transactions" t
-    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID"
-    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID"
+    -- Category joins carry the user too, restating on the read side what the owner-scoped
+    -- foreign keys of migration 008 enforce on write.
+    INNER JOIN "Categories" c ON t."CategoryID" = c."CategoryID" AND c."UserID" = t."UserID"
+    LEFT JOIN "Categories" parent ON c."ParentCategoryID" = parent."CategoryID" AND parent."UserID" = t."UserID"
     LEFT JOIN "Trips" trip ON t."TripID" = trip."TripID"
     WHERE (t."CategoryID" = $1 OR c."ParentCategoryID" = $1)
       AND t."TransactionDate" >= $2
@@ -901,6 +920,10 @@ export async function createTransactionGroup(data: {
   items: TransactionGroupItem[];
 }): Promise<Transaction[]> {
   const userId = await getUserIdOrThrow();
+
+  // Checked before connecting, so a foreign category never opens a transaction to roll back.
+  await assertOwnedReferences(userId, { categoryId: data.items.map((item) => item.categoryId) });
+
   const pool = getPool();
   const client = await pool.connect();
 
@@ -1043,6 +1066,10 @@ export async function updateTransactionGroup(
 
   try {
     await client.query('BEGIN');
+
+    // Only the item categories: the group itself is already scoped by the user filter on its rows
+    // below, and a foreign group id simply matches no row.
+    await assertOwnedReferences(userId, { categoryId: data.items.map((item) => item.categoryId) }, client);
 
     const existing = await client.query<{ TransactionID: number; CategoryID: number }>(
       'SELECT "TransactionID", "CategoryID" FROM "Transactions" WHERE "TransactionGroupID" = $1 AND "UserID" = $2',

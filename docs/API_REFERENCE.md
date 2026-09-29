@@ -39,8 +39,22 @@ All endpoints return JSON with this structure:
 | 201 | Created |
 | 400 | Bad Request (validation error) |
 | 404 | Not Found |
-| 409 | Conflict (referential integrity violation) |
+| 409 | Conflict (referential integrity violation, a document already linked, a sync already running) |
 | 500 | Internal Server Error |
+
+### Ids that belong to another user
+
+Every id a request body carries that points at another row of the user (category, parent category,
+company, voucher, transaction group, trip, transaction, fiscal document) must belong to the caller.
+One that belongs to another user answers **404 with that resource's own not-found key**
+(`api-error.not-found.category`, `.company`, `.voucher`, `.group`, `.trip`, `.transaction`,
+`.document`), exactly like an id that does not exist, so a probe cannot tell the two apart. It
+applies to: transactions (POST/PUT), transaction groups, trip expenses, recurring expenses and the
+occurrence confirm, vouchers, categories (`parentCategoryId`), fixed assets (`transactionId`),
+invoice prefixes (`companyId`), marking an invoice paid (`categoryId`), fiscal document upload and
+`link-transaction`, and deferrals (`fiscalDocumentId`). The check lives in
+`src/services/database/ownership.ts`; since migration 008 the foreign keys enforce the same rule in
+the database, which would otherwise surface as a 500.
 
 ### Money Handling Convention
 
@@ -1176,7 +1190,7 @@ Confirm a pending occurrence, creating a real transaction. Optionally override t
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `modifiedAmount` | number | No | Override amount in **euros** (if different from rule) |
+| `modifiedAmount` | number | No | The **full bill** in euros, when it differs from the rule. On a shared rule the server stores `ceil(bill / divisor)` as the user's part and the bill as `originalAmountCents`, exactly as for a shared movement typed by hand |
 
 **Example Request (use default amount):**
 ```json
@@ -2552,7 +2566,7 @@ Fiscal documents store uploaded tax filings, received invoices, and issued invoi
 | DELETE | `/api/fiscal/documents/[id]` | Delete document and blob (supports `?deleteTransaction=true`) |
 | GET | `/api/fiscal/documents/[id]/download` | Download document file (authenticated proxy) |
 | POST | `/api/fiscal/documents/[id]/extract` | Run OCR extraction via Claude Vision |
-| POST | `/api/fiscal/documents/[id]/link-transaction` | Create transaction and link to document (atomic) |
+| POST | `/api/fiscal/documents/[id]/link-transaction` | Create transaction and link it to the document |
 | POST | `/api/fiscal/documents/bulk` | Bulk upload multiple documents (multipart/form-data) |
 | POST | `/api/fiscal/documents/detect-modelo` | Identify which modelo a file is, before uploading it (multipart/form-data) |
 
@@ -2761,7 +2775,12 @@ The media type is resolved from the file's own magic bytes, so an upload whose `
 
 #### `POST /api/fiscal/documents/[id]/link-transaction`
 
-Atomically create a transaction and link it to the document. Used after OCR extraction when the user confirms the extracted data (or enters it manually).
+Create a transaction and link it to the document. Used after OCR extraction when the user confirms the extracted data (or enters it manually).
+
+If the document is already linked to a transaction or a group (for example by the OCR auto-match),
+the request answers **409 `api-error.conflict.document-already-linked`** unless it carries
+`replaceExistingLink: true`, which the "no es este, crear uno nuevo" path sends. This is what stops
+the same invoice being booked twice in the 303 and the 130.
 
 **Request Body:**
 
@@ -2779,8 +2798,9 @@ Atomically create a transaction and link it to the document. Used after OCR extr
 | `invoiceNumber` | string | No | Invoice number |
 | `companyId` | number | No | Company ID |
 | `isShared` | boolean | No | Whether to halve the amount (÷2) |
+| `replaceExistingLink` | boolean | No | Replace an existing link instead of answering 409 |
 
-**Side effects (atomic):**
+**Side effects** (three statements, not one transaction yet: FISCAL-DOCUMENTS-06 is open):
 1. Creates the transaction with all fiscal fields
 2. Links the transaction to the document (`TransactionID`)
 3. Updates document: `status='filed'`, `taxAmountCents` (original pre-÷2 amount), `fiscalQuarter`, `companyId`
@@ -3734,7 +3754,8 @@ list, request shapes and pipeline semantics are documented together in
 [CRYPTO_MODULE.md](CRYPTO_MODULE.md) § Endpoints — they are inseparable from the pipeline they drive.
 
 Summary: `/api/crypto/credentials{,/status}` (encrypted, read-only keys), `/api/crypto/sync{,/[jobId]{,/cancel}}`
-(background jobs), `/api/crypto/import/csv` (Binance/Kraken/Coinbase, auto-detected),
+(background jobs), `/api/crypto/import/csv` (Binance/Kraken/Coinbase, auto-detected; 409
+`api-error.crypto.sync-already-running` while an API sync of that exchange is running),
 `/api/crypto/normalize`, `/api/crypto/{events,taxable-events,assets,pairs,pairs/[symbol],klines,ticker}`
 (read models), `/api/crypto/fiscal/{modelo100,disposals,export,recompute}`, and the weekly
 `/api/cron/crypto-sync`.

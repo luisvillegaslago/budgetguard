@@ -64,11 +64,20 @@ export const syncDebug = {
 
   /** Per-endpoint task summary — logs all endpoints (including zeroes) so
    * the operator can see the full picture: which endpoints returned data,
-   * which were silent, and which failed. */
-  endpointSummary(eventType: string, fetchedCount: number, failureCount: number, totalWindows: number): void {
+   * which were silent, and which failed. `duplicatesSkipped` counts fetched
+   * events dropped as already stored by a CSV import, so a wrongly dropped one
+   * shows up here instead of vanishing; callers without a dedup step omit it. */
+  endpointSummary(
+    eventType: string,
+    fetchedCount: number,
+    failureCount: number,
+    totalWindows: number,
+    duplicatesSkipped?: number,
+  ): void {
+    const skipped = duplicatesSkipped == null ? '' : ` duplicatesSkipped=${duplicatesSkipped}`;
     log(
       failureCount > 0 ? 'warn' : 'info',
-      `endpoint=${eventType} fetched=${fetchedCount} failures=${failureCount} windows=${totalWindows}`,
+      `endpoint=${eventType} fetched=${fetchedCount}${skipped} failures=${failureCount} windows=${totalWindows}`,
     );
   },
 

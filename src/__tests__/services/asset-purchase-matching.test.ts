@@ -20,7 +20,7 @@
  * exercised at all. Do not read them as data about this taxpayer.
  */
 
-import { ASSET_PURCHASE_MATCH, MODELO_100_CASILLA, TRANSACTION_TYPE } from '@/constants/finance';
+import { API_ERROR, ASSET_PURCHASE_MATCH, MODELO_100_CASILLA, TRANSACTION_TYPE } from '@/constants/finance';
 
 // ── Fixtures: assets ──
 
@@ -190,7 +190,15 @@ const NO_VAT_DEDUCTION_PURCHASE: FiscalRow = {
 let assetRows: FixedAssetRow[] = [];
 let fiscalRows: FiscalRow[] = [];
 
+// A movement of another user: the ownership guard must refuse to link it.
+const FOREIGN_TRANSACTION_ID = 990_001;
+
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
+  // assertOwnedReferences(): every requested movement is the caller's except the foreign one
+  if (sql.includes('AS "Check"') && sql.includes('FROM "Transactions"')) {
+    const requested = (params[1] as number[] | undefined) ?? [];
+    return requested.filter((id) => id !== FOREIGN_TRANSACTION_ID).map((id) => ({ Check: 0, Id: id }));
+  }
   // getAssetPurchaseCandidates(): the WHERE of the real query, clause by clause
   if (sql.includes('vw_FiscalQuarterly')) {
     const [userId, type, from, to] = params as [number, string, string, string];
@@ -417,5 +425,15 @@ describe('updateFixedAsset — the link is an ordinary field, and it closes the 
     expect(await getUnlinkedFixedAssets()).toEqual([]);
     // And the asset stops offering candidates: there is nothing left to fix
     expect(await getAssetPurchaseCandidates(DESK.AssetID)).toEqual([]);
+  });
+
+  it("should refuse another user's movement with the not-found key and write nothing", async () => {
+    const outcome = await updateFixedAsset(DESK.AssetID, { transactionId: FOREIGN_TRANSACTION_ID }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toMatchObject({ errorKey: API_ERROR.NOT_FOUND.TRANSACTION });
+    expect(mockQuery.mock.calls.some(([sql]) => sql.includes('UPDATE "FixedAssets"'))).toBe(false);
   });
 });

@@ -41,6 +41,7 @@ import type {
 import { ConflictError } from '@/utils/apiErrors';
 import { toDateString } from '@/utils/helpers';
 import { getPool, query } from './connection';
+import { assertOwnedReferences } from './ownership';
 
 // ============================================================
 // Row Types
@@ -491,6 +492,8 @@ export async function createDeferralWithMovements(
   movements: readonly DeferralMovementDraft[],
 ): Promise<CreatedDeferral> {
   const userId = await getUserIdOrThrow();
+  // The document key includes the owner (migration 008): a foreign document answers 404, not a 500.
+  await assertOwnedReferences(userId, { fiscalDocumentId: input.fiscalDocumentId });
   const pool = getPool();
   const client = await pool.connect();
 
@@ -532,6 +535,7 @@ export async function createDeferralWithMovements(
  */
 export async function updateDeferral(deferralId: number, input: DeferralUpdateInput): Promise<Deferral | null> {
   const userId = await getUserIdOrThrow();
+  await assertOwnedReferences(userId, { fiscalDocumentId: input.fiscalDocumentId });
 
   const changed = WRITABLE_FIELDS.filter((field) => input[field] !== undefined);
   if (changed.length === 0) return getDeferralById(deferralId);

@@ -13,16 +13,22 @@
  *   - acquisition / airdrop / staking_reward → push lot onto the asset's
  *     queue (cost = GrossValueEurCents, fee = FeeEurCents allocated
  *     proportionally if any).
- *   - transfer_in → push lot at fair market value at receipt time. AEAT
- *     accepts FMV as a reasonable proxy when the original cost basis from
- *     the source wallet is unknown; without this, externally-funded coins
+ *   - transfer_in → first read as coins coming back from an earlier
+ *     transfer_out of the same asset (the user's own wallet): that part
+ *     opens no lot, because the original lots never left the queue. Only
+ *     the quantity above what went out earlier is new to the user and is
+ *     pushed as a lot at fair market value at receipt time. AEAT accepts
+ *     FMV as a reasonable proxy when the original cost basis from the
+ *     source wallet is unknown; without this, externally-funded coins
  *     would disposal-against-empty-queue and be taxed at 100% gain.
  *   - disposal → consume lots from the head of the queue until the
  *     QuantityNative is covered. If the asset has fewer remaining lots
  *     than the disposal needs (data gap, partial sync, etc.), we mark
  *     the disposal as `incompleteCoverage = true` and use 0 for the
  *     missing portion's cost basis. Better than dropping the disposal.
- *   - transfer_out → no-op for FIFO (audit only).
+ *   - transfer_out → leaves the lots in place (the coins still belong to
+ *     the user) and records the quantity as outstanding, so a later
+ *     transfer_in of the same asset is matched against it.
  *
  * Decimal handling: native quantities can have up to 18 decimals. We use
  * Number (float64) for arithmetic — for crypto amounts under ~10^9 units
@@ -123,7 +129,6 @@ const ACQUISITION_KINDS = new Set<CryptoTaxableKind>([
   CRYPTO_TAXABLE_KIND.ACQUISITION,
   CRYPTO_TAXABLE_KIND.AIRDROP,
   CRYPTO_TAXABLE_KIND.STAKING_REWARD,
-  CRYPTO_TAXABLE_KIND.TRANSFER_IN,
 ]);
 
 /**
@@ -135,22 +140,83 @@ const ACQUISITION_KINDS = new Set<CryptoTaxableKind>([
  */
 export function runFifo(events: FifoTaxableEvent[]): CryptoDisposalDraft[] {
   const lotsByAsset = new Map<string, Lot[]>();
+  // Native quantity per asset that left through a transfer_out and has not
+  // come back yet. The lots stay in the queue while the coins are away.
+  const outstandingOutByAsset = new Map<string, number>();
   const disposals: CryptoDisposalDraft[] = [];
 
-  for (const event of events) {
+  events.forEach((event) => {
     if (ACQUISITION_KINDS.has(event.kind)) {
       pushLot(lotsByAsset, event);
-      continue;
+      return;
+    }
+    if (event.kind === CRYPTO_TAXABLE_KIND.TRANSFER_OUT) {
+      recordTransferOut(outstandingOutByAsset, event);
+      return;
+    }
+    if (event.kind === CRYPTO_TAXABLE_KIND.TRANSFER_IN) {
+      receiveTransferIn(lotsByAsset, outstandingOutByAsset, event);
+      return;
     }
     if (event.kind === CRYPTO_TAXABLE_KIND.DISPOSAL) {
       const draft = consumeFifo(lotsByAsset, event);
       if (draft) disposals.push(draft);
     }
-    // transfer_out: no-op for FIFO (lots remain available; the user is
-    // moving coins to their own external wallet, not disposing of them).
-  }
+  });
 
   return disposals;
+}
+
+function recordTransferOut(outstandingOutByAsset: Map<string, number>, event: FifoTaxableEvent): void {
+  const qty = Number(event.quantityNative);
+  if (!Number.isFinite(qty) || qty <= 0) return;
+  outstandingOutByAsset.set(event.asset, (outstandingOutByAsset.get(event.asset) ?? 0) + qty);
+}
+
+/**
+ * A deposit of an asset that earlier left through a transfer_out is, up to
+ * that quantity, the same coins coming back from the user's own wallet
+ * (Ledger, another exchange). Their original lots never left the queue, so
+ * opening a market-value lot for them would hold the same coins twice: a
+ * later sale would be matched against the phantom lot and the extra quantity
+ * would hide sales that are not really covered.
+ *
+ * No time window: cold storage round trips last years. And since a
+ * transfer_out never removes lots, the lots for up to what went out are still
+ * queued whatever the deposit really is; an FMV lot on top would always hold
+ * that quantity twice. Any network fee taken on the way just leaves a small
+ * outstanding remainder. Only the quantity above what went out is new to the
+ * user; it opens an FMV-proxy lot carrying its pro-rata share of the
+ * deposit's value and fee.
+ */
+function receiveTransferIn(
+  lotsByAsset: Map<string, Lot[]>,
+  outstandingOutByAsset: Map<string, number>,
+  event: FifoTaxableEvent,
+): void {
+  const qty = Number(event.quantityNative);
+  if (!Number.isFinite(qty) || qty <= 0) return;
+
+  const outstanding = outstandingOutByAsset.get(event.asset) ?? 0;
+  const returning = Math.min(qty, outstanding);
+  outstandingOutByAsset.set(event.asset, outstanding - returning);
+
+  const external = qty - returning;
+  // Same relative tolerance as the coverage check: a float residual of a
+  // fully matched deposit must not open a dust lot.
+  if (external <= Math.max(qty * 1e-9, 1e-9)) return;
+  if (returning === 0) {
+    pushLot(lotsByAsset, event);
+    return;
+  }
+
+  const share = external / qty;
+  pushLot(lotsByAsset, {
+    ...event,
+    quantityNative: external.toString(),
+    grossValueEurCents: Math.round(event.grossValueEurCents * share),
+    feeEurCents: Math.round(event.feeEurCents * share),
+  });
 }
 
 function pushLot(lotsByAsset: Map<string, Lot[]>, event: FifoTaxableEvent): void {

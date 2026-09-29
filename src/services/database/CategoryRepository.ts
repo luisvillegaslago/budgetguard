@@ -7,6 +7,7 @@ import { VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type { Category, TransactionType } from '@/types/finance';
 import { query } from './connection';
+import { assertOwnedReferences } from './ownership';
 
 interface CategoryRow {
   CategoryID: number;
@@ -141,6 +142,8 @@ export async function createCategory(data: {
   modelo100CasillaCode?: string | null;
 }): Promise<Category> {
   const userId = await getUserIdOrThrow();
+  // The parent key includes the owner (migration 008): a foreign parent answers 404, not a 500.
+  await assertOwnedReferences(userId, { categoryId: data.parentCategoryId });
 
   const result = await query<CategoryRow>(
     `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared",

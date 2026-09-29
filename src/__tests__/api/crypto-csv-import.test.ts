@@ -25,6 +25,10 @@ let lastBulkInsertCount = 0;
 
 // We toggle this between tests to simulate a fully-deduplicated re-import.
 let bulkInsertReturnsZero = false;
+// A running API sync for the exchange, or null when none is active.
+let mockActiveJob: { jobId: number } | null = null;
+// Makes the raw insert fail, as a Neon timeout would.
+let mockInsertThrows = false;
 
 jest.mock('@/services/database/CryptoSyncJobsRepository', () => ({
   createSyncJob: jest.fn(async () => {
@@ -58,10 +62,12 @@ jest.mock('@/services/database/CryptoSyncJobsRepository', () => ({
   markJobFailed: jest.fn(async () => {
     failedCalls += 1;
   }),
+  findActiveJob: jest.fn(async () => mockActiveJob),
 }));
 
 jest.mock('@/services/database/CryptoRawEventsRepository', () => ({
   bulkInsertRawEventsForUser: jest.fn(async (_userId: number, events: unknown[]) => {
+    if (mockInsertThrows) throw new Error('connection terminated');
     bulkInsertCalls += 1;
     lastBulkInsertCount = events.length;
     return bulkInsertReturnsZero ? 0 : events.length;
@@ -100,6 +106,7 @@ jest.mock('next/server', () => ({
 }));
 
 import { POST } from '@/app/api/crypto/import/csv/route';
+import { API_ERROR } from '@/constants/finance';
 
 // ============================================================
 // Helpers
@@ -144,6 +151,8 @@ beforeEach(() => {
   bulkInsertCalls = 0;
   lastBulkInsertCount = 0;
   bulkInsertReturnsZero = false;
+  mockActiveJob = null;
+  mockInsertThrows = false;
 });
 
 // ============================================================
@@ -151,6 +160,29 @@ beforeEach(() => {
 // ============================================================
 
 describe('POST /api/crypto/import/csv', () => {
+  it('closes its job as failed when the insert fails, so it never blocks later uploads', async () => {
+    mockInsertThrows = true;
+
+    const res = await POST(createMockRequest(buildFormData({ content: VALID_CSV, name: 'binance.csv' })) as never);
+
+    expect(res.status).toBe(500);
+    expect(runningCalls).toBe(1);
+    expect(failedCalls).toBe(1);
+    expect(completedCalls).toBe(0);
+  });
+
+  it('returns 409 while an API sync of the exchange is running, and stores nothing', async () => {
+    mockActiveJob = { jobId: 77 };
+
+    const res = await POST(createMockRequest(buildFormData({ content: VALID_CSV, name: 'binance.csv' })) as never);
+    const data = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(data.error).toBe(API_ERROR.CRYPTO.SYNC_ALREADY_RUNNING);
+    expect(createdJobs).toBe(0);
+    expect(bulkInsertCalls).toBe(0);
+  });
+
   it('returns 400 when no file is provided (no job created)', async () => {
     const fd = buildFormData(null);
     const res = await POST(createMockRequest(fd) as never);

@@ -237,4 +237,14 @@ describe('CategorySelector', () => {
     const input = screen.getByLabelText('Category');
     expect(input).toBeDisabled();
   });
+
+  // Pre-selecting restores a stored record: its shared flag is the record's, not the category's
+  it('should restore initialCategoryId without applying the shared default', () => {
+    render(<CategorySelector {...defaultProps} initialCategoryId={11} />);
+
+    expect(screen.getByLabelText('Category')).toHaveValue('Vivienda');
+    expect(screen.getByLabelText('Subcategory')).toHaveValue('Luz');
+    expect(mockOnCategoryChange).toHaveBeenCalledWith(11);
+    expect(mockOnSharedDefaultChange).not.toHaveBeenCalled();
+  });
 });

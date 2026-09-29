@@ -151,11 +151,13 @@ export function CryptoModelo100Section({ year, onYearChange }: Props) {
           label={t('crypto.fiscal.casilla-0304')}
           subtitle={t('crypto.fiscal.casilla-0304-subtitle')}
           valueCents={data.casilla0304Cents}
+          unresolvedCount={data.casilla0304UnresolvedCount}
         />
         <SimpleCasillaCard
           label={t('crypto.fiscal.casilla-0033')}
           subtitle={t('crypto.fiscal.casilla-0033-subtitle')}
           valueCents={data.casilla0033Cents}
+          unresolvedCount={data.casilla0033UnresolvedCount}
         />
       </div>
 
@@ -216,7 +218,23 @@ function Casilla1804Card({ label, subtitle, bucket }: { label: string; subtitle:
   );
 }
 
-function SimpleCasillaCard({ label, subtitle, valueCents }: { label: string; subtitle: string; valueCents: number }) {
+/**
+ * Single-amount box (0304, 0033). `unresolvedCount` is the number of receipts
+ * summed at 0 € because their price was never resolved: the amount is then a
+ * floor, not the figure to file, and the card says so next to it.
+ */
+function SimpleCasillaCard({
+  label,
+  subtitle,
+  valueCents,
+  unresolvedCount,
+}: {
+  label: string;
+  subtitle: string;
+  valueCents: number;
+  unresolvedCount: number;
+}) {
+  const { t } = useTranslate();
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
       <div>
@@ -224,6 +242,14 @@ function SimpleCasillaCard({ label, subtitle, valueCents }: { label: string; sub
         <p className="text-xs text-guard-muted">{subtitle}</p>
       </div>
       <p className="text-2xl font-semibold text-foreground">{formatCurrency(valueCents)}</p>
+      {unresolvedCount > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-guard-warning/30 bg-guard-warning/10 p-3 text-xs">
+          <AlertTriangle className="h-4 w-4 text-guard-warning mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-guard-warning">
+            {t('crypto.fiscal.unresolved-income-warning', { count: unresolvedCount })}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

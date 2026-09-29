@@ -41,9 +41,15 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
 
   const isProcessing = confirmMutation.isPending || skipMutation.isPending;
   const iconColor = occurrence.recurringExpense.category?.color ?? '#EF4444';
-  // Original amount shown as a formatted reference next to the modify input,
-  // so the expected format ("1.234,56 €") matches the rest of the UI.
-  const originalAmount = formatCurrency(occurrence.recurringExpense.amountCents);
+  // The row shows the user's share. The modify input takes the full bill, which the server
+  // splits by the rule's divisor exactly as for a shared movement typed by hand, so the
+  // reference next to it is the full bill (only a shared rule stores it apart from its share).
+  // Both are formatted so the expected format ("1.234,56 €") matches the rest of the UI.
+  // An older shared rule may have no stored full bill: it is rebuilt from the share and the
+  // divisor, or the user would type the share and the server would halve it again.
+  const { amountCents, originalAmountCents, sharedDivisor } = occurrence.recurringExpense;
+  const shareAmount = formatCurrency(amountCents);
+  const fullBillAmount = formatCurrency(originalAmountCents ?? amountCents * sharedDivisor);
 
   const handleConfirm = () => {
     const params: { occurrenceId: number; modifiedAmount?: number } = {
@@ -95,7 +101,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
             (icon + minus sign) per DESIGN.md, matching the transactions list. */}
         {!isModifying && (
           <span className="text-sm font-semibold text-guard-danger flex-shrink-0 flex items-center gap-1 tabular-nums">
-            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{originalAmount}
+            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />-{shareAmount}
           </span>
         )}
 
@@ -103,7 +109,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
         {isModifying ? (
           <div className="hidden sm:flex items-center gap-1.5">
             <span className="text-xs text-guard-muted whitespace-nowrap" aria-hidden="true">
-              {t('recurring.pending.original-amount', { amount: originalAmount })}
+              {t('recurring.pending.original-amount', { amount: fullBillAmount })}
             </span>
             <input
               type="number"
@@ -176,7 +182,7 @@ function OccurrenceItem({ occurrence }: OccurrenceItemProps) {
         {isModifying ? (
           <>
             <span className="text-xs text-guard-muted whitespace-nowrap" aria-hidden="true">
-              {t('recurring.pending.original-amount', { amount: originalAmount })}
+              {t('recurring.pending.original-amount', { amount: fullBillAmount })}
             </span>
             <input
               type="number"

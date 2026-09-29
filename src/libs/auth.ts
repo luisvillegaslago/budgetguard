@@ -260,9 +260,13 @@ interface CategoryRow {
 }
 
 async function assignOrphanedDataToUser(userId: number): Promise<void> {
-  const tables = ['Categories', 'Transactions', 'RecurringExpenses', 'TransactionGroups', 'Trips'];
-  await Promise.all(
-    tables.map((table) => query(`UPDATE "${table}" SET "UserID" = $1 WHERE "UserID" IS NULL`, [userId])),
+  // Referenced tables first: the foreign keys include "UserID", so a movement
+  // cannot take its owner before the category, group and trip it points at.
+  const tables = ['Categories', 'TransactionGroups', 'Trips', 'RecurringExpenses', 'Transactions'];
+  await tables.reduce<Promise<unknown>>(
+    (previous, table) =>
+      previous.then(() => query(`UPDATE "${table}" SET "UserID" = $1 WHERE "UserID" IS NULL`, [userId])),
+    Promise.resolve(),
   );
 }
 
@@ -393,10 +397,12 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
       const parentId = parentMap.get(parent);
       if (!parentId) return Promise.resolve();
 
+      // Each subcategory is written with its owner: "UserID" is NOT NULL, and the
+      // parent key includes it, so a row without one would be refused.
       const values = entries
         .map(
           (_, i) =>
-            `($${i * 7 + 1}, 'expense', $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`,
+            `($${i * 8 + 1}, 'expense', $${i * 8 + 2}, $${i * 8 + 3}, $${i * 8 + 4}, $${i * 8 + 5}, $${i * 8 + 6}, $${i * 8 + 7}, $${i * 8 + 8})`,
         )
         .join(', ');
 
@@ -408,18 +414,16 @@ async function seedCategoriesForUser(userId: number): Promise<void> {
         parentId,
         shared,
         casilla,
+        userId,
       ]);
 
       return query(
-        `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode")
+        `INSERT INTO "Categories" ("Name", "Type", "Icon", "Color", "SortOrder", "ParentCategoryID", "DefaultShared", "Modelo100CasillaCode", "UserID")
          VALUES ${values}`,
         params,
       );
     }),
   );
-
-  // Set UserID on all seeded subcategories (they inherit from parent lookup)
-  await query(`UPDATE "Categories" SET "UserID" = $1 WHERE "UserID" IS NULL`, [userId]);
 }
 
 // ============================================================

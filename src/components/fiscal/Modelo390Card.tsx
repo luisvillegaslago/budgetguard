@@ -92,9 +92,9 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
           </span>
           {/* 97 and 662 are filled separately, and the AEAT cross-checks 97 against the 4T 303.
               Each is gated on ITSELF, never on the sign of the annual result: getModelo390Summary
-              computes both as max(0, -quarterResult) per quarter, so a year that closes a ingresar
-              can still carry a fourth quarter a compensar — and hiding casilla 97 there loses the
-              one box AEAT reconciles against the 4T 303. */}
+              computes both from the quotas still pending per quarter, so a year that closes a
+              ingresar can still carry a fourth quarter a compensar — and hiding casilla 97 there
+              loses the one box AEAT reconciles against the 4T 303. */}
           {(data.casilla97Cents > 0 || data.casilla662Cents > 0) && (
             <div className="text-xs mt-0.5 text-guard-success/70 space-y-0.5">
               {data.casilla97Cents > 0 && (
@@ -116,6 +116,14 @@ export function Modelo390Card({ data }: Modelo390CardProps) {
           )}
         </div>
       </div>
+
+      {/* Both figures assume the 4T 303 carried the balance forward. The app recommends asking for
+          the refund there when the pool is stranded, and a refund moves the whole balance to
+          casilla 98 with 97 and 662 at zero — but nothing stored says whether it was requested,
+          so the card says it instead of guessing. */}
+      {(data.casilla97Cents > 0 || data.casilla662Cents > 0) && (
+        <p className="text-xs text-guard-muted pt-2">{t('fiscal.modelo390.refund-caveat')}</p>
+      )}
 
       {/* Volume of Operations */}
       <div className="mt-4 pt-4 border-t border-border">

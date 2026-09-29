@@ -12,6 +12,7 @@ import {
   computeFiscalFields,
   getFiscalPeriod,
   isSameFiscalPeriod,
+  pendingVatQuotasByQuarterCents,
   rollVatPoolCents,
 } from '@/utils/fiscal';
 
@@ -441,6 +442,46 @@ describe('rollVatPoolCents', () => {
     // Pay first and the pool absorbs it; generate first and there is more to absorb with
     expect(rollVatPoolCents(0, [20_000, -50_000])).toBe(50_000);
     expect(rollVatPoolCents(0, [-50_000, 20_000])).toBe(30_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pendingVatQuotasByQuarterCents — casillas 97 / 662 of the Modelo 390
+// ---------------------------------------------------------------------------
+
+describe('pendingVatQuotasByQuarterCents', () => {
+  it('keeps every quota whole while no quarter settles against the pool', () => {
+    expect(pendingVatQuotasByQuarterCents(0, [-4_467, -3_663, -7_526, -16_867])).toEqual([4_467, 3_663, 7_526, 16_867]);
+  });
+
+  it('leaves only what a later quarter a ingresar did not consume', () => {
+    // 21,00 € to compensate in Q1, 10,50 € to pay in Q2: 10,50 € of the Q1 quota is still pending
+    expect(pendingVatQuotasByQuarterCents(0, [-2_100, 1_050, 0, 0])).toEqual([1_050, 0, 0, 0]);
+  });
+
+  it('settles against the balance carried into the year before any quota of the year', () => {
+    // 10,00 € carried in absorbs the first 10,00 € of Q2; only the other 0,50 € reaches Q1
+    expect(pendingVatQuotasByQuarterCents(1_000, [-2_100, 1_050, 0, 0])).toEqual([2_050, 0, 0, 0]);
+  });
+
+  it('consumes the oldest quota of the year first', () => {
+    expect(pendingVatQuotasByQuarterCents(0, [-1_000, -2_000, 1_500, 0])).toEqual([0, 1_500, 0, 0]);
+  });
+
+  it('never leaves a negative quota when a quarter pays more than the whole pool', () => {
+    expect(pendingVatQuotasByQuarterCents(500, [-1_000, 30_000, 0, 0])).toEqual([0, 0, 0, 0]);
+  });
+
+  it('ignores a negative opening balance, as the pool does', () => {
+    expect(pendingVatQuotasByQuarterCents(-5_000, [-1_000, 500])).toEqual([500, 0]);
+  });
+
+  it('adds up to the pool the year generated and still holds', () => {
+    const results = [-2_100, 1_050, -700, 300];
+
+    const pending = pendingVatQuotasByQuarterCents(0, results);
+
+    expect(pending.reduce((sum, cents) => sum + cents, 0)).toBe(rollVatPoolCents(0, results));
   });
 });
 

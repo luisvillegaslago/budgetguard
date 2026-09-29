@@ -13,7 +13,7 @@ import { ModalBackdrop } from '@/components/ui/ModalBackdrop';
 import { API_ERROR, FISCAL_DOCUMENT_TYPE, FISCAL_STATUS, OCR_ERROR_CODE } from '@/constants/finance';
 import { useDeleteFiscalDocument, useExtractDocument, useUploadFiscalDocument } from '@/hooks/useFiscalDocuments';
 import { useTranslate } from '@/hooks/useTranslations';
-import type { ExtractedInvoiceData } from '@/types/finance';
+import type { ExtractedInvoiceData, ExtractionAutoMatch } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 
 type UploadStep = 'idle' | 'uploading' | 'analyzing' | 'done';
@@ -33,6 +33,7 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
   const [extractionData, setExtractionData] = useState<{
     documentId: number;
     data: ExtractedInvoiceData;
+    autoMatch: ExtractionAutoMatch;
   } | null>(null);
   const uploadMutation = useUploadFiscalDocument(year);
   const extractMutation = useExtractDocument();
@@ -80,7 +81,7 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
         try {
           const extracted = await extractMutation.mutateAsync({ documentId: uploaded.documentId, locale });
           setStep('done');
-          setExtractionData({ documentId: uploaded.documentId, data: extracted });
+          setExtractionData({ documentId: uploaded.documentId, data: extracted.data, autoMatch: extracted.meta });
           return;
         } catch (ocrErr) {
           setStep('idle');
@@ -110,6 +111,7 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
       <FiscalExtractionConfirm
         documentId={extractionData.documentId}
         extractedData={extractionData.data}
+        autoMatch={extractionData.autoMatch}
         onClose={onClose}
         onSuccess={onClose}
       />
@@ -260,6 +262,8 @@ export function FiscalDocumentUpload({ year, onClose }: FiscalDocumentUploadProp
                       description: null,
                       confidence: 0,
                     },
+                    // The OCR failed, so nothing was auto-linked
+                    autoMatch: {},
                   });
                 }}
                 className={cn(

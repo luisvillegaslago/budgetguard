@@ -10,7 +10,9 @@ import type { LinkTransactionInput } from '@/schemas/fiscal-document';
 import type {
   ApiResponse,
   DetectedModeloData,
+  DocumentExtractionResult,
   ExtractedInvoiceData,
+  ExtractionAutoMatch,
   FiscalDocument,
   Transaction,
 } from '@/types/finance';
@@ -219,7 +221,9 @@ export function useDeleteFiscalDocument(_year: number) {
 // ============================================================
 
 /**
- * Trigger OCR extraction for a fiscal document
+ * Trigger OCR extraction for a fiscal document.
+ * Returns the `meta` too: when the extract auto-linked an existing movement, the confirmation step
+ * has to show that link, or its create button books the same invoice a second time.
  */
 export function useExtractDocument() {
   const queryClient = useQueryClient();
@@ -231,7 +235,7 @@ export function useExtractDocument() {
     }: {
       documentId: number;
       locale: string;
-    }): Promise<ExtractedInvoiceData> => {
+    }): Promise<DocumentExtractionResult> => {
       const response = await fetchApi(
         `${API_ENDPOINT.FISCAL_DOCUMENTS}/${documentId}/extract?locale=${encodeURIComponent(locale)}`,
         { method: 'POST' },
@@ -242,9 +246,9 @@ export function useExtractDocument() {
         throw new Error(extractApiErrorKey(err as ApiResponse<never>, API_ERROR.FISCAL.EXTRACTION_FAILED));
       }
 
-      const data: ApiResponse<ExtractedInvoiceData> = await response.json();
-      if (!data.success || !data.data) throw new Error(data.error ?? 'extraction_failed');
-      return data.data;
+      const result: ApiResponse<ExtractedInvoiceData> & { meta?: ExtractionAutoMatch } = await response.json();
+      if (!result.success || !result.data) throw new Error(result.error ?? 'extraction_failed');
+      return { data: result.data, meta: result.meta ?? {} };
     },
     onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS]),
   });

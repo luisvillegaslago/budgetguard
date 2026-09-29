@@ -39,6 +39,19 @@ export interface EndpointProgress {
   totalWindows: number;
   completedWindows: number;
   lastWindowEnd: string | null;
+  // Tasks that failed in a way a new sync would repeat; absent when none did.
+  permanentFailures?: TaskFailureSummary[];
+  // Tasks that stored part of their data; the next incremental sync continues
+  // them. Absent when none did.
+  resumableFailures?: TaskFailureSummary[];
+  // Events dropped as already stored by a CSV import; absent when none were.
+  duplicatesSkipped?: number;
+}
+
+export interface TaskFailureSummary {
+  code: string; // a CRYPTO_SYNC_TASK_FAILURE value
+  count: number;
+  symbols: string[]; // spot pairs affected; empty for windowed endpoints
 }
 
 export interface SyncJob extends SyncJobSummary {

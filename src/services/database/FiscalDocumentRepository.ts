@@ -82,10 +82,13 @@ const DISPLAY_NAME_SQL = `
     fd."FileName"
   ) AS "DisplayName"`;
 
-/** Shared FROM + JOIN clause */
+/**
+ * Shared FROM + JOIN clause. The join also requires the company to be the document owner's. Since
+ * migration 008 the foreign key enforces the same, so the predicate only restates it on the read side.
+ */
 const FISCAL_DOC_FROM = `
   FROM "FiscalDocuments" fd
-  LEFT JOIN "Companies" c ON fd."CompanyID" = c."CompanyID"`;
+  LEFT JOIN "Companies" c ON fd."CompanyID" = c."CompanyID" AND c."UserID" = fd."UserID"`;
 
 // ============================================================
 // Transformers
@@ -223,7 +226,7 @@ export async function createDocument(input: CreateDocumentInput): Promise<Fiscal
     SELECT ${FISCAL_DOC_COLUMNS.replace(/fd\./g, 'inserted.')},
            ${DISPLAY_NAME_SQL.replace(/fd\./g, 'inserted.')}
     FROM inserted
-    LEFT JOIN "Companies" c ON inserted."CompanyID" = c."CompanyID"`,
+    LEFT JOIN "Companies" c ON inserted."CompanyID" = c."CompanyID" AND c."UserID" = inserted."UserID"`,
     [
       userId,
       input.documentType,
@@ -295,7 +298,7 @@ export async function bulkCreateDocuments(inputs: CreateDocumentInput[]): Promis
     SELECT ${FISCAL_DOC_COLUMNS.replace(/fd\./g, 'inserted.')},
            ${DISPLAY_NAME_SQL.replace(/fd\./g, 'inserted.')}
     FROM inserted
-    LEFT JOIN "Companies" c ON inserted."CompanyID" = c."CompanyID"`,
+    LEFT JOIN "Companies" c ON inserted."CompanyID" = c."CompanyID" AND c."UserID" = inserted."UserID"`,
     params,
   );
 
@@ -359,15 +362,17 @@ export async function updateDocumentAfterLink(
 }
 
 /**
- * Link a transaction to a fiscal document
+ * Link a transaction to a fiscal document.
+ * Clears any group link: the transaction becomes the document's one movement, so a group left from
+ * a rejected auto-match would otherwise keep claiming the same invoice.
  */
 export async function linkTransaction(id: number, transactionId: number): Promise<void> {
   const userId = await getUserIdOrThrow();
-  await query('UPDATE "FiscalDocuments" SET "TransactionID" = $1 WHERE "DocumentID" = $2 AND "UserID" = $3', [
-    transactionId,
-    id,
-    userId,
-  ]);
+  await query(
+    `UPDATE "FiscalDocuments" SET "TransactionID" = $1, "TransactionGroupID" = NULL
+     WHERE "DocumentID" = $2 AND "UserID" = $3`,
+    [transactionId, id, userId],
+  );
 }
 
 /**

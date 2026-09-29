@@ -559,7 +559,18 @@ The one that is not is the *a compensar* split:
 - **Casilla 97** carries **only the last period's own result** — the form is explicit: "si el
   resultado de la autoliquidación del último periodo es a compensar". This is the figure AEAT
   reconciles against the 4T 303.
-- **Casilla 662** carries the amounts generated in the *other* quarters.
+- **Casilla 662** carries the amounts generated in the *other* quarters **that are still pending at
+  year end**, not their gross sum. A quarter *a ingresar* consumes the balance to compensate in
+  order: the opening balance first, then Q1, Q2 and so on (the expiry order of art. 99.Cinco LIVA).
+  Example: opening 0, Q1 −21,00 €, Q2 +10,50 € leaves 10,50 € pending, and 662 shows 10,50 €, not
+  21,00 €. That consumption order was inferred from the law and **not yet checked against the AEAT
+  instructions for the 390**; it only matters in a year that both generates and consumes a balance.
+- **If the refund was requested in the 4T 303** (which box of the 303 records it is still open:
+  FISCAL-MODELS-33), 97 and 662 are both 0 and the balance
+  goes to casilla 98. The app does not yet record whether the refund was requested, so
+  `Modelo390Card` shows a warning that 97/662 are only valid when it was not. Recording it (a flag
+  per user and year) is pending a decision, and must exist before the 2026 390 is filed in January
+  2027, because the `pool-claim-now` notice recommends requesting it.
 
 Putting the annual aggregate in 97 — which this code did — mismatches the 4T 303 by the whole of
 the rest of the year, and that mismatch is exactly what triggers a requerimiento.

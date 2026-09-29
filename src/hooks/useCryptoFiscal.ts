@@ -33,7 +33,11 @@ export interface Modelo100CryptoSummary {
   casilla1804N: BucketSummary;
   elements: Modelo100Element[];
   casilla0304Cents: number;
+  /** Airdrops summed at 0 € because their price was never resolved. */
+  casilla0304UnresolvedCount: number;
   casilla0033Cents: number;
+  /** Staking rewards summed at 0 € because their price was never resolved. */
+  casilla0033UnresolvedCount: number;
   incompleteCoverageCount: number;
   needsReviewCount: number;
   computedAt: string;

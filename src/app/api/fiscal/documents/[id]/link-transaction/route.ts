@@ -1,7 +1,11 @@
 /**
  * POST /api/fiscal/documents/[id]/link-transaction
- * Atomic operation: creates a transaction AND links it to the fiscal document.
- * Updates the document's TaxAmountCents with the confirmed amount.
+ * Creates a transaction and links it to the fiscal document, then updates the document's
+ * TaxAmountCents with the confirmed amount.
+ *
+ * A document that is already linked (the OCR extract auto-links on a match) answers 409 unless the
+ * body carries replaceExistingLink: creating on top of a correct match books the same invoice twice
+ * in the 303/130, while a wrong match still has to be replaceable.
  */
 
 import { API_ERROR, SHARED_EXPENSE, VAT_DEDUCTION_INHERITS_IRPF } from '@/constants/finance';
@@ -14,7 +18,7 @@ import {
   updateDocumentAfterLink,
 } from '@/services/database/FiscalDocumentRepository';
 import { createTransaction } from '@/services/database/TransactionRepository';
-import { notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
+import { conflict, notFound, parseIdParam, validationError, withApiHandler } from '@/utils/apiHandler';
 
 export const POST = withApiHandler(async (request, { params }) => {
   const { id } = await params;
@@ -30,13 +34,20 @@ export const POST = withApiHandler(async (request, { params }) => {
   if (!validation.success) return validationError(validation.errors);
 
   const data = validation.data;
+
+  const isAlreadyLinked = document.transactionId != null || document.transactionGroupId != null;
+  if (isAlreadyLinked && data.replaceExistingLink !== true) {
+    return conflict(API_ERROR.CONFLICT.DOCUMENT_ALREADY_LINKED);
+  }
+
   const isShared = data.isShared ?? false;
   const sharedDivisor = isShared ? SHARED_EXPENSE.DIVISOR : SHARED_EXPENSE.DEFAULT_DIVISOR;
 
   // amountCents is the full invoice amount — divide for shared expenses (same as POST /api/transactions)
   const effectiveAmount = isShared ? Math.ceil(data.amountCents / sharedDivisor) : data.amountCents;
 
-  // Create transaction
+  // createTransaction checks that categoryId and companyId are the caller's own before inserting,
+  // which also covers the companyId written onto the document below.
   const transaction = await createTransaction({
     categoryId: data.categoryId,
     amountCents: effectiveAmount,

@@ -70,6 +70,74 @@ on filename, for exports that carry a preamble before the header.
 
 Each row is stamped with `Source`, so a mixed history stays attributable per exchange.
 
+**Binance CSV: pairing the spot rows of one second.** A spot fill arrives as two or three rows with
+the same timestamp (coin bought, coin given, optional fee), and one second can hold several fills
+across several coin pairs. No row says which row it traded against; the only hard rule is that a
+fill never has the same coin on both sides. `pairSpotFills` (`binance/CsvImporter.ts`) takes the
+pairing that keeps the most rows and, among those, the one where each bought row in file order
+holds the earliest given row that still allows it, since Binance lists a trade's rows in the same
+order on both sides. Simply taking the first free row of another coin strands rows: ETH bought
+with BTC and BTC bought with USDT, listed USDT first, pairs ETH with USDT and leaves both BTC rows
+out, so that BTC purchase never reaches FIFO. Whenever first-free pairing does keep every row it
+can, it is exactly the pairing chosen, so the rule changes nothing for those groups. The search is
+exhaustive up to 8 rows per side; above that first-free pairing is used as it is (measured
+29-sep-2026: at most ~63,000 search states over 15,000 random 8 + 8 groups, seconds at 12 + 12).
+A single coin pair with unequal row counts is summed into one fill instead.
+
+A tie is still a guess: ETH and SOL bought against BTC and USDT in one second pair either way with
+every row used, and only row order decides.
+
+**Re-importing a Binance CSV that is already stored.** Imports made before 29-sep-2026 kept one
+spot event per second: the first bought row with the first given row, whatever their coins. A
+second's first fill keeps that ExternalID as long as it still pairs those two rows, so a re-import
+only adds the later fills (`-1`, `-2`…). Where the first bought row now pairs with another row, or
+with none —
+the ETH example above, or a stored event that paired a coin with itself — the stored event was
+wrong and the corrected fills arrive under new ids beside it, since `ON CONFLICT DO NOTHING` keeps
+the old one: the bought coin counts twice. The wrong ones are the stored `csv-spot-…` events at a
+second that the new import does not produce. Delete those `CryptoRawEvents` rows first (the cascade
+takes their `TaxableEvents` and `CryptoDisposals`), then re-import, normalise and recompute FIFO.
+A single coin pair with unequal row counts is the opposite trap: the summed fill keeps the old id,
+so the stored partial quantity survives the re-import unless its row is deleted too.
+
+**Cross-source dedup.** One operation can reach `CryptoRawEvents` under two ExternalIDs: from a CSV
+and from the API, or from two overlapping CSV exports (a Binance spot fill's id depends on its
+position inside its second, so an export that lists a second's fills in another order gives them
+new ids). Both paths run their events through `dropCrossSourceDuplicates`
+(`CryptoRawEventsRepository.ts`) before the insert, against an index of everything the user has
+stored, loaded once per CSV upload or sync job. An event matches a stored row on type (the reward
+types count as one), asset, side, time (exact second; same UTC day for deposit/withdraw) and amount
+(a withdrawal also by its gross); a spot fill also on second and market, filed under both coin
+orders because a CSV writes the acquired coin first.
+
+Matching is **one-to-one**: a stored row absorbs at most one event and is then used up. Until
+29-sep-2026 an event was dropped when any stored row matched, so two real API fills of one second,
+side and size were both dropped against the one a CSV held; and CSV events were not compared with
+stored CSV rows at all, so a reordered overlapping export stored its fills twice.
+
+- A CSV event may pair with any stored row; an API event with CSV rows only. Two alike API fills
+  are two trades with two ids, and the UNIQUE key already absorbs a re-fetch.
+- An event whose `EventType` + ExternalID is already stored claims that row before any amount is
+  compared, and is kept for `ON CONFLICT DO NOTHING` to absorb (the CSV upload reports it as
+  `eventsDuplicate`, not as cross-source). Otherwise a re-fetched API deposit could use up the CSV
+  row of another deposit of the same day and amount, and that other deposit would be stored twice.
+- An event met again in the same job (a later task returns the same id) gets the answer it got
+  the first time and uses up nothing.
+- A kept event is not added to the index: two alike events of one file are two fills.
+- An API reward that is stored under its earlier position-based id is dropped, and uses that row up.
+
+Only amounts are compared. When one second holds fills of equal size at different prices and only
+some of them are stored, which stored row stands for which new event is a guess: the count comes
+out right, but the fill kept may carry the other fill's price.
+
+The index is one scan of the user's rows per job. It reads each identity key as its own `->`
+column, which costs about half of `jsonb_each` or `jsonb_build_object` (measured on 100k spot
+payloads, local PostgreSQL 17, 29-sep-2026), plus every row's ExternalID for the claim above. A
+reward's full payload is sent only when its ExternalID is not in today's format
+(`CURRENT_REWARD_ID_PATTERN` in `rewardExternalId.ts`), since only those can be stored under an
+earlier id. Every reward stored before the deploy of 29-sep-2026 has a position-based id and is
+still sent; rewards stored since are not.
+
 ---
 
 ## Normalisation
@@ -153,6 +221,11 @@ and the year boundaries through these helpers.
 It also reports a **needs-review count**: disposals with an unresolved or zero price, a zero-cost
 lot, or a `transfer_in` FMV-proxy basis. Those are the rows a human should look at before filing.
 
+`casilla0304UnresolvedCount` and `casilla0033UnresolvedCount` count the airdrops and rewards whose
+price could not be resolved and that therefore add 0 € to their box. The section and the AEAT guide
+warn next to the box whenever either is above zero: a raw event is normalised once, so those rows are
+never valued again on their own.
+
 `GET /api/crypto/fiscal/export?year=YYYY` produces a CSV, one row per disposal, to keep alongside
 the Renta Web filing as inspection evidence.
 
@@ -188,12 +261,111 @@ rate-limit forensics. Append-only, pruned periodically.
   UI polls the existing one instead of starting a duplicate.
 - Cancellation is cooperative: the worker polls `isJobCancelled` between tasks.
 - `Progress` is a JSONB map `{ endpoint: { fetched, totalWindows, lastWindowEnd } }`, so the progress
-  bar never needs to count rows.
+  bar never needs to count rows. An endpoint whose fetched events the cross-source filter dropped as
+  already stored by a CSV also carries `duplicatesSkipped` (also in the `CRYPTO_SYNC_DEBUG` endpoint
+  line), so an event dropped by mistake leaves a trace instead of vanishing.
 - A successful sync auto-triggers normalisation; `POST /api/crypto/normalize` is the manual escape
   hatch and processes only un-normalised events.
 - `GET /api/cron/crypto-sync` runs weekly (Monday 05:00 UTC, see `vercel.json`), authenticated by
   `Authorization: Bearer ${CRON_SECRET}`. It runs without a session and skips users with a job
   already in flight.
+
+### How a failed task decides the job
+
+An incremental sync, manual or from the cron, starts at the last **completed** job's `FinishedAt`
+minus 24 h (`computeSyncScope`). So the job's final status is what decides whether a missed window
+is ever fetched again. A task that fails does not stop the others; `classifyTaskFailure`
+(`BinanceClient.ts`) sorts each failure into one of four kinds:
+
+| Kind | Failures | The job ends |
+|------|----------|--------------|
+| Fatal | `INVALID_SIGNATURE` | `failed` at once |
+| Transient | network errors, 5xx, 429/418 still limited after the retries, any Binance code not listed below, `task_failed`, `insert_failed`, `trade_without_id` (a `myTrades` fill with no numeric id: a malformed answer) | `failed`: the anchor stays, so the next run fetches the same windows again |
+| Resumable | `history_resumes_next_run`: a spot walk hit the page cap, stored at least one of its fills, and the next incremental sync continues after them | `completed`, with the gaps recorded |
+| Permanent | `history_truncated` (a spot walk hit the page cap and no run will continue it: it stopped below fills already stored, or a CSV already held every fill it walked, see below); `endpoint_not_permitted` (Binance `-2015` on a task) | `completed`, with the gaps recorded |
+
+**Why permanent and resumable failures complete the job.** A failure the next run would repeat
+identically kept the job `failed` forever, the anchor never moved, and every weekly run re-fetched
+a growing window only to fail again. A resumable one does not need the anchor either: the spot walk
+resumes from the stored trade ids. A job whose only failures are of these two kinds completes with
+`ErrorCode = completed_with_gaps`, the failure summary in `ErrorMessage`, and a
+`permanentFailures` or `resumableFailures` list (`[{ code, count, symbols }]`) in that endpoint's
+`Progress` entry. The sync panel shows the permanent gaps as a warning naming the spot pairs and
+endpoints to import by CSV, and the resumable ones under their own heading, saying the next
+incremental sync keeps fetching them. A job with **any** transient failure still ends `failed` and
+lists every failure; the permanent and resumable ones also go to `Progress` so the panel says
+which ones a retry will not fill and which ones the next sync continues.
+
+**Why `-2015` counts, and nothing else does.** The Binance SDK documents `-2015` in its own error
+enum as *"Invalid API-key, IP, or permissions for action."* The key and IP causes are ruled out by
+context, not by the code: spot discovery calls `GET /api/v3/account` with the same key before any
+task runs, and a job with `-2015` failures asks it again at the end (`isKeyAccepted`). If that
+second call fails, the key may have been revoked or the IP whitelist changed mid-job, and the
+`-2015` failures count as transient. The HTTP status cannot help: the SDK rethrows Binance errors
+as `{ code, message, body }` with no status, so only the Binance code in the body tells them apart.
+Codes Binance may use for "not available for this account" that neither the SDK nor this code
+documents are left transient on purpose. The failure summary carries each Binance code
+(`deposit/api-error.crypto.exchange-unavailable (binance -1000) ×3`), so a new permanent one can be added from evidence.
+
+### Spot trades resume from the newest stored fill
+
+`myTrades` pages by trade id (`fromId`), not by time. Walking a busy pair from `fromId = 0` on
+every run hit the 100-page cap (`history_truncated`) on every incremental run, even for a week of
+new fills. An incremental sync now reads, in **one query per job** (`loadLastApiTradeIds`), the
+highest trade id stored per symbol **by the API**. It excludes CSV rows (`csvSource`): their
+payload has no Binance trade id, and an id from another sequence would make the walk skip real
+fills. Each pair with a stored id walks forward from that id + 1 until a short page or the page
+that passes `scopeTo`. Every fill after the stored one is kept, even one older than `scopeFrom`: it
+was never stored, and dropping it would leave a hole the next run starts after. A pair with no
+stored id keeps the recent-page strategy described in `fetchSpotTrades`.
+
+A **full** sync always walks from `fromId = 0`: it is how a hole below the newest stored fill gets
+filled.
+
+**A walk that reaches the page cap stores what it walked.** It used to throw the pages away, and
+since CSV rows never move the resume point, the pair walked the same pages into the same cap on
+every run, for good. The walk now fails with `SpotHistoryTruncatedError`, which carries every fill
+it walked: all of the pair's fills from the walk's start id to its last page, in id order and with
+no hole, since each page starts right after the newest fill of the one before. Fills older than
+`scopeFrom` are kept, as in the resume above: a prefix cut at `scopeFrom` could be empty and leave
+the pair stuck. The recent page that a walk from `fromId = 0` starts from is left out: storing it
+would move the resume point past the fills in between. The sync stores the walked fills through the
+same cross-source filter and insert as any other events, and the pair's next incremental run
+resumes after the newest of them, 100 pages further on each run (`history_resumes_next_run`).
+
+That is only true when the walk reaches the fills already stored. A full sync walks from
+`fromId = 0` and can stop below fills an earlier run stored, such as the newest page every API sync
+stored before 2026-09-29 (next paragraph). The next incremental run then resumes above those, and
+no run fetches the fills in between, so `confirmResumableWalk` (`BinanceSyncService.ts`) reports
+that gap as permanent `history_truncated`, to be imported by CSV. The walked fills are stored
+either way.
+
+It is also only true when the walk stored something. The resume point is the newest fill stored
+**by the API**, and the walked fills go through the cross-source filter first: when a CSV import
+already holds every one of them, nothing is inserted, the resume point does not move, and each run
+walks the same 100 pages into the same cap. So the gap is resumable only if the task inserted at
+least one fill, and permanent `history_truncated` otherwise; the fills after those 100 pages have
+to come from a CSV. A failed insert keeps it resumable: that failure is transient, fails the job,
+and the next run stores the same fills.
+
+**One full sync per user is required after the deploy of 2026-09-29.** Until then `fetchSpotTrades`
+stepped back with `fromId = oldestId - 1000`, which lands inside the same recent page, so every
+earlier API sync stored at most the newest ~1000 fills per pair. Incremental syncs, the cron
+included, now resume after the highest stored id and will never revisit what lies below it; only a
+full sync does. Run it once, then recompute FIFO.
+
+Every pair with stored API fills is also a spot candidate in **both** modes, on top of the three
+discovery sources. Once a coin is sold off it has no balance, no reward or transfer and may not be
+in the top-40 fallback, so without this its later fills, the sale among them, were never fetched.
+
+### A CSV upload is never the incremental anchor
+
+A CSV upload creates a completed `CryptoSyncJobs` row for the same exchange so it shows in the
+history, stamped with the `csv-import` progress key (`CRYPTO_CSV_IMPORT_PROGRESS_KEY`). The
+anchor lookup (`getLastCompletedJobForUser`, used by the manual sync and the cron) skips those
+rows: a CSV only covers what its file holds, and anchoring on it made the next API sync skip every
+window between the previous API sync and the upload. An account that only ever uploaded CSVs has
+no anchor, so its first API sync starts from the default scope.
 
 ---
 
@@ -254,6 +426,7 @@ correction to a 2021 acquisition changes every disposal after it.
 | Fiscal years resolve in Europe/Madrid | UTC files December 31st events in the wrong year |
 | Review flags come from the FIFO pass | SQL re-derivation means float comparisons and drift |
 | Credentials are read-only and encrypted per-row with a fresh IV | A trading-capable key in the database is a liability, and IV reuse breaks GCM |
+| A sync job completes only if every task failure is permanent | Incremental syncs anchor on the last completed job: completing over a transient failure skips its windows for good, and failing over a permanent one freezes the anchor for good |
 
 ---
 

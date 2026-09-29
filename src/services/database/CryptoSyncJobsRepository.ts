@@ -7,6 +7,7 @@
  */
 
 import {
+  CRYPTO_CSV_IMPORT_PROGRESS_KEY,
   CRYPTO_SYNC_STATUS,
   type CryptoExchange,
   type CryptoSyncMode,
@@ -38,6 +39,28 @@ export interface EndpointProgress {
   totalWindows: number;
   completedWindows: number;
   lastWindowEnd: string | null;
+  // Tasks of this endpoint that failed in a way the next run would repeat.
+  // Absent when there were none.
+  permanentFailures?: TaskFailureSummary[];
+  // Tasks that stored part of their data and that the next incremental sync
+  // continues. Absent when there were none.
+  resumableFailures?: TaskFailureSummary[];
+  // Fetched events dropped because a CSV import already stored the same
+  // operation. Recorded so a wrongly dropped event is not silent. Absent when
+  // there were none.
+  duplicatesSkipped?: number;
+}
+
+export interface TaskFailureSummary {
+  code: string; // a CRYPTO_SYNC_TASK_FAILURE value
+  count: number; // tasks (windows, or spot pairs) that ended with it
+  symbols: string[]; // spot pairs affected; empty for windowed endpoints
+}
+
+/** Why a completed job still carries an ErrorCode/ErrorMessage. */
+export interface JobCompletionWarning {
+  code: string;
+  message: string;
 }
 
 export interface CryptoSyncJob {
@@ -130,12 +153,18 @@ export async function updateJobProgress(
   );
 }
 
-export async function markJobCompleted(jobId: number): Promise<void> {
+/**
+ * `warning` records gaps a completed job left behind (see
+ * CRYPTO_SYNC_COMPLETED_WITH_GAPS). The status stays 'completed' so the next
+ * incremental sync anchors on this job.
+ */
+export async function markJobCompleted(jobId: number, warning: JobCompletionWarning | null = null): Promise<void> {
   await query(
     `UPDATE "CryptoSyncJobs"
-     SET "Status" = 'completed', "FinishedAt" = CURRENT_TIMESTAMP
+     SET "Status" = 'completed', "FinishedAt" = CURRENT_TIMESTAMP,
+         "ErrorCode" = $2, "ErrorMessage" = $3
      WHERE "JobID" = $1`,
-    [jobId],
+    [jobId, warning?.code ?? null, warning?.message ?? null],
   );
 }
 
@@ -236,7 +265,11 @@ export async function findActiveJob(exchange: CryptoExchange): Promise<CryptoSyn
 }
 
 /**
- * Last successfully completed sync for incremental scope calculation.
+ * Last successfully completed API sync, the anchor of an incremental sync.
+ *
+ * CSV uploads also create a completed job for the same exchange, but they only
+ * cover what their file holds: anchoring on one would make the next API sync
+ * skip every window between the previous API sync and the upload.
  */
 export async function getLastCompletedJob(exchange: CryptoExchange): Promise<CryptoSyncJob | null> {
   const userId = await getUserIdOrThrow();
@@ -250,9 +283,10 @@ export async function getLastCompletedJobForUser(
   const rows = await query<SyncJobRow>(
     `SELECT ${COLUMNS} FROM "CryptoSyncJobs"
      WHERE "UserID" = $1 AND "Exchange" = $2 AND "Status" = '${CRYPTO_SYNC_STATUS.COMPLETED}'
+       AND NOT ("Progress" ? $3)
      ORDER BY "FinishedAt" DESC
      LIMIT 1`,
-    [userId, exchange],
+    [userId, exchange, CRYPTO_CSV_IMPORT_PROGRESS_KEY],
   );
   return rows[0] ? rowToJob(rows[0]) : null;
 }

@@ -12,20 +12,22 @@
  */
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, CheckCircle2, Loader2, RefreshCw, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertTriangle, Ban, CheckCircle2, Loader2, RefreshCw, XCircle } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Select } from '@/components/ui/Select';
 import {
   CRYPTO_EXCHANGE,
   CRYPTO_SYNC_MODE,
   CRYPTO_SYNC_STATUS,
+  CRYPTO_SYNC_TASK_FAILURE,
   type CryptoEventType,
   QUERY_KEY,
 } from '@/constants/finance';
 import {
   type EndpointProgress,
   type SyncJob,
+  type TaskFailureSummary,
   useCancelCryptoSync,
   useCryptoSyncJob,
   useLatestCryptoSyncJob,
@@ -212,14 +214,29 @@ export function CryptoSyncPanel() {
 function JobStatus({ job }: { job: SyncJob }) {
   const { t, locale } = useTranslate();
 
+  // A completed job can still carry gaps: some no new sync will fill, some the
+  // next incremental sync continues. It completed so that sync moves on, and
+  // the gaps are shown as a warning.
+  const gaps = collectSyncGaps(job.progress, (endpoint) => endpoint.permanentFailures);
+  const resumableGaps = collectSyncGaps(job.progress, (endpoint) => endpoint.resumableFailures);
+  const isCompleted = job.status === CRYPTO_SYNC_STATUS.COMPLETED;
+  const completedWithGaps = isCompleted && (gaps.length > 0 || resumableGaps.length > 0);
+  // The raw summary of a completed job, shown once under the last gap list.
+  // A failed job already shows it in its failure box.
+  const gapDetails = isCompleted ? job.errorMessage : null;
+
   const statusKey = `crypto.sync.status.${job.status}` as const;
-  const statusIcon = {
-    [CRYPTO_SYNC_STATUS.PENDING]: <Loader2 className="h-4 w-4 animate-spin text-guard-muted" aria-hidden="true" />,
-    [CRYPTO_SYNC_STATUS.RUNNING]: <Loader2 className="h-4 w-4 animate-spin text-guard-primary" aria-hidden="true" />,
-    [CRYPTO_SYNC_STATUS.COMPLETED]: <CheckCircle2 className="h-4 w-4 text-guard-success" aria-hidden="true" />,
-    [CRYPTO_SYNC_STATUS.FAILED]: <XCircle className="h-4 w-4 text-guard-danger" aria-hidden="true" />,
-    [CRYPTO_SYNC_STATUS.CANCELLED]: <Ban className="h-4 w-4 text-guard-muted" aria-hidden="true" />,
-  }[job.status];
+  const statusIcon = completedWithGaps ? (
+    <AlertTriangle className="h-4 w-4 text-guard-warning" aria-hidden="true" />
+  ) : (
+    {
+      [CRYPTO_SYNC_STATUS.PENDING]: <Loader2 className="h-4 w-4 animate-spin text-guard-muted" aria-hidden="true" />,
+      [CRYPTO_SYNC_STATUS.RUNNING]: <Loader2 className="h-4 w-4 animate-spin text-guard-primary" aria-hidden="true" />,
+      [CRYPTO_SYNC_STATUS.COMPLETED]: <CheckCircle2 className="h-4 w-4 text-guard-success" aria-hidden="true" />,
+      [CRYPTO_SYNC_STATUS.FAILED]: <XCircle className="h-4 w-4 text-guard-danger" aria-hidden="true" />,
+      [CRYPTO_SYNC_STATUS.CANCELLED]: <Ban className="h-4 w-4 text-guard-muted" aria-hidden="true" />,
+    }[job.status]
+  );
 
   const totalWindows = Object.values(job.progress).reduce((sum, p) => sum + p.totalWindows, 0);
   const completedWindows = Object.values(job.progress).reduce((sum, p) => sum + p.completedWindows, 0);
@@ -235,7 +252,9 @@ function JobStatus({ job }: { job: SyncJob }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm">
         {statusIcon}
-        <span className="font-medium text-foreground">{t(statusKey)}</span>
+        <span className="font-medium text-foreground">
+          {completedWithGaps ? t('crypto.sync.status.completed-with-gaps') : t(statusKey)}
+        </span>
         <span className="text-guard-muted">
           — {job.eventsIngested} {t('crypto.sync.events-ingested')}
         </span>
@@ -273,7 +292,7 @@ function JobStatus({ job }: { job: SyncJob }) {
         </details>
       )}
 
-      {(job.errorCode || job.errorMessage) && (
+      {!isCompleted && (job.errorCode || job.errorMessage) && (
         <div className="rounded-lg border border-guard-danger/30 bg-guard-danger/10 p-3 text-xs text-guard-danger space-y-2">
           <p>{translateErrorCode(job.errorCode, t)}</p>
           {job.errorMessage && job.errorMessage !== job.errorCode && (
@@ -283,6 +302,18 @@ function JobStatus({ job }: { job: SyncJob }) {
             </details>
           )}
         </div>
+      )}
+
+      {gaps.length > 0 && (
+        <SyncGapsWarning
+          title={t('crypto.sync.gaps.title')}
+          gaps={gaps}
+          details={resumableGaps.length > 0 ? null : gapDetails}
+        />
+      )}
+
+      {resumableGaps.length > 0 && (
+        <SyncGapsWarning title={t('crypto.sync.gaps.resumable-title')} gaps={resumableGaps} details={gapDetails} />
       )}
 
       {job.finishedAt && (
@@ -308,6 +339,69 @@ function translateErrorCode(code: string | null, t: (key: string) => string): st
   // useTranslate returns the key itself when no entry matches; treat that as
   // a missing translation and fall back to the raw code.
   return translated === code ? code : translated;
+}
+
+// Translation of each permanent or resumable task failure the sync records
+// (see classifyTaskFailure). An unknown code is shown raw. Transient codes are
+// never listed as gaps: the job fails and its failure box shows them.
+const SYNC_GAP_REASON_KEY: Record<string, string> = {
+  [CRYPTO_SYNC_TASK_FAILURE.HISTORY_TRUNCATED]: 'crypto.sync.gaps.history-truncated',
+  [CRYPTO_SYNC_TASK_FAILURE.HISTORY_RESUMES_NEXT_RUN]: 'crypto.sync.gaps.history-resumes-next-run',
+  [CRYPTO_SYNC_TASK_FAILURE.ENDPOINT_NOT_PERMITTED]: 'crypto.sync.gaps.endpoint-not-permitted',
+};
+
+interface SyncGap extends TaskFailureSummary {
+  eventType: string;
+}
+
+function collectSyncGaps(
+  progress: SyncJob['progress'],
+  failuresOf: (endpoint: EndpointProgress) => TaskFailureSummary[] | undefined,
+): SyncGap[] {
+  return Object.entries(progress).flatMap(([eventType, endpoint]) =>
+    (failuresOf(endpoint) ?? []).map((failure) => ({ ...failure, eventType })),
+  );
+}
+
+/**
+ * Data this job did not bring, per endpoint and, for spot trades, per pair.
+ * One list for what a new sync will not bring either, so the user knows what
+ * to import by CSV, and one for what the next incremental sync continues.
+ * `details` is the job's raw summary, shown only when no failure box or other
+ * list already shows it.
+ */
+function SyncGapsWarning({ title, gaps, details }: { title: string; gaps: SyncGap[]; details: string | null }) {
+  const { t } = useTranslate();
+  const titleId = useId();
+
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="rounded-lg border border-guard-warning/30 bg-guard-warning/10 p-3 text-xs text-guard-warning space-y-2"
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+        <p id={titleId}>{title}</p>
+      </div>
+      <ul className="list-disc space-y-1 pl-10">
+        {gaps.map((gap) => {
+          const reasonKey = SYNC_GAP_REASON_KEY[gap.code];
+          return (
+            <li key={`${gap.eventType}-${gap.code}`}>
+              <span className="font-mono">{gap.eventType}</span>
+              {gap.symbols.length > 0 && ` (${gap.symbols.join(', ')})`}: {reasonKey ? t(reasonKey) : gap.code}
+            </li>
+          );
+        })}
+      </ul>
+      {details && (
+        <details className="text-[11px] opacity-80">
+          <summary className="cursor-pointer">{t('crypto.sync.error-details')}</summary>
+          <p className="mt-1 font-mono whitespace-pre-wrap">{details}</p>
+        </details>
+      )}
+    </section>
+  );
 }
 
 function EndpointRow({ eventType, progress }: { eventType: CryptoEventType; progress: EndpointProgress }) {

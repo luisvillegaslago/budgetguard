@@ -592,12 +592,12 @@
       "confirm-all-month": "Confirm all for {month}",
       "confirm-all": "Confirm all ({count})",
       "modify": "Modify amount",
-      "modified-amount": "New amount (€)",
+      "modified-amount": "New full amount (€)",
       "processing": "Processing...",
       "error": "Error processing occurrence",
       "amount-placeholder": "Amount",
       "confirm-all-short": "Confirm all",
-      "original-amount": "Original amount: {amount}",
+      "original-amount": "Full amount: {amount}",
       "title-count": "Pending recurring expenses ({count})",
       "toast": {
         "confirmed": "Expense recorded",
@@ -931,7 +931,8 @@
       "casilla97": "To compensate (Q4)",
       "casilla110": "Operations not subject by localization rules",
       "casilla108": "Total volume of operations",
-      "casilla662": "Generated in the other quarters"
+      "casilla662": "Still pending from the other quarters",
+      "refund-caveat": "Boxes 97 and 662 only hold if you did not request the refund in the Q4 Form 303. If you did, both are 0 and the balance is declared in box 98."
     },
     "modelo100": {
       "title": "Modelo 100 — Annual Income Tax",
@@ -1399,6 +1400,13 @@
       "matched-vendor": "Matched",
       "add-vendor": "Add",
       "create-transaction": "Create Transaction",
+      "auto-match": {
+        "title": "This invoice is already linked to a transaction",
+        "hint": "It was linked automatically because the amount and date match. Check that it is the same expense before continuing.",
+        "keep": "Keep link",
+        "create-new": "Not this one, create a new one",
+        "replacing": "The invoice will be linked to the new transaction. The previous one is not deleted."
+      },
       "errors": {
         "category-required": "Please select a category",
         "extraction-failed": "Could not analyze the document. You can enter the data manually.",
@@ -1778,6 +1786,7 @@
       "export-csv-hint": "Download the disposals detail for the year as an audit trail for AEAT.",
       "incomplete-warning": "{count} disposals couldn't be fully covered by historical lots. Check the Events tab for any missing sync.",
       "needs-review-warning": "{count} disposals have values to review: an unresolved transmission price (€0), or a cost basis taken from a lot with no price or from a transfer-in valued at market. Verify them before filing.",
+      "unresolved-income-warning": "{count} receipts have no market price and were added as €0: the amount may be understated. Check their value on the day you received them before filing.",
       "row-count": "{count} disposals",
       "elements-title": "Per-coin breakdown (Elemento patrimonial)",
       "elements-subtitle": "One \"Elemento patrimonial\" per coin and key. Transcribe each row into Renta Web: box 1804 is already net of selling fees and box 1806 includes the buying fees.",
@@ -1832,6 +1841,8 @@
       "subtitle": "Follow these steps in the Spanish tax portal with the amounts shown above.",
       "disclaimer": "Informational tool. Calculations follow the current crypto regulation (Modelo 100 IRPF). Review with your tax advisor before filing.",
       "amount-to-enter": "Amount to enter:",
+      "unresolved-badge": "Check amount",
+      "unresolved-warning": "This amount may be understated: it includes {count} receipts with no market price, added as €0. Before copying it into Renta Web, add each one's value on the day you received it.",
       "fields": {
         "box-1804": "1804 — Transmission value (net of fees)",
         "box-1806": "1806 — Acquisition value"
@@ -1921,11 +1932,19 @@
         "running": "Running",
         "completed": "Completed",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "completed-with-gaps": "Completed with gaps"
       },
       "stop": "Stop",
       "stop-confirm": "Stop the running sync? Already-imported data is kept.",
-      "error-details": "Technical details"
+      "error-details": "Technical details",
+      "gaps": {
+        "title": "Some data could not be fetched, and syncing again will not fetch it:",
+        "history-truncated": "too many trades to page through with the Binance API. Import a Binance CSV that covers these pairs.",
+        "endpoint-not-permitted": "Binance does not give this API key access to this data. Import it with a Binance CSV.",
+        "resumable-title": "Some data is still missing, and the next incremental sync will keep fetching it:",
+        "history-resumes-next-run": "more trades than fit in one sync. The ones fetched are stored, and the next incremental sync continues after the last of them."
+      }
     },
     "events": {
       "title": "Movements",
@@ -2610,7 +2629,8 @@
       "prefix-exists": "A series with this prefix already exists",
       "future-occurrence": "Cannot process a future occurrence",
       "deferral-expediente-exists": "A deferral with that case number already exists",
-      "deferral-nothing-to-cancel": "This deferral has no pending instalments left, so there is nothing to cancel."
+      "deferral-nothing-to-cancel": "This deferral has no pending instalments left, so there is nothing to cancel.",
+      "document-already-linked": "This document is already linked to a transaction. You can see that link in the document list."
     },
     "invoice": {
       "category-required-for-paid": "An income category is required to mark as paid",

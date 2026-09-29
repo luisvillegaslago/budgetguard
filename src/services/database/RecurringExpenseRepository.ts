@@ -14,8 +14,9 @@ import type {
   RecurringOccurrence,
 } from '@/types/finance';
 import { toDateString } from '@/utils/helpers';
-import { calculateAllPendingDates, getMonthFromDate } from '@/utils/recurring';
+import { calculateAllPendingDates, getMonthFromDate, resolveOccurrenceAmounts } from '@/utils/recurring';
 import { query } from './connection';
+import { assertOwnedReferences } from './ownership';
 import { createTransaction } from './TransactionRepository';
 
 function toISOString(val: Date | string): string {
@@ -193,9 +194,11 @@ const RECURRING_EXPENSE_SELECT = `
   re."CompanyID", re."CreatedAt", re."UpdatedAt"
 `;
 
+// The join also requires the rule's owner. Since migration 008 the foreign key enforces the same,
+// so no stored rule can point at another user's category; the predicate restates it on the read side.
 const RECURRING_EXPENSE_JOIN = `
   FROM "RecurringExpenses" re
-  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
+  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID" AND c."UserID" = re."UserID"
 `;
 
 // ============================================================
@@ -261,6 +264,9 @@ export async function createRecurringExpense(data: {
   companyId?: number | null;
 }): Promise<RecurringExpense> {
   const userId = await getUserIdOrThrow();
+
+  // The owner-scoped keys would refuse another user's rows with a 500; this answers 404 first.
+  await assertOwnedReferences(userId, { categoryId: data.categoryId, companyId: data.companyId });
 
   const rows = await query<{ RecurringExpenseID: number }>(
     `INSERT INTO "RecurringExpenses" ("CategoryID", "AmountCents", "Description", "Frequency",
@@ -331,6 +337,9 @@ export async function updateRecurringExpense(
   }>,
 ): Promise<RecurringExpense | null> {
   const userId = await getUserIdOrThrow();
+
+  // Only the references being changed are checked; null clears the company and needs no check.
+  await assertOwnedReferences(userId, { categoryId: data.categoryId, companyId: data.companyId });
 
   const updates: string[] = [];
   const params: unknown[] = [];
@@ -554,7 +563,7 @@ export async function getAllPendingOccurrences(): Promise<PendingOccurrencesSumm
                 re."UpdatedAt"           AS "RE_UpdatedAt"
          FROM "RecurringExpenseOccurrences" o
                   INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
-                  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
+                  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID" AND c."UserID" = re."UserID"
          WHERE o."Status" = 'pending'
            AND re."IsActive" = true
            AND re."UserID" = $1
@@ -630,7 +639,7 @@ export async function confirmOccurrence(
                 re."UpdatedAt"           AS "RE_UpdatedAt"
          FROM "RecurringExpenseOccurrences" o
                   INNER JOIN "RecurringExpenses" re ON o."RecurringExpenseID" = re."RecurringExpenseID"
-                  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID"
+                  INNER JOIN "Categories" c ON re."CategoryID" = c."CategoryID" AND c."UserID" = re."UserID"
          WHERE o."OccurrenceID" = $1
            AND re."UserID" = $2`,
     [occurrenceId, userId],
@@ -651,16 +660,25 @@ export async function confirmOccurrence(
     throw new Error(API_ERROR.CONFLICT.FUTURE_OCCURRENCE);
   }
 
-  const amountCents = modifiedAmountCents ?? row.RE_AmountCents;
+  // A modified amount is the full bill: on a shared rule it is split like a shared movement typed by
+  // hand, so the fiscal views (which read OriginalAmountCents) see this month's bill, not the rule's.
+  const amounts = resolveOccurrenceAmounts(
+    {
+      amountCents: row.RE_AmountCents,
+      originalAmountCents: row.RE_OriginalAmountCents,
+      sharedDivisor: row.RE_SharedDivisor,
+    },
+    modifiedAmountCents,
+  );
 
   const transaction = await createTransaction({
     categoryId: row.RE_CategoryID,
-    amountCents,
+    amountCents: amounts.amountCents,
     description: row.RE_Description ?? undefined,
     transactionDate: row.OccurrenceDate,
     type: TRANSACTION_TYPE.EXPENSE,
-    sharedDivisor: row.RE_SharedDivisor,
-    originalAmountCents: row.RE_OriginalAmountCents,
+    sharedDivisor: amounts.sharedDivisor,
+    originalAmountCents: amounts.originalAmountCents,
     recurringExpenseId: row.RecurringExpenseID,
     vatPercent: row.RE_VatPercent ?? null,
     deductionPercent: row.RE_DeductionPercent ?? null,

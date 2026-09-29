@@ -13,11 +13,14 @@
 
 import {
   CRYPTO_CONTRAPRESTACION,
+  CRYPTO_PRICE_SOURCE,
   CRYPTO_TAXABLE_KIND,
   type CryptoContraprestacion,
+  type CryptoEventType,
   type CryptoTaxableKind,
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
+import { EVENT_TYPES_WITH_FAILED_STATUS, isFailedRawEvent } from '@/services/exchanges/shared/failedStatus';
 import { type CryptoDisposalDraft, type FifoTaxableEvent, runFifo } from '@/utils/crypto/fifo';
 import { madridYearStartUtc } from '@/utils/crypto/fiscalYear';
 import { getPool, query } from './connection';
@@ -36,12 +39,54 @@ interface TaxableEventForFifoRow {
   FeeEurCents: string;
   PriceSource: string;
   Contraprestacion: string | null;
+  EventType?: string;
+  /** Only read for event types that can carry a failed status; null otherwise. */
+  RawPayload?: Record<string, unknown> | null;
 }
 
 export interface RecomputeResult {
   fiscalYear: number;
   disposalsInserted: number;
   incompleteCoverageCount: number;
+}
+
+/**
+ * Every stored TaxableEvent of the user, oldest first, ready for FIFO. Pass
+ * `occurredBefore` to stop at a year end; null reads the whole history.
+ *
+ * Legs normalised before the failed-status filter existed are still stored:
+ * a cancelled withdrawal kept as transfer_out would otherwise absorb a later
+ * real deposit and leave the next sale without cost basis. Only the payloads
+ * of event types that can carry a failed status are read.
+ */
+async function loadFifoEvents(userId: number, occurredBefore: string | null): Promise<FifoTaxableEvent[]> {
+  const rows = await query<TaxableEventForFifoRow>(
+    `SELECT te."EventID"::text AS "EventID", te."Kind", te."OccurredAt", te."Asset",
+            te."QuantityNative", te."UnitPriceEurCents", te."GrossValueEurCents",
+            te."FeeEurCents", te."PriceSource", te."Contraprestacion",
+            r."EventType",
+            CASE WHEN r."EventType" = ANY($3::text[]) THEN r."RawPayload" END AS "RawPayload"
+     FROM "TaxableEvents" te
+     JOIN "CryptoRawEvents" r ON r."EventID" = te."RawEventID" AND r."UserID" = te."UserID"
+     WHERE te."UserID" = $1 AND ($2::timestamptz IS NULL OR te."OccurredAt" < $2::timestamptz)
+     ORDER BY te."OccurredAt" ASC, te."EventID" ASC`,
+    [userId, occurredBefore, EVENT_TYPES_WITH_FAILED_STATUS],
+  );
+
+  return rows
+    .filter((r) => !(r.RawPayload && r.EventType && isFailedRawEvent(r.EventType as CryptoEventType, r.RawPayload)))
+    .map((r) => ({
+      taxableEventId: r.EventID,
+      kind: r.Kind as CryptoTaxableKind,
+      occurredAt: r.OccurredAt,
+      asset: r.Asset,
+      quantityNative: r.QuantityNative,
+      unitPriceEurCents: Number(r.UnitPriceEurCents),
+      grossValueEurCents: Number(r.GrossValueEurCents),
+      feeEurCents: Number(r.FeeEurCents),
+      priceSource: r.PriceSource,
+      contraprestacion: r.Contraprestacion as CryptoContraprestacion | null,
+    }));
 }
 
 /**
@@ -56,28 +101,7 @@ export async function recomputeYearForUser(userId: number, fiscalYear: number): 
   // Pull every taxable event up to the END of `fiscalYear` (Madrid civil
   // time). Anything later is irrelevant for this year's FIFO.
   const yearEnd = madridYearStartUtc(fiscalYear + 1).toISOString();
-  const rows = await query<TaxableEventForFifoRow>(
-    `SELECT "EventID"::text AS "EventID", "Kind", "OccurredAt", "Asset",
-            "QuantityNative", "UnitPriceEurCents", "GrossValueEurCents",
-            "FeeEurCents", "PriceSource", "Contraprestacion"
-     FROM "TaxableEvents"
-     WHERE "UserID" = $1 AND "OccurredAt" < $2
-     ORDER BY "OccurredAt" ASC, "EventID" ASC`,
-    [userId, yearEnd],
-  );
-
-  const fifoEvents: FifoTaxableEvent[] = rows.map((r) => ({
-    taxableEventId: r.EventID,
-    kind: r.Kind as CryptoTaxableKind,
-    occurredAt: r.OccurredAt,
-    asset: r.Asset,
-    quantityNative: r.QuantityNative,
-    unitPriceEurCents: Number(r.UnitPriceEurCents),
-    grossValueEurCents: Number(r.GrossValueEurCents),
-    feeEurCents: Number(r.FeeEurCents),
-    priceSource: r.PriceSource,
-    contraprestacion: r.Contraprestacion as CryptoContraprestacion | null,
-  }));
+  const fifoEvents = await loadFifoEvents(userId, yearEnd);
 
   const allDisposals = runFifo(fifoEvents);
   const yearDisposals = allDisposals.filter((d) => d.fiscalYear === fiscalYear);
@@ -123,28 +147,7 @@ export async function recomputeAllYearsForUser(
   userId: number,
 ): Promise<{ years: RecomputeResult[]; totalDisposalsInserted: number; totalIncompleteCoverage: number }> {
   // Read EVERY taxable event once.
-  const rows = await query<TaxableEventForFifoRow>(
-    `SELECT "EventID"::text AS "EventID", "Kind", "OccurredAt", "Asset",
-            "QuantityNative", "UnitPriceEurCents", "GrossValueEurCents",
-            "FeeEurCents", "PriceSource", "Contraprestacion"
-     FROM "TaxableEvents"
-     WHERE "UserID" = $1
-     ORDER BY "OccurredAt" ASC, "EventID" ASC`,
-    [userId],
-  );
-
-  const fifoEvents: FifoTaxableEvent[] = rows.map((r) => ({
-    taxableEventId: r.EventID,
-    kind: r.Kind as CryptoTaxableKind,
-    occurredAt: r.OccurredAt,
-    asset: r.Asset,
-    quantityNative: r.QuantityNative,
-    unitPriceEurCents: Number(r.UnitPriceEurCents),
-    grossValueEurCents: Number(r.GrossValueEurCents),
-    feeEurCents: Number(r.FeeEurCents),
-    priceSource: r.PriceSource,
-    contraprestacion: r.Contraprestacion as CryptoContraprestacion | null,
-  }));
+  const fifoEvents = await loadFifoEvents(userId, null);
 
   const allDisposals = runFifo(fifoEvents);
 
@@ -272,6 +275,7 @@ interface ElementRow {
 interface AirdropStakingRow {
   Kind: string;
   TotalCents: string;
+  UnresolvedCount: string;
 }
 
 export interface Modelo100CryptoSummary {
@@ -281,7 +285,11 @@ export interface Modelo100CryptoSummary {
   /** One row per (Asset, Contraprestacion): a Modelo 100 "Elemento patrimonial". */
   elements: Modelo100Element[];
   casilla0304Cents: number;
+  /** Airdrops in 0304 whose price was never resolved, so they were summed at 0 €. */
+  casilla0304UnresolvedCount: number;
   casilla0033Cents: number;
+  /** Staking rewards in 0033 whose price was never resolved, so they were summed at 0 €. */
+  casilla0033UnresolvedCount: number;
   incompleteCoverageCount: number;
   needsReviewCount: number;
   computedAt: string;
@@ -348,14 +356,25 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
        ORDER BY "Asset" ASC, "Contraprestacion" ASC`,
       [userId, fiscalYear],
     ),
+    // An unresolved price is stored as 0 € and the raw event is marked as
+    // normalised, so it is never valued again: the count travels with the box
+    // so the UI can say the amount is understated instead of showing it as final.
     query<AirdropStakingRow>(
-      `SELECT "Kind", SUM("GrossValueEurCents")::text AS "TotalCents"
+      `SELECT "Kind", SUM("GrossValueEurCents")::text AS "TotalCents",
+              COUNT(*) FILTER (WHERE "PriceSource" = $6)::text AS "UnresolvedCount"
        FROM "TaxableEvents"
        WHERE "UserID" = $1
          AND "OccurredAt" >= $2 AND "OccurredAt" < $3
          AND "Kind" IN ($4, $5)
        GROUP BY "Kind"`,
-      [userId, yearStart, yearEnd, CRYPTO_TAXABLE_KIND.AIRDROP, CRYPTO_TAXABLE_KIND.STAKING_REWARD],
+      [
+        userId,
+        yearStart,
+        yearEnd,
+        CRYPTO_TAXABLE_KIND.AIRDROP,
+        CRYPTO_TAXABLE_KIND.STAKING_REWARD,
+        CRYPTO_PRICE_SOURCE.UNRESOLVED,
+      ],
     ),
   ]);
 
@@ -365,7 +384,9 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
     casilla1804N: { ...EMPTY_BUCKET },
     elements: [],
     casilla0304Cents: 0,
+    casilla0304UnresolvedCount: 0,
     casilla0033Cents: 0,
+    casilla0033UnresolvedCount: 0,
     incompleteCoverageCount: 0,
     needsReviewCount: 0,
     computedAt: new Date().toISOString(),
@@ -401,8 +422,15 @@ export async function getModelo100Summary(fiscalYear: number): Promise<Modelo100
 
   airdropStakingRows.forEach((row) => {
     const cents = Number(row.TotalCents ?? 0);
-    if (row.Kind === CRYPTO_TAXABLE_KIND.AIRDROP) summary.casilla0304Cents = cents;
-    if (row.Kind === CRYPTO_TAXABLE_KIND.STAKING_REWARD) summary.casilla0033Cents = cents;
+    const unresolved = Number(row.UnresolvedCount ?? 0);
+    if (row.Kind === CRYPTO_TAXABLE_KIND.AIRDROP) {
+      summary.casilla0304Cents = cents;
+      summary.casilla0304UnresolvedCount = unresolved;
+    }
+    if (row.Kind === CRYPTO_TAXABLE_KIND.STAKING_REWARD) {
+      summary.casilla0033Cents = cents;
+      summary.casilla0033UnresolvedCount = unresolved;
+    }
   });
 
   return summary;

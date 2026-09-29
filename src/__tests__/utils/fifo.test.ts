@@ -4,9 +4,10 @@
  * Pure function, no DB. Covers: lot push/pop ordering, multi-lot disposal,
  * fee allocation pro-rata, incomplete coverage, fiat-vs-crypto routing,
  * staking_reward + airdrop also feed the lot queue, transfer_in pushes a
- * lot at FMV (AEAT proxy when source-wallet basis is unknown), transfer_out
- * is a no-op, gain/loss math, sub-cent gross apportionment, needs-review
- * flagging, and the per-element box derivation.
+ * lot at FMV (AEAT proxy when source-wallet basis is unknown) except for the
+ * coins coming back from an earlier transfer_out, transfer_out keeps the lots,
+ * gain/loss math, sub-cent gross apportionment, needs-review flagging, and the
+ * per-element box derivation.
  */
 
 import { CRYPTO_CONTRAPRESTACION, CRYPTO_PRICE_SOURCE, CRYPTO_TAXABLE_KIND } from '@/constants/finance';
@@ -528,5 +529,160 @@ describe('needsReview flagging (H3 + M1)', () => {
       }),
     ]);
     expect(d?.needsReview).toBe(true);
+  });
+});
+
+describe('runFifo — coins moved out and back between the user own wallets', () => {
+  it('a withdrawal to Ledger and a later deposit back keep the original lot, with no market-value lot', () => {
+    const result = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 10_000_00,
+        occurredAt: '2023-03-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.TRANSFER_OUT,
+        asset: 'BTC',
+        quantityNative: '1',
+        occurredAt: '2023-06-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 40_000_00,
+        occurredAt: '2024-02-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 90_000_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+        occurredAt: '2025-01-10T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 20_000_00,
+        occurredAt: '2025-02-01T00:00:00Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 20_000_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+        occurredAt: '2025-03-01T00:00:00Z',
+      }),
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.acquisitionValueCents).toBe(10_000_00);
+    expect(result[0]?.gainLossCents).toBe(80_000_00);
+    // The second sale consumes the 20.000 € purchase, not a 40.000 € copy of the returned coins.
+    expect(result[1]?.acquisitionValueCents).toBe(20_000_00);
+    expect(result[1]?.gainLossCents).toBe(0);
+    expect(result[1]?.needsReview).toBe(false);
+    expect(result.flatMap((d) => d.acquisitionLots).some((lot) => lot.fmvProxy)).toBe(false);
+  });
+
+  it('a sale larger than the holdings after a round trip is still flagged as incomplete coverage', () => {
+    const [d] = runFifo([
+      ev({ kind: CRYPTO_TAXABLE_KIND.ACQUISITION, asset: 'BTC', quantityNative: '1', grossValueEurCents: 10_000_00 }),
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_OUT, asset: 'BTC', quantityNative: '1' }),
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN, asset: 'BTC', quantityNative: '1', grossValueEurCents: 40_000_00 }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '2',
+        grossValueEurCents: 100_000_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+      }),
+    ]);
+
+    expect(d?.incompleteCoverage).toBe(true);
+    expect(d?.acquisitionValueCents).toBe(10_000_00);
+  });
+
+  it('a deposit slightly smaller than the withdrawal (network fee) opens no lot', () => {
+    const [d] = runFifo([
+      ev({ kind: CRYPTO_TAXABLE_KIND.ACQUISITION, asset: 'ETH', quantityNative: '2', grossValueEurCents: 4_000_00 }),
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_OUT, asset: 'ETH', quantityNative: '2' }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN,
+        asset: 'ETH',
+        quantityNative: '1.9985',
+        grossValueEurCents: 6_000_00,
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'ETH',
+        quantityNative: '3',
+        grossValueEurCents: 9_000_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+      }),
+    ]);
+
+    // Only the 2 ETH bought are held: selling 3 cannot be covered by the returned coins twice.
+    expect(d?.acquisitionLots).toHaveLength(1);
+    expect(d?.acquisitionLots[0]?.fmvProxy).toBe(false);
+    expect(d?.acquisitionValueCents).toBe(4_000_00);
+    expect(d?.incompleteCoverage).toBe(true);
+  });
+
+  it('only the part of a deposit above what left earlier opens a market-value lot', () => {
+    const [d] = runFifo([
+      ev({ kind: CRYPTO_TAXABLE_KIND.ACQUISITION, asset: 'BTC', quantityNative: '0.5', grossValueEurCents: 5_000_00 }),
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_OUT, asset: 'BTC', quantityNative: '0.5' }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN,
+        asset: 'BTC',
+        quantityNative: '0.8',
+        grossValueEurCents: 32_000_00,
+        feeEurCents: 8_00,
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 50_000_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+      }),
+    ]);
+
+    // Holdings are 0.5 bought + 0.3 that arrived from outside: 0.8, so a 1 BTC sale is short.
+    expect(d?.acquisitionLots).toHaveLength(2);
+    expect(d?.acquisitionLots[0]?.fmvProxy).toBe(false);
+    expect(d?.acquisitionLots[1]?.fmvProxy).toBe(true);
+    expect(Number(d?.acquisitionLots[1]?.quantityConsumed)).toBeCloseTo(0.3, 9);
+    // 0.3 of the 0.8 deposit carries 3/8 of its market value and of its fee.
+    expect(d?.acquisitionLots[1]?.acquisitionValueCents).toBe(12_000_00);
+    expect(d?.acquisitionLots[1]?.acquisitionFeeCents).toBe(3_00);
+    expect(d?.acquisitionValueCents).toBe(17_000_00);
+    expect(d?.incompleteCoverage).toBe(true);
+    expect(d?.needsReview).toBe(true);
+  });
+
+  it('a deposit is never matched with a withdrawal of another asset or one that happens later', () => {
+    const [d] = runFifo([
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_OUT, asset: 'ETH', quantityNative: '1' }),
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_IN, asset: 'BTC', quantityNative: '1', grossValueEurCents: 30_000_00 }),
+      ev({ kind: CRYPTO_TAXABLE_KIND.TRANSFER_OUT, asset: 'BTC', quantityNative: '1' }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BTC',
+        quantityNative: '1',
+        grossValueEurCents: 50_000_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+      }),
+    ]);
+
+    expect(d?.acquisitionValueCents).toBe(30_000_00);
+    expect(d?.acquisitionLots[0]?.fmvProxy).toBe(true);
+    expect(d?.incompleteCoverage).toBe(false);
   });
 });

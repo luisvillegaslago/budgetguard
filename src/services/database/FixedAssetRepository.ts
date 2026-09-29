@@ -23,6 +23,7 @@ import { amortizationCentsBetween } from '@/utils/amortization';
 import { computeFiscalFields } from '@/utils/fiscal';
 import { toDateString } from '@/utils/helpers';
 import { query } from './connection';
+import { assertOwnedReferences } from './ownership';
 
 // ============================================================
 // Row Types
@@ -167,6 +168,8 @@ export async function getFixedAssetById(assetId: number): Promise<FixedAsset | n
 /** Create a fixed asset for the current user. Amounts arrive already in cents. */
 export async function createFixedAsset(input: FixedAssetInput): Promise<FixedAsset> {
   const userId = await getUserIdOrThrow();
+  // The purchase key includes the owner (migration 008): a foreign movement answers 404, not a 500.
+  await assertOwnedReferences(userId, { transactionId: input.transactionId });
   const columns = WRITABLE_FIELDS.map((field) => WRITABLE_COLUMNS[field]);
   const placeholders = WRITABLE_FIELDS.map((_, index) => `$${index + 2}`);
 
@@ -193,6 +196,7 @@ export async function createFixedAsset(input: FixedAssetInput): Promise<FixedAss
  */
 export async function updateFixedAsset(assetId: number, input: FixedAssetUpdateInput): Promise<FixedAsset | null> {
   const userId = await getUserIdOrThrow();
+  await assertOwnedReferences(userId, { transactionId: input.transactionId });
 
   const changed = WRITABLE_FIELDS.filter((field) => input[field] !== undefined);
   if (changed.length === 0) return getFixedAssetById(assetId);

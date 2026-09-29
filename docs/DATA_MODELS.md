@@ -320,6 +320,15 @@ CREATE TABLE Users (
 > filtered by `"UserID" = 1` that was checked on the local copy will silently hit nothing (or the
 > wrong person's rows) on Neon. See [ARCHITECTURE.md](ARCHITECTURE.md) § Two databases, two user IDs.
 
+> **References never cross users.** Since migration 008 every foreign key between two user-owned
+> tables is on `(<column>, "UserID")` and points at a `UNIQUE (<id>, "UserID")` on the referenced
+> table (21 keys; the list is `owner_refs` at the end of `schema.sql`). A movement can only name a
+> category, company, voucher, trip, group, recurring rule or deferral of its own user, and the same
+> holds for invoices, fiscal documents, fixed assets and skydiving rows pointing at a movement. The
+> write guard `assertOwnedReferences` (`src/services/database/ownership.ts`) checks the same thing
+> first so the API answers 404, not a 500 from the constraint. A new reference between owned tables
+> must be added to `owner_refs` in both `schema.sql` and a migration.
+
 ---
 
 ### NextAuth Tables

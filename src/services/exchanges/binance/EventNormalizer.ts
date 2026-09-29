@@ -21,6 +21,7 @@
  */
 
 import {
+  BINANCE_FIAT_PAYMENT_TYPE,
   CRYPTO_CONTRAPRESTACION,
   CRYPTO_EVENT_TYPE,
   CRYPTO_TAXABLE_KIND,
@@ -28,6 +29,7 @@ import {
   type CryptoEventType,
   type CryptoTaxableKind,
 } from '@/constants/finance';
+import { isFailedRawEvent } from '@/services/exchanges/shared/failedStatus';
 import { splitSymbol } from '@/utils/cryptoSymbol';
 
 // ============================================================
@@ -388,8 +390,14 @@ export function normalizeFiatOrder(_ctx: NormaliserContext): NormalisedLeg[] {
 }
 
 /**
- * Fiat payment (card purchase of crypto). One leg: acquisition of the
- * crypto bought, with EUR as counter.
+ * Fiat payment (card purchase or card sale of crypto). One leg against the
+ * fiat counter (F): an acquisition when the card bought crypto, a disposal
+ * when crypto was sold to the card (`transactionType` '1', stamped on the
+ * payload by BinanceClient.fetchFiatPayments).
+ *
+ * Binance documents `sourceAmount` as the fiat amount and `obtainAmount` as
+ * the crypto amount without distinguishing the direction, so both kinds read
+ * them the same way.
  */
 export function normalizeFiatPayment(ctx: NormaliserContext): NormalisedLeg[] {
   const p = ctx.rawPayload;
@@ -400,9 +408,11 @@ export function normalizeFiatPayment(ctx: NormaliserContext): NormalisedLeg[] {
   const totalFee = String(p.totalFee ?? '0');
   if (!cryptoAsset || cryptoAmount === '0') return [];
 
+  const isSale = String(p.transactionType ?? '') === BINANCE_FIAT_PAYMENT_TYPE.SELL;
+
   return [
     {
-      kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+      kind: isSale ? CRYPTO_TAXABLE_KIND.DISPOSAL : CRYPTO_TAXABLE_KIND.ACQUISITION,
       asset: cryptoAsset,
       quantityNative: cryptoAmount,
       counterAsset: fiatAsset,
@@ -500,5 +510,6 @@ const NORMALIZERS: Partial<Record<CryptoEventType, (ctx: NormaliserContext) => N
 export function normalizeRawEvent(ctx: NormaliserContext): NormalisedLeg[] {
   const fn = NORMALIZERS[ctx.eventType];
   if (!fn) return [];
+  if (isFailedRawEvent(ctx.eventType, ctx.rawPayload)) return [];
   return fn(ctx);
 }
