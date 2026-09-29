@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.69.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.1...v0.69.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* close the critical findings of the 2026-09-24 module review ([66b644d](https://github.com/luisvillegaslago/budgetguard/commit/66b644dd9476b6e528afebdbd883c346ff0c7cfd))
+
 ## [0.69.1](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.0...v0.69.1) (2026-09-22)
 
 
