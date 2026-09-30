@@ -34,6 +34,7 @@ import {
   useStartCryptoSync,
 } from '@/hooks/useCryptoSync';
 import { useTranslate } from '@/hooks/useTranslations';
+import { isActiveSyncStatus } from '@/utils/crypto/syncStatus';
 import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
 type ScopePreset = 'current_year' | 'previous_year' | 'last_90_days' | 'all_time';
@@ -76,11 +77,7 @@ export function CryptoSyncPanel() {
   // up the new "last completed" state.
   useEffect(() => {
     if (!job.data) return;
-    const isTerminal =
-      job.data.status === CRYPTO_SYNC_STATUS.COMPLETED ||
-      job.data.status === CRYPTO_SYNC_STATUS.FAILED ||
-      job.data.status === CRYPTO_SYNC_STATUS.CANCELLED;
-    if (isTerminal) {
+    if (!isActiveSyncStatus(job.data.status)) {
       invalidateQueryKeys(queryClient, [
         QUERY_KEY.CRYPTO_EVENTS,
         [QUERY_KEY.CRYPTO_SYNC_STATUS, 'latest', CRYPTO_EXCHANGE.BINANCE],
@@ -106,7 +103,7 @@ export function CryptoSyncPanel() {
     setStopConfirmOpen(false);
   };
 
-  const isRunning = job.data?.status === CRYPTO_SYNC_STATUS.RUNNING || job.data?.status === CRYPTO_SYNC_STATUS.PENDING;
+  const isRunning = job.data ? isActiveSyncStatus(job.data.status) : false;
   const isBusy = start.isPending || isRunning;
 
   if (latest.isLoading) {
@@ -220,6 +217,7 @@ function JobStatus({ job }: { job: SyncJob }) {
   const gaps = collectSyncGaps(job.progress, (endpoint) => endpoint.permanentFailures);
   const resumableGaps = collectSyncGaps(job.progress, (endpoint) => endpoint.resumableFailures);
   const isCompleted = job.status === CRYPTO_SYNC_STATUS.COMPLETED;
+  const isActive = isActiveSyncStatus(job.status);
   const completedWithGaps = isCompleted && (gaps.length > 0 || resumableGaps.length > 0);
   // The raw summary of a completed job, shown once under the last gap list.
   // A failed job already shows it in its failure box.
@@ -258,6 +256,10 @@ function JobStatus({ job }: { job: SyncJob }) {
         <span className="text-guard-muted">
           — {job.eventsIngested} {t('crypto.sync.events-ingested')}
         </span>
+        {/* A job longer than one server invocation keeps its id across rounds; which one is running is a detail. */}
+        {isActive && job.round > 1 && (
+          <span className="text-xs text-guard-muted">· {t('crypto.sync.round', { round: job.round })}</span>
+        )}
       </div>
 
       <div className="space-y-1.5">

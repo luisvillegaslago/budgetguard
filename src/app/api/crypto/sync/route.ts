@@ -8,6 +8,9 @@
  * If a job is already running for this exchange we return 409 with
  * SYNC_ALREADY_RUNNING so the UI can keep polling the existing job instead
  * of starting a duplicate run.
+ *
+ * The first round runs here; a job that needs longer continues itself through
+ * POST /api/crypto/sync/[jobId]/continue (see runSync).
  */
 
 import { after, NextResponse } from 'next/server';
@@ -23,7 +26,12 @@ import {
 } from '@/services/database/CryptoSyncJobsRepository';
 import { getDecryptedActive } from '@/services/database/ExchangeCredentialsRepository';
 import { computeSyncScope, runSync } from '@/services/exchanges/binance/BinanceSyncService';
+import { startSyncBudget } from '@/services/exchanges/shared/syncBudget';
 import { conflict, notFound, validationError, withApiHandler } from '@/utils/apiHandler';
+
+// The round's budget (CRYPTO_SYNC_ROUND_BUDGET_MS) is measured against this
+// limit, the plan's ceiling. Next.js reads it statically, so it is a literal.
+export const maxDuration = 300;
 
 const SUPPORTED_EXCHANGES = new Set<CryptoExchange>([CRYPTO_EXCHANGE.BINANCE]);
 
@@ -52,6 +60,8 @@ export const GET = withApiHandler(async (request) => {
 }, 'GET /api/crypto/sync');
 
 export const POST = withApiHandler(async (request) => {
+  // Started first: the round's time runs from the start of this invocation.
+  const budget = startSyncBudget();
   const body = await request.json();
   const validation = validateRequest(StartSyncSchema, body);
   if (!validation.success) return validationError(validation.errors);
@@ -83,6 +93,7 @@ export const POST = withApiHandler(async (request) => {
         mode,
         scopeFrom,
         scopeTo,
+        budget,
       });
     } catch (error) {
       // markJobFailed already called inside runSync; just swallow here so the

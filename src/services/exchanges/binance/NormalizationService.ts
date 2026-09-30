@@ -14,6 +14,10 @@
  * The PriceService cache means a sync of 4500 raw events triggers maybe
  * 200-300 unique (asset, dateUtc) lookups the first time, and 0 on
  * subsequent runs.
+ *
+ * A sync job hands in the budget of its round: the run stops between events
+ * once it is spent, and what is left keeps NormalizedAt NULL for the next call.
+ * An event still being priced at the round's cutoff is abandoned the same way.
  */
 
 import { CRYPTO_PRICE_SOURCE, type CryptoEventType } from '@/constants/finance';
@@ -23,6 +27,14 @@ import {
   markRawEventsNormalized,
   type TaxableEventInput,
 } from '@/services/database/TaxableEventsRepository';
+import {
+  cutoffOf,
+  isBudgetSpent,
+  raceCutoff,
+  type SyncBudget,
+  type SyncCutoff,
+  SyncCutoffError,
+} from '@/services/exchanges/shared/syncBudget';
 import { eurosToCents } from '@/utils/money';
 import { BinanceClientError } from './BinanceClient';
 import { type NormalisedLeg, normalizeRawEvent } from './EventNormalizer';
@@ -37,9 +49,13 @@ export interface NormalizeResult {
   skipped: number; // raw events that produced 0 legs
   failed: number;
   failures: Array<{ rawEventId: string; eventType: string; reason: string }>;
+  // The budget ran out with events still queued; a later call continues.
+  stoppedAtDeadline: boolean;
 }
 
 export type NormalizeProgressCallback = (processed: number, inserted: number) => void | Promise<void>;
+
+type UnnormalisedRaw = Awaited<ReturnType<typeof listUnnormalisedRawEventsForUser>>[number];
 
 /**
  * Normalise all pending raw events for a user. Pulls in batches of
@@ -50,59 +66,68 @@ export type NormalizeProgressCallback = (processed: number, inserted: number) =>
  * If `onProgress` is provided, it's invoked after every batch with the
  * cumulative counts — used by the sync orchestrator to surface live
  * normalize progress in the UI.
+ *
+ * With a `budget`, no event is started once it is spent; the one being priced
+ * finishes, unless its price lookups are still running at the round's cutoff:
+ * then it is abandoned, since a lookup can wait minutes on Binance or
+ * CoinGecko. Only the events processed are stamped, so the rest stay in the
+ * queue for the next call.
  */
 export async function normalizeForUser(
   userId: number,
   onProgress?: NormalizeProgressCallback,
+  budget?: SyncBudget,
 ): Promise<NormalizeResult> {
-  const result: NormalizeResult = { processed: 0, inserted: 0, skipped: 0, failed: 0, failures: [] };
+  const result: NormalizeResult = {
+    processed: 0,
+    inserted: 0,
+    skipped: 0,
+    failed: 0,
+    failures: [],
+    stoppedAtDeadline: false,
+  };
+  const cutoff = budget === undefined ? undefined : cutoffOf(budget);
 
-  while (true) {
+  while (!result.stoppedAtDeadline) {
+    // The queue is read before the budget: an empty one ends the run as
+    // finished, so a round never hands off to one that finds nothing left.
     const batch = await listUnnormalisedRawEventsForUser(userId, BATCH_SIZE);
     if (batch.length === 0) break;
+    if (isBudgetSpent(budget)) {
+      result.stoppedAtDeadline = true;
+      break;
+    }
 
     const legs: TaxableEventInput[] = [];
-    for (const raw of batch) {
-      result.processed++;
-      const occurredAt = new Date(raw.occurredAt);
-      const normalisedLegs = normalizeRawEvent({
-        rawPayload: raw.rawPayload,
-        eventType: raw.eventType as CryptoEventType,
-        occurredAt,
-      });
-
-      if (normalisedLegs.length === 0) {
-        result.skipped++;
-        continue;
+    // One event at a time, in order, so the budget is read between events.
+    const processedIds = await batch.reduce<Promise<string[]>>(async (previous, raw) => {
+      const done = await previous;
+      if (result.stoppedAtDeadline) return done;
+      if (isBudgetSpent(budget)) {
+        result.stoppedAtDeadline = true;
+        return done;
       }
-
       try {
-        const enriched = await enrichLegsWithPrices(raw.rawEventId, occurredAt, normalisedLegs);
-        legs.push(...enriched);
+        await normaliseRawEvent(raw, result, legs, cutoff);
       } catch (error) {
-        result.failed++;
-        const reason =
-          error instanceof BinanceClientError ? error.code : error instanceof Error ? error.message : String(error);
-        result.failures.push({ rawEventId: raw.rawEventId, eventType: raw.eventType, reason });
-        syncDebug.taskFailure(`normalize/${raw.eventType}`, {
-          code: error instanceof BinanceClientError ? error.code : 'normalize_failed',
-          binanceCode: error instanceof BinanceClientError ? error.binanceCode : undefined,
-          statusCode: error instanceof BinanceClientError ? error.statusCode : undefined,
-          cause: error instanceof BinanceClientError ? error.cause : error,
-        });
+        if (!(error instanceof SyncCutoffError)) throw error;
+        // Not stamped: the next round prices it again from the start.
+        result.stoppedAtDeadline = true;
+        return done;
       }
-    }
+      done.push(raw.rawEventId);
+      return done;
+    }, Promise.resolve([]));
 
     if (legs.length > 0) {
       const inserted = await bulkInsertTaxableEventsForUser(userId, legs);
       result.inserted += inserted;
     }
 
-    // Stamp every raw event in the batch as processed — including those that
-    // produced 0 legs (fiat_order) or failed pricing — so they're skipped on
-    // future runs. Without this, the same 12 stale raws re-enter the queue
-    // every sync.
-    await markRawEventsNormalized(batch.map((r) => r.rawEventId));
+    // Stamp every raw event processed — including those that produced 0 legs
+    // (fiat_order) or failed pricing — so they're skipped on future runs.
+    // Without this, the same 12 stale raws re-enter the queue every sync.
+    await markRawEventsNormalized(processedIds);
 
     if (onProgress) {
       await onProgress(result.processed, result.inserted);
@@ -119,6 +144,51 @@ export async function normalizeForUser(
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * Counts one raw event into `result` and adds its priced legs to `legs`. When
+ * its pricing is abandoned at `cutoff` it throws SyncCutoffError and counts
+ * nothing: the pricing carries on unobserved, and whatever it finishes later
+ * never reaches `result` or `legs`.
+ */
+async function normaliseRawEvent(
+  raw: UnnormalisedRaw,
+  result: NormalizeResult,
+  legs: TaxableEventInput[],
+  cutoff: SyncCutoff | undefined,
+): Promise<void> {
+  const occurredAt = new Date(raw.occurredAt);
+  const normalisedLegs = normalizeRawEvent({
+    rawPayload: raw.rawPayload,
+    eventType: raw.eventType as CryptoEventType,
+    occurredAt,
+  });
+
+  if (normalisedLegs.length === 0) {
+    result.processed++;
+    result.skipped++;
+    return;
+  }
+
+  try {
+    const enriched = await raceCutoff(enrichLegsWithPrices(raw.rawEventId, occurredAt, normalisedLegs), cutoff);
+    result.processed++;
+    legs.push(...enriched);
+  } catch (error) {
+    if (error instanceof SyncCutoffError) throw error;
+    result.processed++;
+    result.failed++;
+    const reason =
+      error instanceof BinanceClientError ? error.code : error instanceof Error ? error.message : String(error);
+    result.failures.push({ rawEventId: raw.rawEventId, eventType: raw.eventType, reason });
+    syncDebug.taskFailure(`normalize/${raw.eventType}`, {
+      code: error instanceof BinanceClientError ? error.code : 'normalize_failed',
+      binanceCode: error instanceof BinanceClientError ? error.binanceCode : undefined,
+      statusCode: error instanceof BinanceClientError ? error.statusCode : undefined,
+      cause: error instanceof BinanceClientError ? error.cause : error,
+    });
+  }
+}
 
 async function enrichLegsWithPrices(
   rawEventId: string,

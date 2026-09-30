@@ -3753,8 +3753,9 @@ Exchange ingestion, normalisation, FIFO accounting and the Modelo 100 crypto box
 list, request shapes and pipeline semantics are documented together in
 [CRYPTO_MODULE.md](CRYPTO_MODULE.md) § Endpoints — they are inseparable from the pipeline they drive.
 
-Summary: `/api/crypto/credentials{,/status}` (encrypted, read-only keys), `/api/crypto/sync{,/[jobId]{,/cancel}}`
-(background jobs), `/api/crypto/import/csv` (Binance/Kraken/Coinbase, auto-detected; 409
+Summary: `/api/crypto/credentials{,/status}` (encrypted, read-only keys), `/api/crypto/sync{,/[jobId]{,/cancel,/continue}}`
+(background jobs; `continue` is internal, `CRON_SECRET` only, and runs the next round of a job longer
+than one invocation), `/api/crypto/import/csv` (Binance/Kraken/Coinbase, auto-detected; 409
 `api-error.crypto.sync-already-running` while an API sync of that exchange is running),
 `/api/crypto/normalize`, `/api/crypto/{events,taxable-events,assets,pairs,pairs/[symbol],klines,ticker}`
 (read models), `/api/crypto/fiscal/{modelo100,disposals,export,recompute}`, and the weekly

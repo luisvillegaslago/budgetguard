@@ -1095,7 +1095,7 @@ only.
 |-------|-------|-----------------|-------|
 | `ExchangeCredentials` | 1 per user × exchange | `(UserID, Exchange)` | API key/secret AES-256-GCM encrypted as `<iv>.<authTag>.<cipher>`; `Permissions` caches the read-only check |
 | `ExchangeApiCallLog` | 1 per outgoing call | — (append-only) | Endpoint, status, weight, duration; rate-limit forensics |
-| `CryptoSyncJobs` | 1 per sync run | — | `pending → running → completed \| failed \| cancelled`; `Progress` JSONB drives the progress bar |
+| `CryptoSyncJobs` | 1 per sync run | — | `pending → running → completed \| failed \| cancelled`; `Progress` JSONB drives the progress bar; `ResumeState` JSONB carries a job longer than one invocation from one round to the next (migration 010, see CRYPTO_MODULE.md) |
 | `CryptoRawEvents` | 1 per upstream event | `(UserID, EventType, ExternalID)` | `RawPayload` is the verbatim JSON; `Source` ∈ binance/kraken/coinbase |
 | `CryptoPriceCache` | 1 per asset × day | `(Asset, DateUtc)` | Immutable once written; `EurPriceMicroCents` keeps sub-cent tokens from quantising to zero |
 | `TaxableEvents` | 1 per fiscal leg | `(RawEventID, Kind, Asset)` | One raw event can yield several legs (a BTC→USDT trade is a disposal **and** an acquisition) |

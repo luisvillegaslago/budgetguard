@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { API_ERROR } from '@/constants/finance';
 import { AuthError } from '@/libs/auth';
 import { ConflictError, NotFoundError, ValidationError } from '@/utils/apiErrors';
+import { carriesCronSecret, cronAuthorization } from '@/utils/cronAuth';
 
 type NextRouteParams = { params: Promise<Record<string, string | undefined>> };
 
@@ -107,4 +108,21 @@ export function validationError(errors: unknown): NextResponse {
  */
 export function conflict(error: string, extra?: Record<string, unknown>): NextResponse {
   return NextResponse.json({ success: false, error, ...extra }, { status: 409 });
+}
+
+/**
+ * The response that refuses a call made without a session (Vercel Cron, a
+ * sync round starting the next one), or null when it carries CRON_SECRET.
+ * 503 when no secret is configured: every such call would otherwise be
+ * accepted or refused by accident.
+ */
+export function verifyCronSecret(request: Request): NextResponse | null {
+  const expected = cronAuthorization();
+  if (!expected) {
+    return NextResponse.json({ error: API_ERROR.CRYPTO.UNAUTHORISED_CRON }, { status: 503 });
+  }
+  if (!carriesCronSecret(request.headers.get('authorization'), expected)) {
+    return NextResponse.json({ error: API_ERROR.UNAUTHORIZED }, { status: 401 });
+  }
+  return null;
 }

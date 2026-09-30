@@ -5,7 +5,8 @@
  * Provides:
  *  - validatePermissions()         — Phase 1: rejects keys with write access
  *  - WeightTracker                 — Phase 2: per-instance budget
- *  - withRetry()                   — Phase 2: exponential backoff for 429/418
+ *  - withRetry()                   — Phase 2: exponential backoff for 429/418,
+ *                                    bounded by a sync round's cutoff
  *  - fetch{X}()                    — Phase 2: thin wrappers around the 13 sync
  *                                    endpoints, returning RawEventInput[] with
  *                                    derived externalId + occurredAt
@@ -39,6 +40,12 @@ import {
 } from '@/constants/finance';
 import type { RawEventInput } from '@/services/database/CryptoRawEventsRepository';
 import { rewardExternalId } from '@/services/exchanges/shared/rewardExternalId';
+import {
+  assertBeforeCutoff,
+  raceCutoff,
+  type SyncCutoff,
+  SyncCutoffError,
+} from '@/services/exchanges/shared/syncBudget';
 
 export interface BinanceCredentials {
   apiKey: string;
@@ -128,9 +135,10 @@ class WeightTracker {
 
   /**
    * Awaits if the next call would exceed the threshold. Resets the counter
-   * after the per-minute window ends.
+   * after the per-minute window ends. A wait that would reach the round's
+   * cutoff is not started: it could only end in a request that may not be sent.
    */
-  async throttle(): Promise<void> {
+  async throttle(cutoff?: SyncCutoff): Promise<void> {
     const now = Date.now();
     if (now - this.windowStart >= 60_000) {
       this.windowStart = now;
@@ -140,6 +148,7 @@ class WeightTracker {
     if (this.used < BINANCE_WEIGHT_THRESHOLD) return;
 
     const waitMs = 60_000 - (now - this.windowStart);
+    assertBeforeCutoff(cutoff, waitMs);
     await sleep(waitMs);
     this.windowStart = Date.now();
     this.used = 0;
@@ -167,7 +176,16 @@ export class BinanceClient {
   private readonly client: MainClient;
   private readonly weight = new WeightTracker();
 
-  constructor(credentials: BinanceCredentials) {
+  /**
+   * `cutoff`, given by a sync round, bounds every call this client makes: no
+   * request is sent and no wait started once it would be reached, and a
+   * request still running then is abandoned with SyncCutoffError. Without it
+   * (credential validation) calls run to the SDK's own five-minute timeout.
+   */
+  constructor(
+    credentials: BinanceCredentials,
+    private readonly cutoff?: SyncCutoff,
+  ) {
     bumpListenerLimitOnce();
     this.client = new MainClient({
       api_key: credentials.apiKey,
@@ -219,13 +237,16 @@ export class BinanceClient {
    * call (GET /api/v3/account, the same call spot discovery makes before any
    * task runs). A -2015 on another endpoint while this still succeeds is about
    * that endpoint; once this fails too, the -2015 may be a revoked key or a new
-   * IP whitelist, which a later run can recover from.
+   * IP whitelist, which a later run can recover from. A call abandoned at the
+   * round's cutoff says nothing about the key, so it is passed on for the next
+   * round to ask again.
    */
   async isKeyAccepted(): Promise<boolean> {
     try {
       await this.withRetry(() => this.client.getAccountInformation({}));
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof SyncCutoffError) throw error;
       return false;
     }
   }
@@ -645,17 +666,21 @@ export class BinanceClient {
   // ----------------------------------------------------------
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
-    await this.weight.throttle();
+    await this.weight.throttle(this.cutoff);
 
     let attempt = 0;
     let lastError: BinanceClientError | undefined;
 
     while (attempt < BINANCE_RETRY_MAX_ATTEMPTS) {
+      // Nothing is sent once the round's cutoff has passed, and a request
+      // still unanswered then is abandoned rather than awaited.
+      assertBeforeCutoff(this.cutoff);
       try {
-        const result = await fn();
+        const result = await raceCutoff(fn(), this.cutoff);
         this.weight.observe(BINANCE_WEIGHT_LIMIT / BINANCE_RETRY_MAX_ATTEMPTS);
         return result;
       } catch (error) {
+        if (error instanceof SyncCutoffError) throw error;
         const mapped = mapBinanceError(error);
         lastError = mapped;
 
@@ -677,6 +702,7 @@ export class BinanceClient {
         // Binance's IP ban for repeated -1003 hits escalates aggressively.
         const baseMs = mapped.code === API_ERROR.CRYPTO.RATE_LIMITED ? 30_000 : BINANCE_RETRY_BASE_MS;
         const delay = Math.min(baseMs * 2 ** (attempt - 1), BINANCE_RETRY_MAX_MS);
+        assertBeforeCutoff(this.cutoff, delay);
         await sleep(delay);
       }
     }
@@ -964,9 +990,14 @@ export interface TaskFailureClass {
  * malformed answer (TRADE_WITHOUT_ID) and any non-Binance error, such as the
  * database refusing an insert. The HTTP status is no help here: the SDK
  * rethrows Binance errors as `{ code, message, body }` without it, so only the
- * Binance code in the body tells them apart.
+ * Binance code in the body tells them apart. A call abandoned at the round's
+ * cutoff keeps its own code (ROUND_CUTOFF); the sync reruns that task in the
+ * next round instead of recording it, so it only gets here from elsewhere.
  */
 export function classifyTaskFailure(error: unknown): TaskFailureClass {
+  if (error instanceof SyncCutoffError) {
+    return { kind: CRYPTO_SYNC_FAILURE_KIND.TRANSIENT, code: CRYPTO_SYNC_TASK_FAILURE.ROUND_CUTOFF };
+  }
   if (!(error instanceof BinanceClientError)) {
     return { kind: CRYPTO_SYNC_FAILURE_KIND.TRANSIENT, code: CRYPTO_SYNC_TASK_FAILURE.TASK_FAILED };
   }

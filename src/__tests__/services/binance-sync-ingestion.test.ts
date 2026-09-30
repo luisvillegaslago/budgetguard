@@ -13,7 +13,14 @@ import {
   CRYPTO_EVENT_TYPE,
   CRYPTO_EXCHANGE,
   CRYPTO_SYNC_COMPLETED_WITH_GAPS,
+  CRYPTO_SYNC_CUTOFF_GRACE_MS,
+  CRYPTO_SYNC_HANDOFF_RESERVE_MS,
+  CRYPTO_SYNC_HANDOFF_TIMEOUT_MS,
+  CRYPTO_SYNC_INVOCATION_LIMIT_MS,
+  CRYPTO_SYNC_MAX_ROUNDS,
   CRYPTO_SYNC_MODE,
+  CRYPTO_SYNC_PHASE,
+  CRYPTO_SYNC_ROUND_BUDGET_MS,
   CRYPTO_SYNC_STATUS,
   CRYPTO_SYNC_TASK_FAILURE,
   type CryptoSyncMode,
@@ -38,6 +45,8 @@ const mockDb = {
   insertParamCounts: [] as number[],
   rejectInserts: false,
   lastTradeIdLookups: 0,
+  // Discovery's database source: assets seen in stored events.
+  interactedAssetLookups: 0,
 };
 
 /**
@@ -112,7 +121,10 @@ async function mockQuery(sql: string, params: unknown[] = []): Promise<unknown[]
     return [{ inserted }];
   }
   if (sql.includes('AS "RewardPayload"')) return mockCrossSourceIndex(sql, params);
-  if (sql.includes('SELECT DISTINCT asset')) return [];
+  if (sql.includes('SELECT DISTINCT asset')) {
+    mockDb.interactedAssetLookups += 1;
+    return [];
+  }
   if (sql.includes('"LastTradeID"')) return mockLastTradeIds(params);
   throw new Error(`unexpected SQL in test: ${sql.slice(0, 80)}`);
 }
@@ -136,7 +148,35 @@ const mockApi = {
   accountCalls: 0,
   // From this call on, GET /api/v3/account answers -2015 (key revoked mid-job).
   accountRefusedFromCall: null as number | null,
+  // Windowed task calls, in order, with the window start they asked for.
+  calls: [] as Array<{ method: string; startTime: number }>,
+  // Runs as each of those calls starts: a test moves the clock from here.
+  onCall: null as ((method: string, startTime: number) => void) | null,
+  // Runs as each myTrades page is requested; a test throws from here to fail it.
+  onTradePage: null as ((symbol: string, fromId?: number) => void) | null,
+  // Runs as each GET /api/v3/account call starts, with its number.
+  onAccountCall: null as ((call: number) => void) | null,
+  // True for a flexible-rewards call that never answers.
+  hangCall: null as ((method: string, startTime: number) => boolean) | null,
+  // getBalances, the first discovery source: its coins, or what it throws.
+  balances: [] as Row[],
+  balancesError: null as unknown,
+  balancesCalls: 0,
 };
+
+const MOCK_METHOD = {
+  CONVERT: 'getConvertTradeHistory',
+  FLEX: 'getFlexibleRewardsHistory',
+  LOCKED: 'getLockedRewardsHistory',
+  DEPOSIT: 'getDepositHistory',
+  WITHDRAW: 'getWithdrawHistory',
+} as const;
+
+function mockNoteCall(method: string, params?: { startTime?: number }): void {
+  const startTime = Number(params?.startTime);
+  mockApi.calls.push({ method, startTime });
+  mockApi.onCall?.(method, startTime);
+}
 
 /** The object the SDK's BaseRestClient.parseException throws for a non-2xx answer. */
 function mockSdkError(code: number, msg: string): Row {
@@ -155,6 +195,7 @@ function mockRewardsIn(rows: Row[], p: { startTime: number; endTime: number }): 
 }
 
 function mockTradePage(params: { symbol: string; fromId?: number; limit?: number }): Row[] {
+  mockApi.onTradePage?.(params.symbol, params.fromId);
   if (mockApi.trades.has(params.symbol)) mockApi.tradeCalls.push({ symbol: params.symbol, fromId: params.fromId });
   const fills = mockApi.trades.get(params.symbol) ?? [];
   const limit = params.limit ?? 500;
@@ -174,38 +215,49 @@ function mockTradePage(params: { symbol: string; fromId?: number; limit?: number
 
 jest.mock('binance', () => ({
   MainClient: jest.fn().mockImplementation(() => ({
-    getBalances: async () => [],
+    getBalances: async () => {
+      mockApi.balancesCalls += 1;
+      if (mockApi.balancesError) throw mockApi.balancesError;
+      return mockApi.balances;
+    },
     getAccountInformation: async () => {
       mockApi.accountCalls += 1;
+      mockApi.onAccountCall?.(mockApi.accountCalls);
       if (mockApi.accountRefusedFromCall != null && mockApi.accountCalls >= mockApi.accountRefusedFromCall) {
         throw MOCK_KEY_REFUSED;
       }
       return { balances: [] };
     },
     getAccountTradeList: async (params: { symbol: string; fromId?: number; limit?: number }) => mockTradePage(params),
-    getConvertTradeHistory: async (p: { startTime: number; endTime: number }) => ({
-      list: mockApi.convert.filter((row) => mockInWindow(row.createTime, p.startTime, p.endTime)),
-    }),
+    getConvertTradeHistory: async (p: { startTime: number; endTime: number }) => {
+      mockNoteCall(MOCK_METHOD.CONVERT, p);
+      return { list: mockApi.convert.filter((row) => mockInWindow(row.createTime, p.startTime, p.endTime)) };
+    },
     // Binance returns rewards newest first.
     getFlexibleRewardsHistory: async (p: { startTime: number; endTime: number }) => {
+      mockNoteCall(MOCK_METHOD.FLEX, p);
+      if (mockApi.hangCall?.(MOCK_METHOD.FLEX, p.startTime)) await new Promise(() => undefined);
       const rows = mockApi.flexRewards
         .filter((row) => mockInWindow(row.time, p.startTime, p.endTime))
         .sort((a, b) => Number(b.time) - Number(a.time));
       return { rows, total: rows.length };
     },
-    getLockedRewardsHistory: async (p: { startTime: number; endTime: number }) => ({
-      rows: mockRewardsIn(mockApi.lockedRewards, p),
-    }),
+    getLockedRewardsHistory: async (p: { startTime: number; endTime: number }) => {
+      mockNoteCall(MOCK_METHOD.LOCKED, p);
+      return { rows: mockRewardsIn(mockApi.lockedRewards, p) };
+    },
     getEthStakingHistory: async (p: { startTime: number; endTime: number }) => ({
       rows: mockRewardsIn(mockApi.ethStaking, p),
     }),
     getStakingHistory: async (p: { startTime: number; endTime: number }) => mockRewardsIn(mockApi.stakingInterest, p),
     getAssetDividendRecord: async () => ({ rows: [], total: 0 }),
-    getDepositHistory: async () => {
+    getDepositHistory: async (p?: { startTime?: number }) => {
+      mockNoteCall(MOCK_METHOD.DEPOSIT, p);
       if (mockApi.depositError) throw mockApi.depositError;
       return [];
     },
-    getWithdrawHistory: async () => {
+    getWithdrawHistory: async (p?: { startTime?: number }) => {
+      mockNoteCall(MOCK_METHOD.WITHDRAW, p);
       if (mockApi.withdrawError) throw mockApi.withdrawError;
       return [];
     },
@@ -216,6 +268,10 @@ jest.mock('binance', () => ({
   })),
 }));
 
+// A test that must know which task runs when (the round deadline tests) runs
+// the tasks one at a time.
+const mockLimiter = { sequential: false };
+
 // p-limit ships as ESM only; a minimal limiter keeps the worker's concurrency.
 jest.mock('p-limit', () => ({
   __esModule: true,
@@ -223,7 +279,7 @@ jest.mock('p-limit', () => ({
     let active = 0;
     const queue: Array<() => void> = [];
     const next = () => {
-      if (active >= concurrency) return;
+      if (active >= (mockLimiter.sequential ? 1 : concurrency)) return;
       const run = queue.shift();
       if (!run) return;
       active += 1;
@@ -254,10 +310,35 @@ const mockJobs = {
   progress: new Map<number, Record<string, Row>>(),
   // Last EventsIngested written per job.
   eventsIngested: new Map<number, number>(),
+  // Jobs marked running, one entry per call.
+  running: [] as number[],
+  // What markJobRunning answers: false once the job is no longer pending.
+  runningAccepted: true,
+  // What each round that ran out of time saved for the next one.
+  handOffs: [] as Array<{ jobId: number; progress: Record<string, Row>; eventsIngested: number; state: Row }>,
+  // What handOffSyncRound answers: false once the job was cancelled.
+  handOffAccepted: true,
+  failedUnclaimed: [] as Array<{ jobId: number; round: number; code: string; message: string }>,
+  // The jobs waiting in the cron's queue, oldest first, as findNextQueuedSyncJob hands them out.
+  queue: [] as Array<{ jobId: number; userId: number; exchange: string }>,
 };
 
 jest.mock('@/services/database/CryptoSyncJobsRepository', () => ({
-  markJobRunning: jest.fn(async () => undefined),
+  markJobRunning: jest.fn(async (jobId: number) => {
+    mockJobs.running.push(jobId);
+    return mockJobs.runningAccepted;
+  }),
+  handOffSyncRound: jest.fn(async (jobId: number, progress: unknown, eventsIngested: number, state: unknown) => {
+    const saved = JSON.parse(JSON.stringify(progress)) as Record<string, Row>;
+    mockJobs.handOffs.push({ jobId, progress: saved, eventsIngested, state: JSON.parse(JSON.stringify(state)) as Row });
+    mockJobs.progress.set(jobId, saved);
+    mockJobs.eventsIngested.set(jobId, eventsIngested);
+    return mockJobs.handOffAccepted;
+  }),
+  failUnclaimedSyncRound: jest.fn(async (jobId: number, round: number, code: string, message: string) => {
+    mockJobs.failedUnclaimed.push({ jobId, round, code, message });
+    return true;
+  }),
   updateJobProgress: jest.fn(async (jobId: number, progress: unknown, eventsIngested: number) => {
     mockJobs.progress.set(jobId, JSON.parse(JSON.stringify(progress)) as Record<string, Row>);
     mockJobs.eventsIngested.set(jobId, eventsIngested);
@@ -270,6 +351,15 @@ jest.mock('@/services/database/CryptoSyncJobsRepository', () => ({
   markJobFailed: jest.fn(async (jobId: number, code: string, message: string) => {
     mockJobs.failed.push({ jobId, code, message });
   }),
+  // The status the job's recorded transitions give it; a job whose hand-off
+  // write found it no longer running was cancelled.
+  getJobStatus: jest.fn(async (jobId: number) => {
+    if (mockJobs.completed.includes(jobId)) return 'completed';
+    const failed = [...mockJobs.failed, ...mockJobs.failedUnclaimed].some((failure) => failure.jobId === jobId);
+    if (failed) return 'failed';
+    return mockJobs.handOffAccepted ? 'running' : 'cancelled';
+  }),
+  findNextQueuedSyncJob: jest.fn(async () => mockJobs.queue.shift() ?? null),
 }));
 
 jest.mock('@/services/database/ExchangeCredentialsRepository', () => ({
@@ -281,7 +371,14 @@ jest.mock('@/services/database/TaxableEventsRepository', () => ({
 }));
 
 jest.mock('@/services/exchanges/binance/NormalizationService', () => ({
-  normalizeForUser: jest.fn(async () => ({ processed: 0, inserted: 0, skipped: 0, failed: 0, failures: [] })),
+  normalizeForUser: jest.fn(async () => ({
+    processed: 0,
+    inserted: 0,
+    skipped: 0,
+    failed: 0,
+    failures: [],
+    stoppedAtDeadline: false,
+  })),
 }));
 
 jest.mock('@/libs/auth', () => ({
@@ -289,12 +386,19 @@ jest.mock('@/libs/auth', () => ({
   AuthError: class AuthError extends Error {},
 }));
 
+import { SyncResumeStateSchema } from '@/schemas/crypto';
 import { bulkInsertRawEventsForUser, filterCrossSourceDuplicates } from '@/services/database/CryptoRawEventsRepository';
+import {
+  failUnclaimedSyncRound,
+  findNextQueuedSyncJob,
+  handOffSyncRound,
+} from '@/services/database/CryptoSyncJobsRepository';
 import { countUnnormalisedRawEventsForUser } from '@/services/database/TaxableEventsRepository';
-import { runSync } from '@/services/exchanges/binance/BinanceSyncService';
+import { runSync, type SyncResumePoint } from '@/services/exchanges/binance/BinanceSyncService';
 import { binanceCsvImporter } from '@/services/exchanges/binance/CsvImporter';
 import { normalizeForUser } from '@/services/exchanges/binance/NormalizationService';
 import { syncDebug } from '@/services/exchanges/binance/syncDebug';
+import { type SyncBudget, startSyncBudget } from '@/services/exchanges/shared/syncBudget';
 
 // ============================================================
 // Helpers
@@ -373,7 +477,10 @@ function makeFills(symbol: string, count: number, startMs: number): Row[] {
   }));
 }
 
-beforeEach(() => {
+// Stands in for the continue route; a test sets the answer it needs.
+const mockFetch = jest.fn();
+
+function resetWorld(): void {
   mockDb.rows = [];
   mockDb.uniqueKeys = new Set<string>();
   mockDb.insertParamCounts = [];
@@ -395,7 +502,26 @@ beforeEach(() => {
   mockJobs.failed = [];
   mockJobs.progress = new Map();
   mockJobs.eventsIngested = new Map();
-});
+  mockJobs.running = [];
+  mockJobs.runningAccepted = true;
+  mockJobs.handOffs = [];
+  mockJobs.handOffAccepted = true;
+  mockJobs.failedUnclaimed = [];
+  mockJobs.queue = [];
+  mockApi.calls = [];
+  mockApi.onCall = null;
+  mockApi.onTradePage = null;
+  mockApi.onAccountCall = null;
+  mockApi.hangCall = null;
+  mockApi.balances = [];
+  mockApi.balancesError = null;
+  mockApi.balancesCalls = 0;
+  mockDb.interactedAssetLookups = 0;
+  mockFetch.mockReset();
+  mockFetch.mockResolvedValue({ status: 202 });
+}
+
+beforeEach(resetWorld);
 
 // ============================================================
 // CRYPTO-INGEST-01 / 02 — spot history and chunked insert
@@ -777,7 +903,7 @@ describe('EventsIngested at the end of a job', () => {
     jest.mocked(countUnnormalisedRawEventsForUser).mockResolvedValueOnce(3);
     jest.mocked(normalizeForUser).mockImplementationOnce(async (_userId, onProgress) => {
       await onProgress?.(3, 2);
-      return { processed: 3, inserted: 2, skipped: 0, failed: 0, failures: [] };
+      return { processed: 3, inserted: 2, skipped: 0, failed: 0, failures: [], stoppedAtDeadline: false };
     });
 
     const jobId = await sync(T0, T0 + 10 * DAY_MS);
@@ -1116,5 +1242,639 @@ describe('rewards stored under the earlier position-based ExternalID', () => {
     await sync(T0, T0 + 10 * DAY_MS);
 
     expect(rowsOf(CRYPTO_EVENT_TYPE.EARN_FLEX).map((row) => row.RawPayload.type)).toEqual(['REALTIME', 'BONUS']);
+  });
+});
+
+// ============================================================
+// A job longer than one function invocation runs in rounds
+// ============================================================
+
+describe('a job longer than one function invocation', () => {
+  // The configured origin the next round is requested on, never the request's Host.
+  const APP_ORIGIN = 'https://budgetguard.test';
+  const SECRET = 'test-cron-secret';
+  // Two 30-day windows for the reward endpoints.
+  const SCOPE_TO = T0 + 60 * DAY_MS;
+  const DEADLINE = 1_000;
+  const clock = { now: 0 };
+  const savedEnv = { ...process.env };
+  const savedFetch = global.fetch;
+  let log: jest.SpyInstance;
+  let warn: jest.SpyInstance;
+  let error: jest.SpyInstance;
+
+  const FLEX_REWARD = { asset: 'BTC', rewards: '0.00000120', projectId: 'BTC001', type: 'REALTIME', time: REWARD_MS };
+  const LATER_FLEX_REWARD = { ...FLEX_REWARD, rewards: '0.00000130', time: T0 + 40 * DAY_MS };
+
+  function budget(): SyncBudget {
+    return { deadline: DEADLINE, now: () => clock.now };
+  }
+
+  async function runRound(jobId: number, resume?: SyncResumePoint): Promise<void> {
+    await runSync({
+      userId: USER_ID,
+      jobId,
+      exchange: CRYPTO_EXCHANGE.BINANCE,
+      mode: CRYPTO_SYNC_MODE.FULL,
+      scopeFrom: new Date(T0),
+      scopeTo: new Date(SCOPE_TO),
+      budget: budget(),
+      resume,
+    });
+  }
+
+  /** The first window's flex rewards take the round past its deadline while they are fetched. */
+  function deadlinePassesDuringFirstFlexWindow(): void {
+    mockApi.onCall = (method, startTime) => {
+      if (method === MOCK_METHOD.FLEX && startTime === T0) clock.now = DEADLINE;
+    };
+  }
+
+  /** What the continue route hands the next round: the saved state, now claimed, and the job's progress. */
+  function claimedNextRound(jobId: number): SyncResumePoint {
+    const handOff = mockJobs.handOffs.filter((saved) => saved.jobId === jobId).at(-1);
+    if (!handOff) throw new Error(`job ${jobId} did not hand off`);
+    return {
+      state: SyncResumeStateSchema.parse({ ...handOff.state, claimed: true }),
+      progress: handOff.progress as unknown as SyncResumePoint['progress'],
+    };
+  }
+
+  /** Everything the job's outcome is made of, plus the task calls it took. */
+  function outcomeOf(jobId: number) {
+    return {
+      completed: mockJobs.completed.filter((id) => id === jobId).length,
+      failed: mockJobs.failed.filter((f) => f.jobId === jobId),
+      warning: mockJobs.completedWarnings.get(jobId),
+      progress: mockJobs.progress.get(jobId),
+      eventsIngested: mockJobs.eventsIngested.get(jobId),
+      rows: mockDb.rows.map((row) => `${row.EventType}|${row.ExternalID}`).sort(),
+      taskCalls: mockApi.calls,
+    };
+  }
+
+  beforeAll(() => {
+    process.env.CRON_SECRET = SECRET;
+    process.env.NEXTAUTH_URL = APP_ORIGIN;
+    global.fetch = mockFetch as unknown as typeof fetch;
+  });
+
+  afterAll(() => {
+    process.env = savedEnv;
+    global.fetch = savedFetch;
+  });
+
+  beforeEach(() => {
+    mockLimiter.sequential = true;
+    clock.now = 0;
+    log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    mockLimiter.sequential = false;
+    log.mockRestore();
+    warn.mockRestore();
+    error.mockRestore();
+  });
+
+  it('starts no task once the budget is spent, finishes the one running, saves its state and asks once for the next round', async () => {
+    mockApi.flexRewards = [FLEX_REWARD, LATER_FLEX_REWARD];
+    deadlinePassesDuringFirstFlexWindow();
+
+    await runRound(41);
+
+    // The task running when the deadline passed was finished and stored...
+    expect(rowsOf(CRYPTO_EVENT_TYPE.EARN_FLEX).map((row) => row.RawPayload.rewards)).toEqual(['0.00000120']);
+    // ...and the next one was never started.
+    expect(mockApi.calls.map((call) => call.method)).not.toContain(MOCK_METHOD.LOCKED);
+    expect(mockJobs.completed).toEqual([]);
+    expect(mockJobs.failed).toEqual([]);
+
+    expect(mockJobs.handOffs).toHaveLength(1);
+    const state = SyncResumeStateSchema.parse(mockJobs.handOffs[0]?.state);
+    expect(state).toMatchObject({ round: 2, claimed: false, phase: CRYPTO_SYNC_PHASE.FETCH, normalize: null });
+    const firstWindow = new Date(T0).toISOString();
+    expect(state.completedTaskKeys).toContain(`${CRYPTO_EVENT_TYPE.EARN_FLEX}:${firstWindow}`);
+    expect(state.completedTaskKeys).not.toContain(`${CRYPTO_EVENT_TYPE.EARN_LOCKED}:${firstWindow}`);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${APP_ORIGIN}/api/crypto/sync/41/continue`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ round: 2 }),
+        redirect: 'manual',
+        headers: expect.objectContaining({ Authorization: `Bearer ${SECRET}` }),
+      }),
+    );
+  });
+
+  it('the next round skips the completed tasks, and the job ends exactly as one uninterrupted run would', async () => {
+    const seed = async () => {
+      // One reward the CSV holds, which Binance lists in both Earn histories:
+      // the CSV row stands for one of them, so the other must be kept, even
+      // when the two are fetched in different rounds.
+      await importCsv(
+        [
+          'User_ID,UTC_Time,Account,Operation,Coin,Change,Remark',
+          '1,2025-01-05 00:00:00,Earn,Simple Earn Flexible Interest,BTC,0.00000120,',
+        ].join('\n'),
+      );
+      mockApi.flexRewards = [FLEX_REWARD, LATER_FLEX_REWARD];
+      mockApi.lockedRewards = [
+        {
+          positionId: '9',
+          asset: 'BTC',
+          amount: '0.00000120',
+          lockPeriod: '30',
+          type: 'Locked Rewards',
+          time: REWARD_MS,
+        },
+      ];
+      mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+      // Binance refuses the deposit history to this key: a gap the job completes with.
+      mockApi.depositError = MOCK_KEY_REFUSED;
+    };
+
+    await seed();
+    await runRound(51);
+    const uninterrupted = outcomeOf(51);
+    expect(uninterrupted.completed).toBe(1);
+    expect(mockJobs.handOffs).toEqual([]);
+
+    resetWorld();
+    clock.now = 0;
+    await seed();
+    deadlinePassesDuringFirstFlexWindow();
+    await runRound(52);
+    expect(mockJobs.completed).toEqual([]);
+    mockApi.onCall = null;
+    clock.now = 0;
+    await runRound(52, claimedNextRound(52));
+
+    // Same status, warning, Progress (per endpoint, gaps and dedup counts
+    // included), EventsIngested and rows, and no task fetched twice.
+    expect(outcomeOf(52)).toEqual(uninterrupted);
+    expect(rowsOf(CRYPTO_EVENT_TYPE.EARN_LOCKED)).toHaveLength(1);
+    expect(mockJobs.handOffs).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    // StartedAt is set by the first round only.
+    expect(mockJobs.running).toEqual([52]);
+  });
+
+  it('a normalisation that runs out of time is finished by the next round, and only then does the job complete', async () => {
+    mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+    jest.mocked(countUnnormalisedRawEventsForUser).mockResolvedValueOnce(3);
+    const budgetsGiven: unknown[] = [];
+    jest
+      .mocked(normalizeForUser)
+      .mockImplementationOnce(async (_userId, onProgress, roundBudget) => {
+        budgetsGiven.push(roundBudget);
+        await onProgress?.(2, 2);
+        return { processed: 2, inserted: 2, skipped: 0, failed: 0, failures: [], stoppedAtDeadline: true };
+      })
+      .mockImplementationOnce(async (_userId, onProgress, roundBudget) => {
+        budgetsGiven.push(roundBudget);
+        await onProgress?.(1, 1);
+        return { processed: 1, inserted: 1, skipped: 0, failed: 0, failures: [], stoppedAtDeadline: false };
+      });
+
+    await runRound(71);
+
+    // The normaliser got the round's budget, and the job is not completed yet.
+    expect(budgetsGiven).toEqual([expect.objectContaining({ deadline: DEADLINE })]);
+    expect(mockJobs.completed).toEqual([]);
+    expect(mockJobs.handOffs).toHaveLength(1);
+    expect(mockJobs.handOffs[0]).toMatchObject({
+      eventsIngested: 3 + 2,
+      state: { round: 2, phase: CRYPTO_SYNC_PHASE.NORMALIZE, normalize: { total: 3, processed: 2, inserted: 2 } },
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const tradeCalls = mockApi.tradeCalls.length;
+    const accountCalls = mockApi.accountCalls;
+
+    await runRound(71, claimedNextRound(71));
+
+    expect(mockJobs.completed).toEqual([71]);
+    // What one uninterrupted run gives: raw events plus every normalised one.
+    expect(mockJobs.eventsIngested.get(71)).toBe(3 + 3);
+    expect(mockJobs.progress.get(71)?.normalize).toMatchObject({ fetched: 3, totalWindows: 3, completedWindows: 3 });
+    // The normalising round asked Binance for nothing.
+    expect(mockApi.tradeCalls).toHaveLength(tradeCalls);
+    expect(mockApi.accountCalls).toBe(accountCalls);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails the job with its own code instead of handing off past the round limit', async () => {
+    clock.now = DEADLINE;
+
+    await runRound(61, { state: SyncResumeStateSchema.parse({ round: CRYPTO_SYNC_MAX_ROUNDS }), progress: {} });
+
+    expect(mockJobs.failed).toEqual([
+      { jobId: 61, code: API_ERROR.CRYPTO.SYNC_ROUND_LIMIT, message: expect.stringContaining('fetch tasks') },
+    ]);
+    expect(mockJobs.handOffs).toEqual([]);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('starts no next round when the job was cancelled while the round finished its tasks', async () => {
+    mockJobs.handOffAccepted = false;
+    clock.now = DEADLINE;
+
+    await runRound(62);
+
+    expect(mockJobs.handOffs).toHaveLength(1);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockJobs.failed).toEqual([]);
+    expect(mockJobs.failedUnclaimed).toEqual([]);
+  });
+
+  it('sends nothing and fails the job when no trusted origin is configured', async () => {
+    delete process.env.NEXTAUTH_URL;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    clock.now = DEADLINE;
+    try {
+      await runRound(63);
+    } finally {
+      process.env.NEXTAUTH_URL = APP_ORIGIN;
+    }
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockJobs.failedUnclaimed).toEqual([
+      expect.objectContaining({ jobId: 63, round: 2, code: API_ERROR.CRYPTO.SYNC_ORIGIN_NOT_CONFIGURED }),
+    ]);
+  });
+
+  /** Where the round's cutoff falls on the injected clock. */
+  const CUTOFF = DEADLINE + CRYPTO_SYNC_CUTOFF_GRACE_MS;
+  const RATE_LIMITED = mockSdkError(-1003, 'Too many requests.');
+
+  it('abandons a task still waiting on Binance at the cutoff: it stores nothing, stays open, and the next round runs it again', async () => {
+    // A pair whose history takes a walk of several pages from the first fill.
+    const seed = () => {
+      mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 2_500, T0));
+      mockApi.flexRewards = [FLEX_REWARD];
+    };
+    seed();
+    await runRound(53);
+    const uninterrupted = outcomeOf(53);
+    expect(uninterrupted.completed).toBe(1);
+
+    resetWorld();
+    clock.now = 0;
+    seed();
+    // The walk's second page is rate-limited 20 s before the cutoff, and the
+    // retry would wait 30 s.
+    mockApi.onTradePage = (symbol, fromId) => {
+      if (symbol !== 'BTCUSDT' || fromId == null || fromId === 0) return;
+      clock.now = CUTOFF - 20_000;
+      throw RATE_LIMITED;
+    };
+    await runRound(54);
+
+    // Nothing of the walk was kept or held against the pair, and it is still to do.
+    expect(rowsOf(CRYPTO_EVENT_TYPE.SPOT_TRADE)).toEqual([]);
+    const saved = SyncResumeStateSchema.parse(mockJobs.handOffs[0]?.state);
+    expect(saved.completedTaskKeys).not.toContain(`${CRYPTO_EVENT_TYPE.SPOT_TRADE}:BTCUSDT`);
+    expect(saved.taskFailures).toEqual([]);
+    expect(mockJobs.failed).toEqual([]);
+
+    mockApi.onTradePage = null;
+    clock.now = 0;
+    await runRound(54, claimedNextRound(54));
+
+    expect(outcomeOf(54)).toEqual(uninterrupted);
+  });
+
+  it('a -2015 confirmation cut off at the cutoff is asked again by the next round, not taken as a revoked key', async () => {
+    mockApi.depositError = MOCK_KEY_REFUSED;
+    await runRound(56);
+    const uninterrupted = outcomeOf(56);
+    expect(uninterrupted.warning).toMatchObject({ code: CRYPTO_SYNC_COMPLETED_WITH_GAPS });
+
+    resetWorld();
+    clock.now = 0;
+    mockApi.depositError = MOCK_KEY_REFUSED;
+    // Discovery asks for the account first; the second call is the
+    // confirmation, rate-limited 20 s before the cutoff.
+    mockApi.onAccountCall = (call) => {
+      if (call !== 2) return;
+      clock.now = CUTOFF - 20_000;
+      throw RATE_LIMITED;
+    };
+    await runRound(57);
+
+    expect(mockJobs.completed).toEqual([]);
+    expect(mockJobs.failed).toEqual([]);
+    expect(mockJobs.handOffs).toHaveLength(1);
+
+    mockApi.onAccountCall = null;
+    clock.now = 0;
+    await runRound(57, claimedNextRound(57));
+
+    expect(outcomeOf(57)).toEqual(uninterrupted);
+  });
+
+  it("a pair round 1 discovered but did not reach is fetched even when the next round's discovery comes back short", async () => {
+    // Only getBalances lists XYZ: not a top-40 asset, never seen in stored events.
+    mockApi.balances = [{ coin: 'XYZ', free: '5' }];
+    mockApi.trades.set('XYZEUR', makeFills('XYZEUR', 3, T0));
+    // The deadline passes while the first of XYZ's pairs is fetched.
+    mockApi.onTradePage = (symbol) => {
+      if (symbol === 'XYZUSDT') clock.now = DEADLINE;
+    };
+    await runRound(58);
+    expect(rowsOf(CRYPTO_EVENT_TYPE.SPOT_TRADE)).toEqual([]);
+
+    // The next round's getBalances fails, and a failed source counts as empty.
+    mockApi.onTradePage = null;
+    mockApi.balancesError = mockSdkError(-1000, 'An unknown error occurred while processing the request.');
+    clock.now = 0;
+    await runRound(58, claimedNextRound(58));
+
+    expect(rowsOf(CRYPTO_EVENT_TYPE.SPOT_TRADE)).toHaveLength(3);
+    expect(mockJobs.completed).toEqual([58]);
+  });
+
+  it('does not run a job that is no longer queued when its first round starts', async () => {
+    mockJobs.runningAccepted = false;
+    mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+
+    await runRound(59);
+
+    expect(mockApi.accountCalls).toBe(0);
+    expect(mockApi.tradeCalls).toEqual([]);
+    expect(mockJobs.progress.has(59)).toBe(false);
+    expect(mockJobs.completed).toEqual([]);
+    expect(mockJobs.failed).toEqual([]);
+    expect(mockJobs.handOffs).toEqual([]);
+  });
+
+  /** What each discovery source, and the newest-fill lookup, have been asked so far. */
+  function discoveryLookups() {
+    return {
+      balances: mockApi.balancesCalls,
+      account: mockApi.accountCalls,
+      interactedAssets: mockDb.interactedAssetLookups,
+      lastTradeIds: mockDb.lastTradeIdLookups,
+    };
+  }
+
+  it('a later round takes the spot pairs discovery listed instead of discovering again', async () => {
+    mockApi.flexRewards = [FLEX_REWARD, LATER_FLEX_REWARD];
+    mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+    // Every spot walk runs before the reward windows: none is left for round 2.
+    deadlinePassesDuringFirstFlexWindow();
+    await runRound(65);
+    const afterRoundOne = discoveryLookups();
+    expect(afterRoundOne).toMatchObject({ balances: 1, interactedAssets: 1, lastTradeIds: 1 });
+    expect(SyncResumeStateSchema.parse(mockJobs.handOffs[0]?.state).spotCandidates).toContain('BTCUSDT');
+
+    mockApi.onCall = null;
+    clock.now = 0;
+    await runRound(65, claimedNextRound(65));
+
+    // Neither Binance nor the database was asked for the pairs again, and with
+    // no walk left the newest stored fills were not read either.
+    expect(discoveryLookups()).toEqual(afterRoundOne);
+    expect(mockJobs.completed).toEqual([65]);
+    expect(rowsOf(CRYPTO_EVENT_TYPE.SPOT_TRADE)).toHaveLength(3);
+  });
+
+  it('a later round with a spot walk still to run reads the newest stored fills, and only those', async () => {
+    mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+    // The deadline passes during BTCUSDT's walk: the pairs after it stay open.
+    mockApi.onTradePage = (symbol) => {
+      if (symbol === 'BTCUSDT') clock.now = DEADLINE;
+    };
+    await runRound(66);
+    const afterRoundOne = discoveryLookups();
+
+    mockApi.onTradePage = null;
+    clock.now = 0;
+    await runRound(66, claimedNextRound(66));
+
+    expect(discoveryLookups()).toEqual({ ...afterRoundOne, lastTradeIds: afterRoundOne.lastTradeIds + 1 });
+    expect(mockJobs.completed).toEqual([66]);
+  });
+
+  it('a discovery call cut off at the cutoff hands off and is asked again, instead of dropping its pairs', async () => {
+    // Only getBalances lists XYZ: not a top-40 asset, never seen in stored events.
+    mockApi.balances = [{ coin: 'XYZ', free: '5' }];
+    mockApi.trades.set('XYZEUR', makeFills('XYZEUR', 3, T0));
+    // getBalances is rate-limited 20 s before the cutoff, and its retry would wait 30 s.
+    mockApi.balancesError = RATE_LIMITED;
+    clock.now = CUTOFF - 20_000;
+    await runRound(67);
+
+    expect(mockJobs.failed).toEqual([]);
+    expect(mockJobs.handOffs).toHaveLength(1);
+    // No pair list was saved: the next round discovers.
+    expect(SyncResumeStateSchema.parse(mockJobs.handOffs[0]?.state).spotCandidates).toEqual([]);
+
+    mockApi.balancesError = null;
+    clock.now = 0;
+    await runRound(67, claimedNextRound(67));
+
+    expect(rowsOf(CRYPTO_EVENT_TYPE.SPOT_TRADE)).toHaveLength(3);
+    expect(mockJobs.completed).toEqual([67]);
+  });
+
+  it('a hand-off whose write throws fails the job only while the announced round is unclaimed', async () => {
+    // The write may have been saved before the connection dropped.
+    jest.mocked(handOffSyncRound).mockRejectedValueOnce(new Error('Connection terminated unexpectedly'));
+    clock.now = DEADLINE;
+
+    await expect(runRound(68)).rejects.toThrow('Connection terminated unexpectedly');
+
+    expect(mockJobs.failed).toEqual([]);
+    expect(mockJobs.failedUnclaimed).toEqual([
+      { jobId: 68, round: 2, code: API_ERROR.CRYPTO.SYNC_HANDOFF_FAILED, message: 'Round 2 could not be started.' },
+    ]);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('round 2'), expect.any(Error));
+  });
+
+  it('never fails a job whose next round a timed-out call may have started, when the hand-off throws after it', async () => {
+    // Both calls go unanswered, so either may have reached the route; then
+    // recording the failed hand-off throws, and the retry of that record finds
+    // the round claimed.
+    mockFetch.mockRejectedValue(new Error('socket hang up'));
+    jest
+      .mocked(failUnclaimedSyncRound)
+      .mockRejectedValueOnce(new Error('Connection terminated unexpectedly'))
+      .mockResolvedValueOnce(false);
+    clock.now = DEADLINE;
+
+    await expect(runRound(69)).rejects.toThrow('Connection terminated unexpectedly');
+
+    expect(mockJobs.failed).toEqual([]);
+    expect(jest.mocked(failUnclaimedSyncRound)).toHaveBeenLastCalledWith(
+      69,
+      2,
+      API_ERROR.CRYPTO.SYNC_HANDOFF_FAILED,
+      'Round 2 could not be started.',
+    );
+  });
+
+  describe("a job of the cron's queue", () => {
+    const NEXT_QUEUED = { jobId: 90, userId: 8, exchange: CRYPTO_EXCHANGE.BINANCE };
+
+    /** The first round of a job the cron queued, as the continue route hands it over once claimed. */
+    function queuedFirstRound(): SyncResumePoint {
+      return { state: SyncResumeStateSchema.parse({ round: 1, claimed: true, inCronQueue: true }), progress: {} };
+    }
+
+    function continueCalls(): Array<{ url: string; round: unknown }> {
+      return mockFetch.mock.calls.map(([url, init]) => ({
+        url: String(url),
+        round: (JSON.parse(String((init as RequestInit).body)) as { round: unknown }).round,
+      }));
+    }
+
+    beforeEach(() => {
+      mockJobs.queue = [{ ...NEXT_QUEUED }];
+      jest.mocked(findNextQueuedSyncJob).mockClear();
+    });
+
+    it('the round that completes it starts the next job waiting', async () => {
+      mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+
+      await runRound(81, queuedFirstRound());
+
+      expect(mockJobs.completed).toEqual([81]);
+      expect(continueCalls()).toEqual([{ url: `${APP_ORIGIN}/api/crypto/sync/90/continue`, round: 1 }]);
+    });
+
+    it('a failed one still starts the next', async () => {
+      mockApi.depositError = mockSdkError(-1000, 'An unknown error occurred while processing the request.');
+
+      await runRound(82, queuedFirstRound());
+
+      expect(mockJobs.failed.map((failure) => failure.jobId)).toEqual([82]);
+      expect(continueCalls()).toEqual([{ url: `${APP_ORIGIN}/api/crypto/sync/90/continue`, round: 1 }]);
+    });
+
+    it('one whose next round could not be started ends failed and starts the next', async () => {
+      clock.now = DEADLINE;
+      mockFetch.mockResolvedValueOnce({ status: 500 }).mockResolvedValueOnce({ status: 500 });
+
+      await runRound(84, queuedFirstRound());
+
+      expect(mockJobs.failedUnclaimed.map((failure) => failure.jobId)).toEqual([84]);
+      expect(continueCalls()).toEqual([
+        { url: `${APP_ORIGIN}/api/crypto/sync/84/continue`, round: 2 },
+        { url: `${APP_ORIGIN}/api/crypto/sync/84/continue`, round: 2 },
+        { url: `${APP_ORIGIN}/api/crypto/sync/90/continue`, round: 1 },
+      ]);
+    });
+
+    it('a round that hands its job on leaves the queue to the round that ends the job', async () => {
+      clock.now = DEADLINE;
+
+      await runRound(85, queuedFirstRound());
+
+      expect(continueCalls()).toEqual([{ url: `${APP_ORIGIN}/api/crypto/sync/85/continue`, round: 2 }]);
+      expect(SyncResumeStateSchema.parse(mockJobs.handOffs[0]?.state).inCronQueue).toBe(true);
+      expect(findNextQueuedSyncJob).not.toHaveBeenCalled();
+    });
+
+    it('a manual sync is not chained into the queue', async () => {
+      mockApi.trades.set('BTCUSDT', makeFills('BTCUSDT', 3, T0));
+
+      await runRound(86);
+
+      expect(mockJobs.completed).toEqual([86]);
+      expect(findNextQueuedSyncJob).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ============================================================
+// The worst case of a round's end, on the real constants
+// ============================================================
+
+describe('a round whose Binance call and hand-off call never answer', () => {
+  const APP_ORIGIN = 'https://budgetguard.test';
+  const savedEnv = { ...process.env };
+  const savedFetch = global.fetch;
+  const spies: jest.SpyInstance[] = [];
+
+  /** Moves fake time a second at a time until `done`, at most `maxMs`. */
+  async function advanceUntil(done: () => boolean, maxMs: number): Promise<void> {
+    const STEP_MS = 1_000;
+    await Array.from({ length: maxMs / STEP_MS }).reduce<Promise<void>>(async (previous) => {
+      await previous;
+      if (!done()) await jest.advanceTimersByTimeAsync(STEP_MS);
+    }, Promise.resolve());
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'queueMicrotask', 'setImmediate'] });
+    process.env.CRON_SECRET = 'test-cron-secret';
+    process.env.NEXTAUTH_URL = APP_ORIGIN;
+    global.fetch = mockFetch as unknown as typeof fetch;
+    mockLimiter.sequential = true;
+    spies.push(
+      jest.spyOn(console, 'log').mockImplementation(() => undefined),
+      jest.spyOn(console, 'error').mockImplementation(() => undefined),
+    );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    process.env = { ...savedEnv };
+    global.fetch = savedFetch;
+    mockLimiter.sequential = false;
+    spies.splice(0).forEach((spy) => {
+      spy.mockRestore();
+    });
+  });
+
+  it('still saves its state and settles the hand-off before the invocation ends', async () => {
+    const invocationStart = Date.now();
+    const roundBudget = startSyncBudget();
+    // The worst case: the call goes out a second before the deadline and never
+    // answers, and neither does the continue route.
+    jest.setSystemTime(invocationStart + CRYPTO_SYNC_ROUND_BUDGET_MS - 1_000);
+    mockApi.hangCall = (method, startTime) => method === MOCK_METHOD.FLEX && startTime === T0;
+    mockFetch.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('This operation was aborted')));
+        }),
+    );
+    const settled: { at: number | null } = { at: null };
+    runSync({
+      userId: USER_ID,
+      jobId: 55,
+      exchange: CRYPTO_EXCHANGE.BINANCE,
+      mode: CRYPTO_SYNC_MODE.FULL,
+      scopeFrom: new Date(T0),
+      scopeTo: new Date(T0 + 60 * DAY_MS),
+      budget: roundBudget,
+    }).then(() => {
+      settled.at = Date.now();
+    });
+
+    await advanceUntil(() => settled.at !== null, CRYPTO_SYNC_INVOCATION_LIMIT_MS);
+
+    // Done at the cutoff (270 s) plus one hand-off call of 15 s: 285 s, inside
+    // the 5 s the hand-off keeps free before the limit.
+    expect(settled.at).not.toBeNull();
+    const elapsed = (settled.at ?? Number.POSITIVE_INFINITY) - invocationStart;
+    expect(elapsed).toBe(CRYPTO_SYNC_ROUND_BUDGET_MS + CRYPTO_SYNC_CUTOFF_GRACE_MS + CRYPTO_SYNC_HANDOFF_TIMEOUT_MS);
+    expect(elapsed).toBeLessThanOrEqual(CRYPTO_SYNC_INVOCATION_LIMIT_MS - CRYPTO_SYNC_HANDOFF_RESERVE_MS);
+    // The state was saved with the abandoned task open, one call was tried,
+    // and the job was failed at once instead of waiting for failStuckJobs.
+    const saved = SyncResumeStateSchema.parse(mockJobs.handOffs[0]?.state);
+    expect(saved).toMatchObject({ round: 2, claimed: false });
+    expect(saved.completedTaskKeys).not.toContain(`${CRYPTO_EVENT_TYPE.EARN_FLEX}:${new Date(T0).toISOString()}`);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockJobs.failedUnclaimed).toEqual([
+      expect.objectContaining({ jobId: 55, round: 2, code: API_ERROR.CRYPTO.SYNC_HANDOFF_FAILED }),
+    ]);
   });
 });

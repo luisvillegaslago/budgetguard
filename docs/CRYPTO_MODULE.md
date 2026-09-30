@@ -267,8 +267,200 @@ rate-limit forensics. Append-only, pruned periodically.
 - A successful sync auto-triggers normalisation; `POST /api/crypto/normalize` is the manual escape
   hatch and processes only un-normalised events.
 - `GET /api/cron/crypto-sync` runs weekly (Monday 05:00 UTC, see `vercel.json`), authenticated by
-  `Authorization: Bearer ${CRON_SECRET}`. It runs without a session and skips users with a job
-  already in flight.
+  `Authorization: Bearer ${CRON_SECRET}`. It runs without a session. It first runs `failStuckJobs`
+  once: its own lookup (`findActiveJobForUser`) does not, so a job an earlier run left `pending`
+  would otherwise skip that user as `already_running` every week. It then skips users with a job
+  in flight and runs no sync itself: it creates each job and starts a first round through the
+  continue route (next section), so each sync gets its own invocations and one long sync cannot
+  take the cron past its limit (`maxDuration = 300`; the continue calls it waits on are kept
+  inside it by a budget).
+- **The cron's jobs run one at a time.** Binance counts request weight per IP, and each
+  `BinanceClient` keeps only its own count, so users syncing at once would add up to a 429 or a 418
+  ban; the cron ran them one after another when it ran them inline, and still does. Its jobs are
+  created as a queue (`inCronQueue` in `ResumeState`) and the cron starts only the oldest one; the
+  round that ends a queued job, whatever the end (completed, with gaps, failed, cancelled), starts
+  the next one waiting (`startNextQueuedSyncJob`), through the same continue route and guards. A
+  round whose next round was accepted leaves that to the round that ends the job; one whose
+  hand-off was not accepted reads the job first, since a timed-out call may have started the next
+  round after all. `findNextQueuedSyncJob` returns the oldest job still `pending` with round 1
+  unclaimed, and nothing while a job of the queue is under way (running, or `pending` with its
+  first round claimed), so two starts cannot run two jobs at once. A job whose first round is not
+  accepted is failed while that round is unclaimed (`failUnclaimedSyncRound`, also after a refusal
+  that followed a failed call) and the next one is tried; a start with no time left in its
+  invocation tries nothing rather than fail jobs. A manual sync is never in the queue: its
+  `ResumeState` has no marker, it is never taken from it and its end starts nothing. A job ended by
+  `failStuckJobs` (stalled) starts nothing either: the jobs behind it are failed as never started.
+  The report lists the job started (`triggered`), the jobs waiting their turn (`queued`) and each
+  credential not started with a reason: `already_running`, `continuation_refused` (the continue
+  route answered 409: origin and secret work, and the job's ErrorCode says why) or `not_started`
+  (no answer the cron could use).
+- Every status change names the statuses it leaves from: `markJobRunning` only a `pending` job,
+  `markJobCompleted` only a `running` one, `markJobFailed` and the cancel only one of the two. A
+  cancel while the worker finishes its last task used to be overwritten by the worker completing
+  the job, which then became the next incremental sync's anchor without having fetched everything.
+  A first round that finds its job no longer `pending` stops without fetching.
+- A job stuck in `pending` for 5 minutes fails with `api-error.crypto.sync-never-started`; one
+  `running` whose row has not been written for 15 minutes fails with
+  `api-error.crypto.sync-stalled`, whose message says it stopped reporting progress and that what
+  it recorded is kept (`failStuckJobs`). Until 2026-09-29 both got `stuck-job` and a message saying
+  the job never produced progress, which job 31 disproved: it had fetched 1590 of 2063 windows.
+  A job waiting in the cron's queue stays `pending` until the one before it ends, which can take
+  longer than 5 minutes, and the panel runs `failStuckJobs` on every visit: it is left alone while
+  a job of the queue is under way, and fails once none is. The stalled jobs are failed first, so
+  the jobs waiting behind a stalled one fail in the same call.
+
+### A job longer than one invocation runs in rounds
+
+**Why.** On 2026-09-29 an all-time sync (job 31, 2063 task windows) ran inside `after()` and
+Vercel killed the invocation at 300 s ("Task timed out after 300 seconds") after 1590 windows.
+300 s is the plan's ceiling, so a longer `maxDuration` is not available; the job has to continue
+itself in a fresh invocation.
+
+**Budget.** Each round gets `CRYPTO_SYNC_ROUND_BUDGET_MS` (240 s) from the start of its
+invocation (`startSyncBudget`, called first thing in the route). Before starting each task the
+round reads the budget; once it is spent it starts nothing more, lets the tasks already running
+finish, saves its state and hands off. The routes that run a round declare `maxDuration = 300`
+(`CRYPTO_SYNC_INVOCATION_LIMIT_MS`) so the budget's premise is visible in code.
+
+**Cutoff.** "Let the running tasks finish" was unbounded: the Binance SDK's own request timeout is
+five minutes, a rate-limit retry waits 30 s and then 60 s, the weight throttle up to 60 s, and a
+spot walk keeps paging. A task still running at 300 s died with the invocation before the hand-off,
+and the job hung until `sync-stalled`, which is how job 31 failed. So every `BinanceClient` a round
+creates gets a cutoff, `CRYPTO_SYNC_CUTOFF_GRACE_MS` (30 s) after the budget: no request is sent and
+no wait is started once it would reach the cutoff, and a request still unanswered then is
+abandoned (`SyncCutoffError`, task code `round_cutoff`, transient). The task is not failed and its
+key stays open, so the next round runs it again from the start. A spot walk cut there keeps none of
+its pages: a full sync would walk them again from the first fill anyway, and storing them would move
+an incremental walk's resume point, so the job would no longer end as one uninterrupted run. The
+same cutoff abandons a price lookup still running during normalisation (that event stays queued),
+and a discovery or `-2015` confirmation call still running (the round hands off and the next one
+asks again: a cut confirmation is not a revoked key).
+
+**Worst case, with the constants.** From the start of the invocation:
+
+| Time | What happens |
+|------|--------------|
+| 0 s | The route starts the budget |
+| 240 s | Budget spent: no task, and no event to normalise, starts |
+| 270 s | Cutoff: every Binance request or wait, and every price lookup, still running is abandoned |
+| 270 s + W | Database only: the inserts of tasks whose fetch had already returned (at most `BINANCE_SYNC_CONCURRENCY` = 3), the progress write and the hand-off write |
+| ≤ 295 s | The continue call has ended: two calls of `CRYPTO_SYNC_HANDOFF_TIMEOUT_MS` (15 s) only if both end `CRYPTO_SYNC_HANDOFF_RESERVE_MS` (5 s) before 300 s, i.e. a round that stopped at its budget with nothing in flight; otherwise one call of min(15 s, 295 s − now); none if under `CRYPTO_SYNC_HANDOFF_MIN_TIMEOUT_MS` (3 s) would be left, and the job fails at once with `sync-handoff-failed` |
+| ≤ 300 s | A failed call is recorded on the job (`failUnclaimedSyncRound`) inside the 5 s reserve |
+
+A Binance call that never answers, sent a second before the deadline, with a continue route that
+never answers either, ends the round at 285 s (`binance-sync-ingestion.test.ts`, fake timers on
+these constants). What stays unbounded is the database: the writes after the cutoff (W) are assumed
+to take under 22 s (295 − 3 − 270). If they take more than 30 s the invocation is still killed, and
+the job ends as `sync-stalled` 15 minutes later, with the next round's state already saved if the
+hand-off write got through.
+
+**Task keys.** Every task has a key that does not depend on when it runs: `spot_trade:BTCUSDT`
+for a spot pair, `earn_flex:2025-01-01T00:00:00.000Z` for a windowed endpoint (window start), and
+`fiat_order:<start>:0` / `c2c:<start>:BUY` for the endpoints fetched twice per window (`taskKey`,
+`syncRounds.ts`). The next round rebuilds its task list and skips every key already completed. The
+windows are the same because `ScopeFrom`/`ScopeTo` come from the job row. The spot pairs are the
+ones discovery listed, saved as `spotCandidates`: a later round builds its spot tasks from them and
+does not discover again (no `getBalances`, account or stored-assets lookup), as one uninterrupted
+run discovers once. Rediscovering cost request weight every round, could list a pair that run
+would not have fetched (an asset first seen in events an earlier round stored), and a `getBalances`
+that fails transiently answers `[]`. The newest stored fills (`loadLastApiTradeIds`) are read again
+only while a spot walk is still to run; the cross-source index is loaded every round, since the
+dedup needs it. `totalWindows` counts the union of the rebuilt list and the completed keys.
+Discovery always lists at least the top-40 fallback pairs, so an empty `spotCandidates` means no
+round finished it: a `getBalances` call still waiting at the cutoff is not swallowed as a failed
+source (it would save a list without its pairs, which no later round would add) but ends the round,
+and the next one discovers.
+
+**Resume state** (`"CryptoSyncJobs"."ResumeState"`, `SyncResumeStateSchema`): the round, whether a
+worker claimed it, whether the job is in the cron's queue (`inCronQueue`), the phase (`fetch` or `normalize`), the completed task keys, the spot pairs
+listed so far, the task failures so far (kind, code, Binance code, pair, message: what the final
+status and the gap lists are built from), the raw events inserted so far, the cross-source dedup
+decisions, and the normalisation counts. `Progress` stays in its own column and is saved in the
+same write. With all of it the job ends with the status, `Progress` and `EventsIngested` one
+uninterrupted run would give it (`binance-sync-ingestion.test.ts` runs both over the same data and
+compares them). When a job ends (completed, failed, cancelled, by any path) its state is reduced to
+`{ round, claimed: true }`: the task keys and dedup decisions can run to thousands of entries that
+nothing reads afterwards, and every job query, the panel's poll included, reads the round out of
+this column. While a job runs, that poll reads the round out of the whole state, task keys
+included (a few thousand short strings on an all-time sync), every 2 s; accepted rather than
+moving the round to its own column, which would take a migration, since the cost ends with the job.
+
+The dedup decisions are needed because the index is loaded again each round: without them a CSV
+row an earlier round paired with one API event would pair with a second one in a later round (the
+same Earn reward listed in the flexible and the locked history, fetched in different rounds), and
+an event dropped earlier would get a different answer (`exportCrossSourceCarryOver`). Only dropped
+candidates and used-up CSV rows are carried; everything else the stored rows already say.
+
+**Hand-off.** A round that stops with work left writes `Progress`, `EventsIngested` and the state
+announcing round N+1 as unclaimed in one statement (`handOffSyncRound`, which also moves
+`UpdatedAt`, so `failStuckJobs` leaves the job alone), then calls
+`POST /api/crypto/sync/[jobId]/continue` with `{ round: N+1 }` and `Authorization: Bearer
+${CRON_SECRET}`, and waits only for the 202. The route claims the round with one conditional
+UPDATE (`claimSyncRound`): the job must be `running` (or `pending`, for the cron's round 1), the
+round must match and be unclaimed. A duplicate call, a stale round or a cancelled or finished job
+matches nothing and gets 409, so no call can start a second worker. The round runs in `after()` as
+the job's owner, in system context like the cron. A job created by `POST /api/crypto/sync` holds
+`'{}'`, which reads as round 1 already claimed: it cannot be started twice either. The state is
+parsed only after the claim is saved, so one that does not match the schema would have left a
+claimed round with no worker: the claim fails that job on the spot with
+`api-error.crypto.sync-resume-state-invalid` and the route answers 409. The zod issues quote the
+stored JSON and zod's wording, so they go to the server log only; the job's `ErrorMessage`, which
+the panel shows under "details", names the round.
+
+**What a failed hand-off writes on the job.** Only our own words: the round, the HTTP status, a
+timeout, a missing setting, our codes. What `fetch` throws can quote the host, address and port it
+tried, so it goes to the server log (`console.error`) and the job says "the request failed without
+an answer".
+
+- **Where the call goes.** Only to the origin in the server's configuration (`trustedAppOrigin`):
+  `NEXTAUTH_URL`, else `https://${VERCEL_PROJECT_PRODUCTION_URL}`; on a preview deployment
+  (`VERCEL_ENV=preview`) `https://${VERCEL_URL}`, the deployment's own hostname, because the other
+  two name production and a preview's next round would run on production's code or against another
+  database. Never to the Host of a request: a forged Host or X-Forwarded-Host would otherwise
+  receive `CRON_SECRET`. Only `https` counts, and `http` only for `localhost` or `127.0.0.1`: any
+  other `http` origin is treated as not configured, so the secret never crosses a network in clear.
+  With nothing usable, no call is made and the job fails with
+  `api-error.crypto.sync-origin-not-configured`. Redirects are not followed (`redirect: 'manual'`)
+  and a 3xx is a failed hand-off, so the header never travels to another host. When
+  `VERCEL_AUTOMATION_BYPASS_SECRET` is set it is sent as `x-vercel-protection-bypass`, for a
+  deployment behind Vercel Authentication (previews have it on by default).
+- **A failed call** (network error, timeout, non-202, missing secret) is retried once when there is
+  time for it (see the worst case above), then fails the job at once with
+  `api-error.crypto.sync-handoff-failed` — but only if the round is still unclaimed
+  (`failUnclaimedSyncRound`), since a call that timed out may still have started it. Every failed
+  hand-off is logged with `console.error`: the code and each call's HTTP status or error, never a
+  header.
+- **A refused call** (409) on the first call means the route did not find the round waiting, which
+  only this caller had just announced: a deployment reading another database, or a state it could
+  not read. `failUnclaimedSyncRound` then fails the job if it is still pending or running with that
+  round unclaimed, and logs a warning; its WHERE is the re-read, in the same statement, so a job
+  cancelled or a round claimed meanwhile is left alone. A 409 after a failed first call needs
+  nothing: that call may have reached the route and claimed the round.
+- **A throw during or after the hand-off.** Once the round has announced round N+1 (from just
+  before the `handOffSyncRound` write, which may be saved even when the call throws), N+1 may be
+  claimed and running. So a throw from then on (the write itself, or recording a failed call)
+  fails the job only through `failUnclaimedSyncRound` with `sync-handoff-failed`, and logs what was
+  thrown; a job whose next round is claimed is never failed under its worker. Before the
+  announcement, a throw fails the job as before (`markJobFailed`).
+- **Round cap.** A job that would need round `CRYPTO_SYNC_MAX_ROUNDS + 1` (31) fails with
+  `api-error.crypto.sync-round-limit` instead of handing on forever.
+- **Cancellation.** The cancel route moves the job to `cancelled`; the running round notices within
+  30 tasks as before, the hand-off write only matches a `running` job, and the claim refuses any
+  other status, so a cancelled job never continues.
+
+**Normalisation** starts in the round that runs the last fetch task, after the `-2015` refusals are
+confirmed and the gaps attached (once). It gets the same budget: `normalizeForUser` starts no event
+once it is spent, finishes the one being priced (unless its lookups are still running at the
+cutoff), and stamps only the events it processed, so the rest keep `NormalizedAt` NULL for the next
+round. It reads the queue before the budget: a batch that ran past the deadline and emptied the
+queue ends the job there, instead of handing off to a round that finds nothing left. Its total is counted once, when it starts, and
+its counts carry across rounds, so the synthetic `normalize` progress entry and `EventsIngested`
+(raw inserted plus taxable inserted, as before) end as one run's would. The job completes, or
+fails over a transient task failure, only in the round where normalisation finishes. A
+normalising round does not call Binance.
+
+The panel keeps polling the same job id across rounds and shows "tramo N" while a job runs past
+its first round (`round` in the job payload, derived from `ResumeState`).
 
 ### How a failed task decides the job
 
@@ -378,6 +570,7 @@ no anchor, so its first API sync starts from the default scope.
 | POST | `/api/crypto/sync` | Start a background sync (201 + jobId; 409 if one is running) |
 | GET | `/api/crypto/sync/[jobId]` | Poll job status and progress |
 | POST | `/api/crypto/sync/[jobId]/cancel` | Request cancellation |
+| POST | `/api/crypto/sync/[jobId]/continue` | Internal, `CRON_SECRET` only: claim and run the next round of a job (202; 409 if already claimed, stale or not running) |
 | POST | `/api/crypto/import/csv` | Multipart CSV upload; exchange auto-detected if not given |
 | POST | `/api/crypto/normalize` | Run the normaliser over un-normalised raw events |
 | GET | `/api/crypto/events` | Paginated raw movements (`?type&from&to&asset&page`) |
@@ -391,7 +584,7 @@ no anchor, so its first API sync starts from the default scope.
 | GET | `/api/crypto/fiscal/disposals` | Paginated FIFO disposals with their lot breakdown |
 | GET | `/api/crypto/fiscal/export` | CSV of every disposal in a fiscal year |
 | POST | `/api/crypto/fiscal/recompute` | Re-run FIFO for one year, or every year with data (default) |
-| GET | `/api/cron/crypto-sync` | Vercel Cron: weekly incremental sync for all active credentials |
+| GET | `/api/cron/crypto-sync` | Vercel Cron: weekly incremental sync for all active credentials, one job at a time |
 
 **Recompute defaults to all years** because most rule changes propagate cost basis forward: a
 correction to a 2021 acquisition changes every disposal after it.
@@ -427,6 +620,12 @@ correction to a 2021 acquisition changes every disposal after it.
 | Review flags come from the FIFO pass | SQL re-derivation means float comparisons and drift |
 | Credentials are read-only and encrypted per-row with a fresh IV | A trading-capable key in the database is a liability, and IV reuse breaks GCM |
 | A sync job completes only if every task failure is permanent | Incremental syncs anchor on the last completed job: completing over a transient failure skips its windows for good, and failing over a permanent one freezes the anchor for good |
+| A task key never depends on when the task runs | A later round skips the keys completed; a key that changed between rounds would fetch a window twice or never |
+| A round is claimed once, in one statement | Two workers on one job would run the same tasks and write each other's progress |
+| A round waits on the network only until its cutoff | A call still running at 300 s dies with the invocation before the hand-off, and the job hangs until `sync-stalled` |
+| A status change names the statuses it leaves from | A worker finishing after a cancel would otherwise complete the job, and the next incremental sync would anchor on it |
+| The continue call goes only to the configured origin, without following redirects | It carries `CRON_SECRET` |
+| At most one job of the cron's queue is under way | Binance counts request weight per IP: users syncing at once add up to a 429 or a 418 ban |
 
 ---
 

@@ -1414,6 +1414,10 @@ export const CRYPTO_SYNC_TASK_FAILURE = {
   TRADE_WITHOUT_ID: 'trade_without_id',
   // Binance answered -2015 for this endpoint to a key it accepts on /api/v3/account.
   ENDPOINT_NOT_PERMITTED: 'endpoint_not_permitted',
+  // A request, retry wait or price lookup still running at the round's cutoff
+  // (CRYPTO_SYNC_CUTOFF_GRACE_MS) was abandoned. The task is left open, not
+  // recorded as failed: the next round runs it again from the start.
+  ROUND_CUTOFF: 'round_cutoff',
 } as const;
 
 // What a failed task does to its job (see classifyTaskFailure). A TRANSIENT
@@ -1458,6 +1462,65 @@ export const CRYPTO_SYNC_MODE = {
 } as const;
 
 export type CryptoSyncMode = (typeof CRYPTO_SYNC_MODE)[keyof typeof CRYPTO_SYNC_MODE];
+
+// A sync job runs in rounds, one per function invocation. Vercel ends an
+// invocation at 300 s, the plan's ceiling: job 31 (all time, 2063 windows) was
+// killed there on 2026-09-29 after 1590 windows. The routes that run a round
+// declare the same limit as a literal (maxDuration), which Next.js reads
+// statically; this is the number the round plans its end against. The
+// worst-case timeline these constants give is in docs/CRYPTO_MODULE.md.
+export const CRYPTO_SYNC_INVOCATION_LIMIT_MS = 300_000;
+// A round stops starting work 240 s after its invocation began, so the tasks
+// already running can finish and the round can hand off within the 60 s left.
+export const CRYPTO_SYNC_ROUND_BUDGET_MS = 240_000;
+// 30 s after the budget, every Binance request, retry wait or price lookup
+// still running is abandoned and its task left to the next round. The Binance
+// SDK's own request timeout is five minutes and a rate-limit retry waits up to
+// a minute, so without it one slow call could hold the round past the limit.
+// What remains of the invocation is for database writes and the hand-off.
+export const CRYPTO_SYNC_CUTOFF_GRACE_MS = 30_000;
+// Rounds one job may take before it ends failed: 30 × 240 s is two hours of
+// fetching and normalising, far beyond the ~2 rounds an all-time sync needs.
+export const CRYPTO_SYNC_MAX_ROUNDS = 30;
+// How long a round waits for the continue route to claim the next round, per attempt.
+export const CRYPTO_SYNC_HANDOFF_TIMEOUT_MS = 15_000;
+// Kept free after the last hand-off attempt, so a failed one is recorded on the
+// job (failUnclaimedSyncRound) before the invocation ends.
+export const CRYPTO_SYNC_HANDOFF_RESERVE_MS = 5_000;
+// The shortest hand-off attempt worth making. With less time left the round
+// fails the job at once rather than be killed in the middle of the call, which
+// would leave the job waiting fifteen minutes for failStuckJobs.
+export const CRYPTO_SYNC_HANDOFF_MIN_TIMEOUT_MS = 3_000;
+
+// What a round of a sync job is doing: fetching from the exchange, or turning
+// what was fetched into taxable events.
+export const CRYPTO_SYNC_PHASE = {
+  FETCH: 'fetch',
+  NORMALIZE: 'normalize',
+} as const;
+
+export type CryptoSyncPhase = (typeof CRYPTO_SYNC_PHASE)[keyof typeof CRYPTO_SYNC_PHASE];
+
+// How the continue route answered a request to start a round: it claimed it, it
+// refused it (already claimed, a stale round, or a job no longer running), or
+// the request never got an answer the round can rely on.
+export const CRYPTO_SYNC_HANDOFF_OUTCOME = {
+  ACCEPTED: 'accepted',
+  REFUSED: 'refused',
+  FAILED: 'failed',
+} as const;
+
+export type CryptoSyncHandoffOutcome = (typeof CRYPTO_SYNC_HANDOFF_OUTCOME)[keyof typeof CRYPTO_SYNC_HANDOFF_OUTCOME];
+
+// Why the weekly cron did not start a sync for a credential. A refused
+// continuation is kept apart from a start that failed: the continue route
+// answered, so the origin and the secret work, and the job's own ErrorCode
+// says why the round was not taken.
+export const CRYPTO_CRON_SKIP_REASON = {
+  ALREADY_RUNNING: 'already_running',
+  NOT_STARTED: 'not_started',
+  CONTINUATION_REFUSED: 'continuation_refused',
+} as const;
 
 // Candlestick (kline) intervals supported by the crypto price chart.
 export const KLINE_INTERVAL = {
@@ -1616,6 +1679,20 @@ export const API_ERROR = {
     MASTER_KEY_MISSING: 'api-error.crypto.master-key-missing',
     SYNC_ALREADY_RUNNING: 'api-error.crypto.sync-already-running',
     SYNC_FAILED: 'api-error.crypto.sync-failed',
+    // A queued job whose worker never started.
+    SYNC_NEVER_STARTED: 'api-error.crypto.sync-never-started',
+    // A running job that stopped reporting progress.
+    SYNC_STALLED: 'api-error.crypto.sync-stalled',
+    // A job that still had work after CRYPTO_SYNC_MAX_ROUNDS rounds.
+    SYNC_ROUND_LIMIT: 'api-error.crypto.sync-round-limit',
+    // A round that ran out of time and could not start the next one.
+    SYNC_HANDOFF_FAILED: 'api-error.crypto.sync-handoff-failed',
+    // A round that ran out of time with no trusted origin configured to call the next one on.
+    SYNC_ORIGIN_NOT_CONFIGURED: 'api-error.crypto.sync-origin-not-configured',
+    // The continue route refused a round: already claimed, stale, or the job is no longer running.
+    SYNC_CONTINUATION_REFUSED: 'api-error.crypto.sync-continuation-refused',
+    // A claimed round whose saved ResumeState does not match SyncResumeStateSchema.
+    SYNC_RESUME_STATE_INVALID: 'api-error.crypto.sync-resume-state-invalid',
     UNAUTHORISED_CRON: 'api-error.crypto.unauthorised-cron',
     CSV_FILE_REQUIRED: 'api-error.crypto.csv-file-required',
     CSV_INVALID_FORMAT: 'api-error.crypto.csv-invalid-format',

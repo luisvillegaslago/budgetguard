@@ -72,6 +72,7 @@ function syncJob(overrides: Partial<SyncJob>): SyncJob {
     finishedAt: '2026-09-28T05:10:00.000Z',
     createdAt: '2026-09-28T05:00:00.000Z',
     updatedAt: '2026-09-28T05:10:00.000Z',
+    round: 1,
     ...overrides,
   };
 }

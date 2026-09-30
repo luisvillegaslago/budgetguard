@@ -1371,7 +1371,10 @@ CREATE TABLE "CryptoSyncJobs" (
     "StartedAt" TIMESTAMPTZ,
     "FinishedAt" TIMESTAMPTZ,
     "CreatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    "UpdatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- What the next round of a job longer than one function invocation needs
+    -- (see SyncResumeStateSchema). '{}' reads as round 1, already claimed.
+    "ResumeState" JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX "IX_CryptoSyncJobs_UserStatus" ON "CryptoSyncJobs"("UserID", "Status", "CreatedAt" DESC);

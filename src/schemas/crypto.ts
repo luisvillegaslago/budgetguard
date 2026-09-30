@@ -9,7 +9,9 @@ import { z } from 'zod';
 import {
   CRYPTO_EVENT_TYPE,
   CRYPTO_EXCHANGE,
+  CRYPTO_SYNC_FAILURE_KIND,
   CRYPTO_SYNC_MODE,
+  CRYPTO_SYNC_PHASE,
   KLINE_INTERVAL,
   VALIDATION_KEY,
 } from '@/constants/finance';
@@ -107,3 +109,79 @@ export const CsvImportExchangeSchema = z.enum(EXCHANGE_VALUES);
 // 10 MB cap on CSV uploads — Binance exports ~1KB per row, so 10MB
 // covers ~10k rows which is well above any realistic single-export size.
 export const CSV_MAX_BYTES = 10 * 1024 * 1024;
+
+const SYNC_FAILURE_KIND_VALUES = Object.values(CRYPTO_SYNC_FAILURE_KIND) as [
+  (typeof CRYPTO_SYNC_FAILURE_KIND)[keyof typeof CRYPTO_SYNC_FAILURE_KIND],
+  ...(typeof CRYPTO_SYNC_FAILURE_KIND)[keyof typeof CRYPTO_SYNC_FAILURE_KIND][],
+];
+
+const SYNC_PHASE_VALUES = Object.values(CRYPTO_SYNC_PHASE) as [
+  (typeof CRYPTO_SYNC_PHASE)[keyof typeof CRYPTO_SYNC_PHASE],
+  ...(typeof CRYPTO_SYNC_PHASE)[keyof typeof CRYPTO_SYNC_PHASE][],
+];
+
+/** A task of a sync job that failed without stopping it (see classifyTaskFailure). */
+export const SyncTaskFailureSchema = z.object({
+  eventType: z.enum(EVENT_TYPE_VALUES),
+  kind: z.enum(SYNC_FAILURE_KIND_VALUES),
+  code: z.string(),
+  binanceCode: z.number().optional(),
+  symbol: z.string().nullable(),
+  message: z.string(),
+});
+
+export type SyncTaskFailure = z.infer<typeof SyncTaskFailureSchema>;
+
+/**
+ * What the next round of a sync job needs to end exactly as one uninterrupted
+ * run would, stored in CryptoSyncJobs.ResumeState. A job created before the
+ * column, or by the manual sync route, holds '{}': the defaults describe its
+ * first round, already taken.
+ */
+export const SyncResumeStateSchema = z.object({
+  // The round running, or announced by a hand-off and not yet started.
+  round: z.number().int().positive().default(1),
+  // Whether a worker took `round`. The continue route claims only a false one,
+  // which is what keeps a duplicate call from starting a second worker.
+  claimed: z.boolean().default(true),
+  // Created by the weekly cron, whose jobs run one after another: Binance
+  // counts request weight per IP, so the users' syncs must not run at once.
+  // The round that ends such a job starts the next one waiting (see
+  // startNextQueuedSyncJob). A manual sync is never part of that queue.
+  inCronQueue: z.boolean().default(false),
+  phase: z.enum(SYNC_PHASE_VALUES).default(CRYPTO_SYNC_PHASE.FETCH),
+  // Task keys (see taskKey) that ran, failed or not. A round skips them.
+  completedTaskKeys: z.array(z.string()).default([]),
+  // Every spot pair the job's discovery listed. Empty until a round finishes
+  // discovery; from then on the later rounds build their spot tasks from it
+  // instead of discovering again, as one uninterrupted run would.
+  spotCandidates: z.array(z.string()).default([]),
+  // Failures of the tasks that ran, which decide the job's final status.
+  taskFailures: z.array(SyncTaskFailureSchema).default([]),
+  // Raw events inserted by every round so far.
+  rawEventsIngested: z.number().int().nonnegative().default(0),
+  // The cross-source filter's decisions so far (see exportCrossSourceCarryOver).
+  crossSource: z
+    .object({
+      dropped: z.array(z.string()).default([]),
+      consumed: z.array(z.string()).default([]),
+    })
+    .default({}),
+  // Normalisation after the last fetch: the count it started from and what it
+  // has done. Null until it starts.
+  normalize: z
+    .object({
+      total: z.number().int().nonnegative(),
+      processed: z.number().int().nonnegative(),
+      inserted: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .default(null),
+});
+
+export type SyncResumeState = z.infer<typeof SyncResumeStateSchema>;
+
+/** Body of POST /api/crypto/sync/[jobId]/continue: the round the caller announced. */
+export const ContinueSyncSchema = z.object({
+  round: z.number().int().positive(),
+});

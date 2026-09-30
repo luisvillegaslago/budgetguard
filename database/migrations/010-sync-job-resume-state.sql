@@ -1,0 +1,25 @@
+-- Migration: let a crypto sync job continue itself across function invocations
+--
+-- On 2026-09-29 a full "all time" Binance sync (job 31, 2063 task windows) ran inside after() of
+-- POST /api/crypto/sync and Vercel killed the function at 300 s, the plan's ceiling, after 1590
+-- windows. The job stayed 'running' until failStuckJobs failed it 15 minutes later. A job now runs
+-- in rounds of at most ~240 s: a round that runs out of time saves what the next round needs here
+-- and asks POST /api/crypto/sync/[jobId]/continue to run it in a fresh invocation.
+--
+-- "ResumeState" holds the round number and whether a worker claimed it (the claim is one UPDATE,
+-- which is what keeps a duplicate continue call from starting a second worker), the phase (fetch or
+-- normalise), the completed task keys, the task failures collected so far, the raw events inserted,
+-- the cross-source dedup decisions, and the normalisation counts. With all of it, the job ends with
+-- the status, Progress and EventsIngested of one uninterrupted run.
+--
+-- NOT NULL DEFAULT '{}' on purpose: '{}' reads as "round 1, already claimed", so existing rows and
+-- jobs created by the manual sync route can never be claimed by the continue route. Adding a column
+-- with a constant default does not rewrite the table (PostgreSQL 11+).
+--
+-- Must be applied BEFORE deploying the code that reads it: every job query selects the round from
+-- this column, so without it GET /api/crypto/sync fails.
+--
+-- Usage:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/010-sync-job-resume-state.sql
+
+ALTER TABLE "CryptoSyncJobs" ADD COLUMN IF NOT EXISTS "ResumeState" JSONB NOT NULL DEFAULT '{}'::jsonb;

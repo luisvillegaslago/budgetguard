@@ -12,7 +12,6 @@ import {
   API_ERROR,
   CACHE_TIME,
   CRYPTO_EXCHANGE,
-  CRYPTO_SYNC_STATUS,
   type CryptoEventType,
   type CryptoExchange,
   type CryptoSyncMode,
@@ -22,6 +21,7 @@ import {
 import { useApiMutation } from '@/hooks/useApiMutation';
 import type { ApiResponse } from '@/types/finance';
 import { extractApiErrorKey } from '@/utils/apiErrorHandler';
+import { isActiveSyncStatus } from '@/utils/crypto/syncStatus';
 import { fetchApi } from '@/utils/fetchApi';
 import { invalidateQueryKeys } from '@/utils/queryInvalidation';
 
@@ -63,6 +63,8 @@ export interface SyncJob extends SyncJobSummary {
   finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // The round of a job longer than one server invocation; 1 otherwise.
+  round: number;
 }
 
 export interface RawEvent {
@@ -126,14 +128,6 @@ async function fetchJob(jobId: number): Promise<SyncJob> {
   return data.data;
 }
 
-function isTerminalStatus(status: CryptoSyncStatus): boolean {
-  return (
-    status === CRYPTO_SYNC_STATUS.COMPLETED ||
-    status === CRYPTO_SYNC_STATUS.FAILED ||
-    status === CRYPTO_SYNC_STATUS.CANCELLED
-  );
-}
-
 export function useCryptoSyncJob(jobId: number | null) {
   return useQuery({
     queryKey: [QUERY_KEY.CRYPTO_SYNC_STATUS, jobId],
@@ -142,7 +136,7 @@ export function useCryptoSyncJob(jobId: number | null) {
     refetchInterval: (query) => {
       const data = query.state.data as SyncJob | undefined;
       if (!data) return 2000;
-      return isTerminalStatus(data.status) ? false : 2000;
+      return isActiveSyncStatus(data.status) ? 2000 : false;
     },
     staleTime: CACHE_TIME.NO_CACHE,
   });

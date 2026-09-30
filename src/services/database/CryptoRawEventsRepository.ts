@@ -513,6 +513,46 @@ export function dropCrossSourceDuplicates(
   return { kept, skipped: inputs.length - kept.length };
 }
 
+/**
+ * What filtering with an index has decided that the stored rows cannot tell a
+ * fresh index: the `EventType|ExternalID` of every candidate dropped, and of
+ * every stored CSV row a candidate used up. A sync job that runs in rounds
+ * loads a new index each round; without these, a later round would pair a
+ * second API event with a CSV row an earlier round already paired, and an
+ * event met again would get a different answer (see decisionById).
+ *
+ * Kept candidates need nothing: stored ones come back as rows, and one whose
+ * insert failed finds no twin again, since rows are only ever used up. Used-up
+ * rows that are not CSV are left out: a sync filters API events, which pair
+ * with CSV rows only.
+ */
+export interface CrossSourceCarryOver {
+  dropped: string[];
+  consumed: string[];
+}
+
+export function exportCrossSourceCarryOver(index: CrossSourceIndex): CrossSourceCarryOver {
+  return {
+    dropped: Array.from(index.decided.entries())
+      .filter(([, keep]) => !keep)
+      .map(([key]) => key),
+    consumed: Array.from(index.storedIds.entries())
+      .filter(([, operation]) => operation.consumed && operation.fromCsv)
+      .map(([key]) => key),
+  };
+}
+
+/** Applies an earlier round's decisions to an index loaded for this round. */
+export function restoreCrossSourceCarryOver(index: CrossSourceIndex, carryOver: CrossSourceCarryOver): void {
+  carryOver.dropped.forEach((key) => {
+    index.decided.set(key, false);
+  });
+  carryOver.consumed.forEach((key) => {
+    const operation = index.storedIds.get(key);
+    if (operation) operation.consumed = true;
+  });
+}
+
 /** One-shot form for the CSV upload: load the index and filter one batch. */
 export async function filterCrossSourceDuplicates(
   userId: number,
