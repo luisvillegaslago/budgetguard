@@ -1381,6 +1381,9 @@ export const CRYPTO_PRICE_SOURCE = {
   BINANCE_EUR: 'binance_eur',
   BINANCE_USDT_CROSS: 'binance_usdt_cross',
   COINGECKO: 'coingecko',
+  // Valued at what the exchange paid for it (the counter asset of the same
+  // operation), because the asset itself has no price.
+  COUNTER_ASSET: 'counter_asset',
   UNRESOLVED: 'unresolved',
 } as const;
 
@@ -1442,6 +1445,11 @@ export type CryptoSyncFailureKind = (typeof CRYPTO_SYNC_FAILURE_KIND)[keyof type
 // the gaps listed in ErrorMessage and in each endpoint's Progress entry;
 // the job itself did not fail, so the code is not an i18n error key.
 export const CRYPTO_SYNC_COMPLETED_WITH_GAPS = 'completed_with_gaps';
+
+// Whole seconds either side within which a CSV dust conversion and an API one
+// are the same conversion: the two sources stamp it about 1 s apart. Shared by
+// the sync/upload dedup and scripts/dedupe-crypto-csv.ts so they cannot drift.
+export const CRYPTO_DUST_SECOND_TOLERANCE = 5;
 
 // Progress key of the synthetic job a CSV upload creates. It is how an API sync
 // tells those jobs apart: a CSV covers whatever its file holds, so it must never

@@ -341,3 +341,49 @@ describe('loadCrossSourceIndex — reward payloads', () => {
     expect(sentWithPayload(CRYPTO_EVENT_TYPE.EARN_LOCKED, flexId)).toBe(true);
   });
 });
+
+describe('dropCrossSourceDuplicates — dust conversions a second or two apart', () => {
+  const DUST_SECOND_MS = Date.UTC(2025, 8, 24, 6, 14, 1);
+  const CSV_DUST = { detail: { fromAsset: 'HEMI', amount: '41.81410321', targetAsset: 'BNB' }, csvSource: true };
+  const API_DUST = { detail: { fromAsset: 'HEMI', amount: '41.81410321', targetAsset: 'BNB', transId: 299864575090 } };
+
+  function storedDust(externalId: string, payload: Record<string, unknown>, ms: number): StoredRow {
+    return { EventType: CRYPTO_EVENT_TYPE.DUST, ExternalID: externalId, payload, ms: String(ms), RewardPayload: null };
+  }
+
+  function dustCandidate(externalId: string, payload: Record<string, unknown>, ms: number): RawEventInput {
+    return { eventType: CRYPTO_EVENT_TYPE.DUST, externalId, occurredAt: new Date(ms), rawPayload: payload };
+  }
+
+  it('drops the API copy of a conversion the CSV stored one second earlier', async () => {
+    storedRows = [storedDust('csv-dust-1', CSV_DUST, DUST_SECOND_MS)];
+    const index = await loadCrossSourceIndex(1);
+
+    const { kept } = dropCrossSourceDuplicates(index, [dustCandidate('299864575090', API_DUST, DUST_SECOND_MS + 1000)]);
+
+    expect(kept).toHaveLength(0);
+  });
+
+  it.each([
+    [5, 0],
+    [-1, 0],
+    [6, 1],
+  ])('an API conversion %i s from the stored CSV row is kept %i time(s)', async (offsetSeconds, keptCount) => {
+    storedRows = [storedDust('csv-dust-1', CSV_DUST, DUST_SECOND_MS)];
+    const index = await loadCrossSourceIndex(1);
+
+    const candidateAt = DUST_SECOND_MS + offsetSeconds * 1000;
+    const { kept } = dropCrossSourceDuplicates(index, [dustCandidate('299864575090', API_DUST, candidateAt)]);
+
+    expect(kept).toHaveLength(keptCount);
+  });
+
+  it('drops a CSV conversion the API stored one second later', async () => {
+    storedRows = [storedDust('299864575090', API_DUST, DUST_SECOND_MS + 1000)];
+    const index = await loadCrossSourceIndex(1);
+
+    const { kept } = dropCrossSourceDuplicates(index, [dustCandidate('csv-dust-1', CSV_DUST, DUST_SECOND_MS)]);
+
+    expect(kept).toHaveLength(0);
+  });
+});

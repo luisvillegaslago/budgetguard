@@ -686,3 +686,44 @@ describe('runFifo — coins moved out and back between the user own wallets', ()
     expect(d?.incompleteCoverage).toBe(false);
   });
 });
+
+describe('runFifo — BNB credited by a dust conversion', () => {
+  it('holds the BNB as a lot that covers a later BNB sale', () => {
+    const result = runFifo([
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.AIRDROP,
+        asset: 'HEMI',
+        quantityNative: '41.8',
+        occurredAt: '2025-09-23T07:24:11Z',
+      }),
+      // The two legs normaliseDust writes for one conversion.
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'HEMI',
+        quantityNative: '41.8',
+        grossValueEurCents: 5_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2025-09-24T06:14:02Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BNB',
+        quantityNative: '0.01',
+        grossValueEurCents: 5_00,
+        occurredAt: '2025-09-24T06:14:02Z',
+      }),
+      ev({
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'BNB',
+        quantityNative: '0.01',
+        grossValueEurCents: 6_00,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        occurredAt: '2026-08-15T12:58:54Z',
+      }),
+    ]);
+
+    const bnbSale = result.find((disposal) => disposal.asset === 'BNB');
+    expect(bnbSale?.incompleteCoverage).toBe(false);
+    expect(bnbSale?.acquisitionValueCents).toBe(5_00);
+  });
+});

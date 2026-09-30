@@ -8,7 +8,13 @@
  * params (project convention, see TransactionRepository).
  */
 
-import { CRYPTO_EVENT_TYPE, CRYPTO_EXCHANGE, type CryptoEventType, type CryptoExchange } from '@/constants/finance';
+import {
+  CRYPTO_DUST_SECOND_TOLERANCE,
+  CRYPTO_EVENT_TYPE,
+  CRYPTO_EXCHANGE,
+  type CryptoEventType,
+  type CryptoExchange,
+} from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import {
   CURRENT_REWARD_ID_PATTERN,
@@ -139,8 +145,16 @@ async function insertRawEventChunk(userId: number, inputs: RawEventInput[], jobI
 
 // deposit/withdraw timestamps differ by minutes/hours between the CSV export
 // and the API, but always land on the same UTC day — so we match them at day
-// granularity. Every other type shares the exact second.
+// granularity. Dust is matched within a few seconds (below); every other type
+// shares the exact second.
 const DAY_GRANULARITY_TYPES = new Set<string>([CRYPTO_EVENT_TYPE.DEPOSIT, CRYPTO_EVENT_TYPE.WITHDRAW]);
+
+// A dust conversion is stamped a second or two apart by the CSV export and the
+// API, so its candidates are also looked up in the buckets of the whole seconds
+// either side, nearest first.
+const DUST_NEARBY_SECOND_OFFSETS = Array.from({ length: CRYPTO_DUST_SECOND_TOLERANCE }, (_, i) => i + 1).flatMap(
+  (distance) => [-distance, distance],
+);
 
 // The CSV export books every Earn, staking and airdrop credit as a `dividend`
 // row, while the API spreads the same credits over five endpoints. Matching
@@ -451,14 +465,23 @@ function matchesAny(stored: number[], amounts: number[]): boolean {
 
 /**
  * Uses up the first stored row the candidate may be paired with whose amounts
- * match, looked up through the candidate's bucket and then, for a spot fill,
- * through its second keys. Returns whether one was found.
+ * match, looked up through the candidate's bucket, then for a dust conversion
+ * through the buckets of the seconds around it (CRYPTO_DUST_SECOND_TOLERANCE), and for
+ * a spot fill through its second keys. Returns whether one was found.
  */
 function claimStoredTwin(index: CrossSourceIndex, input: RawEventInput): boolean {
   const fromCsv = isCsvPayload(input.rawPayload);
   const identity = identityFromPayload(input.eventType, input.rawPayload, input.occurredAt);
   const lookups: Array<{ filed: FiledOperation[] | undefined; amounts: number[] }> =
     identity === null ? [] : [{ filed: index.byBucket.get(identity.bucket), amounts: identity.amounts }];
+  if (identity !== null && input.eventType === CRYPTO_EVENT_TYPE.DUST) {
+    // The bucket ends in the whole second: only that suffix changes.
+    const prefix = identity.bucket.slice(0, identity.bucket.lastIndexOf('|') + 1);
+    const second = Math.floor(input.occurredAt.getTime() / 1000);
+    DUST_NEARBY_SECOND_OFFSETS.forEach((offset) => {
+      lookups.push({ filed: index.byBucket.get(`${prefix}${second + offset}`), amounts: identity.amounts });
+    });
+  }
   if (input.eventType === CRYPTO_EVENT_TYPE.SPOT_TRADE) {
     const quantities = spotQuantities(input.rawPayload);
     spotSecondKeys(input.occurredAt, input.rawPayload).forEach((key) => {
@@ -481,7 +504,8 @@ function claimStoredTwin(index: CrossSourceIndex, input: RawEventInput): boolean
  * source/ExternalID: a CSV row the API sync already brought in, the other way
  * round, or a fill an overlapping CSV export stored under another id. Matches
  * on EventType (or the reward family) + asset + side, a per-type timestamp
- * (exact second, or same UTC day for deposit/withdraw) and the amount
+ * (exact second; within CRYPTO_DUST_SECOND_TOLERANCE seconds for dust; same UTC day
+ * for deposit/withdraw) and the amount
  * (allowing the withdrawal network fee). An API reward is also dropped when
  * the same reward is stored under its earlier position-based id, matched
  * exactly on the id both would get today. Returns the events to keep plus how

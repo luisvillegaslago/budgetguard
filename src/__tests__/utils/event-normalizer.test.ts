@@ -386,7 +386,7 @@ describe('normalizeFiatPayment', () => {
 });
 
 describe('normalizeDust', () => {
-  it('USDC → BNB dust → disposal of USDC, counter BNB, fee BNB, N', () => {
+  it('USDC → BNB dust → disposal of USDC and acquisition of the BNB received, N', () => {
     const legs = normalizeDust({
       eventType: CRYPTO_EVENT_TYPE.DUST,
       occurredAt: FIXED_DATE,
@@ -400,17 +400,61 @@ describe('normalizeDust', () => {
         },
       },
     });
-    expect(legs).toHaveLength(1);
-    expect(legs[0]).toEqual({
-      kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
-      asset: 'USDC',
-      quantityNative: '4',
-      counterAsset: 'BNB',
-      counterQuantityNative: '0.004',
-      feeAsset: 'BNB',
-      feeQuantityNative: '0.00008',
-      contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+    expect(legs).toEqual([
+      {
+        kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+        asset: 'USDC',
+        quantityNative: '4',
+        counterAsset: 'BNB',
+        counterQuantityNative: '0.004',
+        feeAsset: 'BNB',
+        feeQuantityNative: '0.00008',
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+      },
+      // A permuta: the BNB credited is a lot FIFO must hold, or a later BNB
+      // sale runs short of cost basis.
+      {
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BNB',
+        quantityNative: '0.004',
+        counterAsset: 'USDC',
+        counterQuantityNative: '4',
+        feeAsset: null,
+        feeQuantityNative: null,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+      },
+    ]);
+  });
+
+  it('fiat dust books only the BNB bought with those euros, F', () => {
+    const legs = normalizeDust({
+      eventType: CRYPTO_EVENT_TYPE.DUST,
+      occurredAt: FIXED_DATE,
+      rawPayload: { detail: { fromAsset: 'EUR', targetAsset: 'BNB', amount: '0.8', transferedAmount: '0.0013' } },
     });
+
+    expect(legs).toEqual([
+      {
+        kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+        asset: 'BNB',
+        quantityNative: '0.0013',
+        counterAsset: 'EUR',
+        counterQuantityNative: '0.8',
+        feeAsset: null,
+        feeQuantityNative: null,
+        contraprestacion: CRYPTO_CONTRAPRESTACION.FIAT,
+      },
+    ]);
+  });
+
+  it('books no BNB lot when nothing was credited', () => {
+    const legs = normalizeDust({
+      eventType: CRYPTO_EVENT_TYPE.DUST,
+      occurredAt: FIXED_DATE,
+      rawPayload: { detail: { fromAsset: 'ANIME', targetAsset: 'BNB', amount: '0.2', transferedAmount: '0' } },
+    });
+
+    expect(legs.map((leg) => leg.kind)).toEqual([CRYPTO_TAXABLE_KIND.DISPOSAL]);
   });
 });
 

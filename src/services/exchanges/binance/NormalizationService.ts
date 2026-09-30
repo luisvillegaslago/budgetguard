@@ -20,7 +20,7 @@
  * An event still being priced at the round's cutoff is abandoned the same way.
  */
 
-import { CRYPTO_PRICE_SOURCE, type CryptoEventType } from '@/constants/finance';
+import { CRYPTO_EVENT_TYPE, CRYPTO_PRICE_SOURCE, type CryptoEventType } from '@/constants/finance';
 import {
   bulkInsertTaxableEventsForUser,
   listUnnormalisedRawEventsForUser,
@@ -171,7 +171,10 @@ async function normaliseRawEvent(
   }
 
   try {
-    const enriched = await raceCutoff(enrichLegsWithPrices(raw.rawEventId, occurredAt, normalisedLegs), cutoff);
+    const enriched = await raceCutoff(
+      enrichLegsWithPrices(raw.rawEventId, raw.eventType, occurredAt, normalisedLegs),
+      cutoff,
+    );
     result.processed++;
     legs.push(...enriched);
   } catch (error) {
@@ -190,65 +193,120 @@ async function normaliseRawEvent(
   }
 }
 
-async function enrichLegsWithPrices(
+/**
+ * The operations whose legs may be valued at their counter asset when their own
+ * asset has no price. A dust sweep is a closed conversion Binance states in full
+ * (the token swept and the BNB credited, fee included), so what the token
+ * fetched is its value. Spot, convert and P2P legs are left to the price
+ * cascade: an unresolved result there can be a passing outage, and pricing it
+ * from the counter would take it out of the review queue for good.
+ */
+const COUNTER_VALUED_EVENT_TYPES = new Set<string>([CRYPTO_EVENT_TYPE.DUST]);
+
+function unitPriceOf(grossValueEurCents: number, quantityNative: string): number {
+  const qty = Number(quantityNative);
+  return qty > 0 ? Math.round(grossValueEurCents / qty) : 0;
+}
+
+/**
+ * EUR value of what the other side of the leg's operation paid, fee included
+ * when it was charged in that same asset (the counter quantity is net of it),
+ * or null when there is no counter or it has no price either.
+ */
+async function valueOfCounter(leg: NormalisedLeg, occurredAt: Date): Promise<number | null> {
+  const counterQty = Number(leg.counterQuantityNative ?? 0);
+  if (!leg.counterAsset || leg.counterAsset === leg.asset || !Number.isFinite(counterQty) || counterQty <= 0) {
+    return null;
+  }
+  const feeInCounter = leg.feeAsset === leg.counterAsset ? Number(leg.feeQuantityNative ?? 0) : 0;
+  const paid = counterQty + (Number.isFinite(feeInCounter) && feeInCounter > 0 ? feeInCounter : 0);
+  const counterPrice = await getPriceEurCents(leg.counterAsset, occurredAt);
+  if (counterPrice.source === CRYPTO_PRICE_SOURCE.UNRESOLVED) return null;
+  const value = computeGrossEurCents(String(paid), counterPrice.eurPriceMicroCents);
+  return value > 0 ? value : null;
+}
+
+async function priceLeg(
   rawEventId: string,
+  eventType: string,
   occurredAt: Date,
-  legs: NormalisedLeg[],
-): Promise<TaxableEventInput[]> {
-  const enriched: TaxableEventInput[] = [];
+  leg: NormalisedLeg,
+): Promise<TaxableEventInput> {
+  // When the consideration is exact euros (a EUR sell or a EUR purchase),
+  // AEAT's value is "lo recibido/pagado" — the real euros exchanged — not a
+  // daily-close estimate of the crypto side. Use the known counter amount
+  // directly, which also avoids zeroing the value if the price lookup fails.
+  const eurCounter =
+    leg.counterAsset === 'EUR' && leg.counterQuantityNative != null && Number(leg.counterQuantityNative) > 0
+      ? Number(leg.counterQuantityNative)
+      : null;
 
-  for (const leg of legs) {
-    // When the consideration is exact euros (a EUR sell or a EUR purchase),
-    // AEAT's value is "lo recibido/pagado" — the real euros exchanged — not a
-    // daily-close estimate of the crypto side. Use the known counter amount
-    // directly, which also avoids zeroing the value if the price lookup fails.
-    const eurCounter =
-      leg.counterAsset === 'EUR' && leg.counterQuantityNative != null && Number(leg.counterQuantityNative) > 0
-        ? Number(leg.counterQuantityNative)
+  let unitPriceEurCents: number;
+  let grossValueEurCents: number;
+  let priceSource: string;
+  if (eurCounter !== null) {
+    grossValueEurCents = eurosToCents(eurCounter);
+    unitPriceEurCents = unitPriceOf(grossValueEurCents, leg.quantityNative);
+    priceSource = CRYPTO_PRICE_SOURCE.FIAT_COUNTER;
+  } else {
+    const price = await getPriceEurCents(leg.asset, occurredAt);
+    // UnitPriceEurCents is display-only (may be 0 for sub-cent assets); gross
+    // is computed from the micro-cent price so it doesn't quantize to 0.
+    unitPriceEurCents = price.eurPriceCents;
+    grossValueEurCents = computeGrossEurCents(leg.quantityNative, price.eurPriceMicroCents);
+    priceSource = price.source;
+    const counterValue =
+      price.source === CRYPTO_PRICE_SOURCE.UNRESOLVED && COUNTER_VALUED_EVENT_TYPES.has(eventType)
+        ? await valueOfCounter(leg, occurredAt)
         : null;
-
-    let unitPriceEurCents: number;
-    let grossValueEurCents: number;
-    let priceSource: string;
-    if (eurCounter !== null) {
-      grossValueEurCents = eurosToCents(eurCounter);
-      const qty = Number(leg.quantityNative);
-      unitPriceEurCents = qty > 0 ? Math.round(grossValueEurCents / qty) : 0;
-      priceSource = CRYPTO_PRICE_SOURCE.FIAT_COUNTER;
-    } else {
-      const price = await getPriceEurCents(leg.asset, occurredAt);
-      // UnitPriceEurCents is display-only (may be 0 for sub-cent assets); gross
-      // is computed from the micro-cent price so it doesn't quantize to 0.
-      unitPriceEurCents = price.eurPriceCents;
-      grossValueEurCents = computeGrossEurCents(leg.quantityNative, price.eurPriceMicroCents);
-      priceSource = price.source;
+    if (counterValue !== null) {
+      grossValueEurCents = counterValue;
+      unitPriceEurCents = unitPriceOf(counterValue, leg.quantityNative);
+      priceSource = CRYPTO_PRICE_SOURCE.COUNTER_ASSET;
     }
-
-    let feeEurCents = 0;
-    if (leg.feeAsset && leg.feeQuantityNative && Number(leg.feeQuantityNative) > 0) {
-      // EUR fees resolve to 1 EUR/unit via PriceService (eur_self), so this
-      // already yields the exact euro fee; non-EUR fees are priced to EUR.
-      const feePrice = await getPriceEurCents(leg.feeAsset, occurredAt);
-      feeEurCents = computeGrossEurCents(leg.feeQuantityNative, feePrice.eurPriceMicroCents);
-    }
-
-    enriched.push({
-      rawEventId,
-      kind: leg.kind,
-      occurredAt,
-      asset: leg.asset,
-      quantityNative: leg.quantityNative,
-      counterAsset: leg.counterAsset,
-      counterQuantityNative: leg.counterQuantityNative,
-      feeAsset: leg.feeAsset,
-      feeQuantityNative: leg.feeQuantityNative,
-      unitPriceEurCents,
-      grossValueEurCents,
-      feeEurCents,
-      priceSource,
-      contraprestacion: leg.contraprestacion,
-    });
   }
 
-  return enriched;
+  let feeEurCents = 0;
+  if (leg.feeAsset && leg.feeQuantityNative && Number(leg.feeQuantityNative) > 0) {
+    // EUR fees resolve to 1 EUR/unit via PriceService (eur_self), so this
+    // already yields the exact euro fee; non-EUR fees are priced to EUR.
+    const feePrice = await getPriceEurCents(leg.feeAsset, occurredAt);
+    feeEurCents = computeGrossEurCents(leg.feeQuantityNative, feePrice.eurPriceMicroCents);
+  }
+
+  return {
+    rawEventId,
+    kind: leg.kind,
+    occurredAt,
+    asset: leg.asset,
+    quantityNative: leg.quantityNative,
+    counterAsset: leg.counterAsset,
+    counterQuantityNative: leg.counterQuantityNative,
+    feeAsset: leg.feeAsset,
+    feeQuantityNative: leg.feeQuantityNative,
+    unitPriceEurCents,
+    grossValueEurCents,
+    feeEurCents,
+    priceSource,
+    contraprestacion: leg.contraprestacion,
+  };
+}
+
+/**
+ * Prices the legs one after another, so a price already cached serves the next
+ * leg. The first lookup starts synchronously, as a plain loop would: the caller
+ * arms the round's cutoff timer right after this call returns.
+ */
+function enrichLegsWithPrices(
+  rawEventId: string,
+  eventType: string,
+  occurredAt: Date,
+  legs: NormalisedLeg[],
+  priced: TaxableEventInput[] = [],
+): Promise<TaxableEventInput[]> {
+  const [leg, ...rest] = legs;
+  if (leg === undefined) return Promise.resolve(priced);
+  return priceLeg(rawEventId, eventType, occurredAt, leg).then((entry) =>
+    enrichLegsWithPrices(rawEventId, eventType, occurredAt, rest, [...priced, entry]),
+  );
 }

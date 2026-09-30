@@ -426,11 +426,14 @@ export function normalizeFiatPayment(ctx: NormaliserContext): NormalisedLeg[] {
 
 /**
  * Dust → BNB. Each detail line is one micro-disposal of a long-tail asset
- * paid in BNB (counter = BNB, contraprestacion = 'N').
+ * paid in BNB (counter = BNB, contraprestacion = 'N'), and, like any crypto
+ * permuta, the acquisition of the BNB credited: without that lot a later BNB
+ * sale runs short of cost basis.
  *
  * Binance lets the "Convert Small Balances to BNB" tool sweep fiat dust
- * too (e.g. EUR < 1€). Those rows must be ignored — fiat is not a crypto
- * disposal under AEAT.
+ * too (e.g. EUR < 1€). Fiat is not a crypto disposal under AEAT, so that
+ * side is dropped, but the BNB credited is still bought with those euros
+ * (contraprestacion 'F', valued at the euros given).
  */
 export function normalizeDust(ctx: NormaliserContext): NormalisedLeg[] {
   const p = ctx.rawPayload;
@@ -441,20 +444,41 @@ export function normalizeDust(ctx: NormaliserContext): NormalisedLeg[] {
   const transferred = String(detail.transferedAmount ?? '0');
   const serviceCharge = String(detail.serviceChargeAmount ?? '0');
   if (!fromAsset || amount === '0') return [];
-  if (isFiat(fromAsset)) return [];
+  const sweptFiat = isFiat(fromAsset);
+  const credited = Number(transferred);
 
-  return [
-    {
-      kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
-      asset: fromAsset,
-      quantityNative: amount,
-      counterAsset: targetAsset,
-      counterQuantityNative: transferred,
-      feeAsset: targetAsset,
-      feeQuantityNative: serviceCharge,
-      contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
-    },
-  ];
+  // Fiat is not a crypto disposal under AEAT: only the crypto side is booked.
+  const disposal: NormalisedLeg[] = sweptFiat
+    ? []
+    : [
+        {
+          kind: CRYPTO_TAXABLE_KIND.DISPOSAL,
+          asset: fromAsset,
+          quantityNative: amount,
+          counterAsset: targetAsset,
+          counterQuantityNative: transferred,
+          feeAsset: targetAsset,
+          feeQuantityNative: serviceCharge,
+          contraprestacion: CRYPTO_CONTRAPRESTACION.NON_FIAT,
+        },
+      ];
+  // Nothing credited means no lot to hold.
+  const acquisition: NormalisedLeg[] =
+    Number.isFinite(credited) && credited > 0
+      ? [
+          {
+            kind: CRYPTO_TAXABLE_KIND.ACQUISITION,
+            asset: targetAsset,
+            quantityNative: transferred,
+            counterAsset: fromAsset,
+            counterQuantityNative: amount,
+            feeAsset: null,
+            feeQuantityNative: null,
+            contraprestacion: sweptFiat ? CRYPTO_CONTRAPRESTACION.FIAT : CRYPTO_CONTRAPRESTACION.NON_FIAT,
+          },
+        ]
+      : [];
+  return [...disposal, ...acquisition];
 }
 
 /**

@@ -19,6 +19,7 @@
  */
 
 import { Pool } from 'pg';
+import { CRYPTO_DUST_SECOND_TOLERANCE } from '../src/constants/finance';
 
 // CSV events that have an API twin: same UserID + EventType + asset + side, plus
 // a per-type timestamp/amount match. Identity fields are coalesced across the
@@ -54,6 +55,19 @@ const DETECT_SQL = `
    AND (
      CASE WHEN csv."EventType" IN ('deposit', 'withdraw')
           THEN api.ts::date = csv.ts::date
+          -- The CSV and the API stamp the same dust conversion about 1 s apart:
+          -- whole seconds, as the app's dedup compares them. A CSV row is only
+          -- taken when no other CSV conversion of that asset and amount could
+          -- pair with the same API row, so two real conversions are never
+          -- deleted against one.
+          WHEN csv."EventType" = 'dust'
+          THEN abs(floor(extract(epoch FROM api.ts)) - floor(extract(epoch FROM csv.ts))) <= ${CRYPTO_DUST_SECOND_TOLERANCE}
+           AND NOT EXISTS (
+             SELECT 1 FROM ev other
+             WHERE other.is_csv AND other."EventID" <> csv."EventID" AND other."UserID" = csv."UserID"
+               AND other."EventType" = 'dust' AND other.k_asset IS NOT DISTINCT FROM csv.k_asset
+               AND other.k_amount IS NOT DISTINCT FROM csv.k_amount
+               AND abs(floor(extract(epoch FROM api.ts)) - floor(extract(epoch FROM other.ts))) <= ${CRYPTO_DUST_SECOND_TOLERANCE})
           ELSE date_trunc('second', api.ts) = date_trunc('second', csv.ts) END
    )
    AND (

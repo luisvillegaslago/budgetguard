@@ -106,7 +106,8 @@ position inside its second, so an export that lists a second's fills in another 
 new ids). Both paths run their events through `dropCrossSourceDuplicates`
 (`CryptoRawEventsRepository.ts`) before the insert, against an index of everything the user has
 stored, loaded once per CSV upload or sync job. An event matches a stored row on type (the reward
-types count as one), asset, side, time (exact second; same UTC day for deposit/withdraw) and amount
+types count as one), asset, side, time (exact second; within ±5 s for dust, whose CSV and API stamps
+differ by about 1 s; same UTC day for deposit/withdraw) and amount
 (a withdrawal also by its gross); a spot fill also on second and market, filed under both coin
 orders because a CSV writes the acquired coin first.
 
@@ -144,7 +145,26 @@ still sent; rewards stored since are not.
 
 `NormalizationService` turns raw events into fiscally meaningful legs. One raw event may produce
 several: a spot trade BTC→USDT is a **disposal** of BTC *and* an **acquisition** of USDT, which is
-why the idempotency key is `(RawEventID, Kind, Asset)` rather than the raw event alone.
+why the idempotency key is `(RawEventID, Kind, Asset)` rather than the raw event alone. A dust
+conversion is the same kind of permuta: a disposal of the swept token *and* an acquisition of the
+BNB credited (`transferedAmount`). Until 2026-09-30 only the disposal was booked, so 1,02 BNB of
+dust never became a lot and the BNB sold later ran short of cost basis. Fiat dust (EUR under 1 €)
+books only the BNB bought with those euros, contraprestación F, valued at the euros given.
+
+Dust already normalised keeps its single leg until it is normalised again, in this order: remove
+the CSV/API duplicate conversions first (done on production on 2026-09-30, 32 pairs; otherwise
+each BNB credit is booked twice), then clear the dust legs and reset `NormalizedAt` for
+`EventType = 'dust'` in one transaction, normalise, and "Recalcular FIFO". Resetting without
+clearing the legs first leaves the old 0 € disposals in place (the insert skips an existing
+`(RawEventID, Kind, Asset)`) next to the new BNB lots. The recompute rewrites every year, so the
+BNB figures (1806, 1807, 1809) of years already filed can move and may need a correction.
+
+**Counter-asset price.** When a leg's own asset has no price, it is valued at the EUR value of the
+counter asset of the same operation (`PriceSource = counter_asset`), for dust only: an unpriced
+token swept to dust is worth the BNB it fetched, fee included, and the fee then comes off as for any
+disposal. Spot, convert and P2P legs keep `unresolved`: there a missing price can be a passing
+outage, and it must stay in the review queue. Only when the BNB has no price either does a dust leg
+stay `unresolved` at 0 €.
 
 Kinds: `disposal`, `acquisition`, `airdrop`, `staking_reward`, `transfer_in`, `transfer_out`.
 
