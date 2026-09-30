@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.69.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.2...v0.69.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* run crypto syncs in resumable rounds under the 300 s function limit ([4e845bd](https://github.com/luisvillegaslago/budgetguard/commit/4e845bdc540667021582da507e33c7109da66be2))
+
 ## [0.69.2](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.1...v0.69.2) (2026-09-29)
 
 
