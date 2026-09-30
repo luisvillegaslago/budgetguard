@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.69.4](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.3...v0.69.4) (2026-09-30)
+
+
+### Bug Fixes
+
+* book the BNB a dust conversion credits and match dust within 5 s ([470a03d](https://github.com/luisvillegaslago/budgetguard/commit/470a03d436cdbfffac5ba6d2ac5237c28b455762))
+
 ## [0.69.3](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.2...v0.69.3) (2026-09-30)
 
 
