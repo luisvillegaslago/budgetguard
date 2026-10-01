@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.70.0](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.5...v0.70.0) (2026-10-01)
+
+
+### Features
+
+* **fiscal:** read filed 303 results and expire old quotas in the IVA pool ([6225492](https://github.com/luisvillegaslago/budgetguard/commit/62254923673f5e962b3ff9e0bf51a261d9c9f0a6))
+
 ## [0.69.5](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.4...v0.69.5) (2026-10-01)
 
 
