@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.69.5](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.4...v0.69.5) (2026-10-01)
+
+
+### Bug Fixes
+
+* **transactions:** clear the fiscal fields when the section is unticked ([3ea11cd](https://github.com/luisvillegaslago/budgetguard/commit/3ea11cd0cbebd6c2fdb63ed66ee727e60ddb1f14))
+
 ## [0.69.4](https://github.com/luisvillegaslago/budgetguard/compare/v0.69.3...v0.69.4) (2026-09-30)
 
 
