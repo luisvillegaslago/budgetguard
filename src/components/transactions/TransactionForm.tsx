@@ -34,6 +34,9 @@ interface TransactionFormProps {
   transaction?: Transaction;
 }
 
+/** The three fiscal fields the section toggles together. */
+type FiscalFields = Pick<CreateTransactionInput, 'vatPercent' | 'deductionPercent' | 'vatDeductionPercent'>;
+
 export function TransactionForm({
   onClose,
   defaultType = TRANSACTION_TYPE.EXPENSE,
@@ -52,6 +55,7 @@ export function TransactionForm({
   );
   const [showVoucher, setShowVoucher] = useState(() => isEditing && transaction.voucherId != null);
   const fiscalDirtyRef = useRef(isEditing);
+  const untickedFiscalRef = useRef<FiscalFields | null>(null);
   // Skip voucher amount auto-calc on initial edit load; enable on user interaction
   const skipVoucherAutoRef = useRef(isEditing);
   const selectedMonth = useSelectedMonth();
@@ -65,6 +69,7 @@ export function TransactionForm({
     formState: { errors, isSubmitting },
     reset,
     setValue,
+    getValues,
     setFocus,
     control,
   } = useForm<CreateTransactionInput>({
@@ -195,6 +200,31 @@ export function TransactionForm({
 
   const handleSharedDefaultChange = (defaultShared: boolean) => {
     setValue('isShared', defaultShared);
+  };
+
+  // Hidden fields still submit: unticking has to clear them, or the row keeps counting in casillas
+  // 28/29 and in the 130 while the form shows it as a private expense.
+  const handleFiscalToggle = (checked: boolean) => {
+    setShowFiscal(checked);
+    fiscalDirtyRef.current = true;
+    if (!checked) {
+      // Kept so a mistaken untick can be undone with the row's own figures, not the category's
+      untickedFiscalRef.current = {
+        vatPercent: getValues('vatPercent'),
+        deductionPercent: getValues('deductionPercent'),
+        vatDeductionPercent: getValues('vatDeductionPercent'),
+      };
+      setValue('vatPercent', null);
+      setValue('deductionPercent', null);
+      setValue('vatDeductionPercent', VAT_DEDUCTION_INHERITS_IRPF);
+      return;
+    }
+    const restored = untickedFiscalRef.current ?? fiscalDefaults;
+    if (restored) {
+      setValue('vatPercent', restored.vatPercent);
+      setValue('deductionPercent', restored.deductionPercent);
+      setValue('vatDeductionPercent', restored.vatDeductionPercent);
+    }
   };
 
   const handleVoucherToggle = (checked: boolean) => {
@@ -541,7 +571,7 @@ export function TransactionForm({
                 id="showFiscal"
                 type="checkbox"
                 checked={showFiscal}
-                onChange={(e) => setShowFiscal(e.target.checked)}
+                onChange={(e) => handleFiscalToggle(e.target.checked)}
                 className="h-4 w-4 rounded border-input text-guard-primary focus:ring-guard-primary"
               />
             </div>

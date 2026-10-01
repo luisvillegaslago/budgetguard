@@ -37,6 +37,12 @@ jest.mock('@/hooks/useVouchers', () => ({
   useVouchers: () => ({ data: [] }),
 }));
 
+// The fiscal section renders the company selector, which queries on mount.
+jest.mock('@/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [] }),
+  useQuickCreateCompany: () => ({ mutateAsync: jest.fn(), isPending: false }),
+}));
+
 const TRAVEL_ID = 1;
 const HOUSING_ID = 2;
 const INTERNET_ID = 20;
@@ -226,5 +232,40 @@ describe('TransactionForm — editing keeps the stored shared split', () => {
       originalAmountCents: 8000,
       sharedDivisor: SHARED_EXPENSE.DIVISOR,
     });
+  });
+});
+
+describe('TransactionForm — unticking the fiscal section', () => {
+  beforeEach(() => {
+    mockUpdate.mockClear();
+    capturedUpdateData = null;
+  });
+
+  it('stops the row from counting as deductible instead of only hiding its percentages', async () => {
+    // A household purchase left at 21 % VAT and 10 % deductible: unticked in the form, it kept
+    // feeding casillas 28/29 of the 303 and the gastos of the 130 because the hidden fields still submitted.
+    await openForEdit(
+      makeTransaction({ transactionId: 3003, vatPercent: 21, deductionPercent: 10, vatDeductionPercent: 10 }),
+      'Viajes',
+    );
+
+    fireEvent.click(screen.getByLabelText('fiscal.form.section-title'));
+    const sent = await saveAndReplayThroughPut();
+
+    expect(sent).toMatchObject({ vatPercent: null, deductionPercent: null, vatDeductionPercent: null });
+    expect(capturedUpdateData).toMatchObject({ vatPercent: null, deductionPercent: null, vatDeductionPercent: null });
+  });
+
+  it('brings back the figures of the row when the untick was a mistake', async () => {
+    await openForEdit(
+      makeTransaction({ transactionId: 3004, vatPercent: 21, deductionPercent: 50, vatDeductionPercent: 50 }),
+      'Viajes',
+    );
+
+    fireEvent.click(screen.getByLabelText('fiscal.form.section-title'));
+    fireEvent.click(screen.getByLabelText('fiscal.form.section-title'));
+    const sent = await saveAndReplayThroughPut();
+
+    expect(sent).toMatchObject({ vatPercent: 21, deductionPercent: 50, vatDeductionPercent: 50 });
   });
 });
