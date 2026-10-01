@@ -89,6 +89,17 @@ export function useTransactionGroup(transactionGroupId: number) {
 // Mutations
 // ============================================================
 
+/**
+ * What a filed document feeds besides the list and the deadline banner: the 303 reads each filed
+ * result for casilla 110 and what expires, the 130 reads them for casilla 05, and the 390 for 97/662.
+ */
+const FILED_DOCUMENT_DEPENDENTS = [
+  QUERY_KEY.FISCAL_DOCUMENTS,
+  QUERY_KEY.FISCAL_DEADLINES,
+  QUERY_KEY.FISCAL_REPORT,
+  QUERY_KEY.FISCAL_ANNUAL,
+];
+
 // The `_year` parameter is kept for call-site compatibility but no longer scopes
 // the invalidation: we invalidate the root prefixes instead (see onSuccess).
 export function useUploadFiscalDocument(_year: number) {
@@ -117,7 +128,7 @@ export function useUploadFiscalDocument(_year: number) {
     // Invalidate the root prefixes, not [key, year]: the banner consumes
     // [FISCAL_DEADLINES, 'active'] (not a descendant of [FISCAL_DEADLINES, year]),
     // and the detected year may differ from the year selected on the page.
-    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS, QUERY_KEY.FISCAL_DEADLINES]),
+    onSuccess: () => invalidateQueryKeys(queryClient, FILED_DOCUMENT_DEPENDENTS),
   });
 }
 
@@ -159,7 +170,7 @@ export function useBulkUploadDocuments() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Bulk upload failed');
       return data.data;
     },
-    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS, QUERY_KEY.FISCAL_DEADLINES]),
+    onSuccess: () => invalidateQueryKeys(queryClient, FILED_DOCUMENT_DEPENDENTS),
   });
 }
 
@@ -185,7 +196,7 @@ export function useUpdateDocumentStatus(_year: number) {
       return data.data;
     },
     // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
-    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_DOCUMENTS, QUERY_KEY.FISCAL_DEADLINES]),
+    onSuccess: () => invalidateQueryKeys(queryClient, FILED_DOCUMENT_DEPENDENTS),
   });
 }
 
@@ -207,12 +218,7 @@ export function useDeleteFiscalDocument(_year: number) {
     },
     // Root-prefix invalidation so the [FISCAL_DEADLINES, 'active'] banner refreshes too.
     onSuccess: () =>
-      invalidateQueryKeys(queryClient, [
-        QUERY_KEY.FISCAL_DOCUMENTS,
-        QUERY_KEY.FISCAL_DEADLINES,
-        QUERY_KEY.TRANSACTIONS,
-        QUERY_KEY.SUMMARY,
-      ]),
+      invalidateQueryKeys(queryClient, [...FILED_DOCUMENT_DEPENDENTS, QUERY_KEY.TRANSACTIONS, QUERY_KEY.SUMMARY]),
   });
 }
 

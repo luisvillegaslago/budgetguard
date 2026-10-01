@@ -5,11 +5,19 @@
  * which takes the id from a caller that already resolved it.
  */
 
-import { FISCAL_STATUS, SHARED_EXPENSE, TRANSACTION_STATUS } from '@/constants/finance';
+import {
+  FISCAL_DOCUMENT_TYPE,
+  FISCAL_STATUS,
+  type FiscalQuarter,
+  MODELO_TYPE,
+  SHARED_EXPENSE,
+  TRANSACTION_STATUS,
+} from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
 import type {
   FiscalDeadlineSettings,
   FiscalDocument,
+  FiscalPeriod,
   FiscalStatus,
   ModeloType,
   TransactionType,
@@ -576,6 +584,74 @@ export async function getFiledModeloAmounts(
   );
 
   return new Map(rows.map((row) => [row.FiscalQuarter, row.TaxAmountCents]));
+}
+
+interface Filed303Row {
+  FiscalYear: number;
+  FiscalQuarter: number;
+  TaxAmountCents: number | null;
+}
+
+interface FirstFiledRow {
+  FiscalYear: number;
+  FiscalQuarter: FiscalQuarter;
+}
+
+export interface Filed303History {
+  /** Each period's filed result, by year and then by quarter. A period without a usable one is absent. */
+  results: Map<number, Map<number, number>>;
+  /** The earliest 303 the user has on file, or null when there is none */
+  firstFiled: FiscalPeriod | null;
+}
+
+/**
+ * The filed 303s the IVA pool reads: the results of a span of years, and the first one on file.
+ *
+ * The pool reads four years back — the quotas that expire, and everything generated after them
+ * that decides how much of those is still there. A period filed twice with different results, or
+ * with one of its documents missing the result, comes back absent rather than picked: the app
+ * cannot tell a rectificativa from the return it corrects, and the card's warning asks the user to
+ * leave one where a guess would be silently wrong. (The 130 reads MAX() instead, see
+ * getFiledModeloAmounts(); for a 303 a compensar the highest figure is the smallest quota.)
+ *
+ * The first 303 on file marks where the history starts: before it there was no activity to
+ * generate a quota, so those periods are known to be empty rather than missing.
+ *
+ * Takes the userId instead of resolving it: the caller is a fiscal model that already has it.
+ */
+export async function getFiled303History(userId: number, fromYear: number, toYear: number): Promise<Filed303History> {
+  const filed303 = `"UserID" = $1 AND "ModeloType" = $2 AND "DocumentType" = $3 AND "Status" = $4
+       AND "FiscalQuarter" IS NOT NULL`;
+  const baseParams = [userId, MODELO_TYPE.M303, FISCAL_DOCUMENT_TYPE.MODELO, FISCAL_STATUS.FILED];
+
+  const [rows, firstRows] = await Promise.all([
+    query<Filed303Row>(
+      `SELECT "FiscalYear", "FiscalQuarter",
+              CASE WHEN COUNT(*) = COUNT("TaxAmountCents") AND MIN("TaxAmountCents") = MAX("TaxAmountCents")
+                   THEN MIN("TaxAmountCents") END AS "TaxAmountCents"
+       FROM "FiscalDocuments"
+       WHERE ${filed303} AND "FiscalYear" BETWEEN $5 AND $6
+       GROUP BY "FiscalYear", "FiscalQuarter"`,
+      [...baseParams, fromYear, toYear],
+    ),
+    query<FirstFiledRow>(
+      `SELECT "FiscalYear", "FiscalQuarter" FROM "FiscalDocuments"
+       WHERE ${filed303}
+       ORDER BY "FiscalYear", "FiscalQuarter"
+       LIMIT 1`,
+      baseParams,
+    ),
+  ]);
+
+  const results = rows.reduce((byYear, row) => {
+    if (row.TaxAmountCents == null) return byYear;
+    const quarters = byYear.get(row.FiscalYear) ?? new Map<number, number>();
+    quarters.set(row.FiscalQuarter, Number(row.TaxAmountCents));
+    return byYear.set(row.FiscalYear, quarters);
+  }, new Map<number, Map<number, number>>());
+  const first = firstRows[0];
+
+  return { results, firstFiled: first ? { year: first.FiscalYear, quarter: first.FiscalQuarter } : null };
 }
 
 // ============================================================

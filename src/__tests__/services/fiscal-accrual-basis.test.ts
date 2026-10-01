@@ -12,7 +12,12 @@
  * accrual view returns; the view's own SQL is verified against the database.
  */
 
-import { MODELO_100_DEFAULT_CASILLA, PROFESSIONAL_INCOME_CATEGORY, TRANSACTION_TYPE } from '@/constants/finance';
+import {
+  MODELO_100_DEFAULT_CASILLA,
+  MODELO_TYPE,
+  PROFESSIONAL_INCOME_CATEGORY,
+  TRANSACTION_TYPE,
+} from '@/constants/finance';
 
 // ── Fixtures: what "vw_FiscalAccrual" returns for 2026 ──
 
@@ -99,12 +104,26 @@ const executedSql: string[] = [];
 /** Modelos 130 already filed, as "FiscalDocuments" returns them (empty unless a test sets them) */
 let filedAmounts: Array<{ FiscalQuarter: number; TaxAmountCents: number }> = [];
 
+/** Filed 303s by fiscal year: the IVA pool reads the year itself and the one four years back. */
+let filed303: Record<number, Array<{ FiscalQuarter: number; TaxAmountCents: number }>> = {};
+
 /** The annual fiscal profile the 303 reads for the IVA pool carried into the year. */
 let vatPoolOpeningCents = 0;
 
 const mockQuery = jest.fn(async (sql: string, params: unknown[]) => {
   executedSql.push(sql);
-  if (sql.includes('FiscalDocuments')) return filedAmounts;
+  if (sql.includes('FiscalDocuments')) {
+    const [, modeloType, , , fromYear, toYear] = params as [number, string, string, string, number, number];
+    if (modeloType !== MODELO_TYPE.M303) return filedAmounts;
+    const filed = Object.entries(filed303).flatMap(([year, rows]) =>
+      rows.map((row) => ({ ...row, FiscalYear: Number(year) })),
+    );
+    // The first 303 on file, or the results of the span of years asked for
+    if (sql.includes('LIMIT 1')) {
+      return filed.sort((a, b) => a.FiscalYear - b.FiscalYear || a.FiscalQuarter - b.FiscalQuarter).slice(0, 1);
+    }
+    return filed.filter((row) => row.FiscalYear >= fromYear && row.FiscalYear <= toYear);
+  }
   if (sql.includes('FiscalProfiles'))
     return [
       {
@@ -152,6 +171,7 @@ describe('Fiscal models read the accrual view', () => {
     includeStandaloneIncome = false;
     extraRows = [];
     filedAmounts = [];
+    filed303 = {};
     vatPoolOpeningCents = 0;
   });
 
@@ -200,6 +220,7 @@ describe('Modelo 130', () => {
     includeStandaloneIncome = false;
     extraRows = [];
     filedAmounts = [];
+    filed303 = {};
     vatPoolOpeningCents = 0;
   });
 
@@ -347,6 +368,16 @@ describe('Modelo 130', () => {
   });
 });
 
+/** A filed history from 2022 to 2025: 70,00 of 1T-3T 2022 quotas and 930,00 generated after them. */
+const quarters = (...cents: number[]) =>
+  cents.map((TaxAmountCents, index) => ({ FiscalQuarter: index + 1, TaxAmountCents }));
+const FILED_303_2022_TO_2025 = {
+  2022: quarters(-3_000, -1_500, -2_500, -10_000),
+  2023: quarters(-8_000, -2_000, -4_000, -40_000),
+  2024: quarters(0, -7_000, -3_000, -5_000),
+  2025: quarters(-4_000, -3_000, -7_000, 0),
+};
+
 describe('Modelo 303 and 100', () => {
   beforeEach(() => {
     mockQuery.mockClear();
@@ -354,6 +385,7 @@ describe('Modelo 303 and 100', () => {
     includeStandaloneIncome = false;
     extraRows = [];
     filedAmounts = [];
+    filed303 = {};
     vatPoolOpeningCents = 0;
   });
 
@@ -413,6 +445,101 @@ describe('Modelo 303 and 100', () => {
     expect(summary.vatPoolClosingCents).toBe(0);
   });
 
+  it('counts a filed quarter for what was filed, not for what its rows recompute', async () => {
+    // 1T was filed at −10,00 €; the rows, re-coded since, no longer add up to that
+    vatPoolOpeningCents = 100_000;
+    filed303 = { 2026: [{ FiscalQuarter: 1, TaxAmountCents: -1_000 }] };
+
+    const summary = await getModelo303Summary(2026, 2);
+
+    expect(summary.vatPoolOpeningCents).toBe(100_000 + 1_000);
+  });
+
+  it('falls back to the recomputed result when the filing does not say what the quarter generated', async () => {
+    // A filing at zero hides how much of the pool it consumed
+    vatPoolOpeningCents = 100_000;
+    extraRows = [expense(1, 121000, 21)];
+    filed303 = { 2026: [{ FiscalQuarter: 1, TaxAmountCents: 0 }] };
+
+    const first = await getModelo303Summary(2026, 1);
+    const second = await getModelo303Summary(2026, 2);
+
+    expect(second.vatPoolOpeningCents).toBe(first.vatPoolClosingCents);
+  });
+
+  it('discounts the quotas of four years back as they expire', async () => {
+    vatPoolOpeningCents = 100_000;
+    filed303 = {
+      2026: [
+        { FiscalQuarter: 1, TaxAmountCents: -1_000 },
+        { FiscalQuarter: 2, TaxAmountCents: -2_000 },
+      ],
+      ...FILED_303_2022_TO_2025,
+    };
+
+    const second = await getModelo303Summary(2026, 2);
+    const third = await getModelo303Summary(2026, 3);
+
+    // 1.000,00 + 10,00 (1T) - 30,00 (1T 2022) at 2T; + 20,00 (2T) - 15,00 (2T 2022) at 3T
+    expect(second.vatPoolOpeningCents).toBe(98_000);
+    expect(third.vatPoolOpeningCents).toBe(98_500);
+    expect(third.vatPoolExpiryUnknown).toBe(false);
+  });
+
+  it('does not expire again quotas a refund already paid out', async () => {
+    // After a refund the opening holds only what was generated since: 200,00 € here, against
+    // 930,00 € generated after the 2022 quotas. None of those is in the pool any more.
+    vatPoolOpeningCents = 20_000;
+    const withoutHistory = await getModelo303Summary(2026, 4);
+
+    filed303 = { ...FILED_303_2022_TO_2025 };
+    const withHistory = await getModelo303Summary(2026, 4);
+
+    // The 2022 quotas on file change nothing, and casilla 110 is now known to be exact
+    expect(withHistory.vatPoolOpeningCents).toBe(withoutHistory.vatPoolOpeningCents);
+    expect(withHistory.vatPoolExpiryUnknown).toBe(false);
+  });
+
+  it('flags the pool as unable to discount expiries only once a quarter needs the missing filings', async () => {
+    // The history starts in 2022 but only its 1T is on file with a result
+    vatPoolOpeningCents = 100_000;
+    filed303 = { 2022: [{ FiscalQuarter: 1, TaxAmountCents: -3_000 }] };
+
+    const first = await getModelo303Summary(2026, 1);
+    const second = await getModelo303Summary(2026, 2);
+
+    // Nothing expires before 2T; from then on the 2022 303s are needed and none is filed
+    expect(first.vatPoolExpiryUnknown).toBe(false);
+    expect(second.vatPoolExpiryUnknown).toBe(true);
+  });
+
+  it('does not flag the years before the first 303 on file: there was no activity to expire', async () => {
+    // Registered in 2025: 2022-2024 can never be filed, and nothing from them is in the pool
+    vatPoolOpeningCents = 50_000;
+    filed303 = { 2025: quarters(-4_000, -3_000, -7_000, -16_000) };
+
+    const summary = await getModelo303Summary(2026, 3);
+
+    expect(summary.vatPoolExpiryUnknown).toBe(false);
+  });
+
+  it('closes the quarter with what was filed, so its casilla 87 is the next casilla 110', async () => {
+    vatPoolOpeningCents = 100_000;
+    extraRows = [expense(2, 121000, 21)];
+    filed303 = { 2026: [{ FiscalQuarter: 2, TaxAmountCents: -30_000 }] };
+
+    const second = await getModelo303Summary(2026, 2);
+    const third = await getModelo303Summary(2026, 3);
+
+    expect(third.vatPoolOpeningCents).toBe(second.vatPoolClosingCents);
+  });
+
+  it('never flags expiries when there is no pool to expire', async () => {
+    const summary = await getModelo303Summary(2026, 4);
+
+    expect(summary.vatPoolExpiryUnknown).toBe(false);
+  });
+
   it('reports VAT-free invoice income as non-subject operations in casilla 120', async () => {
     const summary = await getModelo303Summary(2026, 1);
 
@@ -450,6 +577,27 @@ describe('Modelo 303 and 100', () => {
     expect(summary.casilla662Cents).toBe(21000 + 42000);
     // Together they still add up to everything the year generated
     expect(summary.casilla97Cents + summary.casilla662Cents).toBe(Math.abs(summary.casilla86Cents));
+  });
+
+  it('takes 1T-3T as filed, so casilla 662 matches the 303s it is reconciled against', async () => {
+    // The rows say 210,00 € in 3T, but the 3T 303 was filed at 250,00 €
+    const withoutFiling = await getModelo390Summary(2026);
+    extraRows = [expense(3, 121000, 21)];
+    filed303 = { 2026: [{ FiscalQuarter: 3, TaxAmountCents: -25_000 }] };
+
+    const summary = await getModelo390Summary(2026);
+
+    expect(summary.casilla662Cents - withoutFiling.casilla662Cents).toBe(25_000);
+  });
+
+  it('never reads the 4T filing, which carries the whole pool when the refund is asked for', async () => {
+    // 4T generated 210,00 €; the 4T 303 asked to refund 1.300,00 € including the pool (casilla 78)
+    extraRows = [expense(4, 121000, 21)];
+    filed303 = { 2026: [{ FiscalQuarter: 4, TaxAmountCents: -130_000 }] };
+
+    const summary = await getModelo390Summary(2026);
+
+    expect(summary.casilla97Cents).toBe(21_000);
   });
 
   it('leaves casilla 97 at zero when the last quarter had nothing to compensate', async () => {

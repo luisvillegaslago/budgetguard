@@ -8,15 +8,19 @@
  */
 
 import { Tooltip } from '@/components/ui/Tooltip';
-import { FISCAL_QUARTER } from '@/constants/finance';
+import { FISCAL_QUARTER, VAT_POOL } from '@/constants/finance';
 import { useTranslate } from '@/hooks/useTranslations';
 import type { Modelo303Summary } from '@/types/finance';
 import { cn } from '@/utils/helpers';
 import { formatCurrency } from '@/utils/money';
 import { classifyFiscalResult, FISCAL_RESULT_KIND } from './fiscalResult';
+import { VatPoolOpeningForm } from './VatPoolOpeningForm';
 
 /** The refund can only be asked for in the last quarter of the year (casilla 73). */
 const LAST_QUARTER = FISCAL_QUARTER.Q4;
+
+/** Its 303 is the one whose casilla 110 AEAT prefills with the balance carried into the year. */
+const FIRST_QUARTER = FISCAL_QUARTER.Q1;
 
 interface Modelo303CardProps {
   data: Modelo303Summary;
@@ -140,8 +144,21 @@ export function Modelo303Card({ data }: Modelo303CardProps) {
               )}
             </p>
           )}
+
+          {data.vatPoolExpiryUnknown && (
+            <p className="text-xs text-guard-warning pt-2">
+              {t('fiscal.modelo303.pool-expiry-unknown', {
+                from: data.fiscalYear - VAT_POOL.QUOTA_LIFETIME_YEARS,
+                to: data.fiscalYear - 1,
+              })}
+            </p>
+          )}
         </div>
       )}
+
+      {/* Once a year, the 1T is where AEAT's own figure for the pool is copied in. Shown even at zero:
+          a new year starts at zero until it is filled, which is exactly when it is needed. */}
+      {data.fiscalQuarter === FIRST_QUARTER && <VatPoolOpeningForm year={data.fiscalYear} />}
     </div>
   );
 }

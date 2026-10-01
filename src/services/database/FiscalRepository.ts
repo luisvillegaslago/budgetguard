@@ -19,6 +19,8 @@
 import {
   DEFAULT_IRPF_REGION,
   FILING_STATUS,
+  FISCAL_QUARTER,
+  type FiscalQuarter,
   IRPF_PROJECTION,
   IRPF_RATE,
   ISSUED_INVOICE_STATUSES,
@@ -26,12 +28,14 @@ import {
   MODELO_TYPE,
   PROFESSIONAL_INCOME_CATEGORY,
   TRANSACTION_TYPE,
+  VAT_POOL,
 } from '@/constants/finance';
 import { getUserIdOrThrow } from '@/libs/auth';
-import { getFiledModeloAmounts } from '@/services/database/FiscalDocumentRepository';
+import { getFiled303History, getFiledModeloAmounts } from '@/services/database/FiscalDocumentRepository';
 import { getFiscalProfileForUser } from '@/services/database/FiscalProfileRepository';
 import { getAmortizationCentsForPeriod, getAssetTransactionIds } from '@/services/database/FixedAssetRepository';
 import type {
+  FiscalPeriod,
   FiscalTransaction,
   IrpfProjection,
   Modelo100Section,
@@ -42,8 +46,9 @@ import type {
 import {
   calcGastosDificilCents,
   computeFiscalFields,
+  expiringRemaindersCents,
   pendingVatQuotasByQuarterCents,
-  rollVatPoolCents,
+  vatPoolByQuarterCents,
 } from '@/utils/fiscal';
 import { computeDeadlines } from '@/utils/fiscalDeadlines';
 import { toDateString } from '@/utils/helpers';
@@ -55,6 +60,7 @@ import {
   isIrpfScaleConfirmed,
   projectAnnualCents,
 } from '@/utils/irpf';
+import { sumCents } from '@/utils/money';
 import { query } from './connection';
 
 interface FiscalViewRow {
@@ -348,6 +354,85 @@ function modelo303Totals(rows: FiscalViewRow[]): Modelo303Totals {
 const modelo303Result = (totals: Modelo303Totals): number => totals.casilla09 - totals.casilla29;
 
 /**
+ * Each quarter's own 303 result, as filed whenever the filing says it.
+ *
+ * A filed quarter counts for what was filed: that is the figure AEAT carried into casilla 110, and
+ * a recomputation drifts from it as soon as a row is re-coded. Only a negative filing of 1T-3T says
+ * what the quarter generated: a zero or positive one hides how much of the pool it consumed, and a
+ * 4T one can carry the whole pool applied for the refund (casilla 78), so the 4T is recomputed.
+ */
+function quarterResultsAsFiled(
+  rows: FiscalViewRow[],
+  filedResults: Map<number, number> | undefined,
+  quarters: number[],
+): number[] {
+  return quarters.map((quarter) => {
+    const filedCents = filedResults?.get(quarter);
+    return filedCents != null && filedCents < 0 && quarter !== FISCAL_QUARTER.Q4
+      ? filedCents
+      : modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter)));
+  });
+}
+
+/** The quota a filed 303 generated: its result when it closed "a compensar", nothing otherwise. */
+const filedQuotaCents = (resultCents: number | undefined): number => Math.max(0, -(resultCents ?? 0));
+
+/** Orders periods: 4T 2022 comes before 1T 2023. */
+const periodIndex = (period: FiscalPeriod): number => period.year * ALL_QUARTERS + period.quarter;
+
+/** Every period from 1T of `fromYear` to 4T of `toYear`, oldest first. */
+const periodsBetween = (fromYear: number, toYear: number): FiscalPeriod[] =>
+  Array.from({ length: toYear - fromYear + 1 }, (_, offset) => fromYear + offset).flatMap((year) =>
+    ALL_QUARTER_NUMBERS.map((quarter) => ({ year, quarter })),
+  );
+
+interface VatPoolInputs {
+  /** Casilla 110 of the year's first 303, as the user copied it from AEAT */
+  openingCents: number;
+  /** The year's own filed 303 results, by quarter */
+  filedThisYear: Map<number, number> | undefined;
+  /** What the opening still holds of the quotas of 1T-3T of Y-4, which leave during the year */
+  expiringRemainders: number[];
+  /** Whether every 303 those remainders depend on is on file with its result */
+  isHistoryComplete: boolean;
+}
+
+/**
+ * What the IVA pool of a year rolls forward from: AEAT's opening and the 303s of four years back.
+ *
+ * The quotas of 1T-3T of Y-4 leave during the year, and how much of them the opening still holds
+ * depends on everything generated after them, up to 4T of Y-1. Periods before the first 303 on file
+ * had no activity, so they count as known and empty: someone who registered two years ago has
+ * nothing that can expire, and should not be told the figure is unreliable.
+ */
+async function loadVatPoolInputs(userId: number, year: number): Promise<VatPoolInputs> {
+  const expiringYear = year - VAT_POOL.QUOTA_LIFETIME_YEARS;
+  const [profile, history] = await Promise.all([
+    getFiscalProfileForUser(userId, year),
+    getFiled303History(userId, expiringYear, year),
+  ]);
+
+  const window = periodsBetween(expiringYear, year - 1);
+  const resultOf = (period: FiscalPeriod) => history.results.get(period.year)?.get(period.quarter);
+  const quotaOf = (period: FiscalPeriod) => filedQuotaCents(resultOf(period));
+  const { firstFiled } = history;
+  const isKnown = (period: FiscalPeriod) =>
+    firstFiled == null || periodIndex(period) < periodIndex(firstFiled) || resultOf(period) != null;
+  const expiringCount = ALL_QUARTERS - 1;
+
+  return {
+    openingCents: profile.vatPoolOpeningCents,
+    filedThisYear: history.results.get(year),
+    expiringRemainders: expiringRemaindersCents(
+      profile.vatPoolOpeningCents,
+      window.slice(0, expiringCount).map(quotaOf),
+      window.slice(expiringCount).map(quotaOf),
+    ),
+    isHistoryComplete: window.every(isKnown),
+  };
+}
+
+/**
  * Compute Modelo 303 summary for a single quarter (user-scoped)
  */
 export async function getModelo303Summary(year: number, quarter: number): Promise<Modelo303Summary> {
@@ -356,7 +441,7 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
   // The WHOLE year, not the quarters up to this one: the pool needs the earlier quarters, and
   // vatPoolIsStranded needs the later ones — a Q3 invoice with Spanish VAT is exactly what makes
   // the claim "this balance can only grow" false while viewing Q1. Filtered in TS below.
-  const [yearRows, profile] = await Promise.all([loadFiscalRows(userId, year), getFiscalProfileForUser(userId, year)]);
+  const [yearRows, pool] = await Promise.all([loadFiscalRows(userId, year), loadVatPoolInputs(userId, year)]);
 
   const rows = yearRows.filter((row) => row.FiscalQuarter <= quarter);
   const totals = modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter));
@@ -364,12 +449,14 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
   const casilla45 = totals.casilla29;
   const resultCents = casilla27 - casilla45;
 
-  // Casilla 110: the pool as it stands when this quarter is filed
-  const earlierResults = Array.from({ length: quarter - 1 }, (_, index) =>
-    modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === index + 1))),
-  );
-  const vatPoolOpeningCents = rollVatPoolCents(profile.vatPoolOpeningCents, earlierResults);
-  const vatPoolClosingCents = rollVatPoolCents(vatPoolOpeningCents, [resultCents]);
+  // This quarter as filed too: its closing (casilla 87) is the next quarter's casilla 110, and the
+  // two must not disagree because only one of them was recomputed.
+  const poolResults = quarterResultsAsFiled(rows, pool.filedThisYear, ALL_QUARTER_NUMBERS.slice(0, quarter));
+  const vatPool = vatPoolByQuarterCents(pool.openingCents, poolResults, pool.expiringRemainders)[quarter - 1]!;
+
+  // Nothing expires before 2T. From then on, a gap in those 303s means casilla 110 cannot tell what
+  // expired, so the card says so instead of showing a figure that looks exact.
+  const vatPoolExpiryUnknown = pool.openingCents > 0 && quarter > 1 && !pool.isHistoryComplete;
 
   // Output VAT is what a pool gets compensated against. With none in the whole year — every
   // client outside Spain — the balance can only grow, and the refund is the only way out.
@@ -386,9 +473,10 @@ export async function getModelo303Summary(year: number, quarter: number): Promis
     casilla45Cents: casilla45,
     casilla120Cents: totals.casilla120,
     resultCents,
-    vatPoolOpeningCents,
-    vatPoolClosingCents,
-    vatPoolIsStranded: outputVatThisYear === 0 && vatPoolClosingCents > 0,
+    vatPoolOpeningCents: vatPool.openingCents,
+    vatPoolClosingCents: vatPool.closingCents,
+    vatPoolIsStranded: outputVatThisYear === 0 && vatPool.closingCents > 0,
+    vatPoolExpiryUnknown,
   };
 }
 
@@ -555,7 +643,7 @@ export async function getModelo130Summary(year: number, quarter: number): Promis
 const ALL_QUARTERS = 4;
 
 /** [1, 2, 3, 4] — the quarters of a fiscal year, in order. */
-const ALL_QUARTER_NUMBERS = Array.from({ length: ALL_QUARTERS }, (_, index) => index + 1);
+const ALL_QUARTER_NUMBERS: FiscalQuarter[] = Object.values(FISCAL_QUARTER);
 
 /**
  * Quarters whose Modelo 130 filing window has already closed — what the user has paid
@@ -733,9 +821,9 @@ export async function getIrpfProjection(
 export async function getModelo390Summary(year: number): Promise<Modelo390Summary> {
   const userId = await getUserIdOrThrow();
 
-  // The profile carries the pool the year opened with, which a positive quarter settles against
-  // before it touches any quota of the year — see casilla 662 below.
-  const [rows, profile] = await Promise.all([loadFiscalRows(userId, year), getFiscalProfileForUser(userId, year)]);
+  // The pool the year opened with, and what of it expires, is what a positive quarter settles
+  // against before it touches any quota of the year — see casilla 662 below.
+  const [rows, pool] = await Promise.all([loadFiscalRows(userId, year), loadVatPoolInputs(userId, year)]);
 
   let totalC07 = 0;
   let totalC09 = 0;
@@ -783,13 +871,12 @@ export async function getModelo390Summary(year: number): Promise<Modelo390Summar
   // Both assume no refund was requested in the 4T 303. With a refund, 97 and 662 are 0 and the
   // balance goes to casilla 98 instead; nothing stored says whether it was requested, so the
   // card warns rather than guess.
-  const quarterResults = ALL_QUARTER_NUMBERS.map((quarter) =>
-    modelo303Result(modelo303Totals(rows.filter((row) => row.FiscalQuarter === quarter))),
-  );
-  const pendingByQuarter = pendingVatQuotasByQuarterCents(profile.vatPoolOpeningCents, quarterResults);
+  // The same per-quarter results and expiry the 303s carried, or 662 would disagree with them.
+  const quarterResults = quarterResultsAsFiled(rows, pool.filedThisYear, ALL_QUARTER_NUMBERS);
+  const pendingByQuarter = pendingVatQuotasByQuarterCents(pool.openingCents, quarterResults, pool.expiringRemainders);
   // Nothing comes after the last quarter, so its pending quota is its own result a compensar.
   const casilla97 = pendingByQuarter[ALL_QUARTERS - 1] ?? 0;
-  const casilla662 = pendingByQuarter.slice(0, ALL_QUARTERS - 1).reduce((sum, cents) => sum + cents, 0);
+  const casilla662 = sumCents(pendingByQuarter.slice(0, ALL_QUARTERS - 1));
 
   return {
     fiscalYear: year,

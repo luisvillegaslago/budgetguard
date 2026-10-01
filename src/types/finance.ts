@@ -680,6 +680,11 @@ export interface Modelo303Summary {
    * it against. The only way out is asking for the refund in the fourth quarter.
    */
   vatPoolIsStranded: boolean;
+  /**
+   * True when the 303s of four years back that this quarter needs are not filed in the app with
+   * their result: casilla 110 cannot discount the quotas that expired, so it overstates the pool.
+   */
+  vatPoolExpiryUnknown: boolean;
 }
 
 /**

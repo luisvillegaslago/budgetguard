@@ -307,7 +307,7 @@ src/
 │   ├── money.ts                       # Currency conversions
 │   ├── helpers.ts                     # Date/utility functions
 │   ├── recurring.ts                   # Occurrence date calculation
-│   ├── fiscal.ts                     # computeFiscalFields, rollVatPoolCents, gastos dificil
+│   ├── fiscal.ts                     # computeFiscalFields, vatPoolByQuarterCents, gastos dificil
 │   ├── irpf.ts                       # Per-year scale lookup, minimo personal, pension reduction
 │   ├── amortization.ts               # Day-based dotacion + year-by-year schedule (pure)
 │   ├── fiscalDeadlines.ts            # AEAT deadline computation
@@ -841,7 +841,7 @@ Two read-only clocks sit alongside the models and change no figure: the **cross-
 - `src/services/database/FiscalRepository.ts`: Queries `vw_FiscalAccrual` through `loadFiscalRows()`. Never reads `vw_FiscalQuarterly` directly — that view books invoice income on the collection date
 - `src/services/database/FiscalProfileRepository.ts`: Per-year fiscal profile. Partial upsert (`COALESCE` per column) so two cards can edit the same row
 - `src/services/database/FixedAssetRepository.ts`: Inmovilizado CRUD, plus `getAmortizationCentsForPeriod()` — the fold over a date range that `FiscalRepository` consumes. It takes an explicit `userId` and never calls `getUserIdOrThrow()`, like the other repository functions the fiscal models call internally. Also `getUnlinkedFixedAssets(year?)` and `getAssetPurchaseCandidates(assetId)` — the detection of an asset deducted twice and the search for its purchase. The second is the **only** fiscal read that goes to `vw_FiscalQuarterly` on purpose: it fills no casilla, it looks for a movement and needs that movement's own id and payment date. Neither writes: linking is `updateFixedAsset({ transactionId })`, the field update that already existed
-- `src/utils/fiscal.ts`: `computeFiscalFields()`, `rollVatPoolCents()`, `calcGastosDificilCents()` — pure
+- `src/utils/fiscal.ts`: `computeFiscalFields()`, `vatPoolByQuarterCents()`, `calcGastosDificilCents()` — pure
 - `src/utils/amortization.ts`: `amortizationCentsBetween()`, `computeAmortizationSchedule()` — pure, day-based, UTC. The schedule always sums to the base because each year is the difference of two capped accruals
 - `src/services/database/DeferralRepository.ts`: Resolutions + the movements they book, in one transaction. `getDeferralFracciones()` rebuilds ANEXO I from those movements (`SUM(...) FILTER`) rather than storing it twice. `getDeferralMovements()` keeps the parts apart with their status, and `cancelDeferralPendingMovements()` cancels only what is still pending — the guard lives in the UPDATE, and the `Deferrals` row is never deleted
 - `src/services/DeferralImportService.ts`: The fiscal policy of a deferral — which parts exist, what each is worth, which category and which deduction. The repository decides none of it

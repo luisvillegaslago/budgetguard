@@ -849,7 +849,17 @@
       "casilla110": "IVA a compensar from earlier periods",
       "casilla87": "Left for later periods",
       "pool-stranded": "This balance can only grow: there is no output VAT to compensate it against. The refund is requested in Q4 (casilla 73).",
-      "pool-claim-now": "This is the quarter to ask for the refund: tick casilla 73 and claim the {total} accumulated."
+      "pool-claim-now": "This is the quarter to ask for the refund: tick casilla 73 and claim the {total} accumulated.",
+      "pool-expiry-unknown": "Some 303s from {from} to {to} are not in the app with their result (or one quarter has two with different amounts), so casilla 110 cannot work out what expires and may not match the one AEAT prefills. Add them with \"I filed a tax form\" or keep a single one per quarter.",
+      "opening": {
+        "title": "VAT to compensate carried into {year}",
+        "when": "When: once a year, when filing the first-quarter 303 (1 to 20 April). Open the draft in AEAT's Sede and look at casilla 110, \"Cuotas a compensar pendientes de periodos anteriores\": it comes already filled in.",
+        "why": "Copy that exact amount here. It is the balance the tax office recognises, and the app works out from it casilla 110 for the rest of the year, what expires and what you can claim in Q4. Do not type a figure you worked out yourself: AEAT's is the one that counts.",
+        "refund": "If you asked for the refund in the previous Q4, it will be 0 or close to it. That is correct too: save it anyway.",
+        "label": "Casilla 110 of the Q1 draft (€)",
+        "save": "Save",
+        "saved": "Saved. Casilla 110 for the rest of the year now starts from this amount."
+      }
     },
     "modelo130": {
       "title": "Modelo 130 — Income Tax",

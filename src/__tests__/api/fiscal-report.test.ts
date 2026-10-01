@@ -23,6 +23,7 @@ const mockModelo303: Modelo303Summary = {
   vatPoolOpeningCents: 0,
   vatPoolClosingCents: 2751,
   vatPoolIsStranded: true,
+  vatPoolExpiryUnknown: false,
 };
 
 const mockModelo130: Modelo130Summary = {

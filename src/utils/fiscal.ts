@@ -8,6 +8,7 @@
 import { FISCAL_QUARTER, type FiscalQuarter, GASTOS_DIFICIL } from '@/constants/finance';
 import type { FiscalComputedFields, FiscalPeriod } from '@/types/finance';
 import { toDateString } from '@/utils/helpers';
+import { sumCents } from '@/utils/money';
 
 /** Calendar month (1-12) → the quarter it is settled in. */
 function quarterOfMonth(month: number): FiscalQuarter {
@@ -96,64 +97,143 @@ export function computeFiscalFields(
   return { baseCents, ivaCents, baseDeducibleCents, baseVatDeducibleCents, ivaDeducibleCents };
 }
 
+/** Settles a positive quarter against the oldest quotas first, which is the order they expire in. */
+function settleOldestFirst(tranches: number[], resultCents: number): number[] {
+  return tranches.reduce<{ leftCents: number; tranches: number[] }>(
+    (acc, cents) => {
+      const usedCents = Math.min(cents, acc.leftCents);
+      return { leftCents: acc.leftCents - usedCents, tranches: [...acc.tranches, cents - usedCents] };
+    },
+    { leftCents: resultCents, tranches: [] },
+  ).tranches;
+}
+
+export interface VatPoolQuarter {
+  /** Casilla 110: the pool when this quarter is filed */
+  openingCents: number;
+  /** What is left once this quarter's own result is applied */
+  closingCents: number;
+}
+
 /**
- * Roll the "IVA a compensar" pool forward through a year's quarterly results.
+ * How much of each quota that expires during year Y the opening balance still holds.
  *
- * Modelo 303 casillas 110/78/87: a negative quarter adds its excess input VAT to the pool, and
- * a positive one is settled against the pool first (casilla 78) before anything is paid. The
- * pool never goes negative — what a positive quarter cannot absorb is simply paid.
+ * The opening is AEAT's figure after every positive quarter and every refund consumed the pool,
+ * oldest quota first. So what survives in it is the NEWEST money: the expiring quotas (1T-3T of
+ * Y-4) keep only what the opening has beyond everything generated after them, and among
+ * themselves the 3T one keeps its part before the 2T one does. Without this, the year after a
+ * refund would expire again quotas the refund already paid out.
+ *
+ * @param openingCents - Pool carried into the year (casilla 110 of its first 303)
+ * @param expiringQuotasCents - Quota declared by 1T, 2T and 3T of year Y-4, oldest first
+ * @param newerQuotasCents - Every quota declared after them and before the year: 4T of Y-4 to 4T of Y-1
+ * @returns What is left of each expiring quota, in the same order
+ */
+export function expiringRemaindersCents(
+  openingCents: number,
+  expiringQuotasCents: number[],
+  newerQuotasCents: number[],
+): number[] {
+  const declared = expiringQuotasCents.map((cents) => Math.max(0, cents));
+  const olderLeft = Math.max(0, openingCents - sumCents(newerQuotasCents.map((cents) => Math.max(0, cents))));
+
+  return declared.map((cents, index) => Math.min(cents, Math.max(0, olderLeft - sumCents(declared.slice(index + 1)))));
+}
+
+interface VatPoolWalk {
+  quarters: VatPoolQuarter[];
+  /** One entry per quarter: what is left at the end of the walk of the quota it generated */
+  pendingByQuarter: number[];
+}
+
+/**
+ * The one walk of the "IVA a compensar" pool that the 303 and the 390 both read.
+ *
+ * The pool is kept split by where each euro came from, oldest first: the expiring quotas of the
+ * opening, the rest of the opening, then one quota per quarter (0 for a quarter that generated
+ * none). A negative quarter adds its quota; a positive one settles against the oldest first.
+ */
+function walkVatPool(openingCents: number, quarterResultsCents: number[], expiringQuotasCents: number[]): VatPoolWalk {
+  const opening = Math.max(0, openingCents);
+  const given = expiringQuotasCents.map((cents) => Math.max(0, cents));
+  const heldByOpening = (count: number): number => Math.min(opening, sumCents(given.slice(0, count)));
+  // Index i leaves at the start of quarter i + 2
+  const expiring = given.map((_, index) => heldByOpening(index + 1) - heldByOpening(index));
+  const openingTranches = [...expiring, opening - sumCents(expiring)];
+
+  const walked = quarterResultsCents.reduce<{ tranches: number[]; quarters: VatPoolQuarter[] }>(
+    (acc, resultCents, index) => {
+      const expiredIndex = index - 1;
+      const atFiling = acc.tranches.map((cents, position) =>
+        position === expiredIndex && expiredIndex < expiring.length ? 0 : cents,
+      );
+      const afterResult =
+        resultCents < 0 ? [...atFiling, -resultCents] : [...settleOldestFirst(atFiling, resultCents), 0];
+
+      return {
+        tranches: afterResult,
+        quarters: [...acc.quarters, { openingCents: sumCents(atFiling), closingCents: sumCents(afterResult) }],
+      };
+    },
+    { tranches: openingTranches, quarters: [] },
+  );
+
+  return { quarters: walked.quarters, pendingByQuarter: walked.tranches.slice(openingTranches.length) };
+}
+
+/**
+ * Walk the "IVA a compensar" pool through a year's quarterly results, with the four-year expiry.
+ *
+ * Modelo 303 casillas 110/78/87: a negative quarter adds its excess input VAT to the pool, and a
+ * positive one is settled against the pool first (casilla 78) before anything is paid. The pool
+ * never goes negative — what a positive quarter cannot absorb is simply paid.
+ *
+ * Expiry follows AEAT's practice, which counts periods and not dates: the quota of a quarter still
+ * counts in the 303 of the same quarter four years later and is gone from the next one. So within
+ * year Y the quotas of 1T-3T of Y-4 leave at the start of 2T-4T; the 4T one leaves at 1T of Y+1,
+ * which the next year's opening balance already reflects. Verified to the cent against every 303
+ * filed from 2020 to 2026 (docs/FISCAL_DOMAIN.md, "IVA a compensar: the pool").
+ *
+ * A positive quarter of the year consumes the expiring quotas first. What earlier years already
+ * consumed of them is the caller's to resolve, with expiringRemaindersCents(); the walk only
+ * guards that it never expires more than the opening holds.
  *
  * @param openingCents - Pool carried into the year (casilla 110 of its first 303)
  * @param quarterResultsCents - Each quarter's own result: negative = a compensar, positive = a ingresar
- * @returns The pool left after the last quarter given, in cents
+ * @param expiringQuotasCents - What the opening still holds of the quotas of 1T, 2T and 3T of year Y-4, oldest first
+ * @returns One entry per quarter given
  */
-export function rollVatPoolCents(openingCents: number, quarterResultsCents: number[]): number {
-  return quarterResultsCents.reduce(
-    (pool, result) => (result < 0 ? pool - result : Math.max(0, pool - result)),
-    Math.max(0, openingCents),
-  );
+export function vatPoolByQuarterCents(
+  openingCents: number,
+  quarterResultsCents: number[],
+  expiringQuotasCents: number[],
+): VatPoolQuarter[] {
+  return walkVatPool(openingCents, quarterResultsCents, expiringQuotasCents).quarters;
 }
 
 /**
  * What is still pending, at the close of the quarters given, of the quota each of them generated.
  *
- * The same walk as rollVatPoolCents(), but keeping the pool split by where each euro came from:
- * the balance carried into the year first, then one entry per quarter. A positive quarter
- * settles against the OLDEST quota first, which is the order in which art. 99.Cinco LIVA lets
- * them expire, so a quarter's own quota is only touched once everything older is gone.
+ * The same walk as vatPoolByQuarterCents(), read by where each euro came from. A positive quarter
+ * settles against the OLDEST quota first, which is the order in which art. 99.Cinco LIVA lets them
+ * expire, so a quarter's own quota is only touched once everything older is gone — including the
+ * opening quotas that expire during the year, which are no longer there to absorb it.
  *
  * Modelo 390 needs this split and not the plain total: casilla 662 declares the quotas generated
  * in the year that are still pending at 31 December, apart from the ones in casilla 97. Summing
  * each quarter's gross "a compensar" overstates it as soon as a later quarter consumed part of it.
  *
- * The entries always add up to rollVatPoolCents() minus what is left of the opening balance.
- *
  * @param openingCents - Pool carried into the year (casilla 110 of its first 303)
  * @param quarterResultsCents - Each quarter's own result: negative = a compensar, positive = a ingresar
+ * @param expiringQuotasCents - As in vatPoolByQuarterCents(); none by default
  * @returns One entry per quarter: the part of its own quota still pending, 0 for a quarter a ingresar
  */
-export function pendingVatQuotasByQuarterCents(openingCents: number, quarterResultsCents: number[]): number[] {
-  // Index 0 is the opening balance, index i + 1 the quota of quarter i: oldest first.
-  const settleOldestFirst = (tranches: number[], resultCents: number): number[] =>
-    tranches.reduce<{ leftCents: number; tranches: number[] }>(
-      (acc, cents) => {
-        const usedCents = Math.min(cents, acc.leftCents);
-        return { leftCents: acc.leftCents - usedCents, tranches: [...acc.tranches, cents - usedCents] };
-      },
-      { leftCents: resultCents, tranches: [] },
-    ).tranches;
-
-  const initial = [Math.max(0, openingCents), ...quarterResultsCents.map(() => 0)];
-
-  return quarterResultsCents
-    .reduce<number[]>(
-      (tranches, resultCents, index) =>
-        resultCents < 0
-          ? tranches.map((cents, position) => (position === index + 1 ? -resultCents : cents))
-          : settleOldestFirst(tranches, resultCents),
-      initial,
-    )
-    .slice(1);
+export function pendingVatQuotasByQuarterCents(
+  openingCents: number,
+  quarterResultsCents: number[],
+  expiringQuotasCents: number[] = [],
+): number[] {
+  return walkVatPool(openingCents, quarterResultsCents, expiringQuotasCents).pendingByQuarter;
 }
 
 /**

@@ -849,7 +849,17 @@
       "casilla110": "IVA a compensar de periodos anteriores",
       "casilla87": "Pendiente para periodos posteriores",
       "pool-stranded": "Este saldo solo puede crecer: no repercutes IVA contra el que compensarlo. Se pide la devolución en el 4T (casilla 73).",
-      "pool-claim-now": "Es el trimestre para pedir la devolución: marca la casilla 73 y reclama los {total} acumulados."
+      "pool-claim-now": "Es el trimestre para pedir la devolución: marca la casilla 73 y reclama los {total} acumulados.",
+      "pool-expiry-unknown": "Faltan en la app algunos 303 de {from} a {to} con su resultado (o hay dos con importes distintos para el mismo trimestre), así que la casilla 110 no puede calcular bien lo que caduca y puede no coincidir con la que precarga la AEAT. Regístralos con «He presentado un modelo» o deja uno solo por trimestre.",
+      "opening": {
+        "title": "Saldo de IVA a compensar al empezar {year}",
+        "when": "Cuándo: una vez al año, al presentar el 303 del primer trimestre (del 1 al 20 de abril). Abre el borrador en la Sede de la AEAT y mira la casilla 110, «Cuotas a compensar pendientes de periodos anteriores»: ya viene rellena.",
+        "why": "Copia aquí ese importe exacto. Es el saldo que Hacienda te reconoce, y la app calcula a partir de él la casilla 110 del resto del año, lo que caduca y lo que podrás pedir en el 4T. No pongas una cifra calculada por tu cuenta: manda la de la AEAT.",
+        "refund": "Si en el 4T del año anterior pediste la devolución, vendrá a 0 o casi. También es correcto: guárdalo igual.",
+        "label": "Casilla 110 del borrador del 1T (€)",
+        "save": "Guardar",
+        "saved": "Guardado. La casilla 110 del resto del año ya parte de este importe."
+      }
     },
     "modelo130": {
       "title": "Modelo 130 — IRPF",

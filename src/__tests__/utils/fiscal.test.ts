@@ -10,10 +10,11 @@ import type { FiscalComputedFields } from '@/types/finance';
 import {
   calcGastosDificilCents,
   computeFiscalFields,
+  expiringRemaindersCents,
   getFiscalPeriod,
   isSameFiscalPeriod,
   pendingVatQuotasByQuarterCents,
-  rollVatPoolCents,
+  vatPoolByQuarterCents,
 } from '@/utils/fiscal';
 
 // ---------------------------------------------------------------------------
@@ -406,42 +407,105 @@ describe('FiscalReportFiltersSchema', () => {
 });
 
 // ---------------------------------------------------------------------------
-// rollVatPoolCents — casillas 110 / 78 / 87 of the Modelo 303
+// vatPoolByQuarterCents — casillas 110 / 78 / 87 of the Modelo 303
 // ---------------------------------------------------------------------------
 
-describe('rollVatPoolCents', () => {
-  it('keeps the opening balance when no quarter has been filed yet', () => {
-    expect(rollVatPoolCents(114_452, [])).toBe(114_452);
+/** The balance left after the last quarter given. */
+const closingOf = (pool: Array<{ closingCents: number }>): number | undefined => pool.at(-1)?.closingCents;
+
+describe('vatPoolByQuarterCents', () => {
+  it('returns nothing while no quarter has been filed yet', () => {
+    expect(vatPoolByQuarterCents(114_452, [], [])).toEqual([]);
   });
 
-  it('adds a negative quarter to the pool', () => {
+  it('opens the first quarter with the balance carried into the year and adds a negative quarter to it', () => {
     // −168,67 € of input VAT with nothing to set it against: the pool grows by that much
-    expect(rollVatPoolCents(114_452, [-16_867])).toBe(131_319);
+    expect(vatPoolByQuarterCents(114_452, [-16_867], [])).toEqual([{ openingCents: 114_452, closingCents: 131_319 }]);
   });
 
-  it('accumulates a whole year of negative quarters', () => {
+  it('accumulates a whole year of negative quarters, each opening where the last one closed', () => {
     // The user's real 2025 results, quarter by quarter
-    expect(rollVatPoolCents(0, [-4_467, -3_663, -7_526, -16_867])).toBe(32_523);
+    const pool = vatPoolByQuarterCents(0, [-4_467, -3_663, -7_526, -16_867], []);
+
+    expect(pool.map((quarter) => quarter.openingCents)).toEqual([0, 4_467, 8_130, 15_656]);
+    expect(closingOf(pool)).toBe(32_523);
   });
 
   it('settles a positive quarter against the pool instead of paying it', () => {
     // Casilla 78: 300,00 € to pay, absorbed by a 500,00 € pool
-    expect(rollVatPoolCents(50_000, [30_000])).toBe(20_000);
+    expect(closingOf(vatPoolByQuarterCents(50_000, [30_000], []))).toBe(20_000);
   });
 
   it('never goes negative: what the pool cannot absorb is simply paid', () => {
-    expect(rollVatPoolCents(10_000, [30_000])).toBe(0);
+    expect(closingOf(vatPoolByQuarterCents(10_000, [30_000], []))).toBe(0);
   });
 
-  it('starts from zero when the opening balance is negative or missing', () => {
-    expect(rollVatPoolCents(-5_000, [-1_000])).toBe(1_000);
-    expect(rollVatPoolCents(0, [])).toBe(0);
+  it('starts from zero when the opening balance is negative', () => {
+    expect(vatPoolByQuarterCents(-5_000, [-1_000], [])).toEqual([{ openingCents: 0, closingCents: 1_000 }]);
   });
 
   it('applies the quarters in order, which matters when one of them is positive', () => {
     // Pay first and the pool absorbs it; generate first and there is more to absorb with
-    expect(rollVatPoolCents(0, [20_000, -50_000])).toBe(50_000);
-    expect(rollVatPoolCents(0, [-50_000, 20_000])).toBe(30_000);
+    expect(closingOf(vatPoolByQuarterCents(0, [20_000, -50_000], []))).toBe(50_000);
+    expect(closingOf(vatPoolByQuarterCents(0, [-50_000, 20_000], []))).toBe(30_000);
+  });
+
+  it('drops the quotas of 1T-3T of four years back at the start of 2T-4T', () => {
+    // 1.000,00 carried in; 1T, 2T and 3T generate 10,00, 20,00 and 5,00; the 1T, 2T and 3T quotas
+    // of four years back (30,00, 15,00 and 25,00) leave at the start of 2T, 3T and 4T
+    const pool = vatPoolByQuarterCents(100_000, [-1_000, -2_000, -500, 0], [3_000, 1_500, 2_500]);
+
+    expect(pool.map((quarter) => quarter.openingCents)).toEqual([100_000, 98_000, 98_500, 96_500]);
+  });
+
+  it('keeps every quota through the first quarter: the 4T one of four years back already left the opening', () => {
+    expect(vatPoolByQuarterCents(10_000, [0], [3_000, 1_000, 500])).toEqual([
+      { openingCents: 10_000, closingCents: 10_000 },
+    ]);
+  });
+
+  it('lets a positive quarter consume the expiring quota first, so less of it is left to expire', () => {
+    // 20,00 € to pay in Q1 come out of the 30,00 € quota that expires at the start of Q2
+    const pool = vatPoolByQuarterCents(10_000, [2_000, 0], [3_000, 0, 0]);
+
+    expect(pool.map((quarter) => quarter.openingCents)).toEqual([10_000, 7_000]);
+  });
+
+  it('caps an expiring quota at what the opening still holds of it', () => {
+    // An earlier positive quarter already consumed part of the old quotas: never expire more than is there
+    const pool = vatPoolByQuarterCents(2_000, [0, 0, 0], [3_000, 1_000, 0]);
+
+    expect(pool.map((quarter) => quarter.openingCents)).toEqual([2_000, 0, 0]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// expiringRemaindersCents — what the opening still holds of the quotas that expire this year
+// ---------------------------------------------------------------------------
+
+/** Quotas generated from 4T of Y-4 to 4T of Y-1, oldest first: 930,00 in all. */
+const NEWER_QUOTAS = [10_000, 8_000, 2_000, 4_000, 40_000, 0, 7_000, 3_000, 5_000, 4_000, 3_000, 7_000, 0];
+
+describe('expiringRemaindersCents', () => {
+  it('keeps the expiring quotas whole while nothing consumed them', () => {
+    // 1.000,00 opening = 70,00 of the expiring quotas + 930,00 generated after them, to the cent
+    expect(expiringRemaindersCents(100_000, [3_000, 1_500, 2_500], NEWER_QUOTAS)).toEqual([3_000, 1_500, 2_500]);
+  });
+
+  it('expires nothing the year after a refund already paid those quotas out', () => {
+    // Refund asked in a 4T: the next openings hold only what was generated since, so the old
+    // quotas still on file are not in the pool and must not leave it a second time
+    expect(expiringRemaindersCents(20_000, [0, 7_000, 3_000], [5_000, 4_000, 3_000, 7_000, 16_000])).toEqual([0, 0, 0]);
+  });
+
+  it('takes what earlier consumption ate from the oldest expiring quota first', () => {
+    // 25,00 € of the expiring quotas survive: the 3T one whole, the 2T one in part, the 1T one gone
+    expect(expiringRemaindersCents(12_500, [3_000, 2_000, 1_000], [5_000, 5_000])).toEqual([0, 1_500, 1_000]);
+  });
+
+  it('never keeps more than was declared, nor less than nothing', () => {
+    expect(expiringRemaindersCents(99_999, [3_000, -500], [])).toEqual([3_000, 0]);
+    expect(expiringRemaindersCents(-1_000, [3_000], [])).toEqual([0]);
   });
 });
 
@@ -476,12 +540,20 @@ describe('pendingVatQuotasByQuarterCents', () => {
     expect(pendingVatQuotasByQuarterCents(-5_000, [-1_000, 500])).toEqual([500, 0]);
   });
 
+  it('lets a positive quarter reach the quotas of the year once the expiring ones are gone', () => {
+    // 300,00 € opening, all of it a quota that expires at 2T: the 3T payment can only consume the
+    // 1T quota, as the 303s did. Without the expiry the opening would absorb it and 90,00 € of the
+    // 1T quota would wrongly look pending.
+    expect(pendingVatQuotasByQuarterCents(30_000, [-21_000, 0, 42_000, 0], [30_000, 0, 0])).toEqual([0, 0, 0, 0]);
+    expect(pendingVatQuotasByQuarterCents(30_000, [-21_000, 0, 42_000, 0])).toEqual([9_000, 0, 0, 0]);
+  });
+
   it('adds up to the pool the year generated and still holds', () => {
     const results = [-2_100, 1_050, -700, 300];
 
     const pending = pendingVatQuotasByQuarterCents(0, results);
 
-    expect(pending.reduce((sum, cents) => sum + cents, 0)).toBe(rollVatPoolCents(0, results));
+    expect(pending.reduce((sum, cents) => sum + cents, 0)).toBe(closingOf(vatPoolByQuarterCents(0, results, [])));
   });
 });
 

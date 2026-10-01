@@ -772,8 +772,8 @@ CREATE TABLE "FiscalProfiles" (
 **Why the VAT pool opening is stored and not computed.** The pool is what the AEAT's own registry
 says it is, and a refund is paid against *their* figure. Recomputing it from the app's transactions
 would silently disagree with the filed models whenever a quarter was filed before its data was
-complete. It is seeded from the filed 303 and only rolled forward from there — see
-`rollVatPoolCents()` and [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § IVA a compensar.
+complete. It is copied from the 1T 303 draft, in the first-quarter 303 card, and only rolled forward from there — see
+`vatPoolByQuarterCents()` and [FISCAL_DOMAIN.md](FISCAL_DOMAIN.md) § IVA a compensar.
 
 **Partial writes.** Two different cards edit this row (pension contributions, VAT pool). The upsert
 in `FiscalProfileRepository` uses `COALESCE($n, existing)` per column so an omitted field keeps its
@@ -1746,6 +1746,7 @@ export interface Modelo303Summary {
   vatPoolOpeningCents: number;      // Casilla 110, carried in from earlier periods
   vatPoolClosingCents: number;      // Casilla 87 — the balance left after filing
   vatPoolIsStranded: boolean;       // No output VAT this year: the pool can only grow
+  vatPoolExpiryUnknown: boolean;    // The 303s of four years back are missing: 110 cannot discount expiries
 }
 
 // Modelo 130 — IRPF pago fraccionado. CUMULATIVE from 1 January, not per quarter

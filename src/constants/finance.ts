@@ -419,6 +419,14 @@ export const GASTOS_DIFICIL = {
   MAX_CENTS: 200_000, // 2,000€ annual cap
 } as const;
 
+// IVA a compensar (Modelo 303 casilla 110): art. 99.Cinco LIVA, as AEAT applies it
+export const VAT_POOL = {
+  QUOTA_LIFETIME_YEARS: 4, // a quota still counts in the 303 of the same quarter four years later
+  // Sanity ceiling for the balance typed in the 1T card. Its own figure, not the pension
+  // ceiling: the two bound unrelated amounts and must be free to move apart.
+  MAX_EUROS: 1_000_000,
+} as const;
+
 // ── IRPF provision (Modelo 130 vs. the real progressive tax) ──
 
 /** One IRPF bracket: [upper limit in cents (Infinity for the last one), rate as a factor] */
@@ -524,13 +532,6 @@ export const PENSION_PLAN = {
 } as const;
 
 /** Modelo 130 pays a flat rate on the accumulated net income — the same IRPF_RATE, as a factor. */
-/**
- * Sanity ceiling, in euros, for the IVA a compensar carried into a year. Its own constant on
- * purpose: it used to borrow PENSION_PLAN.MAX_CONTRIBUTION_EUROS, so moving the pension form's
- * bound would have silently moved this one, and the two answer unrelated questions.
- */
-export const VAT_POOL_MAX_EUROS = 1_000_000;
-
 export const IRPF_PROJECTION = {
   M130_RATE: IRPF_RATE / 100,
   /** Run-rate on fewer elapsed days is noise, not a projection. */

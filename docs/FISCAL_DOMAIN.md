@@ -314,9 +314,31 @@ base is still declared. The practical consequence is the next section.
 
 With no output VAT, input VAT never gets offset against anything. It accumulates.
 
-`rollVatPoolCents(opening, quarterResults)` walks the year: a negative quarter adds its excess to
-the pool, a positive one settles against the pool first and only the remainder is paid. The pool
-never goes below zero.
+`vatPoolByQuarterCents(opening, quarterResults, expiringQuotas)` walks the year: a negative quarter
+adds its excess to the pool, a positive one settles against the pool first — oldest quota first —
+and only the remainder is paid. The pool never goes below zero. `getModelo303Summary()` feeds it
+two things the app's rows cannot give:
+
+- **A filed quarter counts for what was filed** (`TaxAmountCents` of its 303), not for what its rows
+  recompute today: AEAT carried the filed figure into casilla 110, and a row re-coded afterwards
+  would otherwise move a balance that no longer can. The quarter being viewed counts as filed too,
+  so its casilla 87 is exactly the next casilla 110. Only a negative 1T-3T filing is used: a zero
+  or positive one does not say how much of the pool it consumed, and a 4T one can carry the whole
+  pool applied for the refund (casilla 78), so the 4T is always recomputed.
+- **The quotas that expire during the year** are the results of 1T-3T in the 303s of four years
+  back — but only what the opening still holds of them (`expiringRemaindersCents()`). Positive
+  quarters and refunds consume the pool oldest first, so what survives in the opening is the newest
+  money: the expiring quotas keep only what it has beyond everything generated after them. Without
+  that, the three years after a refund would expire again quotas the refund already paid out.
+- **What the app needs on file:** every 303 from 1T of Y-4 to 4T of Y-1, with its result
+  (`getFiled303History()`). Periods before the first 303 on file count as empty — there was no
+  activity to generate a quota — so a recent autónomo is not warned about years that cannot exist.
+  A period filed twice with different results comes back absent rather than picked: the app cannot
+  tell a rectificativa from the return it corrects. Any gap after the first 303 sets
+  `vatPoolExpiryUnknown`, and the card says so instead of showing a figure that looks exact.
+- **The 390 walks the same pool** — same per-quarter results, same expiry — through
+  `pendingVatQuotasByQuarterCents()`, so casillas 97 and 662 agree with the 303s they are
+  reconciled against.
 
 Two things about this deserve care:
 
@@ -325,17 +347,32 @@ from casilla 110 of the year's first filed 303. Recomputing it from the app's ow
 disagree with AEAT's registry the moment a quarter was filed with incomplete data — and a refund is
 paid against *their* figure, not the app's.
 
-**Compensation quotas expire after four years** (art. 99.5 LIVA). If the pool is not consumed
-within four years of the quarter that generated it, that amount is lost, and the only way to
-recover it is to request the refund (*devolución*) in the fourth-quarter 303 — casilla 62/64, once
-a year, only in that quarter.
+The user types it once a year, in April: the 303 card of the **first quarter** shows the field
+(`VatPoolOpeningForm`) with the instructions on screen — open the 1T draft in the Sede, copy the
+prefilled casilla 110. Until then a new year starts at zero. The field is deliberately **not
+prefilled with an estimate**: the year a refund was asked for in the previous 4T, AEAT prefills 0
+and any roll-forward of the app would be off by the whole balance, which is exactly the number not
+to copy by mistake. Until 1-10-2026 there was no screen for it at all and 2026 was written straight
+into the database.
+
+**Compensation quotas expire after four years** (art. 99.5 LIVA), and AEAT applies the limit by
+period, not by date: a quarter's quota still counts in the 303 of the same quarter four years later
+and is gone from casilla 110 in the next one. The way to use the pool before that is the refund
+(*devolución*) in the fourth-quarter 303 — casilla 73, once a year, only in that quarter.
+
+**An expired quota is not necessarily lost.** The Tribunal Supremo (STS 4-7-2007, reiterated in
+STS 20-9-2013, rec. 4348/2012) and the TEAC (27-12-2024, RG 00/00962/2023) hold that a balance the
+taxpayer could not compensate within the four years must be refunded, on a separate request under
+the LGT rather than in a 303. When the prescription of that request starts counting is **not
+verified**.
 
 `vatPoolIsStranded` flags the situation where this is not a risk but a certainty: no output VAT in
 the whole year, so the pool can only grow. The UI prompts for the refund when it is set.
 
-> Verified against real filings: the amounts that vanished from this user's 2025-2026 pool match
-> the 2021-2022 quarterly results one for one, five out of five. 139,15 € had already expired
-> unnoticed.
+> Verified on 1-10-2026 against every 303 this user filed from 2020 to 2026: with the period rule
+> the casilla 110 chain matches AEAT's prefilled figures to the cent. Every drop is a quota reaching
+> its limit, and a positive quarter consumed the oldest quotas first. The only irregularity found
+> is timing: AEAT once dropped a quota one quarter late, with no effect on the amounts.
 
 ---
 

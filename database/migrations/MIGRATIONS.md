@@ -35,7 +35,8 @@ old convention, so their file names do not follow the numbering scheme.
 - Luis applies migrations himself. Nothing here is ever run against a database
   automatically.
 - One-off data repairs are **not** migrations and do not belong in this folder. See
-  the note on 004.
+  the note on 004. They go in `docs/dev/repairs/`, which is gitignored: they carry real user data
+  and the repository is public.
 
 ## Last applied: 010
 

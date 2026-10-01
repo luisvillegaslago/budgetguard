@@ -2,10 +2,10 @@
  * BudgetGuard Annual Fiscal Profile Hooks
  * TanStack Query hooks for the per-year fiscal profile: the pension plan contributions the
  * taxpayer declares once a year, which reduce the base of the annual Renta and never touch
- * Modelo 130.
+ * Modelo 130, and the IVA a compensar carried into the year (casilla 110 of the first 303).
  *
- * Saving them invalidates the projection too, so the IRPF provision card recomputes with the
- * new reduction as soon as the mutation settles.
+ * Saving invalidates every model that reads the row, so the IRPF provision card and the 303/390
+ * recompute as soon as the mutation settles.
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -88,7 +88,13 @@ export function useUpsertFiscalProfile() {
       if (!data.success || !data.data) throw new Error(data.error ?? 'Fiscal profile update failed');
       return data.data;
     },
-    // The projection reads the stored contributions, so it must refetch for the card to recompute.
-    onSuccess: () => invalidateQueryKeys(queryClient, [QUERY_KEY.FISCAL_PROFILE, QUERY_KEY.IRPF_PROJECTION]),
+    // The projection reads the contributions and the 303/390 read the IVA pool: all must refetch.
+    onSuccess: () =>
+      invalidateQueryKeys(queryClient, [
+        QUERY_KEY.FISCAL_PROFILE,
+        QUERY_KEY.IRPF_PROJECTION,
+        QUERY_KEY.FISCAL_REPORT,
+        QUERY_KEY.FISCAL_ANNUAL,
+      ]),
   });
 }
