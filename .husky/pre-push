@@ -3,7 +3,9 @@
 # Fast local quality gate. Versioning is NOT done here: git freezes the list of
 # refs it will send before running this hook, so a release commit created at this
 # point would never be part of the push (it would stay local, needing a second
-# push). The bump, tag and CHANGELOG happen in CI — see .github/workflows/ci.yml.
+# push). The post-commit hook versions each commit on main, and push.followTags
+# (scripts/setup-git.js) sends the tag; `npm run ship` validates, versions anything
+# still pending and pushes with the tags.
 
 echo "Running type checking..."
 npm run check-types || exit 1
